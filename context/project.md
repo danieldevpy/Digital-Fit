@@ -37,6 +37,7 @@ React + Vite (web) · Django + DRF + Channels (api/gateway) · Python puro/numpy
 | 010 | Relatório, Persistência & Dataset | worker |
 | 011 | API SaaS (auth, quotas, planos) | api |
 | 012 | Fontes de Entrada & Bancada de Avaliação (`evalctl`, corpus de vídeos rotulados) | cli/client |
+| 013 | Interface Mobile — vinculante p/ UI; referência visual em `referencias/ui-sessao-mobile-v1.png` | client |
 
 ## Documentos
 

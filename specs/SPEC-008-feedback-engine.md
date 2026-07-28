@@ -12,7 +12,7 @@ Converte sinais brutos da análise (`quality.signal`, `scene.warning`) em **feed
 - Catálogo de mensagens por código: `ARMS_TOO_LOW` → "Estenda mais os braços acima da cabeça", `LEGS_TOO_CLOSED`, `OUT_OF_FRAME`, `TOO_FAR`, `TOO_CLOSE` (pt-BR, i18n-ready por estrutura de catálogo).
 - **Rate limit por código**: mesmo código no máximo 1×/4s; máximo 1 feedback simultâneo no HUD.
 - **Prioridade**: cena (`OUT_OF_FRAME`) > execução (`ARMS_TOO_LOW`) > ritmo.
-- HUD: contador de reps grande, timer 30s, faixa de feedback (texto + ícone), animação de fase (aberto/fechado).
+- Superfície visual: card "Dica do Treinador" da SPEC-013 (layout, estados e prioridades definidos lá; esta spec define O QUE é dito e quando, a 013 define COMO aparece).
 - Todos os feedbacks emitidos são acumulados no estado da sessão → relatório (SPEC-010).
 
 ### Fora de escopo (vai para Evolução)

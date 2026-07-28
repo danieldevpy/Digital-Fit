@@ -21,6 +21,7 @@ Cada etapa do pipeline é uma **entidade** com duas fases:
 | [SPEC-010](SPEC-010-relatorio-e-dataset.md) | Relatório, Persistência & Dataset | Fase 1 |
 | [SPEC-011](SPEC-011-api-saas.md) | API SaaS | Fase 1 (auth) / 2 |
 | [SPEC-012](SPEC-012-entrada-e-avaliacao.md) | Fontes de Entrada & Bancada de Avaliação | Fase 0 (harness CLI) |
+| [SPEC-013](SPEC-013-interface-mobile.md) | Interface Mobile (tela de sessão & app shell) | Fase 0 |
 
 ## Template
 

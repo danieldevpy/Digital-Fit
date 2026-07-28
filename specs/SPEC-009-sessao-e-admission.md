@@ -34,6 +34,7 @@ Fila de espera, quotas por usuário/plano, retomada de sessão, limite edge.
 - **Quotas por plano** (integra SPEC-011): sessões/dia, prioridade de fila para pagantes.
 - **Retomada**: reconexão em ≤ 5s continua a sessão (par com SPEC-002 evolução); estado da FSM restaurado do snapshot Redis.
 - Sessões de duração configurável (45s/60s premium) — o admission control já é parametrizado por duração.
+- **Meta de reps e séries** (SPEC-013): `target_reps` opcional na config (fim antecipado com `reason: "target_reached"`); treino em N séries de 30s com descanso — cada série é uma sessão do ponto de vista do admission control (a unidade de carga não muda).
 - Autoscaling manual documentado: 2ª máquina rodando só pose-workers apontando pro mesmo Redis.
 
 ## Eventos

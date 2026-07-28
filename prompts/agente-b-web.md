@@ -12,7 +12,9 @@ CONTEXTO (leia nesta ordem, nada além disso):
 1. context/project.md
 2. context/conventions.md
 3. AGENTS.md
-4. A spec da task atual em specs/
+4. specs/SPEC-013-interface-mobile.md + a imagem referencias/ui-sessao-mobile-v1.png
+   (design VINCULANTE para toda UI — mobile-first)
+5. A spec da task atual em specs/
 
 TERRITÓRIO (você SÓ pode criar/editar arquivos aqui):
 - web/  (React + Vite + TypeScript — app inteiro)
@@ -36,10 +38,16 @@ SUAS TASKS, NESTA ORDEM (detalhes no BACKLOG.md; specs citadas lá):
 3. T-007 — gravador de fixtures: botão dev que salva a sequência de
    keypoints da sessão em JSON no formato do contrato (o Agente A usará
    esses arquivos nos testes dele — formato é o do events.py, sem invenção)
-4. T-012 — HUD: contador de reps grande, timer 30s, animação de fase
-   aberto/fechado, faixa de feedback (texto + ícone), silhueta-guia e
-   warnings de enquadramento (consome scene.warning/feedback.issued do mock)
-5. Ponta cliente do WS real: conectar em ws_url com token (contrato da
+4. T-043 — app shell mobile-first: design tokens da SPEC-013, bottom nav
+   (Início ativo; Exercícios/Progresso/Perfil como placeholders) + FAB
+   central de iniciar sessão
+5. T-012 — Tela de Sessão conforme SPEC-013 e a imagem de referência:
+   barra de métricas (SÉRIE=1, reps, ângulo, kcal "--"), esqueleto sobre a
+   câmera, card do exercício + anel de countdown 30s, card "Dica do
+   Treinador" (default_tip + feedback.issued do mock), warnings de cena
+6. T-044 — ângulo articular ao vivo (client-side edge, fórmula espelhada
+   da FSM, atualização ≤10Hz, teste de paridade <5° vs fixture)
+7. Ponta cliente do WS real: conectar em ws_url com token (contrato da
    SPEC-002/009), backpressure de envio (buffer > 3 frames descarta o mais
    antigo), estados de conexão na UI. Trocar mock → real deve ser 1 flag.
 
