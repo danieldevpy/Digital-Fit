@@ -255,6 +255,44 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return 1 if comparacao.regressed else 0
 
 
+def cmd_parity(args: argparse.Namespace) -> int:
+    """Paridade edge x cloud (T-018). Código 1 = fora da tolerância da SPEC-005."""
+    from eval.parity import compare_paths
+
+    alvo = Path(args.video)
+    if not alvo.exists():
+        print(f"video nao encontrado: {alvo}", file=sys.stderr)
+        return 2
+
+    resultado = compare_paths(
+        alvo,
+        exercise=args.exercise,
+        expected_reps=args.expected_reps,
+        model_path=Path(args.model) if args.model else None,
+    )
+
+    if not args.quiet:
+        print(resultado.summary_line())
+        print(
+            f"  frames: edge={resultado.edge.frames} cloud={resultado.cloud.frames} "
+            f"| sem pose: edge={resultado.edge.frames_no_pose} "
+            f"cloud={resultado.cloud.frames_no_pose}"
+        )
+        if banda := resultado.bandwidth_line():
+            print(banda)
+
+    if args.report:
+        destino = Path(args.report)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(
+            json.dumps(resultado.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        if not args.quiet:
+            print(f"relatorio: {destino}")
+
+    return 0 if resultado.passed else 1
+
+
 def cmd_fetch_model(args: argparse.Namespace) -> int:
     """Baixa o modelo de pose. Passo explícito: a bancada nunca sai buscando rede sozinha."""
     from eval.sources import MODEL_URL, download_model
@@ -297,6 +335,18 @@ def build_parser() -> argparse.ArgumentParser:
     comparar.add_argument("--report", default=None, help="grava a comparacao em JSON")
     comparar.add_argument("--quiet", action="store_true", help="sem tabela no stdout")
     comparar.set_defaults(func=cmd_compare)
+
+    paridade = subcomandos.add_parser(
+        "parity",
+        help="paridade edge x cloud no mesmo video (codigo 1 se fora da tolerancia)",
+    )
+    paridade.add_argument("video", help="arquivo de video")
+    paridade.add_argument("--exercise", default="jumping_jack", help="slug do exercicio")
+    paridade.add_argument("--expected-reps", type=int, default=None, help="rotulo de reps")
+    paridade.add_argument("--report", default=None, help="grava o resultado em JSON")
+    paridade.add_argument("--quiet", action="store_true", help="sem saida no stdout")
+    paridade.add_argument("--model", default=None, help="caminho do .task do Pose Landmarker")
+    paridade.set_defaults(func=cmd_parity)
 
     fetch = subcomandos.add_parser(
         "fetch-model", help="baixa o modelo pose_landmarker_lite.task (uma vez)"

@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-07-28 · T-018 (parcial) — arruamento da paridade edge × cloud
+
+- Entregue: `eval/parity.py` (`CloudPathExtractor`, `compare_paths`, tolerância),
+  `evalctl parity <video>`, `tests/test_parity.py` (17 testes).
+- O que a comparação isola: as quatro degradações reais do caminho cloud — 320px, JPEG q60,
+  10fps em vez de 15, e `RunningMode.IMAGE` em vez de `VIDEO`. Nada além disso muda: mesmo
+  arquivo de modelo, mesma FSM depois da extração.
+- Decisões:
+  - **Compara contagem de reps, não keypoints.** Landmarks idênticos são impossíveis por
+    construção (JPEG e modo IMAGE mudam os números) e não é o que o produto entrega.
+  - **A tolerância sai da contagem do caminho de referência (edge), não da média.** Com a
+    média, um cloud muito errado aumentaria a própria margem — o critério afrouxaria
+    justamente no caso em que precisa ser rígido. Há teste para isso.
+  - **O `CloudPathExtractor` usa o extractor de produção**, não uma cópia: os bytes que passam
+    pelo MediaPipe no teste são os mesmos que passariam vindos de um celular.
+  - **Cadência diferente por caminho faz parte da comparação** (15 vs 10fps): menos frames é
+    menos chance de a FSM ver o pico do movimento, e isso é uma degradação legítima do cloud.
+- Verificação do encanamento com MediaPipe real, sobre um vídeo gerado da referência de UI:
+  edge leu 45 frames (3s × 15fps), cloud leu 30 (× 10fps), **os dois detectaram a pessoa em
+  100% dos frames** — o JPEG de 320px não perde a pessoa —, e 0 reps dos dois lados, correto
+  para imagem estática. Banda medida: 9,8 KB/frame, ~98 KB/s por sessão cloud.
+- **Não fecha a task**: falta rodar em vídeo com polichinelo de verdade, e isso é a T-038, que
+  depende de gravação. O comando está pronto: `evalctl parity video.mp4 --expected-reps 20`.
+- Gates: ruff + format limpos, pytest 413 verde.
+- Pendências geradas (2 em "Descobertas"): a paridade é Python×Python, não navegador×servidor;
+  e o número de banda medido, a conferir contra o orçamento na T-028.
+
+---
+
 ## 2026-07-28 · T-017 — semáforo de slots cloud (o modo cloud passa a existir de verdade)
 
 - Entregue: `workers/shared/slots.py` (`CloudSlots`), admissão consultando o semáforo,

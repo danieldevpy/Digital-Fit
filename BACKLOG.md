@@ -34,7 +34,7 @@
 | T-015 | Envio de `frame.raw` JPEG 320px @10fps quando modo cloud | 001/005 | done |
 | T-016 | pose-worker: consumer `frames.raw` → MediaPipe CPU → `pose.frame` (cgroup 1 vCPU) | 005 | done |
 | T-017 | Semáforo `slots:cloud=3` (Lua atômico) + liberação em todos os finais | 009 | done |
-| T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | todo |
+| T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | doing — `evalctl parity` pronto e verificado no encanamento; falta rodar em vídeo com polichinelo real (depende da T-038) |
 | T-019 | Baseline/calibração no countdown (mediana 1s) + FSM usando baseline | 004 | todo |
 | T-020 | report-builder: consolidação + `SessionResult` no Postgres + tela de relatório | 010 | todo |
 | T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | todo |
@@ -127,6 +127,15 @@
   mudar o environment do compose. Por isso o `prod.sh up` sempre reconstrói. Se um dia isso
   incomodar, a saída é o cliente ler a origem da própria página (same-origin) em vez de uma
   variável — hoje `apiBaseUrl()` cairia no default de `localhost:8000`.
+- **[A/T-018] A paridade compara Python×Python, não navegador×servidor**: o lado "edge" do
+  `evalctl parity` é o MediaPipe do **Python** em modo VIDEO e resolução cheia, não o do
+  navegador. Uma divergência entre a implementação JS e a Python passaria despercebida. O que
+  o teste isola são as quatro degradações reais do caminho cloud (320px, JPEG q60, 10fps em
+  vez de 15, IMAGE em vez de VIDEO) — que é o risco de fato. Cobrir o navegador exigiria
+  dirigir um browser; fica para quando houver motivo.
+- **[A/T-018] Banda do modo cloud medida: ~98 KB/s por sessão** (9,8 KB por JPEG a 10fps, em
+  vídeo 270×480). Três sessões simultâneas ≈ 2,4 Mbit/s de entrada na VPS. Número medido, não
+  estimado — vale conferir contra o orçamento da ARCHITECTURE quando a T-028 (carga) rodar.
 - **[A/T-017] Semáforo é ZSET com expiração por membro, não `INCR`/`DECR`**: a nota técnica da
   SPEC-009 sugeria contador em Lua. Um contador atende ao critério 1 (negar a 4ª) mas **não**
   ao 2, que exige liberar a vaga inclusive em crash de worker — quem crasha não decrementa, e
