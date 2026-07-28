@@ -8,6 +8,7 @@ import msgpack
 import pytest
 
 from workers.shared.events import (
+    ANALYSIS_INPUT_TYPES,
     CLIENT_PUSH_TYPES,
     CONSUMER_GROUPS,
     LANDMARK_COUNT,
@@ -280,3 +281,25 @@ def test_tipos_em_dot_case_e_codigos_em_screaming_snake() -> None:
         assert "." in tipo.value
     for code in Code:
         assert code.value == code.value.upper()
+
+
+def test_analise_consome_frames_e_ciclo_de_sessao() -> None:
+    assert EventType.POSE_FRAME in ANALYSIS_INPUT_TYPES
+    assert EventType.SESSION_STARTED in ANALYSIS_INPUT_TYPES
+    # Encerrar a sessao e ENTRADA da analise: quem publica na rota padrao manda para
+    # events.analysis, onde o worker nao escuta, e a sessao nunca fecharia.
+    assert EventType.SESSION_COMPLETED in ANALYSIS_INPUT_TYPES
+    assert EventType.REP_DETECTED not in ANALYSIS_INPUT_TYPES
+    assert EventType.FEEDBACK_ISSUED not in ANALYSIS_INPUT_TYPES
+
+
+def test_saidas_da_analise_nao_sao_entradas_dela() -> None:
+    """Sem isso, um evento de saida poderia realimentar o worker."""
+    saidas = {
+        EventType.EXERCISE_PHASE,
+        EventType.REP_DETECTED,
+        EventType.QUALITY_SIGNAL,
+        EventType.FEEDBACK_ISSUED,
+    }
+
+    assert saidas & ANALYSIS_INPUT_TYPES == set()

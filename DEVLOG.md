@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-07-27 · [A] T-009 — analysis-worker (consumer de `pose.frames`)
+
+> **Pegadinha do contrato, importante para a T-011 e para o gateway**: quem quer que o
+> analysis-worker **veja** um evento publica em `pose.frames` explicitamente — inclusive o
+> `session.completed` de encerramento. A rota padrão de `session.completed` é `events.analysis`
+> (é a saída do worker), então publicar na rota padrão faz a sessão nunca fechar. Agora está
+> codificado em `ANALYSIS_INPUT_TYPES` (events.py) e coberto por teste.
+
+- `workers/shared/bus.py`: barramento sobre Redis Streams (`RedisBus`) + `InMemoryBus` para
+  teste, atrás do protocolo `EventBus`. O gateway da T-005 usa o mesmo.
+- `workers/analysis_worker/router.py`: `AnalysisRouter` — envelope entra, envelopes saem, **sem
+  I/O**. Uma sessão = um `Normalizer` + um `ExerciseAnalyzer` + contador de `seq` de saída.
+- `workers/analysis_worker/main.py`: loop (consume → handle → publish → ack), parada limpa em
+  SIGTERM/SIGINT, `max_batches` para teste. Serviço `analysis-worker` no compose.
+- Decisões:
+  - **`seq` de saída é do worker**, contado por sessão: o `seq` do cliente numera frames de
+    entrada e não serve para numerar eventos de análise.
+  - **Ack sempre**, mesmo quando o processamento falha: evento problemático não pode ser
+    reprocessado em loop nem matar o worker (há teste com roteador que explode de propósito).
+  - **`pose.frame` sem `session.started` abre a sessão** com o padrão de 30 s em vez de
+    descartar: perder repetições por corrida de eventos seria pior que assumir o default.
+  - Frame que chega **depois** do fim abre sessão nova do zero — não soma em sessão encerrada.
+  - Estado em memória, como o ARCHITECTURE §6 previu. **Snapshot em Redis não foi feito**: sem
+    consumidor (retomada é T-031), seria peso morto.
+  - O **timer autoritativo de 30 s ficou para a T-011**, junto do resto do ciclo de vida da
+    sessão; aqui o worker fecha quando recebe o pedido de encerramento.
+- Verificado com Redis e worker de verdade no compose (não só com o barramento falso):
+  `session.started` + 92 `pose.frame` (6 polichinelos) + encerramento ⇒ **12 `exercise.phase`,
+  6 `rep.detected`, 1 `session.completed` com `rep_count=6`**, ida e volta pelo Redis em
+  **99 ms**. O log do worker mostra abertura e fechamento da sessão.
+  A primeira tentativa deu 1 rep de 6 — e o culpado era o **script de verificação**, que
+  publicou o encerramento na rota padrão; foi o que motivou o `ANALYSIS_INPUT_TYPES`.
+- Gates: `ruff` limpo, **239 testes** verdes (29 novos), `docker compose up` com os 4 serviços.
+
+---
+
 ## 2026-07-27 · [A] T-039 — Métricas, `evalctl compare` e fixtures de keypoints
 
 > **Agente B (T-007, gravador de fixtures)**: o formato de fixture agora existe e é

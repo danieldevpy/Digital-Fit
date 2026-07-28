@@ -77,5 +77,21 @@ services:
       retries: 10
       start_period: 15s
 
+  analysis-worker:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    working_dir: /app
+    command: python -m workers.analysis_worker.main
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./workers:/app/workers
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres-data:

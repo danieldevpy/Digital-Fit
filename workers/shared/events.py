@@ -34,6 +34,7 @@ from typing import Any, ClassVar, Protocol, Self, runtime_checkable
 import msgpack
 
 __all__ = [
+    "ANALYSIS_INPUT_TYPES",
     "CLIENT_PUSH_TYPES",
     "CONSUMER_GROUPS",
     "LANDMARK_COUNT",
@@ -152,6 +153,21 @@ STREAM_FOR_TYPE: dict[EventType, Stream] = {
     EventType.FEEDBACK_ISSUED: Stream.EVENTS_ANALYSIS,
     EventType.SESSION_COMPLETED: Stream.EVENTS_ANALYSIS,
 }
+
+#: O que a **análise consome**. Quem quiser que o analysis-worker veja um evento publica em
+#: `Stream.POSE_FRAMES` explicitamente — inclusive o pedido de encerramento
+#: (`session.completed` emitido pela API por TTL ou abort). Publicar o encerramento na rota
+#: padrão manda o evento para `events.analysis`, onde o worker **não** escuta: a sessão nunca
+#: fecharia. `session.completed` é o único tipo que anda nos dois sentidos — da API é "encerre",
+#: do worker é "encerrada, com este total de reps".
+ANALYSIS_INPUT_TYPES: frozenset[EventType] = frozenset(
+    {
+        EventType.SESSION_CAPABILITY,
+        EventType.SESSION_STARTED,
+        EventType.POSE_FRAME,
+        EventType.SESSION_COMPLETED,
+    }
+)
 
 #: O que o gateway empurra de volta ao cliente pelo WS (SPEC-002 fase inicial). `pose.frame`
 #: nunca volta, e `quality.signal` é insumo do feedback engine — o HUD só vê `feedback.issued`.
