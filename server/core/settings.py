@@ -37,9 +37,14 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # CORS antes de tudo: o preflight tem de ser respondido mesmo que a view recuse depois.
+    "core.cors.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
 ]
+
+#: Origens do cliente web fora de DEBUG (em DEBUG qualquer origem passa — ver core/cors.py).
+CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS", "")
 
 ROOT_URLCONF = "core.urls"
 WSGI_APPLICATION = "core.wsgi.application"

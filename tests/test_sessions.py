@@ -130,6 +130,20 @@ def test_probe_result_vira_session_capability() -> None:
     assert capability[0].data["probe_fps"] == pytest.approx(18.5)
 
 
+def test_probe_result_no_formato_do_contrato_tambem_vale() -> None:
+    """O cliente manda o payload de `session.capability` inteiro, com `probe_fps`."""
+    pedido = SessionRequest(
+        exercise="jumping_jack",
+        requested_mode=Mode.EDGE,
+        probe={"mode": "edge", "probe_fps": 21.0, "webgl": True, "ua": "Chrome/141"},
+    )
+
+    _, _, bus = criar(pedido=pedido)
+
+    capability = bus.published_of(EventType.SESSION_CAPABILITY)
+    assert capability[0].data["probe_fps"] == pytest.approx(21.0)
+
+
 def test_sem_probe_nao_ha_capability() -> None:
     _, _, bus = criar()
 
@@ -194,9 +208,12 @@ def test_corpo_que_nao_e_objeto_e_recusado() -> None:
 
 def test_endpoint_cria_sessao(client, monkeypatch) -> None:
     redis, bus = FakeRedis(), InMemoryBus()
-    monkeypatch.setattr("api.sessions.bus", lambda: bus)
+    # Patch em `api.views.create_session`, não em `api.sessions.create_session`: a view faz
+    # `from api.sessions import create_session`, então a referência dela é resolvida no import.
+    # Patchar o módulo de origem só funcionava quando a view ainda não tinha sido importada —
+    # ou seja, dependia da ordem dos arquivos de teste.
     monkeypatch.setattr(
-        "api.sessions.create_session",
+        "api.views.create_session",
         lambda pedido, **kwargs: create_session(pedido, redis_client=redis, event_bus=bus),
     )
 

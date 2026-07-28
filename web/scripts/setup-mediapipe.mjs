@@ -32,12 +32,30 @@ async function copyWasm() {
   console.log(`[setup] wasm  → public/wasm`)
 }
 
+// Onde procurar o modelo antes de sair para a rede. Mesma ideia do `resolve_model_path` do
+// Python (eval/sources.py): o arquivo já costuma existir na máquina, e no container do compose
+// ele chega por bind mount — a primeira subida não pode depender de internet.
+const MODEL_LOCAL_SOURCES = [
+  process.env.DIGITALFIT_POSE_MODEL,
+  resolve(webRoot, '../eval/models/pose_landmarker_lite.task'),
+  '/models/pose_landmarker_lite.task',
+].filter(Boolean)
+
 async function downloadModel() {
   if (await exists(MODEL_DEST)) {
     console.log('[setup] modelo → já presente, pulando download')
     return
   }
   await mkdir(dirname(MODEL_DEST), { recursive: true })
+
+  for (const origem of MODEL_LOCAL_SOURCES) {
+    if (await exists(origem)) {
+      await cp(origem, MODEL_DEST)
+      console.log(`[setup] modelo → copiado de ${origem}`)
+      return
+    }
+  }
+
   const response = await fetch(MODEL_URL)
   if (!response.ok) {
     throw new Error(`Falha ao baixar o modelo (${response.status} ${response.statusText})`)

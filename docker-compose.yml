@@ -123,5 +123,28 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  web:
+    # Cliente Vite em modo dev. Imagem node crua + `npm install` no start: sem Dockerfile
+    # proprio o `web` continua sendo "abra e mexa"; imagem de build e a T-027.
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      # O cliente pede a sessao a API e usa o `ws_url` do ticket. Como o WS abre no
+      # NAVEGADOR, as duas URLs sao as do host — nao os nomes de servico do compose.
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:${API_PORT:-8000}}
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      - ./web:/app
+      # `node_modules` em volume: binario nativo compilado no alpine nao serve no host.
+      - web-node-modules:/app/node_modules
+      # Mesmo modelo do worker/evalctl; sem isso o `npm run setup` baixaria 5,5 MB de novo.
+      - ./eval/models:/models:ro
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   postgres-data:
+  web-node-modules:

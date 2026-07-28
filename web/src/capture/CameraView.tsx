@@ -68,8 +68,14 @@ export function CameraView() {
 
       {isReady && (gatewayStatus === 'closed' || gatewayStatus === 'error') && (
         <p className="stage__banner stage__banner--offline">
-          Sem conexão com o servidor — a contagem não vai avançar. Rode{' '}
-          <code>npm run mock:gateway</code> ou aponte <code>VITE_WS_URL</code> para o gateway.
+          {/* A admissão (T-011) explica a falha quando sabe o motivo; o genérico cobre
+              queda de WS no meio da sessão, que não tem mensagem do servidor. */}
+          {error ?? (
+            <>
+              Sem conexão com o servidor — a contagem não vai avançar. Suba a stack
+              (<code>docker compose up</code>) ou aponte <code>VITE_API_URL</code> para a API.
+            </>
+          )}
         </p>
       )}
 

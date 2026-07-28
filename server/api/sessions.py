@@ -184,7 +184,12 @@ def create_session(
             make_envelope(
                 SessionCapability(
                     mode=modo,
-                    probe_fps=float(request.probe.get("fps") or 0.0),
+                    # `probe_fps` é o nome do campo no contrato (`session.capability`); o
+                    # cliente manda o payload do evento inteiro. `fps` fica aceito porque a
+                    # T-011 nasceu com esse nome e há ticket antigo no formato.
+                    probe_fps=float(
+                        request.probe.get("probe_fps") or request.probe.get("fps") or 0.0
+                    ),
                     webgl=bool(request.probe.get("webgl", False)),
                     ua=str(request.probe.get("ua") or ""),
                 ),
