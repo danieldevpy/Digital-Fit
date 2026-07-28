@@ -24,6 +24,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 from workers.shared.events import (
     CLIENT_PUSH_TYPES,
+    STREAM_FOR_TYPE,
     Envelope,
     EventType,
     EventValidationError,
@@ -129,9 +130,7 @@ class SessionConsumer(AsyncWebsocketConsumer):
                 continue
             envelope = self._queue.popleft()
             try:
-                # Todo evento de entrada vai para o stream de ENTRADA da análise, inclusive o
-                # encerramento (ver `ANALYSIS_INPUT_TYPES` no contrato).
-                await asyncio.to_thread(publish_envelope, envelope, Stream.POSE_FRAMES)
+                await asyncio.to_thread(publish_envelope, envelope, _stream_de_entrada(envelope))
             except Exception:
                 logger.exception("falha ao publicar evento da sessao %s", self.session_id)
 
@@ -147,14 +146,31 @@ class SessionConsumer(AsyncWebsocketConsumer):
 
 #: O que o cliente **pode** publicar. Sem essa lista, um cliente conseguiria injetar
 #: `rep.detected` ou `feedback.issued` direto no barramento — a contagem tem de nascer do
-#: worker, nunca do navegador. (`frame.raw` → `frames.raw` entra na Fase 1, T-015.)
+#: worker, nunca do navegador.
 CLIENT_INGEST_TYPES: frozenset[EventType] = frozenset(
     {
         EventType.POSE_FRAME,
+        EventType.FRAME_RAW,  # modo cloud (T-015); consumido pelo pose-worker (T-016)
         EventType.SESSION_CAPABILITY,
         EventType.SESSION_COMPLETED,  # cliente encerrando a sessão (abort)
     }
 )
+
+
+def _stream_de_entrada(envelope: Envelope) -> Stream:
+    """Para onde publicar um evento vindo do cliente.
+
+    Quase tudo vai para o stream de ENTRADA da análise, inclusive o encerramento (ver
+    `ANALYSIS_INPUT_TYPES` no contrato) — publicar na rota padrão mandaria `session.completed`
+    para `events.analysis`, onde o worker não escuta, e a sessão nunca fecharia.
+
+    `frame.raw` é a exceção: imagem não entra no fluxo da análise, vai para `frames.raw` e é
+    o pose-worker quem a transforma em `pose.frame`. Por isso a rota vem do contrato aqui, e
+    não de uma constante escrita à mão neste arquivo.
+    """
+    if envelope.type is EventType.FRAME_RAW:
+        return STREAM_FOR_TYPE[EventType.FRAME_RAW]
+    return Stream.POSE_FRAMES
 
 
 def _token_from_scope(scope: dict) -> str:

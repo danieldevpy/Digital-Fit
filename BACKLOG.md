@@ -31,7 +31,7 @@
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-015 | Envio de `frame.raw` JPEG 320px @10fps quando modo cloud | 001/005 | todo |
+| T-015 | Envio de `frame.raw` JPEG 320px @10fps quando modo cloud | 001/005 | done |
 | T-016 | pose-worker: consumer `frames.raw` → MediaPipe CPU → `pose.frame` (cgroup 1 vCPU) | 005 | todo |
 | T-017 | Semáforo `slots:cloud=3` (Lua atômico) + liberação em todos os finais | 009 | todo |
 | T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | todo |
@@ -127,6 +127,19 @@
   mudar o environment do compose. Por isso o `prod.sh up` sempre reconstrói. Se um dia isso
   incomodar, a saída é o cliente ler a origem da própria página (same-origin) em vez de uma
   variável — hoje `apiBaseUrl()` cairia no default de `localhost:8000`.
+- **[A/T-015] O caminho cloud existe mas ainda não pode ser exercitado**: o cliente já envia
+  `frame.raw`, o gateway já aceita e roteia para `frames.raw` — mas ninguém consome (T-016) e
+  a admissão continua recusando cloud com `denied_cloud` (T-017). Para ver o fluxo inteiro é
+  preciso as três. Foi verificado à mão publicando `frame.raw` numa sessão edge contra a
+  stack real: o evento cai em `frames.raw`, com o JPEG intacto.
+- **[A/T-015] `source` de `frame.raw` é `cloud`, não `edge`**: quem produz o evento é o
+  navegador, mas o campo descreve o **caminho de extração**, não a máquina — mesma convenção
+  que `pose.frame` já usa. Documentado na docstring do contrato porque a leitura errada é
+  natural e levaria o pose-worker a filtrar pelo valor errado.
+- **[A/T-015] Gateway em dev não recarrega código**: o `uvicorn` do compose sobe sem
+  `--reload`, então mudança em `workers/shared/events.py` só vale depois de
+  `docker compose restart gateway`. Custou uma verificação que falhou com `type invalido:
+  'frame.raw'` parecendo bug de contrato. O `api` não tem o problema (roda `runserver`).
 - **[A/T-023] Conflito de porta na VPS estourava tarde demais**: o `docker compose up` só
   tenta ligar as portas no último passo, então uma `8000` já ocupada (comum numa VPS com
   outros apps) falhava **depois** do build e das migrations, deixando a stack pela metade.

@@ -37,6 +37,8 @@ __all__ = [
     "ANALYSIS_INPUT_TYPES",
     "CLIENT_PUSH_TYPES",
     "CONSUMER_GROUPS",
+    "FRAME_RAW_MAX_BYTES",
+    "FRAME_RAW_MAX_SIDE",
     "LANDMARK_COUNT",
     "LANDMARK_NAMES",
     "PROTOCOL_VERSION",
@@ -50,6 +52,7 @@ __all__ = [
     "EventValidationError",
     "ExercisePhase",
     "FeedbackIssued",
+    "FrameRaw",
     "Landmark",
     "Mode",
     "Phase",
@@ -109,6 +112,7 @@ class EventType(StrEnum):
 
     SESSION_CAPABILITY = "session.capability"
     SESSION_STARTED = "session.started"
+    FRAME_RAW = "frame.raw"  # só modo cloud; morre no pose-worker (SPEC-005)
     POSE_FRAME = "pose.frame"
     EXERCISE_PHASE = "exercise.phase"
     REP_DETECTED = "rep.detected"
@@ -145,6 +149,9 @@ CONSUMER_GROUPS: dict[Stream, tuple[str, ...]] = {
 STREAM_FOR_TYPE: dict[EventType, Stream] = {
     EventType.SESSION_CAPABILITY: Stream.POSE_FRAMES,
     EventType.SESSION_STARTED: Stream.POSE_FRAMES,
+    # Único tipo cuja rota padrão NÃO é `pose.frames`: imagem não entra no fluxo da análise.
+    # O pose-worker (T-016) lê daqui e devolve `pose.frame` — é ali que o vídeo morre.
+    EventType.FRAME_RAW: Stream.FRAMES_RAW,
     EventType.POSE_FRAME: Stream.POSE_FRAMES,
     EventType.EXERCISE_PHASE: Stream.EVENTS_ANALYSIS,
     EventType.REP_DETECTED: Stream.EVENTS_ANALYSIS,
@@ -352,6 +359,68 @@ class SessionStarted:
         )
 
 
+#: Maior lado do JPEG no modo cloud (SPEC-005, Fase Inicial: "maior lado 320px").
+FRAME_RAW_MAX_SIDE = 320
+
+#: Teto por frame. Um JPEG 320px com qualidade ~60 dá 10–25 KB; 256 KB é folga larga e ainda
+#: assim impede que um cliente entupa o barramento — este é o ÚNICO caminho por onde o
+#: navegador empurra binário grande, então é o único que precisa de teto.
+FRAME_RAW_MAX_BYTES = 256 * 1024
+
+#: Assinatura de arquivo JPEG (SOI + marcador). Barra PNG/WebP/lixo antes de chegar no
+#: decoder do pose-worker, onde o erro sairia como stack trace do MediaPipe.
+_JPEG_MAGIC = b"\xff\xd8\xff"
+
+
+@dataclass(frozen=True, slots=True)
+class FrameRaw:
+    """Frame JPEG reduzido, enviado pelo cliente **apenas** no modo cloud (SPEC-005).
+
+    É a única vez em que imagem trafega no sistema, e ela morre no `pose-worker`: o dado do
+    Digital Fit são keypoints, vídeo é insumo descartável (`context/project.md`, decisão 1).
+    Por isso este evento não é persistido, não vai para o dataset e não chega ao cliente.
+
+    **`source` deste evento é `cloud`**, embora quem o produza seja o navegador. `source`
+    responde "por qual caminho de extração este dado passa", não "qual máquina o gerou" — é
+    assim que `pose.frame` já usa o campo (edge = extraído no browser, cloud = extraído no
+    pose-worker). Marcar `edge` aqui faria um `frame.raw` parecer do caminho que, por
+    definição, nunca produz `frame.raw`.
+    """
+
+    TYPE: ClassVar[EventType] = EventType.FRAME_RAW
+
+    jpeg: bytes
+    width: int
+    height: int
+
+    def to_data(self) -> dict[str, Any]:
+        return {"jpeg": self.jpeg, "width": self.width, "height": self.height}
+
+    @classmethod
+    def from_data(cls, data: dict[str, Any]) -> Self:
+        jpeg = _require(data, "jpeg")
+        if not isinstance(jpeg, bytes | bytearray):
+            raise EventValidationError(f"jpeg deve ser binario, recebido {type(jpeg).__name__}")
+        jpeg = bytes(jpeg)
+        if not jpeg.startswith(_JPEG_MAGIC):
+            raise EventValidationError("jpeg nao comeca com a assinatura JPEG")
+        if len(jpeg) > FRAME_RAW_MAX_BYTES:
+            raise EventValidationError(
+                f"jpeg tem {len(jpeg)} bytes, acima do teto de {FRAME_RAW_MAX_BYTES}"
+            )
+
+        width = _as_int(_require(data, "width"), "width")
+        height = _as_int(_require(data, "height"), "height")
+        if width <= 0 or height <= 0:
+            raise EventValidationError(f"dimensoes invalidas: {width}x{height}")
+        if max(width, height) > FRAME_RAW_MAX_SIDE:
+            raise EventValidationError(
+                f"maior lado {max(width, height)}px acima de {FRAME_RAW_MAX_SIDE}px "
+                "— o cliente deve reduzir antes de enviar (SPEC-005)"
+            )
+        return cls(jpeg=jpeg, width=width, height=height)
+
+
 @dataclass(frozen=True, slots=True)
 class PoseFrame:
     """33 landmarks `[x, y, z, visibility]` normalizados 0–1 no frame (SPEC-005).
@@ -551,6 +620,7 @@ class SessionCompleted:
 _PAYLOAD_FOR_TYPE: dict[EventType, Any] = {
     EventType.SESSION_CAPABILITY: SessionCapability,
     EventType.SESSION_STARTED: SessionStarted,
+    EventType.FRAME_RAW: FrameRaw,
     EventType.POSE_FRAME: PoseFrame,
     EventType.EXERCISE_PHASE: ExercisePhase,
     EventType.REP_DETECTED: RepDetected,

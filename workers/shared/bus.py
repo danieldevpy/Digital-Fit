@@ -117,10 +117,18 @@ class InMemoryBus:
 
     def __init__(self) -> None:
         self.published: list[Envelope] = []
+        #: `(stream efetivo, envelope)` de cada publicação. Existe porque o roteamento é
+        #: comportamento testável: `frame.raw` tem de cair em `frames.raw`, e sem registrar o
+        #: destino um erro de rota passaria por este dublê sem nenhum teste falhar.
+        self.routed: list[tuple[Stream, Envelope]] = []
         self.acked: list[str] = []
         self.groups: set[tuple[str, str]] = set()
         self._pendentes: dict[Stream, list[tuple[str, Envelope]]] = {}
         self._proximo_id = 0
+
+    def published_in(self, stream: Stream) -> list[Envelope]:
+        """Só o que foi publicado neste stream."""
+        return [envelope for destino, envelope in self.routed if destino is stream]
 
     def ensure_group(self, stream: Stream, group: str) -> None:
         self.groups.add((stream.value, group))
@@ -132,8 +140,9 @@ class InMemoryBus:
             self._pendentes.setdefault(stream, []).append((f"{self._proximo_id}-0", envelope))
 
     def publish(self, envelope: Envelope, *, stream: Stream | None = None) -> str:
-        del stream
+        # Mesmo default do RedisBus: sem destino explícito vale a rota do contrato.
         self.published.append(envelope)
+        self.routed.append((stream or envelope.stream, envelope))
         self._proximo_id += 1
         return f"{self._proximo_id}-0"
 

@@ -24,7 +24,9 @@ import { parseModeOverride } from '../probe/capability'
 import { runCapabilityProbe } from '../probe/runProbe'
 import { getFixtureRecorder } from '../dev/recorder'
 import { useSessionStore } from '../store/session'
-import { EDGE_TARGET_FPS, createFrameClock } from './frameClock'
+import { createCloudSender } from './cloudFrames'
+import { CLOUD_TARGET_FPS, EDGE_TARGET_FPS, createFrameClock } from './frameClock'
+import { encodeFrame } from './jpegEncoder'
 import { createVideoFrameLoop } from './videoFrameLoop'
 
 /** Janela do fps efetivo mostrado no diagnóstico. */
@@ -158,6 +160,45 @@ export function useEdgePipeline(
       if (recorder.isRecording) setRecordedFrames(recorder.frameCount)
     }
 
+    /**
+     * Modo cloud (T-015): 10fps de JPEG 320px pelo mesmo WebSocket.
+     *
+     * Sem esqueleto na tela — os landmarks só existem depois que o pose-worker responde, e o
+     * push de `pose.frame` de volta ao cliente não está no contrato (`CLIENT_PUSH_TYPES`).
+     * O HUD segue vivo pelos eventos de análise; a imagem fica sem overlay.
+     */
+    const startCloudLoop = (video: HTMLVideoElement) => {
+      const cloudClock = createFrameClock(CLOUD_TARGET_FPS)
+      const sender = createCloudSender(video, {
+        clock: cloudClock,
+        encode: (alvo) => encodeFrame(alvo),
+        send: (frame, tick) => {
+          const gateway = getGatewayClient()
+          const { sessionId, markFirstFrame } = useSessionStore.getState()
+          if (!gateway || !sessionId) return
+          gateway.send(
+            makeEnvelope({
+              type: EventType.FRAME_RAW,
+              session_id: sessionId,
+              ts: tick.ts,
+              seq: getSequencer().next(),
+              source: Source.CLOUD,
+              data: { jpeg: frame.jpeg, width: frame.width, height: frame.height },
+            }),
+          )
+          markFirstFrame(tick.ts)
+        },
+        onSent: ({ tick }) => {
+          const { setFrameStats, frameStats } = useSessionStore.getState()
+          setFrameStats({ seq: tick.seq, ts: tick.ts, fps: frameStats?.fps ?? 0 })
+        },
+      })
+
+      return createVideoFrameLoop(video, (epochMs) => {
+        void sender.onFrame(epochMs)
+      })
+    }
+
     const startPipeline = async () => {
       store.setPoseStatus('loading')
       const { landmarker, delegate } = await createEdgePoseLandmarker()
@@ -175,9 +216,11 @@ export function useEdgePipeline(
       store.setCapability(capability)
       store.setProbeStatus(capability.failed ? 'error' : 'done')
 
-      // Sem slot de admission control e sem `frame.raw` na Fase 0, cloud é só
-      // uma decisão registrada — não há o que rodar localmente.
-      if (capability.mode === Mode.CLOUD) return
+      // Cloud não roda pose localmente: manda JPEG e o pose-worker extrai (SPEC-005).
+      if (capability.mode === Mode.CLOUD) {
+        stopLoop = startCloudLoop(video)
+        return
+      }
 
       clock.reset()
       stopLoop = createVideoFrameLoop(video, renderFrame)

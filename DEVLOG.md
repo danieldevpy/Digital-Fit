@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-07-28 · T-015 — envio de `frame.raw` no modo cloud (início da Fase 1)
+
+- Contrato primeiro (`AGENTS.md`): `EventType.FRAME_RAW`, dataclass `FrameRaw` e rota
+  `frame.raw → frames.raw` em `workers/shared/events.py`. Depois gateway, depois cliente.
+- Entregue: `FrameRaw` com validação (assinatura JPEG, teto de 256 KB, maior lado ≤ 320px);
+  `_stream_de_entrada()` no gateway; `web/src/capture/jpegEncoder.ts` (redução + JPEG q60) e
+  `web/src/capture/cloudFrames.ts` (loop de 10fps com trava de envio).
+- Decisões:
+  - **`frame.raw` é o único tipo cuja rota padrão não é `pose.frames`.** Imagem não entra no
+    fluxo da análise; quem a consome é o pose-worker (T-016). Teste trava isso: se a rota
+    voltar para `pose.frames`, o analysis-worker receberia JPEG onde espera 33 landmarks.
+  - **Trava de "um por vez" no envio cloud.** A codificação é assíncrona e pode passar dos
+    100ms do alvo de 10fps; sem a trava os frames se empilhariam enquanto a pessoa treina.
+    Frame que chega com codificação em andamento é descartado — mesma regra do backpressure
+    do gateway. A trava vem **antes** do relógio: consumir o tick e depois descartar
+    derrubaria o fps efetivo abaixo do alvo (há teste para os dois lados).
+  - **Validação de tamanho é do servidor, redução é do cliente.** Aceitar frame maior
+    empurraria o resize para o pose-worker, que roda com 1 vCPU e é o gargalo do modo cloud
+    (SPEC-005, critério 2).
+  - **`source: cloud` em `frame.raw`**, embora o produtor seja o navegador — o campo descreve
+    o caminho de extração, não a máquina.
+  - **`InMemoryBus` passou a registrar o stream de destino** (`routed`, `published_in()`).
+    Antes ele fazia `del stream`, então nenhum teste de roteamento podia falhar.
+- Um teste antigo caiu, e com razão: `CLIENT_INGEST_TYPES <= ANALYSIS_INPUT_TYPES` deixou de
+  valer, porque `frame.raw` entra pelo cliente e **não** vai para a análise. Reescrito para o
+  invariante que continua verdadeiro e é o que importa: todo tipo que o cliente pode publicar
+  tem consumidor declarado.
+- Verificação: `frame.raw` publicado à mão contra a stack real cai em `frames.raw` (não em
+  `pose.frames`), com o JPEG intacto como `bin` do MessagePack.
+- Gates: ruff + format limpos, pytest 360 verde, tsc limpo, eslint limpo, vitest 144 verde.
+- Pendências geradas (3 em "Descobertas"): o caminho cloud não é exercitável até T-016+T-017;
+  convenção do `source`; gateway em dev não recarrega código (`uvicorn` sem `--reload`).
+
+---
+
 ## 2026-07-28 · T-023 — ambiente de produção (VPS + domínio) separado do de dev
 
 - **Motivo, e ele não é infraestrutural**: `getUserMedia` só existe em contexto seguro, então

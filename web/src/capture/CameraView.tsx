@@ -87,8 +87,11 @@ export function CameraView() {
 
       {isReady && isCloud && (
         <p className="stage__banner stage__banner--cloud">
-          Modo cloud {capability?.forced ? '(forçado por ?mode=)' : 'escolhido pelo probe'} — envio
-          de frames chega na Fase 1 (T-015), então não há esqueleto local.
+          {/* Sem esqueleto por design: no cloud os landmarks nascem no pose-worker, e
+              `pose.frame` não volta ao cliente (CLIENT_PUSH_TYPES). A contagem aparece
+              normalmente — ela vem de `rep.detected`. */}
+          Modo cloud {capability?.forced ? '(forçado por ?mode=)' : 'escolhido pelo probe'} — a pose
+          é extraída no servidor, então não há esqueleto sobre a imagem.
         </p>
       )}
 

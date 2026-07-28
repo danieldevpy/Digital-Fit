@@ -195,6 +195,31 @@ async def test_pose_frame_do_cliente_vai_para_pose_frames(bus_falso) -> None:
     )
 
 
+async def test_frame_raw_do_cliente_vai_para_frames_raw(bus_falso) -> None:
+    """Modo cloud (T-015): imagem não pode cair no stream de entrada da análise.
+
+    Se `frame.raw` for parar em `pose.frames`, o analysis-worker recebe JPEG onde espera 33
+    landmarks — e o erro aparece longe daqui, dentro da FSM.
+    """
+    from workers.shared.events import FrameRaw
+
+    comunicador, _ = await conectar()
+    envelope = make_envelope(
+        FrameRaw(jpeg=b"\xff\xd8\xff\xe0" + b"\x00" * 64, width=320, height=240),
+        session_id=SESSAO,
+        ts=1_722_100_000_000,
+        seq=0,
+        source=Source.EDGE,
+    )
+
+    await comunicador.send_to(bytes_data=encode_envelope(envelope))
+    await asyncio.sleep(0.15)
+    await comunicador.disconnect()
+
+    assert [e.type for e in bus_falso.published_in(Stream.FRAMES_RAW)] == [EventType.FRAME_RAW]
+    assert bus_falso.published_in(Stream.POSE_FRAMES) == []
+
+
 async def test_capability_do_cliente_tambem_e_publicada(bus_falso) -> None:
     comunicador, _ = await conectar()
     envelope = make_envelope(
@@ -317,10 +342,21 @@ async def test_backpressure_descarta_o_frame_mais_antigo(bus_falso, monkeypatch)
     assert INGEST_BUFFER == 3
 
 
-def test_tipos_de_ingestao_sao_subconjunto_do_que_a_analise_consome() -> None:
-    from workers.shared.events import ANALYSIS_INPUT_TYPES
+def test_tudo_que_o_cliente_publica_tem_consumidor() -> None:
+    """Nada que o cliente envia pode cair num stream que ninguém lê.
 
-    assert CLIENT_INGEST_TYPES <= ANALYSIS_INPUT_TYPES
+    Até a T-015 valia o invariante mais simples "ingestão ⊆ entrada da análise". `frame.raw`
+    quebrou isso de propósito: ele não vai para a análise, vai para o `pose-worker`, que o
+    transforma em `pose.frame`. O invariante que continua verdadeiro — e que é o que
+    realmente importa — é que todo tipo aceito tem um consumidor declarado.
+    """
+    from workers.shared.events import ANALYSIS_INPUT_TYPES, CONSUMER_GROUPS, STREAM_FOR_TYPE
+
+    for tipo in CLIENT_INGEST_TYPES:
+        if tipo in ANALYSIS_INPUT_TYPES:
+            continue
+        assert tipo is EventType.FRAME_RAW, f"{tipo} entra pelo cliente e ninguem consome"
+        assert CONSUMER_GROUPS[STREAM_FOR_TYPE[tipo]]  # `pose-workers` (T-016)
 
 
 # --------------------------------------------------------------------------------------

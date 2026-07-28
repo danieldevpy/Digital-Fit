@@ -14,6 +14,7 @@ export const PROTOCOL_VERSION = 1
 export const EventType = {
   SESSION_CAPABILITY: 'session.capability',
   SESSION_STARTED: 'session.started',
+  FRAME_RAW: 'frame.raw',
   POSE_FRAME: 'pose.frame',
   EXERCISE_PHASE: 'exercise.phase',
   REP_DETECTED: 'rep.detected',
@@ -131,6 +132,26 @@ export interface SessionStartedData {
   mode: Mode
   duration_s: number
 }
+
+/**
+ * Frame JPEG do modo cloud (SPEC-005). Único evento que carrega imagem, e ela morre no
+ * `pose-worker` — o dado do sistema são keypoints.
+ *
+ * O servidor **recusa** frame com o maior lado acima de `FRAME_RAW_MAX_SIDE`: reduzir é
+ * responsabilidade do cliente, porque o pose-worker roda em 1 vCPU e é o gargalo do modo.
+ */
+export interface FrameRawData {
+  /** Bytes do JPEG. Vira `bin` no MessagePack, não string. */
+  jpeg: Uint8Array
+  width: number
+  height: number
+}
+
+/** Maior lado do JPEG enviado no modo cloud (`FRAME_RAW_MAX_SIDE` no contrato). */
+export const FRAME_RAW_MAX_SIDE = 320
+
+/** Qualidade do JPEG (SPEC-005: "qualidade ~60"). */
+export const FRAME_RAW_QUALITY = 0.6
 
 /** `[x, y, z, visibility]`, normalizado 0–1 no frame. */
 export type LandmarkTuple = [number, number, number, number]

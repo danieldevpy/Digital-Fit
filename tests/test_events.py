@@ -11,6 +11,8 @@ from workers.shared.events import (
     ANALYSIS_INPUT_TYPES,
     CLIENT_PUSH_TYPES,
     CONSUMER_GROUPS,
+    FRAME_RAW_MAX_BYTES,
+    FRAME_RAW_MAX_SIDE,
     LANDMARK_COUNT,
     LANDMARK_NAMES,
     PROTOCOL_VERSION,
@@ -21,6 +23,7 @@ from workers.shared.events import (
     EventValidationError,
     ExercisePhase,
     FeedbackIssued,
+    FrameRaw,
     Landmark,
     Mode,
     Phase,
@@ -239,6 +242,68 @@ def test_todo_tipo_tem_stream_e_payload() -> None:
 def test_pose_frame_vai_para_o_stream_de_entrada_da_analise() -> None:
     assert STREAM_FOR_TYPE[EventType.POSE_FRAME] is Stream.POSE_FRAMES
     assert STREAM_FOR_TYPE[EventType.SESSION_STARTED] is Stream.POSE_FRAMES
+
+
+# --------------------------------------------------------------------------------------
+# frame.raw — modo cloud (T-015 / SPEC-005)
+# --------------------------------------------------------------------------------------
+
+#: JPEG mínimo válido para os testes: só a assinatura importa para o contrato.
+JPEG_FAKE = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+
+
+def test_frame_raw_e_o_unico_que_nao_vai_para_pose_frames() -> None:
+    # Imagem não entra no fluxo da análise: quem a consome é o pose-worker (T-016), que
+    # devolve `pose.frame`. Se esta rota voltar a apontar para `pose.frames`, o
+    # analysis-worker passa a receber JPEG onde espera landmarks.
+    assert STREAM_FOR_TYPE[EventType.FRAME_RAW] is Stream.FRAMES_RAW
+    outros = {tipo for tipo in EventType if tipo is not EventType.FRAME_RAW}
+    assert Stream.FRAMES_RAW not in {STREAM_FOR_TYPE[tipo] for tipo in outros}
+
+
+def test_frame_raw_nao_e_entrada_da_analise_nem_volta_ao_cliente() -> None:
+    assert EventType.FRAME_RAW not in ANALYSIS_INPUT_TYPES
+    assert EventType.FRAME_RAW not in CLIENT_PUSH_TYPES
+
+
+def test_frame_raw_round_trip_preserva_os_bytes() -> None:
+    envelope = make_envelope(
+        FrameRaw(jpeg=JPEG_FAKE, width=320, height=240),
+        session_id=SESSION_ID,
+        ts=1_700_000_000_000,
+        seq=7,
+        source=Source.EDGE,
+    )
+
+    voltou = decode_envelope(encode_envelope(envelope)).payload()
+
+    assert isinstance(voltou, FrameRaw)
+    assert voltou.jpeg == JPEG_FAKE  # msgpack `bin`: não vira str no caminho
+    assert (voltou.width, voltou.height) == (320, 240)
+
+
+def test_frame_raw_recusa_o_que_nao_e_jpeg() -> None:
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+    with pytest.raises(EventValidationError, match="assinatura JPEG"):
+        FrameRaw.from_data({"jpeg": png, "width": 320, "height": 240})
+
+
+def test_frame_raw_recusa_imagem_maior_que_o_alvo_da_spec() -> None:
+    # A SPEC-005 manda o CLIENTE reduzir para 320px. Aceitar um frame maior aqui empurraria
+    # o custo do resize para o pose-worker, que roda com 1 vCPU e é o gargalo do modo cloud.
+    with pytest.raises(EventValidationError, match="maior lado"):
+        FrameRaw.from_data({"jpeg": JPEG_FAKE, "width": FRAME_RAW_MAX_SIDE + 1, "height": 240})
+
+
+def test_frame_raw_tem_teto_de_bytes() -> None:
+    gordo = b"\xff\xd8\xff" + b"\x00" * FRAME_RAW_MAX_BYTES
+    with pytest.raises(EventValidationError, match="acima do teto"):
+        FrameRaw.from_data({"jpeg": gordo, "width": 320, "height": 240})
+
+
+def test_frame_raw_recusa_dimensao_zerada() -> None:
+    with pytest.raises(EventValidationError, match="dimensoes invalidas"):
+        FrameRaw.from_data({"jpeg": JPEG_FAKE, "width": 0, "height": 240})
 
 
 def test_saidas_da_analise_vao_para_events_analysis() -> None:
