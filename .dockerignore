@@ -1,0 +1,15 @@
+.git
+.venv
+web
+node_modules
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+eval/out
+eval/corpus
+data
+specs
+prompts
+context
+*.md
