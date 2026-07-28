@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "mock:gateway": "node dev/mock-gateway.mjs",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "DIGITALFIT_E2E=1 vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.0",

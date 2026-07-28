@@ -22,7 +22,7 @@
 | T-043 | App shell mobile-first: design tokens (SPEC-013), bottom nav (placeholders) + FAB de iniciar sessão | 013 | done |
 | T-044 | Ângulo articular ao vivo no HUD (client-side edge, fórmula espelhada da FSM, ≤10Hz, teste de paridade <5°) | 013 | done |
 | T-013 | Validação de cena mínima: OUT_OF_FRAME + TOO_FAR/TOO_CLOSE com debounce | 003 | done |
-| T-014 | E2E local: 30s de polichinelo real → contagem correta na tela (demo gravável) | todas | todo |
+| T-014 | E2E local: 30s de polichinelo real → contagem correta na tela (demo gravável) | todas | doing — máquina verificada (`npm run e2e`), falta a passada com câmera + pessoa |
 | T-037 | CLI `evalctl run`: vídeo mp4 → MediaPipe → normalização → FSM → resultado JSON (reusa módulos dos workers) | 012 | done |
 | T-038 | Corpus inicial: 12–15 vídeos rotulados (manifest.yaml) + guia de gravação | 012 | todo |
 | T-039 | Métricas agregadas + `evalctl compare` (regressão entre versões) + `--save-keypoints` | 012 | done |
@@ -106,14 +106,12 @@
   fecha antes, por duração (30 s) ou por falta de dados (10 s). O motivo continua no vocabulário
   para o caminho do TTL em Redis, que só passa a valer com semáforo/quotas (T-017/T-025).
 
-- **[B/T-003] Serviço `web` no compose: conflito de território, NÃO feito.** A descoberta
-  `[A/T-001]` acima atribui isso ao Agente B, mas `docker-compose.yml` é território do
-  Agente A (`prompts/agente-b-web.md`: "PROIBIDO tocar em … docker-compose"). O Vite já
-  existe e o serviço pode entrar: build a partir de `web/`, `npm run dev -- --host`, porta
-  5173, `VITE_API_URL`/`VITE_WS_URL` apontando para `api`. **Atenção**: `npm run dev`
-  dispara `predev` → `scripts/setup-mediapipe.mjs`, que baixa ~5.5 MB do modelo — no
-  container isso exige rede na primeira subida ou um volume para `web/public/models/`.
-  Decisão de quem faz fica para o Daniel / sessão conjunta.
+- **[B/T-003] ~~Serviço `web` no compose~~ — RESOLVIDO na sessão da junção.** Ficou sem dono
+  porque cada agente achava que o arquivo era do outro; com as duas linhas juntas, entrou:
+  `node:22-alpine`, `npm install && npm run dev`, porta 5173, `VITE_API_URL` apontando para o
+  host (o WS abre no **navegador**, então as URLs são as do host, não os nomes de serviço do
+  compose). O download de 5,5 MB do modelo deixou de ser risco: `setup-mediapipe.mjs` procura
+  em `DIGITALFIT_POSE_MODEL`, `../eval/models/` e `/models/` (bind mount) antes da rede.
 - **[B/T-012] `scene.warning` não tem campo `message`.** O contrato manda só `code`,
   `severity` e `hint?`, e a SPEC-013 exige que o card do treinador exiba o aviso de cena com
   prioridade máxima. Como não há texto para mostrar, o cliente ficou com um mapa

@@ -5,6 +5,50 @@
 
 ---
 
+## 2026-07-28 · [A+B] Cliente ligado à API real + CORS + E2E headless
+
+> **Para o Daniel**: falta só você na frente da câmera. `docker compose up`, abrir
+> `http://localhost:5173` (ou o IP da máquina no celular), permitir a câmera e fazer 30 s de
+> polichinelo. Tudo antes disso está verificado por máquina.
+
+- `web/src/session/admission.ts`: o cliente **pede a sessão** (`POST /api/sessions`) e abre o
+  WS no `ws_url` do ticket. Antes ele inventava `session_id` e token — resto de quando a T-011
+  não existia; era uma sessão que o servidor não conhecia. `VITE_WS_URL` continua como escape
+  para o mock local.
+- `server/core/cors.py`: **sem CORS o app nunca teria funcionado no navegador**, e nenhum
+  `curl` mostraria isso — quem aplica a regra é o navegador, não o servidor. Em `DEBUG` libera
+  qualquer origem (o celular entra pelo IP da LAN, que ninguém lista antes); fora de `DEBUG`,
+  só `CORS_ALLOWED_ORIGINS`, que nasce vazia.
+- Serviço `web` no compose — a pendência que ficou **sem dono** entre os dois agentes (o A
+  atribuiu ao B, o B disse que compose é território do A). O `setup-mediapipe` agora copia o
+  modelo de `eval/models/` antes de sair para a rede, então a primeira subida do container não
+  depende de internet.
+- `web/src/session/live.e2e.test.ts` (`npm run e2e`, fora da suíte padrão): E2E do cliente
+  contra o stack real. Prova o que nada provava — que o **espelho TS do contrato**
+  (`lib/events.ts`) fala com o gateway Python. O mock do Agente B foi validado contra o
+  `events.py`, mas mock e servidor podem concordar entre si e estarem os dois errados.
+- Decisões:
+  - **`probe_result` no formato do evento** (`probe_fps`, não `fps`): o cliente manda o payload
+    de `session.capability` inteiro e o servidor monta o evento a partir dele. `fps` segue
+    aceito para não quebrar ticket antigo.
+  - **Middleware de CORS próprio** em vez de `django-cors-headers`: são 30 linhas e a Fase 0
+    tem uma regra só. Com domínio de produção e cookies, trocar é uma linha no `MIDDLEWARE`.
+  - E2E em config separada (`vitest.e2e.config.ts`), serial: cada teste abre a própria sessão
+    e em paralelo disputariam o mesmo worker e o mesmo relógio.
+- Bug de teste encontrado de raspão: `test_endpoint_cria_sessao` só passava quando a `views.py`
+  ainda não tinha sido importada no momento do monkeypatch — a view faz
+  `from api.sessions import create_session`, então patchar o módulo de origem não alcança a
+  referência dela. Meus testes de CORS mudaram a ordem dos arquivos e a fragilidade apareceu.
+  Agora o patch é em `api.views.create_session`, onde a view de fato lê.
+- Gates: `ruff` limpo, **352 testes** Python, `tsc`/`eslint` limpos, **127 testes** web, build
+  OK. E2E contra o stack de pé: 8 frames-rep enviados ⇒ **8 reps contadas** pelo servidor,
+  `exercise.phase` chegando, nenhum `pose.frame`/`quality.signal` vazando para o cliente; parar
+  de enviar ⇒ servidor fecha sozinho com `no_data`.
+- Pendências: T-014 só com a validação humana (câmera real); T-038 (corpus) depende de gravar
+  os vídeos.
+
+---
+
 ## 2026-07-28 · [A+B] Junção das duas linhas de trabalho
 
 - Os dois agentes trabalharam em **repositórios separados** que nunca se falaram: o Agente A em
