@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass, field
 
 from workers.analysis_worker.exercises import ExerciseAnalyzer, feed, get_analyzer
+from workers.analysis_worker.feedback import FeedbackEngine
 from workers.analysis_worker.scene import SceneValidator
 from workers.shared.events import (
     Envelope,
@@ -57,6 +58,7 @@ class SessionState:
     analyzer: ExerciseAnalyzer = field(default=None)  # type: ignore[assignment]
     normalizer: Normalizer = field(default_factory=Normalizer)
     scene: SceneValidator = field(default_factory=SceneValidator)
+    feedback: FeedbackEngine = field(default_factory=FeedbackEngine)
     first_ts: int | None = None
     last_ts: int | None = None
     frames: int = 0
@@ -80,7 +82,13 @@ class SessionState:
         return atual
 
     def summary(self) -> dict[str, object]:
-        return self.analyzer.summary()
+        """Consolidado da sessão para o relatório (SPEC-010).
+
+        `quality_signals` é o que a FSM detectou; `feedback_issued` é o que o usuário de fato
+        ouviu — os dois diferem pelo throttle, e essa diferença é justamente o que o relatório
+        precisa mostrar ("você tentou 12 reps curtas, avisei 3 vezes").
+        """
+        return {**self.analyzer.summary(), "feedback_issued": dict(self.feedback.counts)}
 
     def expiry_reason(self, now_wall_ms: int) -> SessionEndReason | None:
         """Por que esta sessão deveria terminar agora — ou `None` se ela segue viva.
@@ -190,9 +198,14 @@ class AnalysisRouter:
 
         # Cena primeiro: um frame ruim ainda deve avisar o usuário, mesmo que a FSM congele
         # nele (é justamente quando o aviso importa).
-        saidas = [self._wrap(estado, aviso) for aviso in estado.scene.check(norm)]
+        avisos = estado.scene.check(norm)
+        sinais = feed(estado.analyzer, norm)
+
+        saidas = [self._wrap(estado, payload_evento) for payload_evento in (*avisos, *sinais)]
+        # O feedback engine é o último: ele decide o que o HUD vê, com prioridade e throttle.
         saidas.extend(
-            self._wrap(estado, payload_evento) for payload_evento in feed(estado.analyzer, norm)
+            self._wrap(estado, mensagem)
+            for mensagem in estado.feedback.push([*avisos, *sinais], envelope.ts)
         )
         return saidas
 

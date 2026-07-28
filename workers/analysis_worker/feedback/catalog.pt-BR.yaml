@@ -1,0 +1,38 @@
+# Catálogo de feedback — pt-BR (SPEC-008, Fase Inicial).
+#
+# O código é o contrato (`workers/shared/events.py`); a mensagem é texto e vive aqui, para
+# ajustar palavra sem deploy de código. Um arquivo por idioma: `catalog.<locale>.yaml`.
+#
+# priority: menor vence. Cena (o dado está ruim) antes de execução (o movimento está ruim),
+# porque corrigir enquadramento é pré-requisito para qualquer crítica de execução.
+# severity: `info` orienta, `warning` atrapalha a medição.
+
+OUT_OF_FRAME:
+  message: Apareça inteiro no quadro
+  hint: Afaste-se até ombros e tornozelos aparecerem
+  severity: warning
+  priority: 10
+
+TOO_FAR:
+  message: Aproxime-se da câmera
+  hint: Seu corpo deve ocupar mais da metade da altura da tela
+  severity: warning
+  priority: 11
+
+TOO_CLOSE:
+  message: Afaste-se da câmera
+  hint: Recue até aparecer da cabeça aos pés
+  severity: warning
+  priority: 11
+
+ARMS_TOO_LOW:
+  message: Estenda mais os braços acima da cabeça
+  hint: As mãos devem passar da linha dos ombros
+  severity: info
+  priority: 20
+
+LEGS_TOO_CLOSED:
+  message: Abra mais as pernas
+  hint: Os pés devem passar da largura dos ombros
+  severity: info
+  priority: 21

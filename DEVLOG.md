@@ -5,6 +5,45 @@
 
 ---
 
+## 2026-07-28 · [A] T-010 — Feedback engine (núcleo)
+
+> **Agente B**: o HUD agora tem um evento só para mostrar: `feedback.issued`
+> `{code, severity, message, hint}`. A `message` e o `hint` já vêm em pt-BR, prontos para a
+> tela — **não** monte texto a partir do `code`. O motor garante **no máximo um feedback por
+> vez** e no máximo 1 do mesmo código a cada 4 s, então o card do treinador (SPEC-013) pode
+> simplesmente substituir o conteúdo quando chega um novo, sem fila própria. `quality.signal`
+> não vai mais para o cliente: é insumo do motor.
+
+- `workers/analysis_worker/feedback/`: catálogo em `catalog.pt-BR.yaml` (código → mensagem,
+  dica, severidade, prioridade) + `FeedbackEngine` (prioridade, throttle, supressão por cena).
+- Ligado no `AnalysisRouter` como último passo do frame: cena e FSM produzem sinais, o motor
+  decide o que o HUD vê.
+- `SessionState.summary()` passa a devolver `feedback_issued` ao lado de `quality_signals` —
+  o relatório (T-020) precisa da diferença entre "detectei 12" e "avisei 3".
+- Decisões:
+  - **Texto fora do código**: um YAML por idioma (`catalog.<locale>.yaml`); ajustar palavra não
+    é deploy. Código desconhecido ou entrada sem `message` é erro na carga — typo não vira
+    feedback mudo.
+  - **Prioridade no catálogo, não no código** (`priority`, menor vence): cena 10–11, execução
+    20–21. Ordenar é dado, não `if`.
+  - **Supressão por cena com janela de 3 s** (`SCENE_SUPPRESS_MS`), não flag booleana: o
+    validador repete o aviso a cada 2 s, então a janela se renova sozinha enquanto o problema
+    existe e expira sozinha quando ele some — sem evento de "cena resolvida", que não existe.
+  - **Throttle por código, não global**: braço e perna são problemas diferentes; calar um
+    porque o outro falou esconderia metade da correção. Quando um código está em throttle, o
+    próximo da fila passa.
+  - **`rep.detected` é ignorado** pelo motor: feedback positivo é Fase Evolução.
+  - Um motor por sessão — throttle e supressão são estado de sessão.
+- Gates: `ruff` limpo, **346 testes** verdes (27 novos). Critérios da SPEC-008 verificados no
+  stack real (API → WS → worker → HUD, Redis e gateway de verdade): 12 reps preguiçosas em 12 s
+  ⇒ **3 feedbacks** de `ARMS_TOO_LOW` com gaps de 4,1 s (nunca 12); corpo fora de quadro ⇒ só
+  `OUT_OF_FRAME`, **zero** crítica de execução; amplitude cheia ⇒ 12 reps e **nenhum** feedback
+  falso; latência sinal→HUD **≤ 39 ms** (orçamento: 150 ms).
+- Pendências: o card "Dica do Treinador" é T-012 (Agente B); agregação por padrão, TTS e
+  feedback positivo ficam na Fase Evolução da SPEC-008.
+
+---
+
 ## 2026-07-27 · [A] T-013 — Validação de cena mínima
 
 > **Agente B**: `scene.warning` já chega pelo WS com `{code, severity, hint}` — códigos
