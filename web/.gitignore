@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.vite/
+
+# Assets baixados/copiados por `npm run setup` (nunca versionados)
+public/wasm/
+public/models/
