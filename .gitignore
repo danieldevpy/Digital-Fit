@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Env
+.env
+.env.local
+
+# Django
+server/**/staticfiles/
+*.sqlite3
+
+# Node / web (território do Agente B)
+node_modules/
+web/dist/
+web/.vite/
+
+# Dados de avaliação e datasets (nunca versionados)
+eval/corpus/**/*.mp4
+eval/corpus/**/*.mov
+eval/out/
+data/
+*.parquet
+
+# Editores / SO
+.DS_Store
+.idea/
+.vscode/
