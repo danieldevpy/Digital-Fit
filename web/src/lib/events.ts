@@ -16,6 +16,7 @@ export const EventType = {
   SESSION_STARTED: 'session.started',
   FRAME_RAW: 'frame.raw',
   POSE_FRAME: 'pose.frame',
+  SESSION_CALIBRATED: 'session.calibrated',
   EXERCISE_PHASE: 'exercise.phase',
   REP_DETECTED: 'rep.detected',
   QUALITY_SIGNAL: 'quality.signal',
@@ -109,6 +110,9 @@ export const LANDMARK_NAMES = [
 
 /** O que o gateway empurra de volta ao cliente (`CLIENT_PUSH_TYPES` no contrato). */
 export const CLIENT_PUSH_TYPES: readonly EventType[] = [
+  // Marca o fim da preparação: é aqui que o servidor começa a contar os 30s, e o anel do
+  // HUD tem de ancorar no MESMO instante para não mentir sobre quanto falta.
+  EventType.SESSION_CALIBRATED,
   EventType.EXERCISE_PHASE,
   EventType.REP_DETECTED,
   EventType.SCENE_WARNING,
@@ -152,6 +156,18 @@ export const FRAME_RAW_MAX_SIDE = 320
 
 /** Qualidade do JPEG (SPEC-005: "qualidade ~60"). */
 export const FRAME_RAW_QUALITY = 0.6
+
+/**
+ * Baseline medida no countdown (SPEC-004). O cliente usa este evento como marco de "agora
+ * vale", não os números em si — quem raciocina sobre proporção corporal é o worker.
+ */
+export interface SessionCalibratedData {
+  torso: number
+  shoulder_width: number
+  shoulder_span: number
+  wrist_rest_y: number
+  samples: number
+}
 
 /** `[x, y, z, visibility]`, normalizado 0–1 no frame. */
 export type LandmarkTuple = [number, number, number, number]
@@ -201,6 +217,7 @@ export interface EventDataMap {
   'session.capability': SessionCapabilityData
   'session.started': SessionStartedData
   'pose.frame': PoseFrameData
+  'session.calibrated': SessionCalibratedData
   'exercise.phase': ExercisePhaseData
   'rep.detected': RepDetectedData
   'quality.signal': QualitySignalData

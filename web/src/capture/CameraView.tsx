@@ -18,6 +18,7 @@ export function CameraView() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const cameraStatus = useSessionStore((state) => state.cameraStatus)
+  const sessionStatus = useSessionStore((state) => state.sessionStatus)
   const poseStatus = useSessionStore((state) => state.poseStatus)
   const poseDelegate = useSessionStore((state) => state.poseDelegate)
   const probeStatus = useSessionStore((state) => state.probeStatus)
@@ -66,6 +67,19 @@ export function CameraView() {
 
       {isReady && probeStatus === 'running' && (
         <p className="stage__banner">Calibrando o dispositivo…</p>
+      )}
+
+      {/* Preparação (SPEC-004): a câmera roda e os frames já sobem, mas o exercício ainda
+          não vale. Quem encerra esta fase é o servidor (`session.calibrated`) — por isso
+          aqui não há contagem regressiva própria, que poderia terminar antes dele. */}
+      {isReady && sessionStatus === 'calibrating' && (
+        <div className="stage__prepare">
+          <p className="stage__prepare-title">Fique em pé, parado</p>
+          <p className="stage__prepare-hint">
+            Braços ao lado do corpo e pés juntos. Estamos medindo você — a contagem começa em
+            seguida.
+          </p>
+        </div>
       )}
 
       {isReady && (gatewayStatus === 'closed' || gatewayStatus === 'error') && (

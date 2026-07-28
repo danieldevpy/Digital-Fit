@@ -40,6 +40,8 @@ describe('espelho do contrato', () => {
   it('só empurra ao cliente os tipos previstos no contrato', () => {
     expect([...CLIENT_PUSH_TYPES].sort()).toEqual(
       [
+        // Desde a T-019 o cliente também recebe o marco de fim da preparação.
+        EventType.SESSION_CALIBRATED,
         EventType.EXERCISE_PHASE,
         EventType.REP_DETECTED,
         EventType.SCENE_WARNING,

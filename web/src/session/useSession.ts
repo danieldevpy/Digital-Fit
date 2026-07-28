@@ -26,6 +26,11 @@ function handle(envelope: Envelope) {
   const now = Date.now()
 
   switch (envelope.type) {
+    case EventType.SESSION_CALIBRATED:
+      // Marco de "agora vale": o servidor mediu o corpo e o timer dos 30 s começou. O
+      // cliente ancora o anel AQUI para não mostrar um tempo diferente do autoritativo.
+      store.applyCalibrated(now)
+      break
     case EventType.SESSION_STARTED:
       store.applySessionStarted(envelope.data as SessionStartedData, envelope.session_id)
       break

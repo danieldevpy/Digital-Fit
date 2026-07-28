@@ -168,6 +168,40 @@ button {
   text-align: left;
 }
 
+/* Preparação (SPEC-004): fica no CENTRO, não na faixa de baixo dos avisos. É instrução
+   para agir agora — "fique parado" precisa ser visto antes de a pessoa começar a pular. */
+.stage__prepare {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  text-align: center;
+  /* O palco é espelhado; o texto tem de desespelhar para ficar legível. */
+  transform: scaleX(-1);
+}
+
+.stage__prepare-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: #f4f4f6;
+}
+
+.stage__prepare-hint {
+  margin: 0;
+  max-width: 26ch;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #c2c2cc;
+}
+
 .stage__dev {
   position: absolute;
   left: 12px;

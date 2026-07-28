@@ -14,7 +14,12 @@ import type { ProbeOutcome } from '../probe/runProbe'
 import type { CoachEntry } from '../session/coachCard'
 
 export type CameraStatus = 'idle' | 'requesting' | 'ready' | 'denied' | 'error'
-export type SessionStatus = 'idle' | 'running' | 'completed'
+/**
+ * `calibrating` é a preparação (SPEC-004): a câmera já roda e os frames já sobem, mas o
+ * exercício ainda não vale. Quem decide a passagem para `running` é o servidor, via
+ * `session.calibrated` — o cliente nunca começa a sessão por conta própria.
+ */
+export type SessionStatus = 'idle' | 'calibrating' | 'running' | 'completed'
 export type PoseStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type ProbeStatus = 'idle' | 'running' | 'done' | 'error'
 
@@ -66,8 +71,14 @@ export interface SessionState {
   repCount: number
   phase: Phase | null
   durationS: number
-  /** epoch ms do `session.started` — base do countdown cosmético. */
+  /**
+   * epoch ms em que o exercício passou a valer (chegada do `session.calibrated`) — base do
+   * countdown cosmético. Fica `null` durante a preparação, e por isso o anel mostra a
+   * duração cheia: não há tempo a descontar de uma sessão que não começou.
+   */
   startedAt: number | null
+  /** epoch ms do primeiro frame enviado — só para saber há quanto tempo se está calibrando. */
+  firstFrameAt: number | null
   sceneEntry: CoachEntry | null
   feedbackEntry: CoachEntry | null
 
@@ -94,8 +105,10 @@ export interface SessionState {
    * empurra — o mock mandava, e era só por isso que o cliente funcionava contra ele.
    */
   applyTicket: (ticket: { sessionId: string; exercise: string; durationS: number }) => void
-  /** Primeiro frame enviado: é onde o timer autoritativo do servidor começa a contar. */
+  /** Primeiro frame enviado: marca o início da preparação, não o do exercício. */
   markFirstFrame: (at: number) => void
+  /** `session.calibrated`: o servidor mediu o corpo e começou a contar os 30 s. */
+  applyCalibrated: (at: number) => void
   applySessionStarted: (data: SessionStartedData, sessionId: string) => void
   applyRepDetected: (data: RepDetectedData) => void
   applyPhase: (phase: Phase) => void
@@ -116,6 +129,7 @@ const SESSION_DEFAULTS = {
   phase: null,
   durationS: 30,
   startedAt: null,
+  firstFrameAt: null,
   sceneEntry: null,
   feedbackEntry: null,
 }
@@ -160,20 +174,27 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       sessionId,
       exerciseKey: exercise,
       durationS,
-      sessionStatus: 'running',
+      // Admitida ≠ começada: a sessão entra em preparação e só vira `running` quando o
+      // servidor confirma a calibração (SPEC-004).
+      sessionStatus: 'calibrating',
       endReason: null,
       repCount: 0,
       phase: null,
-      // `startedAt` fica null de propósito: o countdown só faz sentido a partir do primeiro
-      // frame, que é a âncora do timer do servidor. Admitir a sessão não é começar a treinar.
       startedAt: null,
+      firstFrameAt: null,
       sceneEntry: null,
       feedbackEntry: null,
     }),
 
   markFirstFrame: (at) => {
+    if (get().firstFrameAt !== null) return
+    set({ firstFrameAt: at })
+  },
+
+  applyCalibrated: (at) => {
+    // Idempotente: o servidor emite uma vez, mas um reenvio não pode reiniciar o anel.
     if (get().startedAt !== null) return
-    set({ startedAt: at })
+    set({ startedAt: at, sessionStatus: 'running' })
   },
 
   applySessionStarted: (data, sessionId) =>
@@ -186,6 +207,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       repCount: 0,
       phase: null,
       startedAt: Date.now(),
+      firstFrameAt: null,
       sceneEntry: null,
       feedbackEntry: null,
     }),

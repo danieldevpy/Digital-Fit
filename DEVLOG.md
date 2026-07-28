@@ -37,7 +37,18 @@
 - Consequência no corpus: MAE 1,333. O vídeo `01` (2 s parados no início) volta a **20/20**;
   `02` e `03` perdem 2 cada porque **não têm countdown** e a medição come exercício real. O
   guia de gravação passou a exigir 2–3 s parado, e `--no-calibrate` existe para comparação.
-- Gates: ruff + format limpos, pytest 425 verde.
+- **Cliente (mesma task)**: `sessionStatus` ganhou `calibrating`, o anel do HUD passou a
+  ancorar em `session.calibrated` (e não no primeiro frame — senão o HUD mostraria menos
+  tempo do que o servidor concede), e a tela ganhou a instrução "Fique em pé, parado" no
+  centro do palco, onde é vista antes de a pessoa começar a pular.
+- **O E2E ao vivo ficou mais rígido, e isso revelou um erro real**: a fixture sintética não
+  tinha countdown, então a calibração comia a primeira repetição — 7 de 8 — e a asserção de
+  `±1` engolia isso em silêncio. Com o countdown na fixture, a contagem é **exata** (8/8
+  confirmado no log do worker) e a tolerância virou igualdade. O teste também passou a exigir
+  que `session.calibrated` tenha chegado: sem ele, o servidor teria contado durante a
+  preparação.
+- Gates: ruff + format limpos, pytest 425 verde, tsc limpo, eslint limpo, vitest 144 verde,
+  `npm run e2e` verde contra a stack real.
 - Pendências geradas (3 em "Descobertas").
 
 ---

@@ -66,8 +66,15 @@ function polichinelo(fracao: number): LandmarkTuple[] {
   return marcos
 }
 
+/** Frames parados do countdown (SPEC-004): é neles que o servidor mede o corpo. */
+const COUNTDOWN_FRAMES = 20
+
 function sequencia(reps: number, framesPorRep = FPS): LandmarkTuple[][] {
   const quadros: LandmarkTuple[][] = []
+  // Uma sessão real SEMPRE começa com a pessoa parada — é o que a calibração consome. Sem
+  // isto, a medição comeria a primeira repetição e o E2E toleraria em silêncio um erro que
+  // o usuário não veria em produção.
+  for (let i = 0; i < COUNTDOWN_FRAMES; i++) quadros.push(polichinelo(0))
   for (let rep = 0; rep < reps; rep++) {
     for (let i = 0; i < framesPorRep; i++) {
       quadros.push(polichinelo((1 - Math.cos((2 * Math.PI * i) / framesPorRep)) / 2))
@@ -122,6 +129,10 @@ describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
       await new Promise((r) => setTimeout(r, 1500))
       socket.close()
 
+      // A preparação tem de ter acontecido: sem `session.calibrated` o servidor teria
+      // contado durante o countdown.
+      expect(recebidos.some((e) => e.type === EventType.SESSION_CALIBRATED)).toBe(true)
+
       const tipos = new Set(recebidos.map((e) => e.type))
       const reps = recebidos.filter((e) => e.type === EventType.REP_DETECTED)
       const ultima = reps.at(-1)?.data as RepDetectedData | undefined
@@ -129,7 +140,9 @@ describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
       // O contrato do servidor é o que manda: o cliente não soma reps.
       expect(reps.length).toBeGreaterThan(0)
       expect(ultima?.rep_count).toBe(reps.length)
-      expect(Math.abs(reps.length - REPS)).toBeLessThanOrEqual(1)
+      // Exato, não "±1": com o countdown no lugar, keypoints sintéticos e limpos não têm
+      // motivo para perder repetição. Uma tolerância aqui esconderia regressão de contagem.
+      expect(reps.length).toBe(REPS)
       expect(tipos.has(EventType.EXERCISE_PHASE)).toBe(true)
 
       // Nada fora dos CLIENT_PUSH_TYPES pode chegar ao cliente.
