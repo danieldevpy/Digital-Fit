@@ -86,6 +86,12 @@
   dispara `predev` → `scripts/setup-mediapipe.mjs`, que baixa ~5.5 MB do modelo — no
   container isso exige rede na primeira subida ou um volume para `web/public/models/`.
   Decisão de quem faz fica para o Daniel / sessão conjunta.
+- **[B/T-043] Anel de countdown: spec e imagem discordam.** A SPEC-013 diz duas vezes que o
+  gradiente é roxo (`§3` "gradiente roxo" e `§Design tokens` "gradiente: accent → accent-2"),
+  mas na imagem de referência o anel vai de **ciano** a roxo. Segui a spec (roxo → roxo
+  claro), conforme o AGENTS.md ("conflito entre spec e código → a spec vence"). Se a intenção
+  era o ciano da imagem, é 1 linha em `TimerRing.tsx` + um token novo — e a spec pede que
+  divergências intencionais virem seção "Desvios da referência".
 - **[B/T-004] Escopo do `seq`: por sessão ou por tipo de evento?** O contrato diz "contador
   monotônico **por sessão** (nunca repete nem retrocede)". Se o cliente manda
   `session.capability` antes do primeiro `pose.frame`, os dois disputam o `seq` 0 — o frame

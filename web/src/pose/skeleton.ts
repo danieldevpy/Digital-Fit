@@ -28,6 +28,10 @@ export interface Segment {
 /** Limiar padrão de visibilidade (convenções §Unidades e medidas). */
 export const DEFAULT_MIN_VISIBILITY = 0.5
 
+/** Token `--skeleton` da SPEC-013 (o canvas não enxerga variáveis CSS). */
+export const SKELETON_COLOR = '#eaf2ff'
+export const SKELETON_GLOW = 'rgba(124, 92, 255, 0.85)'
+
 /**
  * Landmark sem `visibility` conta como visível: nem todo provedor preenche o
  * campo, e esconder o esqueleto inteiro seria pior que desenhar demais.
@@ -92,9 +96,11 @@ export function drawSkeleton(
     minVisibility = DEFAULT_MIN_VISIBILITY,
     connections = BODY_CONNECTIONS,
     joints = BODY_JOINTS,
-    lineColor = 'rgba(255, 255, 255, 0.92)',
-    jointColor = '#ffffff',
-    glowColor = 'rgba(96, 165, 250, 0.9)',
+    // `--skeleton` da SPEC-013. O canvas está em pixels de VÍDEO (640px), não de
+    // CSS (~430px no celular), então 3 aqui é o "~2px" que a spec pede na tela.
+    lineColor = SKELETON_COLOR,
+    jointColor = SKELETON_COLOR,
+    glowColor = SKELETON_GLOW,
     lineWidth = 3,
     jointRadius = 6,
   } = options

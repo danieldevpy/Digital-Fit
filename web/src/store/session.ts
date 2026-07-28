@@ -32,6 +32,11 @@ export interface SessionState {
   /** Gravador de fixtures (T-007) — ferramenta de dev, não faz parte da sessão real. */
   recording: boolean
   recordedFrames: number
+  /**
+   * Controles da câmera, registrados pela CameraView. Existe para o FAB da
+   * bottom nav iniciar a sessão sem que a nav precise conhecer o pipeline.
+   */
+  cameraControls: { start: () => void; stop: () => void } | null
   error: string | null
 
   setCameraStatus: (status: CameraStatus) => void
@@ -45,6 +50,7 @@ export interface SessionState {
   setFrameStats: (stats: FrameStats | null) => void
   setRecording: (recording: boolean) => void
   setRecordedFrames: (count: number) => void
+  setCameraControls: (controls: SessionState['cameraControls']) => void
   setError: (message: string | null) => void
   resetPipeline: () => void
 }
@@ -61,6 +67,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   frameStats: null,
   recording: false,
   recordedFrames: 0,
+  cameraControls: null,
   error: null,
 
   setCameraStatus: (cameraStatus) => set({ cameraStatus }),
@@ -74,6 +81,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setFrameStats: (frameStats) => set({ frameStats }),
   setRecording: (recording) => set({ recording }),
   setRecordedFrames: (recordedFrames) => set({ recordedFrames }),
+  setCameraControls: (cameraControls) => set({ cameraControls }),
   setError: (error) => set({ error }),
 
   resetPipeline: () =>

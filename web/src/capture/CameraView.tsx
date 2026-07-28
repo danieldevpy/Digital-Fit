@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { FixtureControls } from '../dev/FixtureControls'
 import { Mode } from '../lib/events'
 import { useSessionStore } from '../store/session'
@@ -26,8 +26,16 @@ export function CameraView() {
   const frameStats = useSessionStore((state) => state.frameStats)
   const error = useSessionStore((state) => state.error)
 
+  const setCameraControls = useSessionStore((state) => state.setCameraControls)
+
   const { start, stop } = useCamera(videoRef)
   useEdgePipeline(videoRef, canvasRef, cameraStatus === 'ready')
+
+  // O FAB da bottom nav aciona a câmera sem conhecer o pipeline.
+  useEffect(() => {
+    setCameraControls({ start: () => void start(), stop })
+    return () => setCameraControls(null)
+  }, [setCameraControls, start, stop])
 
   const isReady = cameraStatus === 'ready'
   const isCloud = capability?.mode === Mode.CLOUD

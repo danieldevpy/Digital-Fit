@@ -21,9 +21,10 @@ export function TimerRing({ secondsLeft, secondsTotal }: TimerRingProps) {
     <div className="ring">
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
         <defs>
+          {/* SPEC-013 §Design tokens: gradiente accent → accent-2. */}
           <linearGradient id="ringGradient" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0%" stopColor="#22d3ee" />
-            <stop offset="100%" stopColor="#a855f7" />
+            <stop offset="0%" stopColor="#7c5cff" />
+            <stop offset="100%" stopColor="#a78bfa" />
           </linearGradient>
         </defs>
         <circle
@@ -48,7 +49,7 @@ export function TimerRing({ secondsLeft, secondsTotal }: TimerRingProps) {
         />
       </svg>
       <div className="ring__content">
-        <p className="ring__time">{formatClock(secondsLeft)}</p>
+        <p className="ring__time tabular">{formatClock(secondsLeft)}</p>
         <p className="ring__label">Tempo restante</p>
       </div>
     </div>

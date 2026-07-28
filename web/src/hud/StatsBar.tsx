@@ -9,7 +9,7 @@ export function StatsBar() {
       <div className="stats__item">
         <IconSeries className="stats__icon" />
         <div>
-          <p className="stats__value">{series}</p>
+          <p className="stats__value tabular">{series}</p>
           <p className="stats__label">Série</p>
         </div>
       </div>
@@ -17,7 +17,7 @@ export function StatsBar() {
       <div className="stats__item">
         <IconPulse className="stats__icon" />
         <div>
-          <p className="stats__value">
+          <p className="stats__value tabular">
             {reps}
             <span className="stats__value--muted">/{repsTarget}</span>
           </p>
@@ -28,7 +28,7 @@ export function StatsBar() {
       <div className="stats__item">
         <IconAngle className="stats__icon" />
         <div>
-          <p className="stats__value">{angle}°</p>
+          <p className="stats__value tabular">{angle}°</p>
           <p className="stats__label">Ângulo</p>
         </div>
       </div>
@@ -36,7 +36,7 @@ export function StatsBar() {
       <div className="stats__item">
         <IconFlame className="stats__icon stats__icon--flame" />
         <div>
-          <p className="stats__value">{kcal}</p>
+          <p className="stats__value tabular">{kcal}</p>
           <p className="stats__label">Kcal</p>
         </div>
       </div>

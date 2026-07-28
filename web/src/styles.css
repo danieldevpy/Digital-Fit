@@ -4,19 +4,29 @@
 :root {
   color-scheme: dark;
 
-  --bg: #000000;
-  --surface: #16161a;
-  --surface-raised: #1c1c22;
-  --border: rgba(255, 255, 255, 0.08);
+  /* Design tokens da SPEC-013 — valores vinculantes, não ajustar por gosto. */
+  --bg: #0b0b10;
+  --surface: rgba(20, 20, 28, 0.72);
+  --surface-border: rgba(255, 255, 255, 0.08);
+  --accent: #7c5cff;
+  --accent-2: #a78bfa;
+  --hot: #ff8a3d;
   --text: #ffffff;
-  --text-muted: #8e8e96;
-  --accent: #a855f7;
-  --accent-soft: #c084fc;
-  --cyan: #22d3ee;
+  --text-dim: rgba(255, 255, 255, 0.6);
+  --radius: 18px;
+  --skeleton: #eaf2ff;
 
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Blur das superfícies glass. Nota da spec: no máximo 3 simultâneas. */
+  --glass-blur: blur(16px);
+
+  font-family: Inter, Manrope, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
+}
+
+/* O contador não pode "dançar" quando o número muda (SPEC-013 §Tipografia). */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 * {
@@ -25,7 +35,7 @@
 
 body {
   margin: 0;
-  background: #050508;
+  background: var(--bg);
 }
 
 button {
@@ -107,7 +117,7 @@ button {
 
 .stage__status {
   margin: 0;
-  color: var(--text-muted);
+  color: var(--text-dim);
   font-size: 0.9375rem;
 }
 
@@ -125,7 +135,7 @@ button {
   background: var(--accent);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.35);
+  box-shadow: 0 8px 24px rgba(124, 92, 255, 0.35);
 }
 
 .stage__start:disabled {
@@ -141,7 +151,7 @@ button {
   bottom: 46px;
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--surface-border);
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.62);
   backdrop-filter: blur(10px);
@@ -153,8 +163,8 @@ button {
 }
 
 .stage__banner--cloud {
-  border-color: rgba(168, 85, 247, 0.4);
-  color: var(--accent-soft);
+  border-color: rgba(124, 92, 255, 0.45);
+  color: var(--accent-2);
   text-align: left;
 }
 
@@ -172,14 +182,14 @@ button {
   border-radius: 14px;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(8px);
-  color: var(--text-muted);
+  color: var(--text-dim);
   font-size: 0.6875rem;
   letter-spacing: 0.02em;
 }
 
 .stage__dev-stop,
 .stage__dev-rec {
-  color: var(--accent-soft);
+  color: var(--accent-2);
   font-size: 0.6875rem;
   font-weight: 600;
 }
@@ -200,10 +210,10 @@ button {
   justify-content: space-between;
   gap: 4px;
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(20, 20, 24, 0.72);
-  backdrop-filter: blur(16px);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  backdrop-filter: var(--glass-blur);
 }
 
 .stats__item {
@@ -217,11 +227,11 @@ button {
   flex: 0 0 auto;
   width: 20px;
   height: 20px;
-  color: var(--accent-soft);
+  color: var(--accent-2);
 }
 
 .stats__icon--flame {
-  color: #fb923c;
+  color: var(--hot);
 }
 
 .stats__value {
@@ -234,13 +244,13 @@ button {
 }
 
 .stats__value--muted {
-  color: var(--text-muted);
+  color: var(--text-dim);
   font-weight: 600;
 }
 
 .stats__label {
   margin: 2px 0 0;
-  color: var(--text-muted);
+  color: var(--text-dim);
   font-size: 0.5625rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -250,10 +260,12 @@ button {
 
 /* ---------- cards ---------- */
 
+/* Glass card: uma das 3 superfícies com blur permitidas pela SPEC-013. */
 .card {
-  border: 1px solid var(--border);
-  border-radius: 20px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
   background: var(--surface);
+  backdrop-filter: var(--glass-blur);
 }
 
 .card--exercise {
@@ -275,7 +287,7 @@ button {
 
 .exercise__category {
   margin: 4px 0 0;
-  color: var(--text-muted);
+  color: var(--text-dim);
   font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -303,7 +315,7 @@ button {
 
 .ring__label {
   margin: 1px 0 0;
-  color: var(--text-muted);
+  color: var(--text-dim);
   font-size: 0.4rem;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -326,7 +338,7 @@ button {
   height: 40px;
   border-radius: 50%;
   background: linear-gradient(150deg, #3b3b52, #1d1d2b);
-  border: 1px solid var(--border);
+  border: 1px solid var(--surface-border);
 }
 
 .tip__avatar-icon {
@@ -342,7 +354,7 @@ button {
 
 .tip__title {
   margin: 0 0 3px;
-  color: var(--accent-soft);
+  color: var(--accent-2);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -360,9 +372,9 @@ button {
   flex: 0 0 auto;
   align-self: center;
   padding: 9px 11px;
-  border: 1px solid rgba(168, 85, 247, 0.5);
+  border: 1px solid rgba(124, 92, 255, 0.55);
   border-radius: 12px;
-  color: var(--accent-soft);
+  color: var(--accent-2);
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -370,6 +382,17 @@ button {
 }
 
 /* ---------- tab bar ---------- */
+
+.tabbar__hint {
+  margin: 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-align: center;
+}
 
 .tabbar {
   position: relative;
@@ -379,8 +402,13 @@ button {
   align-items: center;
   margin-top: 10px;
   padding: 10px 6px calc(10px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
-  background: #0d0d11;
+  border-top: 1px solid var(--surface-border);
+  /* Sólida de propósito: a spec limita a 3 superfícies com blur. */
+  background: #101018;
+}
+
+.tab[aria-disabled='true'] {
+  opacity: 0.62;
 }
 
 .tab {
@@ -389,7 +417,7 @@ button {
   align-items: center;
   gap: 4px;
   padding: 4px 0;
-  color: var(--text-muted);
+  color: var(--text-dim);
 }
 
 .tab--active {
@@ -402,7 +430,7 @@ button {
 }
 
 .tab--active .tab__icon {
-  fill: rgba(168, 85, 247, 0.22);
+  fill: rgba(124, 92, 255, 0.22);
 }
 
 .tab__label {
@@ -418,11 +446,11 @@ button {
   height: 58px;
   margin-top: -26px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #c084fc, #7c3aed 60%, #5b21b6);
+  background: radial-gradient(circle at 35% 30%, var(--accent-2), var(--accent) 62%, #4c34cc);
   color: #ffffff;
   box-shadow:
-    0 0 0 6px rgba(124, 58, 237, 0.16),
-    0 10px 26px rgba(124, 58, 237, 0.45);
+    0 0 0 6px rgba(124, 92, 255, 0.16),
+    0 10px 26px rgba(124, 92, 255, 0.45);
 }
 
 .tab-fab__icon {

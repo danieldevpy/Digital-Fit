@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-07-27 · [B] T-043 (2ª passada) — Alinhamento à SPEC-013
+
+- Descobri no DEVLOG que o Arquiteto formalizou a referência na **SPEC-013** e atualizou meu
+  prompt (SPEC-013 virou leitura obrigatória; ordem de tasks mudou: T-007 → T-043 → T-012 →
+  T-044 → WS). A primeira passada da T-043 saiu só da imagem; esta refaz contra os tokens.
+- Tokens agora são os da spec, não os que eu tinha estimado da imagem: `--bg #0B0B10`
+  (era preto puro), `--accent #7C5CFF` (era `#a855f7`), `--accent-2 #A78BFA`, `--hot #FF8A3D`,
+  `--text-dim rgba(255,255,255,.6)`, `--radius 18px`, `--skeleton #EAF2FF`.
+- Glass real nas 3 superfícies permitidas (barra de métricas + 2 cards) com
+  `backdrop-filter: blur(16px)`; **bottom nav ficou sólida de propósito** — a nota técnica da
+  spec limita a 3 blurs simultâneos por custo em mobile.
+- `font-variant-numeric: tabular-nums` nos números de métrica e no relógio do anel (critério
+  de aceite 2: sem layout shift quando o contador muda).
+- Esqueleto passou a usar o token `--skeleton`. Como o canvas está em pixels de **vídeo**
+  (640) e não de CSS (~430 no celular), mantive `lineWidth: 3`, que dá os "~2px" que a spec
+  pede na tela.
+- Bottom nav: Exercícios/Progresso/Perfil agora são placeholders **declarados** — ficam
+  esmaecidos, marcados `aria-disabled` e respondem "em breve" ao toque, em vez de fingirem
+  navegação. O FAB central liga/desliga a sessão via `cameraControls` no store, para a nav
+  não precisar conhecer o pipeline.
+- Gates: `tsc -b` limpo, `npm run lint` sem erros nem warnings, `npm run test` 78/78,
+  screenshot 430×932 conferido.
+- Pendência gerada: **anel de countdown** — a spec diz gradiente roxo, a imagem mostra ciano
+  → roxo. Segui a spec e registrei em "Descobertas" para o Arquiteto decidir.
+
+---
+
 ## 2026-07-27 · [B] T-007 — Gravador de fixtures
 
 - Botão de dev que acumula os keypoints da sessão e baixa um JSON para os testes do núcleo.
