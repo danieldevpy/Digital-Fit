@@ -1,0 +1,81 @@
+# Digital Fit — desenvolvimento local. Tudo com um comando:
+#   docker compose up
+#
+# Servicos desta fase: redis (barramento de eventos), postgres (dados), api (Django).
+# O gateway (Channels), os workers e o `web` (Vite) entram nas suas proprias tasks.
+
+name: digital-fit
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+      --save ""
+      --appendonly no
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-digitalfit}
+      POSTGRES_USER: ${POSTGRES_USER:-digitalfit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-digitalfit}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-digitalfit} -d ${POSTGRES_DB:-digitalfit}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-nao-usar-em-producao}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api,[::1]}
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-digitalfit}
+      POSTGRES_USER: ${POSTGRES_USER:-digitalfit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-digitalfit}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      # Bind mount para reload automatico em desenvolvimento.
+      - ./server:/app/server
+      - ./workers:/app/workers
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  postgres-data:
