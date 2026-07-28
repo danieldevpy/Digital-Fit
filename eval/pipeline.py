@@ -134,10 +134,12 @@ def analyze_video(
     target_fps: float | None = 15.0,
     model_path: Path | None = None,
     extractor=None,
+    keypoints_sink: list[RawFrame] | None = None,
 ) -> VideoResult:
     """Decodifica o vídeo, extrai pose e roda o pipeline.
 
     `extractor` existe para os testes injetarem uma fonte falsa; em uso normal, MediaPipe.
+    `keypoints_sink` recebe os keypoints extraídos, para virarem fixture (`--save-keypoints`).
     """
     from eval.sources import MediaPipeExtractor, read_video_frames
 
@@ -156,6 +158,9 @@ def analyze_video(
     finally:
         if proprio:
             extractor.close()
+
+    if keypoints_sink is not None:
+        keypoints_sink.extend(keypoints)
 
     return analyze_frames(
         keypoints,

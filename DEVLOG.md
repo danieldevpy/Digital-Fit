@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-07-27 · [A] T-039 — Métricas, `evalctl compare` e fixtures de keypoints
+
+> **Agente B (T-007, gravador de fixtures)**: o formato de fixture agora existe e é
+> compartilhado — `workers/shared/keypoints.py`, `schema: 1`. Grave exatamente isso no
+> navegador e o `pytest` e o `evalctl` consomem sem conversão.
+
+- `workers/shared/keypoints.py`: formato de fixture de keypoints (`schema`, `label`,
+  `exercise`, `expected_reps`, `source`, `fps`, `notes`, `conditions`, `frames[{ts,seq,
+  landmarks}]`) + `save_fixture`/`load_fixture`. Ficou em `shared` de propósito: é fronteira
+  entre bancada, testes, worker (replay da T-041) e cliente (T-007).
+- `eval/metrics.py`: `aggregate()` (MAE de reps, % de vídeos exatos, taxa de falso positivo nos
+  negativos e quebra por condição de gravação) e `compare()` (por vídeo + agregado, com
+  regressão explícita). `evalctl compare a.json b.json` sai com **código 1 em regressão** — é o
+  gate que a T-042 vai usar em CI.
+- `evalctl run --save-keypoints DIR` exporta a fixture de cada vídeo (SPEC-012, critério 3).
+- Decisões:
+  - **Fixture guarda landmarks crus, não normalizados**: normalização é código que muda, e a
+    fixture existe justamente para medir mudança de código. 5 decimais por coordenada — muito
+    acima do ruído do modelo, e diff estável no git.
+  - **Taxa de falso positivo é métrica de primeira classe**: negativo é vídeo rotulado com 0
+    reps; sem essa métrica, "melhorar a contagem" pode virar inflar contagem.
+  - **Vídeo com erro de leitura sai da conta de acurácia** (mas é contado em `errors`): uma
+    falha de I/O não deve mascarar nem piorar a medida do algoritmo.
+  - **Vídeo sem rótulo nunca gera veredito** no `compare` — aparece como "mudou (sem rotulo)".
+    Regressão só se afirma contra rótulo.
+- Verificado no CLI real: corpus com manifest (1 vídeo + 1 arquivo faltando) ⇒ tabela por vídeo,
+  agregado e quebra por `light`/`distance`/`angle`, com o vídeo ausente isolado como erro;
+  `compare` de um relatório contra uma versão degradada ⇒ "pior", `MAE 0.000 -> 3.000`,
+  `REGRESSAO em: ...`, código de saída 1.
+- Gates: `ruff` limpo, **210 testes** verdes (27 novos).
+
+---
+
 ## 2026-07-27 · [A] T-037 — `evalctl run` (bancada de avaliação)
 
 - `eval/`: `sources.py` (decode de vídeo + extração de pose), `pipeline.py` (frames →

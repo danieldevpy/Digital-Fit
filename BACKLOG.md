@@ -25,7 +25,7 @@
 | T-014 | E2E local: 30s de polichinelo real → contagem correta na tela (demo gravável) | todas | todo |
 | T-037 | CLI `evalctl run`: vídeo mp4 → MediaPipe → normalização → FSM → resultado JSON (reusa módulos dos workers) | 012 | done |
 | T-038 | Corpus inicial: 12–15 vídeos rotulados (manifest.yaml) + guia de gravação | 012 | todo |
-| T-039 | Métricas agregadas + `evalctl compare` (regressão entre versões) + `--save-keypoints` | 012 | todo |
+| T-039 | Métricas agregadas + `evalctl compare` (regressão entre versões) + `--save-keypoints` | 012 | done |
 
 ## Fase 1 — Modo cloud + persistência
 

@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from eval.metrics import aggregate, compare, format_comparison, format_metrics
 from eval.pipeline import VideoResult, analyze_video, commit_hash
 
 __all__ = ["main"]
@@ -85,6 +86,7 @@ def run_items(
     *,
     target_fps: float | None,
     model_path: Path | None = None,
+    save_keypoints: Path | None = None,
     extractor=None,
 ) -> list[VideoResult]:
     """Processa cada item, isolando falhas: um vídeo corrompido não derruba o corpus."""
@@ -103,6 +105,7 @@ def run_items(
             )
             continue
         try:
+            keypoints: list | None = [] if save_keypoints else None
             resultados.append(
                 analyze_video(
                     item.path,
@@ -112,8 +115,11 @@ def run_items(
                     target_fps=target_fps,
                     model_path=model_path,
                     extractor=extractor,
+                    keypoints_sink=keypoints,
                 )
             )
+            if save_keypoints and keypoints:
+                _write_fixture(save_keypoints, item, keypoints, target_fps=target_fps)
         except Exception as exc:  # a bancada reporta a falha, não morre com ela
             resultados.append(
                 VideoResult(
@@ -128,8 +134,28 @@ def run_items(
     return resultados
 
 
+def _write_fixture(
+    directory: Path, item: CorpusItem, keypoints: list, *, target_fps: float | None
+) -> Path:
+    """Exporta os keypoints do vídeo como fixture de nível 1 (SPEC-012, critério 3)."""
+    from workers.shared.keypoints import KeypointFixture, save_fixture
+
+    fixture = KeypointFixture(
+        label=item.path.stem,
+        frames=keypoints,
+        exercise=item.exercise,
+        expected_reps=item.expected_reps,
+        source="file",
+        fps=target_fps,
+        notes=f"extraido de {item.path.name} por evalctl",
+        conditions=dict(item.conditions or {}),
+    )
+    return save_fixture(Path(directory) / f"{item.path.stem}.json", fixture)
+
+
 def build_report(resultados: list[VideoResult], *, target_fps: float | None) -> dict[str, object]:
     """Relatório versionado, com a versão do código e do modelo (SPEC-012, notas técnicas)."""
+    videos = [resultado.to_dict() for resultado in resultados]
     return {
         "tool": "evalctl",
         "report_version": REPORT_VERSION,
@@ -137,7 +163,8 @@ def build_report(resultados: list[VideoResult], *, target_fps: float | None) -> 
         "commit": commit_hash(),
         "model": _model_version(),
         "params": {"target_fps": target_fps},
-        "videos": [resultado.to_dict() for resultado in resultados],
+        "metrics": aggregate(videos).to_dict(),
+        "videos": videos,
     }
 
 
@@ -189,9 +216,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         itens,
         target_fps=args.fps,
         model_path=Path(args.model) if getattr(args, "model", None) else None,
+        save_keypoints=Path(args.save_keypoints) if args.save_keypoints else None,
     )
     if not args.quiet:
         print_results(resultados)
+        print()
+        print(format_metrics(aggregate([resultado.to_dict() for resultado in resultados])))
 
     if args.report:
         destino = Path(args.report)
@@ -203,6 +233,26 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     # Falha de leitura é erro de execução; contagem errada não é (isso é métrica, T-039).
     return 1 if any(resultado.error for resultado in resultados) else 0
+
+
+def cmd_compare(args: argparse.Namespace) -> int:
+    """Compara dois relatórios. Código 1 = regressão (é o gate da T-042 em CI)."""
+    antes = json.loads(Path(args.before).read_text(encoding="utf-8"))
+    depois = json.loads(Path(args.after).read_text(encoding="utf-8"))
+    comparacao = compare(antes, depois)
+
+    if not args.quiet:
+        print(format_comparison(comparacao))
+    if args.report:
+        destino = Path(args.report)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(
+            json.dumps(comparacao.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        if not args.quiet:
+            print(f"\ncomparacao: {destino}")
+
+    return 1 if comparacao.regressed else 0
 
 
 def cmd_fetch_model(args: argparse.Namespace) -> int:
@@ -231,7 +281,22 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--report", default=None, help="caminho do eval.json")
     run.add_argument("--quiet", action="store_true", help="sem tabela no stdout")
     run.add_argument("--model", default=None, help="caminho do .task do Pose Landmarker")
+    run.add_argument(
+        "--save-keypoints",
+        default=None,
+        metavar="DIR",
+        help="exporta os keypoints de cada video como fixture de nivel 1",
+    )
     run.set_defaults(func=cmd_run)
+
+    comparar = subcomandos.add_parser(
+        "compare", help="compara dois eval.json (codigo 1 se houver regressao)"
+    )
+    comparar.add_argument("before", help="eval.json de referencia")
+    comparar.add_argument("after", help="eval.json novo")
+    comparar.add_argument("--report", default=None, help="grava a comparacao em JSON")
+    comparar.add_argument("--quiet", action="store_true", help="sem tabela no stdout")
+    comparar.set_defaults(func=cmd_compare)
 
     fetch = subcomandos.add_parser(
         "fetch-model", help="baixa o modelo pose_landmarker_lite.task (uma vez)"
