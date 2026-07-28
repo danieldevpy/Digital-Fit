@@ -41,6 +41,7 @@
 | T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | todo |
 | T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness | 012 | todo |
 | T-041 | `evalctl replay --ws`: injetar keypoints gravados via gateway (integração + carga sintética) | 012 | todo |
+| T-047 | FSM inicia a fase pelo que observa, não assumindo `CLOSED` (perde a 1ª rep quando a captura começa com a pessoa aberta — ver Descobertas) | 007/004 | todo |
 
 ## Fase 2 — SaaS na VPS
 
@@ -127,6 +128,24 @@
   mudar o environment do compose. Por isso o `prod.sh up` sempre reconstrói. Se um dia isso
   incomodar, a saída é o cliente ler a origem da própria página (same-origin) em vez de uma
   variável — hoje `apiBaseUrl()` cairia no default de `localhost:8000`.
+- **[A/T-038] A FSM perde a primeira rep quando a gravação começa com a pessoa já ABERTA.**
+  Diagnosticado no `polichinelo-02.mp4` (14 de 15): no `ts=0` os features já são
+  `arm_angle=143°, ankle_spread=3.19` — posição aberta. A FSM nasce em `Phase.CLOSED` e o
+  debounce de 250 ms (SPEC-007) exige estabilidade antes de aceitar a abertura; aos 167 ms a
+  pessoa já está fechando, então a transição para `OPEN` nunca acontece e o ciclo se perde.
+  Uma hipótese anterior ("erra quando não há tempo parado no início") foi **refutada** por
+  experimento: cortar até 3 s do início do `polichinelo-01.mp4` continua dando 20/20 — o que
+  importa não é o tempo parado, é a **fase** em que o vídeo começa. No produto o countdown
+  (SPEC-004 / T-019) faz a pessoa começar parada e fechada, então o caso é raro ao vivo; para
+  a bancada é real. Proposta: **T-047**.
+- **[A/T-038] Falha TOTAL de detecção é silenciosa — nem sequer vira `OUT_OF_FRAME`.**
+  No `polichinelo-03.mp4` (20 de 21) a detecção é perfeita nos primeiros 20 s e **zero** pose
+  do segundo 21 ao 25: a pessoa sai do quadro e a 21ª rep acontece onde o modelo não a vê. O
+  problema é que a validação de cena (SPEC-003) opera sobre landmarks — sem landmarks não há
+  evento, logo não há aviso. O sistema fica mudo até o `no_data` de 10 s. Quem está treinando
+  não recebe "volte para o quadro" justamente quando mais precisa. Cobrir isso é da SPEC-003
+  Fase Evolução (T-029), mas vale decidir antes se um `pose.frame` "vazio" deve existir só
+  para a cena poder reclamar.
 - **[A/T-018] A paridade compara Python×Python, não navegador×servidor**: o lado "edge" do
   `evalctl parity` é o MediaPipe do **Python** em modo VIDEO e resolução cheia, não o do
   navegador. Uma divergência entre a implementação JS e a Python passaria despercebida. O que

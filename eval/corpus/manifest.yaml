@@ -5,14 +5,51 @@
 #
 # `expected_reps` é o rótulo humano: a contagem que uma pessoa fez assistindo. É contra ele
 # que a acurácia é medida, então errar aqui envenena toda a bancada.
+#
+# Os nomes dos campos em `conditions` são livres, mas devem ser CONSISTENTES entre vídeos: o
+# relatório agrupa por eles ("por angulo", "por cadencia") e é assim que se descobre em qual
+# condição o pipeline erra. Ver README.md.
 
 - file: polichinelo-01.mp4
   exercise: jumping_jack
   expected_reps: 20
   conditions:
-    # Preencher o que for sabido da gravação; campos vazios são melhores que campos errados.
+    orientacao: paisagem
     resolucao: 854x480
-    fps: 30
-    duracao_s: 29
+    angulo: frontal
     enquadramento: corpo inteiro
-    observacoes: os primeiros ~2s sao parados, antes do exercicio comecar
+    inicio: ~2s parados antes de comecar
+    cadencia: media
+
+- file: polichinelo-02.mp4
+  exercise: jumping_jack
+  expected_reps: 15
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    angulo: frontal
+    enquadramento: corpo inteiro
+    inicio: exercicio comeca imediatamente
+    # 15 reps em 12,2s ≈ 73 rpm, a mais rápida do corpus. Cadência alta é justamente onde a
+    # decimação para 10fps do modo cloud tem mais chance de perder o pico do movimento.
+    cadencia: rapida
+    # A bancada conta 14: no ts=0 a pessoa JÁ está aberta (arm 143°, spread 3.19) e a FSM
+    # nasce em CLOSED, então a primeira abertura nunca é aceita. Ver T-047.
+    conhecido: perde a 1a rep (comeca com a pessoa aberta)
+
+- file: polichinelo-03.mp4
+  exercise: jumping_jack
+  expected_reps: 21
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    # Plano frontal com ângulo de ~20–30° em relação à câmera, permitindo ver ao mesmo tempo
+    # a abertura dos braços, a amplitude das pernas e a profundidade do movimento.
+    angulo: obliquo 20-30
+    enquadramento: corpo inteiro
+    inicio: exercicio comeca imediatamente
+    cadencia: media
+    # A bancada conta 20: detecção é perfeita nos primeiros 20s e ZERO do segundo 21 ao 25 —
+    # a pessoa sai do quadro e a última rep acontece onde o modelo não a vê. O ângulo oblíquo
+    # não atrapalhou a contagem.
+    conhecido: perde a ultima rep (pessoa sai do quadro nos ultimos ~5s)

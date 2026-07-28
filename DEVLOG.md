@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-07-28 · Corpus com 3 vídeos: paridade confirmada, dois erros de contagem diagnosticados
+
+- Daniel gravou mais dois vídeos, ambos em retrato 576×1024 (o primeiro era paisagem):
+  `02` com 15 reps começando imediatamente, cadência rápida (~73 rpm); `03` com 21 reps em
+  ângulo oblíquo de 20–30°.
+- **Paridade edge × cloud: perfeita nos três** — 20/20, 14/14, 20/20, delta 0 em todos. Isso é
+  o resultado mais importante da rodada: os dois erros de contagem são **idênticos nos dois
+  caminhos**, logo não vêm da degradação cloud (320px, JPEG, 10fps, IMAGE), e sim do pipeline.
+  A T-018 sai mais forte do que entrou.
+- Bancada no corpus: MAE 0,667, 33% exatos, 54 de 56 reps. Os dois erros são de −1.
+- **Erro do vídeo 02, diagnosticado**: no `ts=0` a pessoa **já está aberta** (arm 143°, spread
+  3.19). A FSM nasce em `Phase.CLOSED` e o debounce de 250 ms exige estabilidade antes de
+  aceitar a abertura; aos 167 ms ela já está fechando. A primeira rep é estruturalmente
+  impossível de contar. Virou a **T-047**.
+  - Antes disso levantei a hipótese "erra quando não há tempo parado no início" e a **refutei
+    por experimento**: cortando 0,5 / 1 / 1,5 / 2 / 2,5 / 3 s do começo do vídeo 01, a
+    contagem continua 20/20 em todos os cortes. Não é o tempo parado, é a **fase** em que a
+    captura começa. Registrar a hipótese errada importa: ela era plausível e teria virado
+    "conhecimento" se eu tivesse parado na correlação.
+- **Erro do vídeo 03, diagnosticado**: detecção perfeita nos primeiros 20 s e **zero pose** do
+  segundo 21 ao 25 (mapa por segundo). A pessoa sai do quadro e a 21ª rep acontece onde o
+  modelo não a vê. O ângulo oblíquo, que era a suspeita natural, **não atrapalhou**.
+  - Descoberta de produto que veio junto: falha TOTAL de detecção é **silenciosa**. A validação
+    de cena (SPEC-003) opera sobre landmarks; sem landmarks não há evento e não há
+    `OUT_OF_FRAME`. Quem treina fica sem "volte para o quadro" justamente quando mais precisa,
+    até o `no_data` de 10 s.
+- Banda cloud medida nos três: 3,1 / 7,9 / 3,9 KB por frame (31–79 KB/s por sessão).
+- Manifest atualizado com as condições de cada vídeo e com o que já se sabe que cada um
+  expõe — `conhecido:` deixa explícito que aqueles −1 têm causa conhecida, para não serem
+  lidos como ruído em toda rodada futura.
+
+---
+
 ## 2026-07-28 · T-018 fechada com vídeo real + início do corpus (T-038)
 
 - Daniel forneceu o primeiro vídeo rotulado: 20 polichinelos, 854×480 @30fps, 28,9s, com ~2s
