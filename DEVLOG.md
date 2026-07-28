@@ -5,6 +5,45 @@
 
 ---
 
+## 2026-07-27 · [B] T-004 — Capability probe + frame clock + `?mode=`
+
+- **Contrato v1 consumido.** O `workers/shared/events.py` do Agente A já existia, então
+  criei o espelho TypeScript em `src/lib/events.ts` — tipos, enums, códigos, envelope e
+  `CLIENT_PUSH_TYPES`, tudo copiado do contrato, nada inventado. Chaves ficaram em
+  **snake_case** de propósito: é o formato do fio, e traduzir na fronteira só criaria
+  mais uma chance de drift. `src/lib/events.test.ts` trava o espelho contra o contrato
+  (ordem dos 33 landmarks, tipos empurrados ao cliente, invariantes do envelope).
+- **Frame clock** (`src/capture/frameClock.ts`): decimação **por tempo**, não por contagem,
+  como pede a nota da SPEC-001. Testado com fonte de 24, 30 e 60fps — todos convergem para
+  15 ± 1fps. A folga de `interval/3` existe porque, sem ela, uma câmera de 30fps perderia o
+  alvo de 66,7ms por 0,1ms e o fps efetivo cairia pela metade.
+- **Probe** (`src/probe/`): `decideMode` é função pura e testável sem GPU; a medição roda 2s
+  no MESMO landmarker da sessão (nota da spec: config diferente faz o probe mentir) e conta
+  só frames de vídeo distintos. `detectWasmSimd` valida um módulo WASM mínimo com `v128`.
+- **`?mode=edge|cloud`** força o modo, mas a medição roda mesmo assim — o fps medido continua
+  visível no chip de dev, e o modo forçado aparece marcado com `*`.
+- Decisões:
+  - `usePoseOverlay` virou `useEdgePipeline`: carregar modelo → probar → só então abrir o
+    loop de frames. Era o jeito honesto de garantir "o probe usa o MESMO modelo".
+  - Loop passou a usar `requestVideoFrameCallback` com fallback para `requestAnimationFrame`.
+  - **Modo cloud não faz nada de útil na Fase 0** — `frame.raw` é a T-015. Em vez de fingir,
+    o cliente mostra um aviso explícito de que não há esqueleto local nesse modo.
+  - Pausa longa (aba escondida) reancora o relógio em vez de disparar rajada de frames
+    atrasados, que estouraria a fila do gateway na volta.
+- Critérios de aceite da SPEC-001: (1) probe dura 2s + carga do modelo, dentro dos 3s;
+  (2) sem WebGL → cloud, coberto por teste; (3) `seq` sem repetição/retrocesso e Δ`ts` de
+  66–100ms, coberto por teste com fonte de 30fps; (4) `?mode=cloud` força cloud, coberto por
+  teste. **(1) e (2) em hardware real ainda dependem de webcam** — ver pendência abaixo.
+- Gates: `tsc -b` limpo, `npm run lint` sem erros nem warnings, `npm run test` **65/65**,
+  `npm run build` OK.
+- **Não verificado nesta sessão**: probe e frame clock rodando com câmera real. O headless
+  do Firefox não tem webcam e não montei automação de clique — tentei o dispositivo falso,
+  mas exigiria adicionar um flag de autostart ao app só para o meu teste, e preferi não
+  poluir o código. Validação fica com o Daniel: `?mode=edge` e `?mode=cloud`, conferindo o
+  chip de dev (modo, probe fps, seq crescente, fps efetivo ~15).
+
+---
+
 ## 2026-07-27 · [B] T-043 — Casca visual mobile (layout de referência)
 
 - Task **criada nesta sessão** a pedido do Daniel, fora da ordem da fila: ele passou uma

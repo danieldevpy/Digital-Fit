@@ -1,7 +1,8 @@
 import { useRef } from 'react'
+import { Mode } from '../lib/events'
 import { useSessionStore } from '../store/session'
 import { useCamera } from './useCamera'
-import { usePoseOverlay } from './usePoseOverlay'
+import { useEdgePipeline } from './useEdgePipeline'
 
 const CAMERA_LABEL: Record<string, string> = {
   idle: 'Câmera desligada',
@@ -18,14 +19,17 @@ export function CameraView() {
   const cameraStatus = useSessionStore((state) => state.cameraStatus)
   const poseStatus = useSessionStore((state) => state.poseStatus)
   const poseDelegate = useSessionStore((state) => state.poseDelegate)
+  const probeStatus = useSessionStore((state) => state.probeStatus)
+  const capability = useSessionStore((state) => state.capability)
   const videoResolution = useSessionStore((state) => state.videoResolution)
-  const landmarksDetected = useSessionStore((state) => state.landmarksDetected)
+  const frameStats = useSessionStore((state) => state.frameStats)
   const error = useSessionStore((state) => state.error)
 
   const { start, stop } = useCamera(videoRef)
-  usePoseOverlay(videoRef, canvasRef, cameraStatus === 'ready')
+  useEdgePipeline(videoRef, canvasRef, cameraStatus === 'ready')
 
   const isReady = cameraStatus === 'ready'
+  const isCloud = capability?.mode === Mode.CLOUD
 
   return (
     <div className="stage">
@@ -48,11 +52,32 @@ export function CameraView() {
         </div>
       )}
 
-      {/* Chip de dev — a T-003 é validação visual; sai quando o HUD real (T-012) entrar. */}
+      {isReady && probeStatus === 'running' && (
+        <p className="stage__banner">Calibrando o dispositivo…</p>
+      )}
+
+      {isReady && isCloud && (
+        <p className="stage__banner stage__banner--cloud">
+          Modo cloud {capability?.forced ? '(forçado por ?mode=)' : 'escolhido pelo probe'} — envio
+          de frames chega na Fase 1 (T-015), então não há esqueleto local.
+        </p>
+      )}
+
+      {/* Chip de dev — sai quando o HUD real (T-012) estiver ligado aos eventos. */}
       {isReady && (
         <div className="stage__dev">
           <span>{poseStatus === 'ready' ? `pose ${poseDelegate}` : poseStatus}</span>
-          <span>{landmarksDetected} lm</span>
+          {capability && (
+            <span>
+              {capability.mode}
+              {capability.forced ? '*' : ''} · probe {capability.probeFps?.toFixed(1) ?? '—'}fps
+            </span>
+          )}
+          {frameStats && (
+            <span>
+              seq {frameStats.seq} · {frameStats.fps.toFixed(1)}fps
+            </span>
+          )}
           {videoResolution && (
             <span>
               {videoResolution.width}×{videoResolution.height}

@@ -10,7 +10,7 @@
 | T-001 | Monorepo + docker-compose (redis, postgres, django vazio, web vite) sobe com 1 comando | — | done |
 | T-002 | `workers/shared/events.py`: envelope + eventos da fase 0 + testes de serialização | 002 | todo |
 | T-003 | Webcam + MediaPipe no browser desenhando esqueleto (validação visual) | 001/005 | done |
-| T-004 | Capability probe + frame clock (ts/seq) + modo forçável por query param | 001 | todo |
+| T-004 | Capability probe + frame clock (ts/seq) + modo forçável por query param | 001 | done |
 | T-005 | Gateway Channels: WS autenticado por token, publica `pose.frame` no stream | 002 | todo |
 | T-006 | Normalização + One Euro Filter como função pura + fixtures de teste | 006 | todo |
 | T-007 | Gravador de fixtures: salvar sequência de keypoints do browser em JSON p/ testes | 006/007 | todo |
