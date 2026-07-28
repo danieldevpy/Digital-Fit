@@ -119,11 +119,73 @@ carrega_ambiente() {
 }
 
 # --------------------------------------------------------------------------------------
+# Portas livres
+# --------------------------------------------------------------------------------------
+
+# Ha alguem escutando nesta porta, de um jeito que conflite com o nosso BIND_ADDR?
+# Conflitam: o mesmo endereco, e os curingas (`*`, `0.0.0.0`, `[::]`) — que tomam a porta
+# em todas as interfaces e portanto tambem na nossa.
+porta_ocupada() {
+  local porta="$1" bind="${BIND_ADDR:-127.0.0.1}"
+  command -v ss >/dev/null 2>&1 || return 1  # sem `ss` nao da para checar; segue o jogo
+
+  ss -ltnH 2>/dev/null | awk -v porta="$porta" -v bind="$bind" '
+    {
+      alvo = $4
+      p = alvo; sub(/.*:/, "", p)              # porta = depois do ultimo ":"
+      if (p != porta) next
+      a = alvo; sub(/:[^:]*$/, "", a)          # endereco = antes do ultimo ":"
+      if (a == bind || a == "*" || a == "0.0.0.0" || a == "[::]" || a == "::") { achou = 1 }
+    }
+    END { exit(achou ? 0 : 1) }
+  '
+}
+
+esta_rodando() { [[ -n "$(compose ps -q --status running "$1" 2>/dev/null)" ]]; }
+
+# Roda ANTES do build. O conflito de porta so estoura no `up`, que e o ultimo passo — sem
+# isto o erro aparece depois de buildar as imagens e rodar as migrations, com a stack pela
+# metade. Servico que JA esta rodando e pulado: ele e o dono legitimo da propria porta, e
+# reclamar dele impediria de atualizar a stack.
+verifica_portas() {
+  local conflitos=()
+  local pares=(
+    "web:${WEB_PORT:-8080}"
+    "api:${API_PORT:-8000}"
+    "gateway:${GATEWAY_PORT:-8001}"
+  )
+
+  for par in "${pares[@]}"; do
+    local servico="${par%%:*}" porta="${par##*:}"
+    esta_rodando "$servico" && continue
+    porta_ocupada "$porta" && conflitos+=("$servico:$porta")
+  done
+
+  [[ ${#conflitos[@]} -eq 0 ]] && return 0
+
+  vermelho "porta(s) ja em uso em ${BIND_ADDR:-127.0.0.1}:"
+  for c in "${conflitos[@]}"; do
+    vermelho "  ${c%%:*} quer a porta ${c##*:}"
+  done
+  echo >&2
+  echo "Quem esta segurando:" >&2
+  for c in "${conflitos[@]}"; do
+    ss -ltnp 2>/dev/null | grep -E "[:.]${c##*:}\b" >&2 || true
+  done
+  echo >&2
+  amarelo "Saida: escolha portas livres em $ENV_FILE (WEB_PORT / API_PORT / GATEWAY_PORT)."
+  amarelo "Elas so existem entre o nginx e o Docker, entao qualquer valor livre serve —"
+  amarelo "o './scripts/prod.sh nginx' ja imprime o proxy_pass com as portas novas."
+  exit 1
+}
+
+# --------------------------------------------------------------------------------------
 # Comandos
 # --------------------------------------------------------------------------------------
 
 cmd_up() {
   carrega_ambiente
+  verifica_portas
 
   verde "==> build (o web e reconstruido sempre: VITE_API_URL entra no bundle)"
   compose build

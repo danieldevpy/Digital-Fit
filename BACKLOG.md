@@ -127,6 +127,12 @@
   mudar o environment do compose. Por isso o `prod.sh up` sempre reconstrói. Se um dia isso
   incomodar, a saída é o cliente ler a origem da própria página (same-origin) em vez de uma
   variável — hoje `apiBaseUrl()` cairia no default de `localhost:8000`.
+- **[A/T-023] Conflito de porta na VPS estourava tarde demais**: o `docker compose up` só
+  tenta ligar as portas no último passo, então uma `8000` já ocupada (comum numa VPS com
+  outros apps) falhava **depois** do build e das migrations, deixando a stack pela metade.
+  O `prod.sh up` passou a checar `WEB_PORT`/`API_PORT`/`GATEWAY_PORT` com `ss` antes de
+  qualquer coisa, pulando serviço que já está rodando — senão atualizar a stack acusaria
+  conflito com ela mesma.
 - **[A/T-023] Produção não tem backup, quota nem auth**: o volume `postgres-data` é tudo
   (T-026), qualquer um que alcance a URL abre sessão (T-022/T-025), e reiniciar o
   `analysis-worker` derruba as sessões em voo (T-031). Aceitável para um domínio privado de

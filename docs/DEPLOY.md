@@ -84,6 +84,20 @@ Cole, ajuste, recarregue, rode o certbot. O trecho que **não** pode ser simplif
 `/ws/`: sem os headers de `Upgrade`/`Connection`, o WebSocket vira um GET comum, o handshake
 falha, e o cliente mostra só "sem conexão" sem nenhuma pista.
 
+### Se alguma porta já estiver ocupada
+
+Comum numa VPS que já roda outras coisas — `8000` costuma estar tomada. O `up` detecta isso
+antes de buildar e mostra quem está segurando:
+
+```
+porta(s) ja em uso em 127.0.0.1:
+  api quer a porta 8000
+```
+
+Escolha outras em `.env.prod` (`WEB_PORT`, `API_PORT`, `GATEWAY_PORT`) e rode de novo. Não há
+o que pesar na escolha: essas portas só existem entre o seu nginx e o Docker, nunca aparecem
+para o usuário, e o `./scripts/prod.sh nginx` já imprime o `proxy_pass` com os valores novos.
+
 ## Verificando o deploy
 
 ```bash
