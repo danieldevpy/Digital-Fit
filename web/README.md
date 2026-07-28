@@ -59,8 +59,13 @@ npm run dev              # em outro terminal
 de cena e `session.completed` aos 30s. Os envelopes dele foram validados contra
 `workers/shared/events.py`.
 
-**Trocar mock → real é uma variável**: `VITE_WS_URL` no `.env` (sem ela, aponta para o mock).
-Cliente e mock usam a mesma implementação de `src/lib/gateway.ts`.
+**Trocar mock → real é uma variável**: `VITE_WS_URL` no `.env` (sem ela, aponta para o mock) —
+ver `.env.example`. Cliente e mock usam a mesma implementação de `src/lib/gateway.ts`.
+
+O cliente **envia** `pose.frame` a 15fps com o backpressure da SPEC-002: fila de no máximo
+3 frames, e o mais antigo é descartado quando enche. O `seq` do envelope vem de
+`src/lib/clientSequencer.ts`, compartilhado por todos os eventos que o cliente emite — o
+contrato diz "monotônico por **sessão**", não por tipo.
 
 ## Gravador de fixtures (T-007)
 

@@ -24,6 +24,7 @@ export function CameraView() {
   const capability = useSessionStore((state) => state.capability)
   const videoResolution = useSessionStore((state) => state.videoResolution)
   const frameStats = useSessionStore((state) => state.frameStats)
+  const gatewayStatus = useSessionStore((state) => state.gatewayStatus)
   const error = useSessionStore((state) => state.error)
 
   const setCameraControls = useSessionStore((state) => state.setCameraControls)
@@ -65,6 +66,17 @@ export function CameraView() {
         <p className="stage__banner">Calibrando o dispositivo…</p>
       )}
 
+      {isReady && (gatewayStatus === 'closed' || gatewayStatus === 'error') && (
+        <p className="stage__banner stage__banner--offline">
+          Sem conexão com o servidor — a contagem não vai avançar. Rode{' '}
+          <code>npm run mock:gateway</code> ou aponte <code>VITE_WS_URL</code> para o gateway.
+        </p>
+      )}
+
+      {isReady && gatewayStatus === 'connecting' && (
+        <p className="stage__banner">Conectando ao servidor…</p>
+      )}
+
       {isReady && isCloud && (
         <p className="stage__banner stage__banner--cloud">
           Modo cloud {capability?.forced ? '(forçado por ?mode=)' : 'escolhido pelo probe'} — envio
@@ -72,7 +84,7 @@ export function CameraView() {
         </p>
       )}
 
-      {/* Chip de dev — sai quando o HUD real (T-012) estiver ligado aos eventos. */}
+      {/* Chip de dev — diagnóstico do pipeline, fora da SPEC-013. */}
       {isReady && (
         <div className="stage__dev">
           <span>{poseStatus === 'ready' ? `pose ${poseDelegate}` : poseStatus}</span>

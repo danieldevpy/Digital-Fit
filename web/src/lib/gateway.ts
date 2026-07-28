@@ -1,16 +1,34 @@
 // Ponta cliente do WebSocket. Fala o contrato v1 em MessagePack.
 //
 // Mock e gateway real são a MESMA implementação — muda só a URL
-// (`VITE_WS_URL`). Envelope inválido é descartado com log, nunca derruba a
-// conexão (mesma regra do gateway, SPEC-002 critério 3).
-import { decode } from '@msgpack/msgpack'
+// (`VITE_WS_URL`). Envelope inválido recebido é descartado com log, nunca
+// derruba a conexão (mesma regra do gateway, SPEC-002 critério 3).
+import { decode, encode } from '@msgpack/msgpack'
 import { isValidEnvelope, type Envelope } from './events'
 
 export type GatewayStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
 
+/**
+ * Backpressure da SPEC-002: buffer de envio > 3 frames descarta o mais antigo.
+ * Frame novo vale mais que frame velho — para análise em tempo real, entregar
+ * um frame atrasado é pior do que não entregar.
+ */
+export const MAX_QUEUED_FRAMES = 3
+
+/** Acima disto o socket já está congestionado; não adianta empurrar mais. */
+const HIGH_WATER_MARK_BYTES = 64 * 1024
+
+export interface GatewaySendStats {
+  sent: number
+  dropped: number
+  queued: number
+}
+
 export interface GatewayClient {
-  close(): void
   readonly url: string
+  readonly stats: GatewaySendStats
+  send(envelope: Envelope): void
+  close(): void
 }
 
 export interface GatewayHandlers {
@@ -18,9 +36,20 @@ export interface GatewayHandlers {
   onStatus(status: GatewayStatus): void
 }
 
-/** URL do gateway. Sem `VITE_WS_URL` definida, aponta para o mock local. */
-export function gatewayUrl(): string {
-  return import.meta.env.VITE_WS_URL ?? 'ws://localhost:8787/ws/session/dev'
+export interface GatewayTarget {
+  sessionId: string
+  token: string | null
+}
+
+/**
+ * URL do gateway. Sem `VITE_WS_URL`, aponta para o mock local — trocar mock por
+ * real é essa variável e nada mais.
+ */
+export function gatewayUrl({ sessionId, token }: GatewayTarget): string {
+  const base = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8787'
+  const url = new URL(`${base.replace(/\/$/, '')}/ws/session/${encodeURIComponent(sessionId)}`)
+  if (token) url.searchParams.set('token', token)
+  return url.toString()
 }
 
 export function connectGateway(url: string, handlers: GatewayHandlers): GatewayClient {
@@ -28,7 +57,28 @@ export function connectGateway(url: string, handlers: GatewayHandlers): GatewayC
   socket.binaryType = 'arraybuffer'
   handlers.onStatus('connecting')
 
-  socket.addEventListener('open', () => handlers.onStatus('open'))
+  const queue: Uint8Array[] = []
+  const stats: GatewaySendStats = { sent: 0, dropped: 0, queued: 0 }
+
+  const flush = () => {
+    while (
+      queue.length > 0 &&
+      socket.readyState === WebSocket.OPEN &&
+      socket.bufferedAmount < HIGH_WATER_MARK_BYTES
+    ) {
+      const bytes = queue.shift()!
+      // `.slice()` garante um ArrayBuffer próprio (não compartilhado), que é o
+      // que a assinatura de `WebSocket.send` aceita.
+      socket.send(bytes.slice().buffer as ArrayBuffer)
+      stats.sent += 1
+    }
+    stats.queued = queue.length
+  }
+
+  socket.addEventListener('open', () => {
+    handlers.onStatus('open')
+    flush()
+  })
   socket.addEventListener('close', () => handlers.onStatus('closed'))
   socket.addEventListener('error', () => handlers.onStatus('error'))
 
@@ -53,6 +103,17 @@ export function connectGateway(url: string, handlers: GatewayHandlers): GatewayC
 
   return {
     url,
+    stats,
+
+    send(envelope) {
+      queue.push(encode(envelope))
+      while (queue.length > MAX_QUEUED_FRAMES) {
+        queue.shift()
+        stats.dropped += 1
+      }
+      flush()
+    },
+
     close() {
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         socket.close()

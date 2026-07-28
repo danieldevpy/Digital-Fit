@@ -8,7 +8,15 @@
 // cliente apenas informa a decisão.
 import { useEffect, useRef, type RefObject } from 'react'
 import type { PoseLandmarker } from '@mediapipe/tasks-vision'
-import { Mode } from '../lib/events'
+import {
+  EventType,
+  LANDMARK_COUNT,
+  Mode,
+  Source,
+  makeEnvelope,
+  toLandmarkTuples,
+} from '../lib/events'
+import { getGatewayClient, getSequencer } from '../session/gatewayInstance'
 import { createArmAngleTracker } from '../pose/armAngleTracker'
 import { createEdgePoseLandmarker, detectPose } from '../pose/poseLandmarker'
 import { clearCanvas, drawSkeleton } from '../pose/skeleton'
@@ -74,6 +82,27 @@ export function useEdgePipeline(
 
       const recorder = getFixtureRecorder()
       recorder.addFrame(tick, landmarks)
+
+      // Envio ao gateway. O `seq` do envelope vem do sequenciador da sessão, não
+      // do frame clock: o contrato diz "monotônico por SESSÃO", e a capability
+      // também consome desse contador. O backpressure (descartar o frame mais
+      // velho) é do cliente de gateway.
+      const gateway = getGatewayClient()
+      if (gateway && landmarks.length === LANDMARK_COUNT) {
+        const sessionId = useSessionStore.getState().sessionId
+        if (sessionId) {
+          gateway.send(
+            makeEnvelope({
+              type: EventType.POSE_FRAME,
+              session_id: sessionId,
+              ts: tick.ts,
+              seq: getSequencer().next(),
+              source: Source.EDGE,
+              data: { landmarks: toLandmarkTuples(landmarks) },
+            }),
+          )
+        }
+      }
 
       // Ângulo ao vivo (T-044): calculado a cada frame para o filtro não perder
       // amostra, mas publicado no máximo a 10Hz — a spec não quer número piscando.

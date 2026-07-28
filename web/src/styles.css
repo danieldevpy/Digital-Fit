@@ -1,5 +1,5 @@
-/* Casca visual mobile-first (referência de design do Daniel).
-   Números do HUD são placeholders — ver src/hud/placeholders.ts. */
+/* Interface mobile-first da SPEC-013.
+   Tokens do bloco :root são os da spec — vinculantes, não ajustar por gosto. */
 
 :root {
   color-scheme: dark;
@@ -478,4 +478,15 @@ button {
   width: 26px;
   height: 26px;
   stroke-width: 2.2;
+}
+
+.stage__banner--offline {
+  border-color: rgba(255, 138, 61, 0.45);
+  color: var(--hot);
+  text-align: left;
+}
+
+.stage__banner code {
+  color: var(--text);
+  font-size: 0.72rem;
 }

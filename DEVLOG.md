@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-07-27 · [B] Ponta cliente do WebSocket (envio + backpressure)
+
+- Fecha a última task da minha fila. O cliente agora **envia** `pose.frame` a 15fps, além de
+  receber os `CLIENT_PUSH_TYPES`.
+- **Backpressure da SPEC-002**: fila de no máximo 3 frames; encheu, descarta o **mais antigo**.
+  Frame novo vale mais que frame velho — entregar frame atrasado é pior que não entregar.
+  O cliente também para de empurrar quando `bufferedAmount` passa de 64 KB.
+- **Decisão sobre o `seq`** (pendência que eu tinha registrado na T-004): o contrato diz
+  "monotônico por **sessão**", sem ressalva por tipo, então criei `clientSequencer.ts` — um
+  contador único por sessão que todos os eventos do cliente consomem. O frame clock continua
+  dono do `ts` e da decimação, mas o `seq` do envelope sai do sequenciador.
+  **Consequência que o Agente A precisa saber**: o `seq` dos `pose.frame` que chegam ao
+  gateway **não é contíguo**, porque a `session.capability` consome o 0. Atualizei a
+  descoberta no BACKLOG com isso.
+- `session.capability` é enviada no momento em que o socket abre (o probe já terminou, porque
+  a sessão só conecta com a câmera de pé).
+- Estados de conexão viraram faixa na tela: conectando, e um aviso laranja explícito quando
+  cai — dizendo que a contagem não vai avançar e como subir o mock. Silêncio aqui seria pior:
+  o usuário veria o esqueleto funcionando e o contador parado, sem explicação.
+- `sessionId`/token: na Fase 0 o cliente inventa o id (`POST /sessions` é a T-011). Dá para
+  forçar por `?session=` e `?token=` para teste manual. Quando a T-011 existir, id e token
+  passam a vir **só** de lá.
+- Gates: `tsc -b` limpo, `npm run lint` sem erros nem warnings, `npm run test` **118/118**,
+  `npm run build` OK.
+- **Não verificado**: o envio de ponta a ponta. O mock conta os frames que recebe, mas sem
+  webcam não há frame para enviar — o caminho `câmera → pose → WS → mock` só fecha com o
+  Daniel na frente da câmera.
+
+---
+
 ## 2026-07-27 · [B] T-044 — Ângulo articular ao vivo (+ correção do formato da T-007)
 
 ### Correção da T-007: eu tinha inventado um formato

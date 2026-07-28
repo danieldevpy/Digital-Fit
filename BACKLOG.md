@@ -104,14 +104,16 @@
   claro), conforme o AGENTS.md ("conflito entre spec e código → a spec vence"). Se a intenção
   era o ciano da imagem, é 1 linha em `TimerRing.tsx` + um token novo — e a spec pede que
   divergências intencionais virem seção "Desvios da referência".
-- **[B/T-004] Escopo do `seq`: por sessão ou por tipo de evento?** O contrato diz "contador
-  monotônico **por sessão** (nunca repete nem retrocede)". Se o cliente manda
-  `session.capability` antes do primeiro `pose.frame`, os dois disputam o `seq` 0 — o frame
-  clock começa em 0 e não sabe de outros eventos. Hoje contornei mantendo o `seq` do frame
-  clock só nos `pose.frame` (e a capability fora dos envelopes, na embalagem da fixture),
-  mas **a ponta cliente do WS precisa da decisão do Agente A**: ou o `seq` é um contador
-  único do cliente que todos os tipos compartilham (e o frame clock deixa de ser o dono
-  dele), ou o contrato passa a dizer "por sessão e por tipo".
+- **[B/T-004] Escopo do `seq` — resolvido lendo o contrato ao pé da letra, mas confirme.**
+  O contrato diz "contador monotônico **por sessão** (nunca repete nem retrocede)", sem
+  ressalva por tipo. Então `session.capability` e `pose.frame` **não** podem ter cada um o
+  seu contador começando em 0. Implementei `src/lib/clientSequencer.ts`: um único contador
+  por sessão que todos os eventos do cliente consomem. O frame clock continua dono do `ts` e
+  da decimação, mas o `seq` do envelope sai do sequenciador. **Consequência para o Agente A**:
+  o `seq` dos `pose.frame` que chegam ao gateway **não é contíguo** — a capability consome o
+  0, e qualquer evento futuro do cliente consumirá outros. Se algum consumidor assumir
+  contiguidade em `pose.frames`, quebra. Se a intenção era `seq` por tipo, é trocar uma
+  linha aqui e o contrato precisa dizer isso explicitamente.
 - **[B/T-007] ~~Formato da fixture divergiu~~ — RESOLVIDO na mesma sessão.** A primeira
   versão do gravador escrevia uma lista de envelopes `pose.frame`. Depois encontrei
   `workers/shared/keypoints.py`, onde o Agente A já tinha definido o `schema: 1` e escrito
