@@ -1,13 +1,23 @@
 import { CameraView } from './capture/CameraView'
+import { CoachTip } from './hud/CoachTip'
+import { ExerciseCard } from './hud/ExerciseCard'
+import { StatsBar } from './hud/StatsBar'
+import { TabBar } from './shell/TabBar'
 
 export function App() {
   return (
-    <main className="app">
-      <header className="app__header">
-        <h1>Digital Fit</h1>
-        <p>T-003 · validação visual: webcam + MediaPipe Pose (edge)</p>
-      </header>
-      <CameraView />
-    </main>
+    <div className="phone">
+      <div className="viewport">
+        <CameraView />
+        <StatsBar />
+      </div>
+
+      <div className="sheet">
+        <ExerciseCard />
+        <CoachTip />
+      </div>
+
+      <TabBar />
+    </div>
   )
 }

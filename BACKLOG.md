@@ -24,6 +24,7 @@
 | T-037 | CLI `evalctl run`: vídeo mp4 → MediaPipe → normalização → FSM → resultado JSON (reusa módulos dos workers) | 012 | todo |
 | T-038 | Corpus inicial: 12–15 vídeos rotulados (manifest.yaml) + guia de gravação | 012 | todo |
 | T-039 | Métricas agregadas + `evalctl compare` (regressão entre versões) + `--save-keypoints` | 012 | todo |
+| T-043 | Casca visual mobile (layout de referência): stats bar, card de exercício, dica do treinador, tab bar — **só design**, dados placeholder | 008 | done |
 
 ## Fase 1 — Modo cloud + persistência
 
@@ -85,6 +86,15 @@
   dispara `predev` → `scripts/setup-mediapipe.mjs`, que baixa ~5.5 MB do modelo — no
   container isso exige rede na primeira subida ou um volume para `web/public/models/`.
   Decisão de quem faz fica para o Daniel / sessão conjunta.
+- **[B/T-043] "Série" e "Kcal" não existem em nenhuma spec.** A referência de design pede
+  quatro métricas no topo (série, repetições, ângulo, kcal), mas só *repetições* e *ângulo*
+  saem do pipeline atual. **Série** pressupõe treino com múltiplas séries — a SPEC-009 define
+  a sessão de 30s como unidade, sem agrupamento. **Kcal** exige estimativa de gasto calórico
+  (peso do usuário + MET do exercício), que nenhuma spec cobre. Decidir: ou entram nas
+  SPEC-009/010 antes da T-012, ou saem do HUD. Hoje são placeholder.
+- **[B/T-043] Telas do tab bar não existem**: Exercícios, Progresso e Perfil aparecem na
+  navegação mas não têm spec nem rota. Perfil/histórico só na T-022 (auth). O tab bar é
+  decoração até lá.
 - **[B/T-003] Assets do MediaPipe não versionados**: `web/public/wasm/` (~11 MB) e
   `web/public/models/pose_landmarker_lite.task` (~5,5 MB) são gerados por `npm run setup`
   e ignorados via `web/.gitignore`. Clone novo precisa de `npm install && npm run setup`

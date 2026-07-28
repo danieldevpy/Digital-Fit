@@ -32,11 +32,18 @@ web/
 └── src/
     ├── capture/                  # câmera (SPEC-001) e overlay do esqueleto
     ├── pose/                     # MediaPipe edge + geometria do esqueleto (SPEC-005)
+    ├── hud/                      # casca visual do HUD (T-043) — dados placeholder
+    ├── shell/                    # navegação (tab bar)
+    ├── ui/                       # ícones SVG inline
     └── store/                    # estado da sessão (zustand)
 ```
 
 A geometria do esqueleto (`src/pose/skeleton.ts`) é função pura e testada sem câmera;
 só `drawSkeleton` toca o canvas. Mesma regra da análise no lado Python.
+
+⚠️ **`src/hud/placeholders.ts` é o único lugar com números inventados.** A T-043 entregou
+o layout, não o comportamento: contador, timer, ângulo e kcal são estáticos até a T-012
+ligá-los aos eventos do contrato. Não espalhe valor de fachada por outros arquivos.
 
 ## Interface com o servidor
 

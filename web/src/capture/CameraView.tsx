@@ -11,13 +11,6 @@ const CAMERA_LABEL: Record<string, string> = {
   error: 'Erro na câmera',
 }
 
-const POSE_LABEL: Record<string, string> = {
-  idle: 'Pose parada',
-  loading: 'Carregando modelo…',
-  ready: 'Pose ativa',
-  error: 'Erro no modelo',
-}
-
 export function CameraView() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -32,42 +25,44 @@ export function CameraView() {
   const { start, stop } = useCamera(videoRef)
   usePoseOverlay(videoRef, canvasRef, cameraStatus === 'ready')
 
-  const isOn = cameraStatus === 'ready' || cameraStatus === 'requesting'
+  const isReady = cameraStatus === 'ready'
 
   return (
-    <section className="camera">
+    <div className="stage">
       {/* video e canvas espelhados juntos: o desenho usa coordenadas cruas. */}
-      <div className="stage">
-        <video ref={videoRef} className="stage__video" playsInline muted autoPlay />
-        <canvas ref={canvasRef} className="stage__canvas" />
-        {cameraStatus !== 'ready' && (
-          <p className="stage__placeholder">{CAMERA_LABEL[cameraStatus]}</p>
-        )}
-      </div>
+      <video ref={videoRef} className="stage__video" playsInline muted autoPlay />
+      <canvas ref={canvasRef} className="stage__canvas" />
 
-      <div className="controls">
-        <button type="button" onClick={isOn ? stop : start} disabled={cameraStatus === 'requesting'}>
-          {isOn ? 'Parar câmera' : 'Ligar câmera'}
-        </button>
+      {!isReady && (
+        <div className="stage__cover">
+          <p className="stage__status">{CAMERA_LABEL[cameraStatus]}</p>
+          {error && <p className="stage__error">{error}</p>}
+          <button
+            type="button"
+            className="stage__start"
+            onClick={start}
+            disabled={cameraStatus === 'requesting'}
+          >
+            {cameraStatus === 'requesting' ? 'Aguardando…' : 'Ligar câmera'}
+          </button>
+        </div>
+      )}
 
-        <ul className="status">
-          <li>
-            <span className={`dot dot--${cameraStatus}`} /> {CAMERA_LABEL[cameraStatus]}
-          </li>
-          <li>
-            <span className={`dot dot--${poseStatus}`} /> {POSE_LABEL[poseStatus]}
-            {poseDelegate && ` (${poseDelegate})`}
-          </li>
+      {/* Chip de dev — a T-003 é validação visual; sai quando o HUD real (T-012) entrar. */}
+      {isReady && (
+        <div className="stage__dev">
+          <span>{poseStatus === 'ready' ? `pose ${poseDelegate}` : poseStatus}</span>
+          <span>{landmarksDetected} lm</span>
           {videoResolution && (
-            <li>
+            <span>
               {videoResolution.width}×{videoResolution.height}
-            </li>
+            </span>
           )}
-          <li>{landmarksDetected} landmarks</li>
-        </ul>
-      </div>
-
-      {error && <p className="error">{error}</p>}
-    </section>
+          <button type="button" className="stage__dev-stop" onClick={stop}>
+            parar
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

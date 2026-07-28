@@ -1,6 +1,6 @@
 // Geometria do esqueleto: funções puras (testáveis sem câmera) + o desenho no
 // canvas, que é a única parte imperativa.
-import { POSE_CONNECTIONS } from './landmarks'
+import { BODY_CONNECTIONS, BODY_JOINTS, POSE_CONNECTIONS } from './landmarks'
 
 /** Landmark normalizado 0–1 relativo ao frame (convenções §Unidades). */
 export interface Landmark {
@@ -41,12 +41,17 @@ export function toCanvasPoint(landmark: Landmark, size: CanvasSize): CanvasPoint
   return { x: landmark.x * size.width, y: landmark.y * size.height }
 }
 
+/** `indices` limita quais landmarks entram (ex.: só o corpo, sem rosto). */
 export function visiblePoints(
   landmarks: readonly Landmark[],
   size: CanvasSize,
   minVisibility = DEFAULT_MIN_VISIBILITY,
+  indices?: readonly number[],
 ): CanvasPoint[] {
-  return landmarks.filter((l) => isVisible(l, minVisibility)).map((l) => toCanvasPoint(l, size))
+  const selected = indices
+    ? indices.map((index) => landmarks[index]).filter((l): l is Landmark => l !== undefined)
+    : landmarks
+  return selected.filter((l) => isVisible(l, minVisibility)).map((l) => toCanvasPoint(l, size))
 }
 
 /** Só entram segmentos cujas DUAS pontas existem e estão visíveis. */
@@ -54,9 +59,10 @@ export function visibleSegments(
   landmarks: readonly Landmark[],
   size: CanvasSize,
   minVisibility = DEFAULT_MIN_VISIBILITY,
+  connections: readonly (readonly [number, number])[] = POSE_CONNECTIONS,
 ): Segment[] {
   const segments: Segment[] = []
-  for (const [fromIndex, toIndex] of POSE_CONNECTIONS) {
+  for (const [fromIndex, toIndex] of connections) {
     const from = landmarks[fromIndex]
     const to = landmarks[toIndex]
     if (!from || !to) continue
@@ -68,8 +74,11 @@ export function visibleSegments(
 
 export interface DrawSkeletonOptions {
   minVisibility?: number
+  connections?: readonly (readonly [number, number])[]
+  joints?: readonly number[]
   lineColor?: string
   jointColor?: string
+  glowColor?: string
   lineWidth?: number
   jointRadius?: number
 }
@@ -81,32 +90,42 @@ export function drawSkeleton(
 ): void {
   const {
     minVisibility = DEFAULT_MIN_VISIBILITY,
-    lineColor = '#22d3ee',
-    jointColor = '#f8fafc',
-    lineWidth = 4,
-    jointRadius = 5,
+    connections = BODY_CONNECTIONS,
+    joints = BODY_JOINTS,
+    lineColor = 'rgba(255, 255, 255, 0.92)',
+    jointColor = '#ffffff',
+    glowColor = 'rgba(96, 165, 250, 0.9)',
+    lineWidth = 3,
+    jointRadius = 6,
   } = options
 
   const size: CanvasSize = { width: ctx.canvas.width, height: ctx.canvas.height }
   ctx.clearRect(0, 0, size.width, size.height)
   if (landmarks.length === 0) return
 
+  ctx.save()
+  ctx.shadowColor = glowColor
+  ctx.shadowBlur = 12
+
   ctx.lineWidth = lineWidth
   ctx.strokeStyle = lineColor
   ctx.lineCap = 'round'
   ctx.beginPath()
-  for (const { from, to } of visibleSegments(landmarks, size, minVisibility)) {
+  for (const { from, to } of visibleSegments(landmarks, size, minVisibility, connections)) {
     ctx.moveTo(from.x, from.y)
     ctx.lineTo(to.x, to.y)
   }
   ctx.stroke()
 
+  // Articulações com halo mais forte que os segmentos.
+  ctx.shadowBlur = 18
   ctx.fillStyle = jointColor
-  for (const point of visiblePoints(landmarks, size, minVisibility)) {
+  for (const point of visiblePoints(landmarks, size, minVisibility, joints)) {
     ctx.beginPath()
     ctx.arc(point.x, point.y, jointRadius, 0, Math.PI * 2)
     ctx.fill()
   }
+  ctx.restore()
 }
 
 export function clearCanvas(ctx: CanvasRenderingContext2D): void {

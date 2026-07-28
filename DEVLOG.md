@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-07-27 · [B] T-043 — Casca visual mobile (layout de referência)
+
+- Task **criada nesta sessão** a pedido do Daniel, fora da ordem da fila: ele passou uma
+  imagem de referência do app em celular e quis o design pronto antes da T-004, para o
+  projeto já ter aspecto seguível. Registrada como T-043 para não furar a convenção de
+  "toda implementação nasce de uma task".
+- Escopo deliberadamente **só visual**: `src/hud/` (StatsBar, ExerciseCard, TimerRing,
+  CoachTip), `src/shell/TabBar`, `src/ui/icons` (SVG inline, sem pacote de ícones nem CDN)
+  e reescrita do `styles.css` como layout mobile-first (`100dvh`, `max-width: 430px`).
+- **Nenhuma lógica de HUD foi implementada.** Todo número vive em `src/hud/placeholders.ts`,
+  um arquivo único que documenta de qual evento cada valor virá (`rep.detected`, timer da
+  T-011, ângulo da T-006) e que some quando a T-012 chegar. Contador, timer e kcal são
+  estáticos de propósito — a T-012 continua inteira na fila.
+- Ajuste no esqueleto para bater com a referência: `BODY_CONNECTIONS`/`BODY_JOINTS`
+  (tronco e membros, sem rosto/mãos/pés) viraram o **padrão de desenho**, com linhas brancas
+  e halo azul nas articulações. É escolha visual, **não** mudança de contrato: `POSE_CONNECTIONS`
+  e os 33 landmarks continuam intactos, e `drawSkeleton` aceita outro conjunto por parâmetro.
+- Câmera continua funcional: o botão "Ligar câmera" virou uma capa sobre o stage (some quando
+  a câmera abre) e as infos de dev (delegate, nº de landmarks, resolução) viraram um chip
+  discreto no canto — o HUD real não tem nenhum dos dois.
+- Gates: `tsc -b` limpo, `npm run lint` sem erros nem warnings, `npm run test` 19/19,
+  `npm run build` OK. Layout conferido em screenshot headless (Firefox, 430×932) contra a
+  imagem de referência.
+- Pendências geradas (2 em "Descobertas"): **"Série" e "Kcal" não existem em nenhuma spec**
+  (a de série contradiz a sessão de 30s da SPEC-009; kcal exigiria peso do usuário + MET);
+  telas de Exercícios/Progresso/Perfil aparecem no tab bar sem spec nem rota.
+
+---
+
 ## 2026-07-27 · [B] T-003 — Webcam + MediaPipe + esqueleto
 
 - Sessão do **Agente B** (território `web/`), rodando no worktree `../df-agent-b`

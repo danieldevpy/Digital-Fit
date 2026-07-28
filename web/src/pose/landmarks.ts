@@ -84,3 +84,29 @@ export const POSE_CONNECTIONS: readonly (readonly [number, number])[] = [
   [28, 32],
   [30, 32],
 ] as const
+
+/**
+ * Subconjunto usado no desenho do HUD: tronco e membros, sem rosto, mãos e pés.
+ * É escolha visual (o esqueleto da referência é limpo), não mudança de contrato —
+ * `pose.frame` continua carregando os 33 landmarks.
+ */
+export const BODY_CONNECTIONS: readonly (readonly [number, number])[] = [
+  // braços
+  [11, 13],
+  [13, 15],
+  [12, 14],
+  [14, 16],
+  // tronco
+  [11, 12],
+  [11, 23],
+  [12, 24],
+  [23, 24],
+  // pernas
+  [23, 25],
+  [25, 27],
+  [24, 26],
+  [26, 28],
+] as const
+
+/** Articulações desenhadas como pontos, na mesma lógica de `BODY_CONNECTIONS`. */
+export const BODY_JOINTS: readonly number[] = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]
