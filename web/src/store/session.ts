@@ -11,6 +11,7 @@ import type {
 import type { GatewayStatus } from '../lib/gateway'
 import type { PoseDelegate } from '../pose/poseLandmarker'
 import type { ProbeOutcome } from '../probe/runProbe'
+import type { SessionReport } from '../report/sessionReport'
 import type { CoachEntry } from '../session/coachCard'
 
 export type CameraStatus = 'idle' | 'requesting' | 'ready' | 'denied' | 'error'
@@ -22,6 +23,12 @@ export type CameraStatus = 'idle' | 'requesting' | 'ready' | 'denied' | 'error'
 export type SessionStatus = 'idle' | 'calibrating' | 'running' | 'completed'
 export type PoseStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type ProbeStatus = 'idle' | 'running' | 'done' | 'error'
+/**
+ * `loading` é o intervalo entre o fim da sessão e o relatório existir no banco — o
+ * report-builder ainda está consolidando (SPEC-010). Estado normal, não erro: por isso a tela
+ * mostra "consolidando" em vez de uma falha.
+ */
+export type ReportStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface FrameStats {
   /** Último `seq` emitido pelo frame clock — monotônico por sessão. */
@@ -82,6 +89,12 @@ export interface SessionState {
   sceneEntry: CoachEntry | null
   feedbackEntry: CoachEntry | null
 
+  /** Relatório consolidado (SPEC-010). Só existe depois do fim da sessão. */
+  report: SessionReport | null
+  reportStatus: ReportStatus
+  /** Tela de relatório visível. Fechar não apaga o relatório — só sai da frente. */
+  reportOpen: boolean
+
   error: string | null
 
   setCameraStatus: (status: CameraStatus) => void
@@ -115,6 +128,11 @@ export interface SessionState {
   applySceneWarning: (entry: CoachEntry) => void
   applyFeedback: (entry: CoachEntry) => void
   applySessionCompleted: (data: SessionCompletedData) => void
+  /** Começou a buscar o relatório — a tela abre já mostrando "consolidando". */
+  startReport: () => void
+  applyReport: (report: SessionReport) => void
+  failReport: () => void
+  closeReport: () => void
   resetSession: () => void
   setError: (message: string | null) => void
   resetPipeline: () => void
@@ -132,6 +150,9 @@ const SESSION_DEFAULTS = {
   firstFrameAt: null,
   sceneEntry: null,
   feedbackEntry: null,
+  report: null,
+  reportStatus: 'idle' as ReportStatus,
+  reportOpen: false,
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -219,6 +240,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   applySessionCompleted: (data) =>
     set({ sessionStatus: 'completed', endReason: data.reason, repCount: data.rep_count }),
+
+  startReport: () => {
+    // Idempotente: o `session.completed` e o `session.report.ready` chamam os dois, e o
+    // segundo não pode reabrir uma tela que o usuário acabou de fechar.
+    if (get().reportStatus !== 'idle') return
+    set({ reportStatus: 'loading', reportOpen: true })
+  },
+  applyReport: (report) => set({ report, reportStatus: 'ready' }),
+  failReport: () => set({ reportStatus: 'error' }),
+  closeReport: () => set({ reportOpen: false }),
 
   resetSession: () => set({ ...SESSION_DEFAULTS }),
   setError: (error) => set({ error }),

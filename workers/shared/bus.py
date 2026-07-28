@@ -39,6 +39,10 @@ class EventBus(Protocol):
         self, stream: Stream, *, group: str, consumer: str, block_ms: int = 1000, count: int = 50
     ) -> list[tuple[str, Envelope]]: ...
 
+    def consume_pending(
+        self, stream: Stream, *, group: str, consumer: str, count: int = 100
+    ) -> list[tuple[str, Envelope]]: ...
+
     def ack(self, stream: Stream, group: str, message_id: str) -> None: ...
 
 
@@ -106,6 +110,28 @@ class RedisBus:
                     self.ack(stream, group, id_mensagem)
         return eventos
 
+    def consume_pending(
+        self, stream: Stream, *, group: str, consumer: str, count: int = 100
+    ) -> list[tuple[str, Envelope]]:
+        """O que já foi entregue a este consumidor e ainda não teve ack (o PEL do Redis).
+
+        É o que torna verdadeiro o critério 2 da SPEC-010: o processo morre no meio, e ao
+        reiniciar os eventos ainda não confirmados voltam. Só funciona com **nome de
+        consumidor estável** — o PEL é indexado por nome, então um nome com o PID dentro
+        deixaria as pendências órfãs a cada restart.
+        """
+        resposta = self._client.xreadgroup(group, consumer, {stream.value: "0"}, count=count)
+        eventos: list[tuple[str, Envelope]] = []
+        for _, mensagens in resposta or []:
+            for id_bruto, campos in mensagens:
+                id_mensagem = id_bruto.decode() if isinstance(id_bruto, bytes) else str(id_bruto)
+                try:
+                    eventos.append((id_mensagem, from_stream_fields(campos)))
+                except EventValidationError:
+                    logger.warning("pendencia fora do contrato descartada: %s", id_mensagem)
+                    self.ack(stream, group, id_mensagem)
+        return eventos
+
     def ack(self, stream: Stream, group: str, message_id: str) -> None:
         self._client.xack(stream.value, group, message_id)
 
@@ -125,6 +151,10 @@ class InMemoryBus:
         self.acked: list[str] = []
         self.groups: set[tuple[str, str]] = set()
         self._pendentes: dict[Stream, list[tuple[str, Envelope]]] = {}
+        #: Entregue e ainda sem ack — o PEL do Redis, em lista. Sem isto o dublê não
+        #: conseguiria exercitar a recuperação após crash, que é critério de aceite da
+        #: SPEC-010: todo teste de reinício passaria por não haver o que reentregar.
+        self._entregues: dict[Stream, list[tuple[str, Envelope]]] = {}
         self._proximo_id = 0
 
     def published_in(self, stream: Stream) -> list[Envelope]:
@@ -160,11 +190,21 @@ class InMemoryBus:
         del group, consumer, block_ms
         fila = self._pendentes.get(stream, [])
         lote, self._pendentes[stream] = fila[:count], fila[count:]
+        self._entregues.setdefault(stream, []).extend(lote)
         return lote
 
+    def consume_pending(
+        self, stream: Stream, *, group: str, consumer: str, count: int = 100
+    ) -> list[tuple[str, Envelope]]:
+        del group, consumer
+        return list(self._entregues.get(stream, []))[:count]
+
     def ack(self, stream: Stream, group: str, message_id: str) -> None:
-        del stream, group
+        del group
         self.acked.append(message_id)
+        entregues = self._entregues.get(stream)
+        if entregues is not None:
+            self._entregues[stream] = [item for item in entregues if item[0] != message_id]
 
     def published_of(self, tipo) -> list[Envelope]:
         """Envelopes publicados de um tipo — atalho para asserções de teste."""

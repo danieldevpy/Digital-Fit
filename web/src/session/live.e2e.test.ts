@@ -26,6 +26,7 @@ import {
   type SessionCompletedData,
 } from '../lib/events'
 import { Mode } from '../lib/events'
+import { waitForReport } from '../report/sessionReport'
 import { requestSession } from './admission'
 
 // `process` via `globalThis`: o tsconfig do app é o do navegador (sem tipos de Node), e este
@@ -83,6 +84,20 @@ function sequencia(reps: number, framesPorRep = FPS): LandmarkTuple[][] {
   // Termina em pé, parado: sem isso a última repetição fica eternamente "em andamento".
   quadros.push(polichinelo(0), polichinelo(0))
   return quadros
+}
+
+/** Espera um tipo aparecer na lista de recebidos, com teto. Devolve se apareceu. */
+async function esperarEvento(
+  recebidos: Envelope[],
+  tipo: EventType,
+  timeoutMs: number,
+): Promise<boolean> {
+  const limite = Date.now() + timeoutMs
+  while (Date.now() < limite) {
+    if (recebidos.some((e) => e.type === tipo)) return true
+    await new Promise((r) => setTimeout(r, 100))
+  }
+  return false
 }
 
 describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
@@ -199,6 +214,90 @@ describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
 
       expect(fim).not.toBeNull()
       expect(fim!.reason).toBe('no_data')
+    },
+  )
+
+  it(
+    'gera o relatório da sessão e o entrega pela API (SPEC-010)',
+    { timeout: 60_000 },
+    async () => {
+      // Prova a cadeia inteira da T-020 num caminho só: analysis-worker publica em
+      // `events.analysis`, o report-builder consolida e grava no Postgres, e o cliente busca
+      // pelo `GET /api/sessions/{id}/report`. Nenhum teste unitário cobre isso: cada um deles
+      // dublê um dos elos.
+      const ticket = await requestSession({
+        exercise: 'jumping_jack',
+        requestedMode: Mode.EDGE,
+        probe: null,
+      })
+      const socket = new WebSocket(ticket.ws_url)
+      socket.binaryType = 'arraybuffer'
+      const { decode, encode } = await import('@msgpack/msgpack')
+      const recebidos: Envelope[] = []
+
+      socket.addEventListener('message', (evento) => {
+        recebidos.push(decode(new Uint8Array(evento.data as ArrayBuffer)) as Envelope)
+      })
+      await new Promise<void>((resolve) =>
+        socket.addEventListener('open', () => resolve(), { once: true }),
+      )
+
+      const quadros = sequencia(3)
+      for (const [indice, marcos] of quadros.entries()) {
+        socket.send(
+          encode(
+            makeEnvelope({
+              type: EventType.POSE_FRAME,
+              session_id: ticket.session_id,
+              ts: Date.now(),
+              seq: indice,
+              source: Source.EDGE,
+              data: { landmarks: marcos },
+            }),
+          ),
+        )
+        await new Promise((r) => setTimeout(r, 1000 / FPS))
+      }
+
+      // Encerra pelo cliente (abort) em vez de esperar o timer: o relatório é o alvo aqui.
+      socket.send(
+        encode(
+          makeEnvelope({
+            type: EventType.SESSION_COMPLETED,
+            session_id: ticket.session_id,
+            ts: Date.now(),
+            seq: quadros.length,
+            source: Source.EDGE,
+            data: { reason: 'aborted', rep_count: 0 },
+          }),
+        ),
+      )
+
+      const relatorio = await waitForReport(ticket.session_id)
+
+      expect(relatorio).not.toBeNull()
+      expect(relatorio!.session_id).toBe(ticket.session_id)
+      expect(relatorio!.exercise).toBe('jumping_jack')
+      expect(relatorio!.mode).toBe('edge')
+      expect(relatorio!.reason).toBe('aborted')
+
+      // O total do relatório é o mesmo que o cliente viu ao vivo — se divergir, uma das duas
+      // contagens está mentindo, e o usuário veria dois números para o mesmo treino.
+      const reps = recebidos.filter((e) => e.type === EventType.REP_DETECTED)
+      expect(relatorio!.rep_count).toBe(reps.length)
+      expect(relatorio!.duration_ms).toBeGreaterThan(0)
+      expect(relatorio!.cadence_windows.reduce((a, b) => a + b, 0)).toBe(reps.length)
+      // A calibração aconteceu, e o relatório registra com quantos frames ela foi medida.
+      expect(relatorio!.calibration_samples).toBeGreaterThan(0)
+
+      // O sino chega pelo WS — mas DEPOIS do relatório existir, e essa ordem é do produto,
+      // não do teste: o report-builder grava no Postgres e só então publica o aviso. Quem
+      // busca por polling pode portanto ver o relatório antes do sino tocar. Sem esta espera
+      // o teste falharia em ~metade das execuções, por uma corrida que o usuário não vive.
+      await esperarEvento(recebidos, EventType.SESSION_REPORT_READY, 5_000)
+      socket.close()
+
+      expect(recebidos.some((e) => e.type === EventType.SESSION_REPORT_READY)).toBe(true)
     },
   )
 })

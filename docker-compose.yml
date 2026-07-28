@@ -123,6 +123,31 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  report-builder:
+    # SPEC-010: consome events.analysis e grava o SessionResult no Postgres. Roda como
+    # comando do Django (e nao em workers/) porque e o unico consumidor que usa o ORM — ADR-008.
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    command: python manage.py report_builder
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-nao-usar-em-producao}
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-digitalfit}
+      POSTGRES_USER: ${POSTGRES_USER:-digitalfit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-digitalfit}
+      REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./server:/app/server
+      - ./workers:/app/workers
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   pose-worker:
     # Modo cloud (SPEC-005): frames.raw -> MediaPipe CPU -> pose.frame.
     # Imagem propria (MediaPipe + OpenCV, ~250 MB) para nao engordar api/gateway/analysis.

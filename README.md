@@ -71,8 +71,11 @@ scripts/prod.sh        # deploy: build + migrate + start + nginx de referência
 docker/                # Dockerfiles (server, web)
 docs/DEPLOY.md         # como sobe na VPS e o que ainda não tem
 server/                # Django: core (settings), api (DRF), gateway (Channels, T-005)
+  api/management/      #   report-builder roda como comando do Django (ADR-008: é o único
+                       #   consumidor que escreve no Postgres)
 workers/               # Python puro, sem Django
   shared/events.py     #   contrato de eventos — única fonte da verdade
+  report_builder/      #   consolidação da sessão (pura); o processo vive em server/
 eval/                  # evalctl: bancada de avaliação (SPEC-012)
 tests/                 # testes e fixtures de keypoints
 web/                   # cliente React + Vite

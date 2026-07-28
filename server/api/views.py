@@ -12,6 +12,7 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from api.models import SessionResult
 from api.sessions import SessionRequest, create_session
 
 logger = logging.getLogger("api")
@@ -67,3 +68,22 @@ def sessions(request: Request) -> Response:
         return Response({"detail": f"nao foi possivel criar a sessao: {exc}"}, status=503)
 
     return Response(ticket.to_dict(), status=201)
+
+
+@api_view(["GET"])
+def session_report(_request: Request, session_id: str) -> Response:
+    """`GET /api/sessions/{id}/report` — relatorio consolidado da sessao (SPEC-010).
+
+    **404 nao quer dizer "nao existe", quer dizer "ainda nao"**: o relatorio nasce depois do
+    `session.completed`, quando o report-builder consome o evento. O cliente que acabou de
+    encerrar a sessao vai bater aqui antes disso e precisa distinguir os dois casos — por isso
+    a resposta traz `pending: true` em vez de so um detalhe em texto.
+    """
+    try:
+        resultado = SessionResult.objects.get(session_id=session_id)
+    except SessionResult.DoesNotExist:
+        return Response(
+            {"detail": "relatorio ainda nao disponivel", "pending": True, "session_id": session_id},
+            status=404,
+        )
+    return Response(resultado.to_report())

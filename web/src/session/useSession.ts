@@ -15,6 +15,7 @@ import {
 } from '../lib/events'
 import { connectGateway, gatewayUrl, type GatewayClient } from '../lib/gateway'
 import { toCapabilityData } from '../probe/runProbe'
+import { waitForReport } from '../report/sessionReport'
 import { useSessionStore } from '../store/session'
 import { AdmissionError, modeToRequest, requestSession } from './admission'
 import { DEFAULT_EXERCISE } from './catalog'
@@ -48,10 +49,41 @@ function handle(envelope: Envelope) {
       break
     case EventType.SESSION_COMPLETED:
       store.applySessionCompleted(envelope.data as SessionCompletedData)
+      // O relatório ainda não existe neste instante — o report-builder acabou de receber o
+      // mesmo evento. A busca já começa aqui mesmo assim: ela tolera "ainda não" e é o que
+      // salva a tela quando o aviso de pronto não chega (WS caído, por exemplo).
+      void buscarRelatorio(envelope.session_id)
+      break
+    case EventType.SESSION_REPORT_READY:
+      // Caminho feliz: o relatório está gravado, a próxima tentativa já traz o conteúdo.
+      void buscarRelatorio(envelope.session_id)
       break
     default:
       // pose.frame e quality.signal não são empurrados ao cliente (CLIENT_PUSH_TYPES).
       console.warn('[sessão] tipo inesperado vindo do gateway:', envelope.type)
+  }
+}
+
+/**
+ * Busca o relatório uma vez por sessão, venha o gatilho de onde vier.
+ *
+ * `session.completed` e `session.report.ready` chamam esta função, e no caminho normal os
+ * dois chegam. O guarda é o `reportStatus`: `startReport()` só sai de `idle` uma vez, então a
+ * segunda chamada não dispara uma segunda espera — nem reabre a tela que o usuário fechou.
+ */
+async function buscarRelatorio(sessionId: string): Promise<void> {
+  const store = useSessionStore.getState()
+  if (store.reportStatus !== 'idle') return
+  store.startReport()
+
+  try {
+    const relatorio = await waitForReport(sessionId)
+    if (relatorio) useSessionStore.getState().applyReport(relatorio)
+    else useSessionStore.getState().failReport()
+  } catch {
+    // O erro não sobe: a sessão acabou, e a contagem que o usuário viu ao vivo continua certa.
+    // O relatório é um detalhamento — perdê-lo não invalida o treino.
+    useSessionStore.getState().failReport()
   }
 }
 

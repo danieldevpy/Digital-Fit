@@ -82,6 +82,10 @@ ignore = ["RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B011"]
+# RUF012 quer ClassVar em atributo de classe mutavel. No `class Meta` do Django isso e a
+# forma documentada de declarar ordenacao e indices — anotar so para calar o lint deixaria o
+# modelo diferente de todo exemplo de Django que alguem va consultar.
+"server/api/models.py" = ["RUF012"]
 
 [tool.pytest.ini_options]
 # server/ no path para que `core.settings` e `api.*` sejam importaveis;

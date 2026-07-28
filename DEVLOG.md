@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-07-28 · T-020 — relatório da sessão (consolidação + Postgres + tela)
+
+- Entregue: `session.report.ready` no contrato; `workers/report_builder/builder.py` (puro);
+  `SessionResult` + migration inicial; comando `manage.py report_builder`;
+  `GET /api/sessions/{id}/report`; tela de relatório no cliente (`web/src/report/`); serviço
+  `report-builder` no compose de dev e de prod; `tests/test_report_builder.py` (17 testes) e
+  dois arquivos de teste no cliente.
+- **O payload de `session.report.ready` é vazio de propósito.** A tentação era mandar reps e
+  cadência junto, já que o builder acabou de calculá-los — e aí existiriam dois lugares
+  dizendo quantas repetições a sessão teve, o evento e o `GET .../report`. Quando divergissem
+  (replay, reprocessamento, mudança de fórmula), ninguém saberia qual está certo. O evento é
+  um sino: diz "agora existe", e o conteúdo tem uma fonte só.
+- **Ack só depois de gravar.** A SPEC-010 promete que um crash não deixa sessão sem relatório.
+  Isso não sai de graça do loop: o builder acumula eventos e só confirma as mensagens da
+  sessão quando o relatório está no banco. Se o processo morre no meio, nada foi confirmado e
+  tudo é reentregue — o `RedisBus` ganhou `consume_pending()` (XREADGROUP id `0`) e o
+  `InMemoryBus` ganhou o PEL correspondente, sem o qual todo teste de reinício passaria por
+  não haver o que reentregar. Requisito colado nisso: **nome de consumidor estável**, porque o
+  PEL é indexado por nome — um nome com PID dentro tornaria o critério falso na prática, sem
+  erro nenhum aparecendo.
+- **Um erro meu que o teste pegou**: a evacuação de sessões abandonadas comparava o `ts` do
+  evento (relógio do **cliente**) com o agora do servidor. Isso descartaria na hora qualquer
+  sessão de celular com a hora torta e todo replay da bancada. Separei `last_seen_ms`
+  (servidor) de `last_ts` (cliente) — a mesma lição da T-016 no descarte por idade.
+- Decisões:
+  - **`session.started` passou a ser publicado nos dois streams** (`pose.frames` para a
+    análise, `events.analysis` para o relatório). Sem isso o relatório não saberia o exercício
+    e teria de consultar o Redis, quebrando a propriedade da spec — relatório derivável 100%
+    por replay dos eventos. O contrato já previa publicar para outra audiência.
+  - **ADR-008**: o report-builder roda dentro do Django, não em `workers/`. É o único
+    consumidor que escreve no Postgres; um worker separado teria de importar `server/`,
+    invertendo a única direção de dependência do repositório. A consolidação em si continua
+    pura, sem Django, e é onde estão os testes de cadência.
+  - **O total de reps vem do `session.completed`**, não da contagem de `rep.detected` vistos.
+    Um builder que subiu no meio da sessão reporta o número certo; só o gráfico sai
+    incompleto — e isso é visível, ao contrário de um total silenciosamente menor.
+  - A tela mostra `repCount` ao vivo enquanto o relatório não chega: a pessoa acabou de treinar
+    e não pode olhar para uma tela vazia por causa de um detalhe de consolidação.
+- Gates: ruff + format limpos, pytest 445 verde, tsc e eslint limpos, vitest 165 verde. E2E
+  contra a stack real com **3 testes** (um novo, cobrindo a cadeia inteira: worker →
+  report-builder → Postgres → API → cliente). No banco, uma sessão real do E2E: 8 reps em
+  8 377 ms, cadência 57,3 rpm, janelas `[4, 4]`, calibração com 16 amostras.
+- Pendências geradas: 3 itens em "Descobertas" (publicação dupla de `session.started`; o
+  report-builder não escala sem trocar a recuperação para `XAUTOCLAIM`; testes de banco em
+  SQLite não cobrem nada específico de Postgres).
+
+---
+
 ## 2026-07-28 · Produção na VPS — dois bugs que só existem fora da máquina de dev
 
 Reportados pelo Daniel a partir do `docker ps` da VPS: `pose-worker` em `Restarting (1)` e

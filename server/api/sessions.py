@@ -183,16 +183,20 @@ def create_session(
 
     barramento = event_bus if event_bus is not None else bus()
     ts_ms = agora * 1000
-    barramento.publish(
-        make_envelope(
-            SessionStarted(exercise=request.exercise, mode=modo, duration_s=duration_s),
-            session_id=session_id,
-            ts=ts_ms,
-            seq=0,
-            source=Source.SYSTEM,
-        ),
-        stream=Stream.POSE_FRAMES,
+    abertura = make_envelope(
+        SessionStarted(exercise=request.exercise, mode=modo, duration_s=duration_s),
+        session_id=session_id,
+        ts=ts_ms,
+        seq=0,
+        source=Source.SYSTEM,
     )
+    barramento.publish(abertura, stream=Stream.POSE_FRAMES)
+    # O MESMO evento também na saída da análise, para o report-builder (SPEC-010). Sem isto
+    # `events.analysis` não diria qual exercício a sessão foi — e o relatório teria de
+    # perguntar ao Redis, quebrando a propriedade que a spec exige: relatório derivável 100%
+    # por replay dos eventos. O contrato prevê este caso (ver `STREAM_FOR_TYPE`): a rota
+    # padrão é uma, publicar para outra audiência é permitido.
+    barramento.publish(abertura, stream=Stream.EVENTS_ANALYSIS)
     if request.probe:
         # O resultado do probe interessa a relatório e dataset; a FSM ignora.
         barramento.publish(

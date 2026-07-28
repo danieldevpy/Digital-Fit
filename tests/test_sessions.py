@@ -106,14 +106,37 @@ def test_session_started_e_publicado_no_stream_de_entrada_da_analise() -> None:
     """Sem isso, o worker não saberia o exercício nem a duração da sessão."""
     ticket, _, bus = criar()
 
-    publicados = bus.published_of(EventType.SESSION_STARTED)
-    assert len(publicados) == 1
-    envelope = publicados[0]
+    entrada = [
+        envelope
+        for envelope in bus.published_in(Stream.POSE_FRAMES)
+        if envelope.type is EventType.SESSION_STARTED
+    ]
+    assert len(entrada) == 1
+    envelope = entrada[0]
     assert envelope.session_id == ticket.session_id
     dados = SessionStarted.from_data(envelope.data)
     assert dados.exercise == "jumping_jack"
     assert dados.duration_s == DEFAULT_DURATION_S
     assert dados.mode is Mode.EDGE
+
+
+def test_session_started_tambem_vai_para_a_saida_da_analise() -> None:
+    """O report-builder (SPEC-010) lê só `events.analysis`.
+
+    Sem esta segunda publicação, o relatório não teria como saber de que exercício a sessão
+    foi — e teria de perguntar ao Redis, quebrando a propriedade da spec: relatório derivável
+    100% por replay dos eventos.
+    """
+    ticket, _, bus = criar()
+
+    saida = [
+        envelope
+        for envelope in bus.published_in(Stream.EVENTS_ANALYSIS)
+        if envelope.type is EventType.SESSION_STARTED
+    ]
+    assert len(saida) == 1
+    assert saida[0].session_id == ticket.session_id
+    assert SessionStarted.from_data(saida[0].data).exercise == "jumping_jack"
 
 
 def test_probe_result_vira_session_capability() -> None:

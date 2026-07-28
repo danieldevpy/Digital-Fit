@@ -142,6 +142,24 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  report-builder:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    command: python manage.py report_builder
+    # NAO escale: o nome do consumidor e estavel de proposito (o PEL do Redis e indexado por
+    # ele, e e assim que as pendencias voltam depois de um restart — SPEC-010, criterio 2).
+    # Duas replicas com o mesmo nome disputariam as MESMAS entregas pendentes.
+    deploy:
+      replicas: 1
+    environment: *django-env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   pose-worker:
     build:
       context: .

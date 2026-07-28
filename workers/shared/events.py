@@ -21,8 +21,7 @@ Regra de ouro (AGENTS.md): mudou ou nasceu evento ⇒ muda aqui primeiro, depois
 o DEVLOG (o cliente web lê de lá). Nada aqui importa Django, Redis, numpy ou MediaPipe.
 
 Cobertura desta versão (v1): eventos da **Fase 0** (edge only, sem auth). Ficam para depois,
-junto das tasks que os produzem: `frame.raw` (modo cloud, T-015/SPEC-005),
-`session.report.ready` (T-020/SPEC-010), `scene.status` e `hold.progress` (Fase Evolução).
+junto das tasks que os produzem: `scene.status` e `hold.progress` (Fase Evolução).
 """
 
 from __future__ import annotations
@@ -64,6 +63,7 @@ __all__ = [
     "SessionCapability",
     "SessionCompleted",
     "SessionEndReason",
+    "SessionReportReady",
     "SessionStarted",
     "Severity",
     "Source",
@@ -122,6 +122,7 @@ class EventType(StrEnum):
     SCENE_WARNING = "scene.warning"
     FEEDBACK_ISSUED = "feedback.issued"
     SESSION_COMPLETED = "session.completed"
+    SESSION_REPORT_READY = "session.report.ready"  # relatório persistido (SPEC-010)
 
 
 class Stream(StrEnum):
@@ -162,6 +163,7 @@ STREAM_FOR_TYPE: dict[EventType, Stream] = {
     EventType.SCENE_WARNING: Stream.EVENTS_ANALYSIS,
     EventType.FEEDBACK_ISSUED: Stream.EVENTS_ANALYSIS,
     EventType.SESSION_COMPLETED: Stream.EVENTS_ANALYSIS,
+    EventType.SESSION_REPORT_READY: Stream.EVENTS_ANALYSIS,
 }
 
 #: O que a **análise consome**. Quem quiser que o analysis-worker veja um evento publica em
@@ -191,6 +193,9 @@ CLIENT_PUSH_TYPES: frozenset[EventType] = frozenset(
         EventType.SCENE_WARNING,
         EventType.FEEDBACK_ISSUED,
         EventType.SESSION_COMPLETED,
+        # Avisa que o relatório já está no banco. Sem ele o cliente teria de adivinhar quando
+        # buscar — e o `session.completed` chega ANTES de o relatório existir.
+        EventType.SESSION_REPORT_READY,
     }
 )
 
@@ -662,6 +667,30 @@ class SessionCompleted:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class SessionReportReady:
+    """O relatório da sessão está persistido e pode ser buscado (SPEC-010).
+
+    **Payload vazio de propósito.** A tentação é mandar reps e cadência junto, já que o
+    builder acabou de calculá-los — e aí passariam a existir dois lugares dizendo quantas
+    repetições a sessão teve: este evento e o `GET /api/sessions/{id}/report`. Quando os dois
+    divergirem (replay, reprocessamento, mudança de fórmula), ninguém saberá qual está certo.
+
+    O evento é um sino, não um relatório: diz "agora existe", e o `session_id` do envelope já
+    diz de quem. O conteúdo tem uma fonte só, o banco.
+    """
+
+    TYPE: ClassVar[EventType] = EventType.SESSION_REPORT_READY
+
+    def to_data(self) -> dict[str, Any]:
+        return {}
+
+    @classmethod
+    def from_data(cls, data: dict[str, Any]) -> Self:
+        del data
+        return cls()
+
+
 #: Dataclass de payload por tipo — usada para decodificar `data` já com o envelope validado.
 _PAYLOAD_FOR_TYPE: dict[EventType, Any] = {
     EventType.SESSION_CAPABILITY: SessionCapability,
@@ -675,6 +704,7 @@ _PAYLOAD_FOR_TYPE: dict[EventType, Any] = {
     EventType.SCENE_WARNING: SceneWarning,
     EventType.FEEDBACK_ISSUED: FeedbackIssued,
     EventType.SESSION_COMPLETED: SessionCompleted,
+    EventType.SESSION_REPORT_READY: SessionReportReady,
 }
 
 

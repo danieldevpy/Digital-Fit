@@ -47,6 +47,8 @@ describe('espelho do contrato', () => {
         EventType.SCENE_WARNING,
         EventType.FEEDBACK_ISSUED,
         EventType.SESSION_COMPLETED,
+        // T-020: o aviso de que o relatório já pode ser buscado (SPEC-010).
+        EventType.SESSION_REPORT_READY,
       ].sort(),
     )
   })

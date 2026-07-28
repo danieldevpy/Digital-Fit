@@ -514,6 +514,179 @@ button {
   stroke-width: 2.2;
 }
 
+/* ---------- relatório (SPEC-010) ---------- */
+
+.report {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(6, 6, 10, 0.72);
+  /* Uma das 3 superfícies com blur permitidas pela SPEC-013 — as outras duas (stats e cards)
+     estão atrás desta e não aparecem enquanto o relatório está aberto. */
+  backdrop-filter: var(--glass-blur);
+}
+
+.report__card {
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 20px 18px calc(18px + env(safe-area-inset-bottom));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  background: #12121a;
+  text-align: center;
+}
+
+.report__title {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.report__reps {
+  margin: 6px 0 0;
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  background: linear-gradient(150deg, var(--accent-2), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.report__hint {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 0.8125rem;
+}
+
+.report__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.report__stat {
+  padding: 10px 6px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.report__stat-value {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.report__stat-label {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.report__section {
+  margin-top: 18px;
+  text-align: left;
+}
+
+.report__section-title {
+  margin: 0 0 8px;
+  color: var(--accent-2);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.report__chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 68px;
+  padding: 0 2px;
+}
+
+.report__bar-slot {
+  flex: 1 1 0;
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  min-width: 3px;
+}
+
+.report__bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+}
+
+.report__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: var(--text-dim);
+  font-size: 0.625rem;
+}
+
+.report__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--surface-border);
+  font-size: 0.8125rem;
+  color: #d4d4dc;
+}
+
+.report__item:last-child {
+  border-bottom: 0;
+}
+
+.report__count {
+  flex: 0 0 auto;
+  color: var(--hot);
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.report__clean {
+  margin: 0;
+  color: #d4d4dc;
+  font-size: 0.8125rem;
+}
+
+.report__close {
+  width: 100%;
+  margin-top: 20px;
+  padding: 13px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(124, 92, 255, 0.35);
+}
+
 .stage__banner--offline {
   border-color: rgba(255, 138, 61, 0.45);
   color: var(--hot);

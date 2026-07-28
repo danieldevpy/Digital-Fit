@@ -46,6 +46,15 @@ export const COACH_ENTRY_TTL_MS = 6000
 
 export const COACH_TITLE = 'Dica do treinador'
 
+/**
+ * Texto em pt-BR de um código solto. O relatório (SPEC-010) recebe só `{code: contagem}` e
+ * precisa do mesmo texto que o HUD mostrou ao vivo — daí reusar este mapa em vez de escrever
+ * uma segunda tradução, que envelheceria em separado.
+ */
+export function textForCode(code: string): string {
+  return SCENE_MESSAGES[code] ?? code
+}
+
 function isFresh(entry: CoachEntry | null, now: number, ttlMs: number): entry is CoachEntry {
   return entry !== null && now - entry.receivedAt < ttlMs
 }

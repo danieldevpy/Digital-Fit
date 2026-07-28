@@ -2,6 +2,7 @@ import { CameraView } from './capture/CameraView'
 import { CoachTip } from './hud/CoachTip'
 import { ExerciseCard } from './hud/ExerciseCard'
 import { StatsBar } from './hud/StatsBar'
+import { ReportSheet } from './report/ReportSheet'
 import { useSession } from './session/useSession'
 import { TabBar } from './shell/TabBar'
 import { useSessionStore } from './store/session'
@@ -25,6 +26,9 @@ export function App() {
       </div>
 
       <TabBar />
+
+      {/* Por último no DOM de propósito: cobre a sessão inteira quando ela termina. */}
+      <ReportSheet />
     </div>
   )
 }

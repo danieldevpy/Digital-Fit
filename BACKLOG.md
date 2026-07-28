@@ -36,7 +36,7 @@
 | T-017 | Semáforo `slots:cloud=3` (Lua atômico) + liberação em todos os finais | 009 | done |
 | T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | done |
 | T-019 | Baseline/calibração no countdown (mediana 1s); FSM NÃO usa baseline no divisor — ver Descobertas | 004 | done |
-| T-020 | report-builder: consolidação + `SessionResult` no Postgres + tela de relatório | 010 | todo |
+| T-020 | report-builder: consolidação + `SessionResult` no Postgres + tela de relatório | 010 | done |
 | T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | todo |
 | T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | todo |
 | T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness | 012 | todo |
@@ -87,6 +87,21 @@
   paridade edge×bancada, mas exige um arquivo de modelo `.task` (5,5 MB, fora do git). Baixar
   uma vez com `python -m eval.evalctl fetch-model`. Quando o `pose-worker` da T-016 nascer, tem
   de usar o MESMO modelo e o MESMO caminho de resolução (`DIGITALFIT_POSE_MODEL`).
+- **[A/T-020] `session.started` passou a ser publicado nos DOIS streams**: a rota padrão
+  (`pose.frames`) é a entrada da análise, e o report-builder lê só `events.analysis` — sem a
+  segunda publicação o relatório não saberia o exercício da sessão e teria de perguntar ao
+  Redis, quebrando a propriedade da SPEC-010 (relatório derivável 100% por replay dos
+  eventos). Quem for mexer no roteamento precisa saber que este evento é publicado duas vezes,
+  de propósito.
+- **[A/T-020] O nome do consumidor do report-builder é estável e o serviço não escala**: o PEL
+  do Redis é indexado por nome de consumidor, e é por ele que as pendências voltam depois de
+  um restart (SPEC-010, critério 2). Duas réplicas com o mesmo nome disputariam as MESMAS
+  entregas pendentes. Escalar exige antes trocar a recuperação para `XAUTOCLAIM` — que rouba
+  pendências de qualquer consumidor do grupo, e aí nomes por réplica voltam a ser seguros.
+- **[A/T-020] Testes com banco rodam em SQLite (`DJANGO_DB_SQLITE=1`, ligado no conftest)**: a
+  CI não sobe Postgres. O schema vem das mesmas migrations, mas nada específico de Postgres
+  (JSONB, índices GIN, constraints de exclusão) seria pego pela suíte — quando a persistência
+  crescer, a CI precisa de um Postgres de verdade.
 - **[A/T-023] Artefato gitignorado + bind mount = falha só em produção**: o `pose-worker` de
   prod monta `./eval/models`, e o `.task` não está no git — num clone novo da VPS o serviço
   entra em crash loop enquanto o resto da stack sobe verde (edge funciona; só o cloud morre).

@@ -23,6 +23,7 @@ export const EventType = {
   SCENE_WARNING: 'scene.warning',
   FEEDBACK_ISSUED: 'feedback.issued',
   SESSION_COMPLETED: 'session.completed',
+  SESSION_REPORT_READY: 'session.report.ready',
 } as const
 export type EventType = (typeof EventType)[keyof typeof EventType]
 
@@ -118,6 +119,9 @@ export const CLIENT_PUSH_TYPES: readonly EventType[] = [
   EventType.SCENE_WARNING,
   EventType.FEEDBACK_ISSUED,
   EventType.SESSION_COMPLETED,
+  // O relatório já está gravado — pode buscar. Chega DEPOIS do `session.completed`, porque o
+  // report-builder só consolida quando a sessão fecha.
+  EventType.SESSION_REPORT_READY,
 ]
 
 // ---------------------------------------------------------------------------
@@ -212,6 +216,13 @@ export interface SessionCompletedData {
   rep_count: number
 }
 
+/**
+ * `session.report.ready` — payload **vazio de propósito** (ver `SessionReportReady` no
+ * contrato). O evento é um sino: diz que o relatório existe, e o conteúdo tem uma fonte só,
+ * o `GET /api/sessions/{id}/report`.
+ */
+export type SessionReportReadyData = Record<string, never>
+
 /** Mapa tipo → payload, para estreitar o `data` de um envelope recebido. */
 export interface EventDataMap {
   'session.capability': SessionCapabilityData
@@ -224,6 +235,7 @@ export interface EventDataMap {
   'scene.warning': SceneWarningData
   'feedback.issued': FeedbackIssuedData
   'session.completed': SessionCompletedData
+  'session.report.ready': SessionReportReadyData
 }
 
 // ---------------------------------------------------------------------------

@@ -77,6 +77,13 @@ DATABASES = {
     }
 }
 
+# Os testes rodam sem Postgres (a CI instala so Python, e o pytest nao sobe container).
+# `DJANGO_DB_SQLITE=1` troca o banco por SQLite em memoria; quem liga isso e o conftest do
+# pytest. Fica atras de variavel, e nao de um settings_test paralelo, para que o arquivo de
+# settings testado seja EXATAMENTE o que roda em producao.
+if _env_bool("DJANGO_DB_SQLITE", False):
+    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
+
 # Barramento de eventos (Redis Streams). Consumido pelo gateway e pelos workers.
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
