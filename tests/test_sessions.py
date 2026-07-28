@@ -10,7 +10,7 @@ from api.sessions import (
 )
 from api.tokens import DEFAULT_TTL_S, InvalidToken, verify_token
 
-from tests.synthetic_keypoints import jumping_jack_poses, sequence, still_poses
+from tests.synthetic_keypoints import jumping_jack_poses, sequence, session_poses, still_poses
 from workers.analysis_worker.router import (
     NO_DATA_TIMEOUT_MS,
     TTL_MARGIN_MS,
@@ -304,10 +304,44 @@ def estado(**kwargs) -> SessionState:
 
 
 def test_sessao_termina_quando_os_30s_correm() -> None:
-    sessao = estado(first_frame_wall_ms=1_000_000, last_frame_wall_ms=1_029_000)
+    """Os 30 s correm da CALIBRAÇÃO, não do primeiro frame (T-019 / SPEC-004).
+
+    O countdown é preparação; cobrá-lo do treino encurtaria a sessão de quem demora a se
+    posicionar — e quem demora é exatamente quem mais precisa dos 30 s inteiros.
+    """
+    sessao = estado(
+        first_frame_wall_ms=1_000_000,
+        exercise_started_wall_ms=1_000_000,
+        last_frame_wall_ms=1_029_000,
+    )
 
     assert sessao.expiry_reason(1_029_999) is None
     assert sessao.expiry_reason(1_030_000) is SessionEndReason.COMPLETED
+
+
+def test_o_countdown_nao_e_descontado_dos_30s() -> None:
+    # Dois segundos entre o primeiro frame e a calibração: a sessão ainda tem de durar 30 s
+    # DEPOIS de calibrada, terminando em 1_032_000 e não em 1_030_000.
+    sessao = estado(
+        first_frame_wall_ms=1_000_000,
+        exercise_started_wall_ms=1_002_000,
+        last_frame_wall_ms=1_031_000,
+    )
+
+    assert sessao.expiry_reason(1_030_000) is None
+    assert sessao.expiry_reason(1_032_000) is SessionEndReason.COMPLETED
+
+
+def test_sessao_que_nunca_calibra_morre_pelo_teto_de_vida() -> None:
+    """Sem este teto, calibração que nunca fecha deixa a sessão presa para sempre.
+
+    `no_data` não salva: ele exige que os frames PAREM, e uma pessoa no quadro em frames
+    degradados continua mandando frames o tempo todo.
+    """
+    sessao = estado(first_frame_wall_ms=1_000_000, last_frame_wall_ms=1_040_000)
+
+    assert sessao.expiry_reason(1_040_000) is None
+    assert sessao.expiry_reason(1_045_000) is SessionEndReason.TIMEOUT
 
 
 def test_sessao_sem_frame_nenhum_por_10s_e_abortada() -> None:
@@ -330,7 +364,12 @@ def test_duracao_vence_antes_do_ttl() -> None:
     Com frames chegando, a regra de duração dispara muito antes do TTL — por isso `timeout` não
     é emitido pelo worker na Fase 0.
     """
-    sessao = estado(duration_s=30, first_frame_wall_ms=1_000_000, last_frame_wall_ms=1_029_000)
+    sessao = estado(
+        duration_s=30,
+        first_frame_wall_ms=1_000_000,
+        exercise_started_wall_ms=1_000_000,
+        last_frame_wall_ms=1_029_000,
+    )
 
     assert sessao.expiry_reason(1_030_000) is SessionEndReason.COMPLETED
     assert TTL_MARGIN_MS == 15_000  # 30 s + 15 s = TTL de 45 s do token e do registro
@@ -346,7 +385,7 @@ def test_tick_fecha_a_sessao_e_publica_o_total_de_reps() -> None:
         source=Source.SYSTEM,
     )
     router.handle(abertura, now_wall_ms=1_000_000)
-    for frame in sequence(jumping_jack_poses(3)):
+    for frame in sequence(session_poses(jumping_jack_poses(3))):
         router.handle(
             make_envelope(
                 PoseFrame(landmarks=[list(p) for p in frame.landmarks]),

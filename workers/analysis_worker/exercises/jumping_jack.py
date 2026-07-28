@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 
 from workers.analysis_worker.exercises.base import EXERCISES, AnalysisEvent, Features
 from workers.shared.events import Code, ExercisePhase, Phase, QualitySignal, RepDetected
-from workers.shared.normalize import NormFrame
+from workers.shared.normalize import Baseline, NormFrame
 
 __all__ = ["JumpingJackAnalyzer", "JumpingJackThresholds"]
 
@@ -64,6 +64,13 @@ class JumpingJackAnalyzer:
     slug: str = "jumping_jack"
     thresholds: JumpingJackThresholds = field(default_factory=JumpingJackThresholds)
 
+    #: Medidas do corpo colhidas no countdown (SPEC-004 / T-019), entregues pelo estado da
+    #: sessão. **Não** entram no cálculo de `ankle_spread` — ver o comentário em `features()`,
+    #: que registra a medição pela qual isso foi decidido. Existem aqui para o relatório
+    #: (SPEC-010) e para o gate de prontidão da Fase Evolução (T-030), que precisa saber onde
+    #: os pulsos da pessoa repousam.
+    baseline: Baseline | None = None
+
     phase: Phase = Phase.CLOSED
     rep_count: int = 0
 
@@ -85,6 +92,15 @@ class JumpingJackAnalyzer:
         com memória, e é por isso que o analisador tem estado.
         """
         points = frame.points
+        # Largura de ombros DESTE frame — e não a medida na calibração, apesar do que o
+        # critério 3 da SPEC-004 sugeria. O divisor por frame se autocorrige: com a pessoa em
+        # ângulo, a abertura dos pés e a largura dos ombros encurtam JUNTAS em perspectiva, e
+        # a razão se mantém. Fixar o divisor numa medida única destrói essa invariância.
+        #
+        # Medido no corpus (T-019): trocar por `baseline.shoulder_span` levou o vídeo frontal
+        # de 20/20 para 18/20, e uma varredura de limiares que consertava o frontal derrubava
+        # o vídeo oblíquo de 19/21 para 3/21. Não há fator global que sirva aos dois, porque o
+        # problema não é escala — é a perspectiva que o divisor por frame já cancelava.
         shoulder_width = max(
             abs(float(points[_LEFT_SHOULDER][0] - points[_RIGHT_SHOULDER][0])),
             _MIN_SHOULDER_WIDTH,

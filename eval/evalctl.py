@@ -87,6 +87,7 @@ def run_items(
     target_fps: float | None,
     model_path: Path | None = None,
     save_keypoints: Path | None = None,
+    calibrate: bool = True,
     extractor=None,
 ) -> list[VideoResult]:
     """Processa cada item, isolando falhas: um vídeo corrompido não derruba o corpus."""
@@ -116,6 +117,7 @@ def run_items(
                     model_path=model_path,
                     extractor=extractor,
                     keypoints_sink=keypoints,
+                    calibrate=calibrate,
                 )
             )
             if save_keypoints and keypoints:
@@ -217,6 +219,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         target_fps=args.fps,
         model_path=Path(args.model) if getattr(args, "model", None) else None,
         save_keypoints=Path(args.save_keypoints) if args.save_keypoints else None,
+        calibrate=not args.no_calibrate,
     )
     if not args.quiet:
         print_results(resultados)
@@ -318,6 +321,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--fps", type=float, default=15.0, help="fps de processamento (0 = todos)")
     run.add_argument("--report", default=None, help="caminho do eval.json")
     run.add_argument("--quiet", action="store_true", help="sem tabela no stdout")
+    run.add_argument(
+        "--no-calibrate",
+        action="store_true",
+        help="pula a calibracao (SPEC-004); util para comparar com o pipeline anterior",
+    )
     run.add_argument("--model", default=None, help="caminho do .task do Pose Landmarker")
     run.add_argument(
         "--save-keypoints",

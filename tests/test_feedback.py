@@ -6,7 +6,12 @@ e *quantas vezes*.
 
 import pytest
 
-from tests.synthetic_keypoints import jumping_jack_poses, sequence, still_poses
+from tests.synthetic_keypoints import (
+    jumping_jack_poses,
+    sequence,
+    session_poses,
+    still_poses,
+)
 from workers.analysis_worker.exercises import feed, get_analyzer
 from workers.analysis_worker.feedback import (
     DEFAULT_CATALOG_PATH,
@@ -168,7 +173,7 @@ def test_rep_pregui_osa_continua_gera_feedback_a_cada_4s_nao_a_cada_rep() -> Non
     emitidos: list[FeedbackIssued] = []
 
     # 12 reps preguiçosas seguidas: 1 rep/s ⇒ 12 s de sessão.
-    for frame in normalize(sequence(jumping_jack_poses(12, amplitude=0.6))):
+    for frame in normalize(sequence(session_poses(jumping_jack_poses(12, amplitude=0.6)))):
         sinais = feed(analyzer, frame)
         emitidos.extend(engine.push(sinais, frame.ts))
 
@@ -271,7 +276,7 @@ def test_resumo_da_sessao_separa_o_que_foi_detectado_do_que_foi_dito() -> None:
     from workers.shared.events import make_envelope as envelopar
 
     router = AnalysisRouter()
-    frames = sequence(jumping_jack_poses(12, amplitude=0.6))
+    frames = sequence(session_poses(jumping_jack_poses(12, amplitude=0.6)))
     router.handle(
         envelopar(
             SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
@@ -320,7 +325,7 @@ def test_worker_publica_feedback_issued_junto_dos_sinais() -> None:
     from workers.shared.events import make_envelope as envelopar
 
     bus = InMemoryBus()
-    frames = sequence(jumping_jack_poses(6, amplitude=0.6))
+    frames = sequence(session_poses(jumping_jack_poses(6, amplitude=0.6)))
     bus.feed(
         __import__("workers.shared.events", fromlist=["Stream"]).Stream.POSE_FRAMES,
         envelopar(

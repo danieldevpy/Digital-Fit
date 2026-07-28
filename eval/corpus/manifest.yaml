@@ -18,7 +18,9 @@
     resolucao: 854x480
     angulo: frontal
     enquadramento: corpo inteiro
-    inicio: ~2s parados antes de comecar
+    # Os 2s parados sao o que o produto sempre tem (countdown): por isso este video mede
+    # o pipeline real, e os outros dois nao.
+    inicio: ~2s parados antes de comecar (countdown natural)
     cadencia: media
 
 - file: polichinelo-02.mp4
@@ -35,7 +37,9 @@
     cadencia: rapida
     # A bancada conta 14: no ts=0 a pessoa JÁ está aberta (arm 143°, spread 3.19) e a FSM
     # nasce em CLOSED, então a primeira abertura nunca é aceita. Ver T-047.
-    conhecido: perde a 1a rep (comeca com a pessoa aberta)
+    # Sem countdown: a calibracao (SPEC-004) consome o primeiro segundo, que aqui e
+    # exercicio de verdade. Some 1 rep por isso, alem da 1a que ja se perdia (T-047).
+    conhecido: -2 (sem countdown + comeca com a pessoa aberta)
 
 - file: polichinelo-03.mp4
   exercise: jumping_jack
@@ -52,4 +56,6 @@
     # A bancada conta 20: detecção é perfeita nos primeiros 20s e ZERO do segundo 21 ao 25 —
     # a pessoa sai do quadro e a última rep acontece onde o modelo não a vê. O ângulo oblíquo
     # não atrapalhou a contagem.
-    conhecido: perde a ultima rep (pessoa sai do quadro nos ultimos ~5s)
+    # Sem countdown: a calibracao come o primeiro segundo (1 rep), e a ultima se perde
+    # porque a pessoa sai do quadro nos ~5s finais.
+    conhecido: -2 (sem countdown + sai do quadro no fim)

@@ -26,8 +26,12 @@ O essencial, em ordem de importância:
    única coisa do manifest que não dá para recuperar depois sem reassistir.
 4. **20 a 30 segundos.** A sessão do produto é de 30s; vídeos muito mais longos não
    representam o uso real.
-5. Alguns segundos parados no começo são bem-vindos — é o que acontece quando a pessoa apoia o
-   celular e se afasta.
+5. **Comece com 2 a 3 segundos parado, em pé, braços ao lado do corpo.** Não é preferência: o
+   sistema mede o corpo nesse intervalo (a calibração da SPEC-004) e só depois começa a
+   contar. Um vídeo que emenda direto no exercício perde as repetições que acontecem durante
+   a medição — e o número que a bancada reporta deixa de representar o produto, onde sempre há
+   countdown. Os vídeos `02` e `03` do corpus foram gravados sem isso e perdem 2 reps cada por
+   esse motivo.
 
 ## O que variar entre os vídeos
 

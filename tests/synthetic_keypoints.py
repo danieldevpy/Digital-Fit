@@ -173,6 +173,22 @@ def still_poses(count: int) -> list[Pose]:
     return [Pose()] * count
 
 
+#: Frames parados suficientes para a calibração fechar: a SPEC-004 pede mediana de 1 s, e a
+#: 15 fps isso são 16 frames. 20 dá folga sem alongar os testes.
+COUNTDOWN_FRAMES = 20
+
+
+def session_poses(poses: list[Pose], *, countdown: int = COUNTDOWN_FRAMES) -> list[Pose]:
+    """Poses de uma sessão REAL: countdown parado e depois o exercício.
+
+    Existe porque a T-019 tornou a calibração parte do caminho: o worker mede o corpo no
+    primeiro segundo e só então começa a contar. Uma fixture que emenda direto no exercício
+    não representa mais nenhuma sessão de verdade — e perderia a primeira repetição, que é
+    exatamente o que se veria em produção se o countdown não existisse.
+    """
+    return [*still_poses(countdown), *poses]
+
+
 def jumping_jack_poses(
     reps: int, *, frames_per_rep: int = 15, amplitude: float = 1.0
 ) -> list[Pose]:

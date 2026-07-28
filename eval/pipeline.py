@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from workers.analysis_worker.calibration import Calibrator
 from workers.analysis_worker.exercises import feed, get_analyzer
 from workers.shared.events import RepDetected, Source
 from workers.shared.normalize import Baseline, Normalizer, NormParams, RawFrame
@@ -81,25 +82,56 @@ def analyze_frames(
     conditions: dict[str, object] | None = None,
     params: NormParams | None = None,
     baseline: Baseline | None = None,
+    calibrate: bool = True,
     frames_no_pose: int = 0,
 ) -> VideoResult:
     """Roda normalização + FSM sobre keypoints já extraídos.
 
     É o coração da bancada e o mesmo caminho do `analysis-worker`: quem tem keypoints (fixture,
     vídeo ou replay) chega aqui.
+
+    `calibrate` reproduz o que o worker faz desde a T-019: mede a baseline no primeiro segundo
+    e só então conta (SPEC-004). Fica ligado por padrão porque a bancada tem de medir o
+    pipeline que **existe** — se ela pulasse a calibração, `evalctl` diria uma acurácia que
+    nenhum usuário experimenta. Passar `baseline` explicitamente dispensa a medição.
     """
     analyzer = get_analyzer(exercise)
     normalizer = Normalizer(params=params or NormParams(), baseline=baseline)
+    calibrador = Calibrator() if (calibrate and baseline is None) else None
+    if baseline is not None:
+        analyzer.baseline = baseline
 
     primeiro_ts: int | None = None
     ultimo_ts: int | None = None
     duracoes: list[int] = []
+    # Frames gastos medindo o corpo. Contados à parte porque o analisador não os vê — mas
+    # eles existiram, e um relatório que os omitisse diria que o vídeo tem menos frames do
+    # que tem.
+    frames_calibrando = 0
+    degradados_calibrando = 0
 
     for raw in frames:
         if primeiro_ts is None:
             primeiro_ts = raw.ts
         ultimo_ts = raw.ts
-        for evento in feed(analyzer, normalizer.push(raw)):
+
+        norm = normalizer.push(raw)
+
+        if calibrador is not None:
+            frames_calibrando += 1
+            if norm.degraded:
+                degradados_calibrando += 1
+            medida = calibrador.push(norm)
+            if medida is None:
+                if calibrador.failed(norm.ts):
+                    calibrador.reset()
+                continue  # ainda calibrando: nada de contagem, igual ao worker
+            normalizer.set_baseline(medida)
+            analyzer.baseline = medida
+            calibrador = None
+            continue
+
+        for evento in feed(analyzer, norm):
             if isinstance(evento, RepDetected):
                 duracoes.append(evento.duration_ms)
             # Sinais de qualidade já são contabilizados no `summary()` do analisador.
@@ -114,9 +146,9 @@ def analyze_frames(
         exercise=exercise,
         reps=int(resumo["reps"]),
         expected_reps=expected_reps,
-        frames=int(resumo["frames"]),
+        frames=int(resumo["frames"]) + frames_calibrando,
         frames_no_pose=frames_no_pose,
-        frames_degraded=int(resumo["frames_degraded"]),
+        frames_degraded=int(resumo["frames_degraded"]) + degradados_calibrando,
         duration_s=duracao_s,
         quality_signals=dict(resumo["quality_signals"]),
         rep_durations_ms=duracoes,
@@ -135,6 +167,7 @@ def analyze_video(
     model_path: Path | None = None,
     extractor=None,
     keypoints_sink: list[RawFrame] | None = None,
+    calibrate: bool = True,
 ) -> VideoResult:
     """Decodifica o vídeo, extrai pose e roda o pipeline.
 
@@ -169,6 +202,7 @@ def analyze_video(
         expected_reps=expected_reps,
         conditions=conditions,
         frames_no_pose=sem_pose,
+        calibrate=calibrate,
     )
 
 

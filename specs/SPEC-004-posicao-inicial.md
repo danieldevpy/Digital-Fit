@@ -21,7 +21,7 @@ Gate por pose de prontidão, detecção de posição inicial específica por exe
 
 1. Baseline calculada em 100% das sessões iniciadas com corpo no quadro.
 2. Baseline com corpo fora do quadro → reinicia countdown, nunca inicia sessão sem baseline.
-3. Thresholds da FSM do polichinelo passam a usar baseline (ex.: `ankle_spread` relativo à largura de ombros MEDIDA, não assumida).
+3. ~~Thresholds da FSM do polichinelo passam a usar baseline (`ankle_spread` relativo à largura de ombros MEDIDA).~~ **Corrigido na T-019 com medição.** A baseline alimenta a escala da normalização (SPEC-006) e vai no `session.calibrated` para relatório e para o gate de prontidão (T-030) — mas **não** entra no divisor de `ankle_spread`. O divisor por frame se autocorrige: com a pessoa em ângulo, abertura dos pés e largura de ombros encurtam juntas em perspectiva, e a razão se mantém. Fixá-lo destrói essa invariância. No corpus: trocar por `baseline.shoulder_span` levou o vídeo frontal de 20/20 a 18/20, e a varredura de limiares que consertava o frontal derrubava o vídeo oblíquo de 19/21 a 3/21 — não há fator global que sirva aos dois. O critério original pressupunha uma largura "assumida" no código, que nunca existiu: a FSM sempre mediu por frame.
 
 ## Fase Evolução
 

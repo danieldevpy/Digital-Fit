@@ -14,6 +14,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 
+from workers.analysis_worker.calibration import Calibrator
 from workers.analysis_worker.exercises import ExerciseAnalyzer, feed, get_analyzer
 from workers.analysis_worker.feedback import FeedbackEngine
 from workers.analysis_worker.scene import SceneValidator
@@ -23,13 +24,14 @@ from workers.shared.events import (
     EventValidationError,
     Mode,
     PoseFrame,
+    SessionCalibrated,
     SessionCompleted,
     SessionEndReason,
     SessionStarted,
     Source,
     make_envelope,
 )
-from workers.shared.normalize import Normalizer, RawFrame
+from workers.shared.normalize import Baseline, Normalizer, RawFrame
 
 __all__ = ["AnalysisRouter", "SessionState"]
 
@@ -59,6 +61,13 @@ class SessionState:
     normalizer: Normalizer = field(default_factory=Normalizer)
     scene: SceneValidator = field(default_factory=SceneValidator)
     feedback: FeedbackEngine = field(default_factory=FeedbackEngine)
+    #: Mede o corpo antes de o exercício valer (SPEC-004). Enquanto não terminar, os frames
+    #: alimentam a calibração e a validação de cena — mas não a contagem.
+    calibrator: Calibrator = field(default_factory=Calibrator)
+    baseline: Baseline | None = None
+    #: Instante (relógio do servidor) em que o exercício passou a valer. É daqui que os 30 s
+    #: correm, e não do primeiro frame: o countdown é preparação, não treino.
+    exercise_started_wall_ms: int | None = None
     first_ts: int | None = None
     last_ts: int | None = None
     frames: int = 0
@@ -95,16 +104,18 @@ class SessionState:
 
         Dois prazos, ambos em relógio do servidor:
 
-        1. os 30 s de exercício correram desde o primeiro frame ⇒ `completed` (é **este** o
-           timer autoritativo da SPEC-009; o do HUD é cosmético);
-        2. nenhum frame por 10 s ⇒ `no_data` (critério 4 da SPEC-009).
+        Três prazos, todos em relógio do servidor:
 
-        `timeout` fica no vocabulário para o caminho do TTL em Redis, mas na Fase 0 ele nunca
-        dispara aqui: uma das duas regras acima sempre vence antes dos 45 s.
+        1. os 30 s de exercício correram desde a CALIBRAÇÃO ⇒ `completed` (é **este** o timer
+           autoritativo da SPEC-009; o do HUD é cosmético). Desde a T-019 a âncora é o fim da
+           calibração, não o primeiro frame — o countdown é preparação, e cobrá-lo do treino
+           encurtaria a sessão de quem demora a se posicionar;
+        2. nenhum frame por 10 s ⇒ `no_data` (critério 4 da SPEC-009);
+        3. teto absoluto de vida ⇒ `timeout`, para o caso de a calibração nunca fechar.
         """
         if (
-            self.first_frame_wall_ms is not None
-            and now_wall_ms - self.first_frame_wall_ms >= self.duration_s * 1000
+            self.exercise_started_wall_ms is not None
+            and now_wall_ms - self.exercise_started_wall_ms >= self.duration_s * 1000
         ):
             return SessionEndReason.COMPLETED
         referencia = (
@@ -112,6 +123,15 @@ class SessionState:
         )
         if referencia is not None and now_wall_ms - referencia >= NO_DATA_TIMEOUT_MS:
             return SessionEndReason.NO_DATA
+        # Teto absoluto do tempo de vida. Antes da T-019 este caminho era inalcançável (uma das
+        # duas regras acima sempre vencia); com a calibração ele passou a ser necessário: uma
+        # pessoa no quadro mas sempre em frames degradados manteria a sessão calibrando para
+        # sempre — frames continuam chegando, então `no_data` nunca dispararia.
+        if (
+            self.opened_wall_ms is not None
+            and now_wall_ms - self.opened_wall_ms >= self.duration_s * 1000 + TTL_MARGIN_MS
+        ):
+            return SessionEndReason.TIMEOUT
         return None
 
 
@@ -216,17 +236,77 @@ class AnalysisRouter:
         )
 
         # Cena primeiro: um frame ruim ainda deve avisar o usuário, mesmo que a FSM congele
-        # nele (é justamente quando o aviso importa).
+        # nele (é justamente quando o aviso importa). Roda também durante a calibração — é aí
+        # que "entre no quadro" mais precisa ser dito.
         avisos = estado.scene.check(norm)
+
+        calibracao = self._calibrar(estado, norm)
+        if estado.baseline is None:
+            # Ainda medindo: nada de contagem. A pessoa está se posicionando, e um "1" no
+            # placar durante o countdown seria uma repetição que ela não fez.
+            saidas = [self._wrap(estado, aviso) for aviso in avisos]
+            saidas.extend(
+                self._wrap(estado, mensagem)
+                for mensagem in estado.feedback.push(avisos, envelope.ts)
+            )
+            return saidas
+
         sinais = feed(estado.analyzer, norm)
 
-        saidas = [self._wrap(estado, payload_evento) for payload_evento in (*avisos, *sinais)]
+        saidas = [*calibracao]
+        saidas.extend(self._wrap(estado, payload_evento) for payload_evento in (*avisos, *sinais))
         # O feedback engine é o último: ele decide o que o HUD vê, com prioridade e throttle.
         saidas.extend(
             self._wrap(estado, mensagem)
             for mensagem in estado.feedback.push([*avisos, *sinais], envelope.ts)
         )
         return saidas
+
+    def _calibrar(self, estado: SessionState, norm) -> list[Envelope]:
+        """Alimenta a calibração enquanto ela não terminou. Devolve `session.calibrated` uma vez.
+
+        Instalar a baseline muda DOIS consumidores: a normalização (que passa a usar a escala
+        medida em vez da instantânea) e a FSM (que passa a comparar a abertura dos pés contra
+        os ombros medidos). Os dois têm de receber a mesma medida, no mesmo instante — por isso
+        isso mora aqui, e não espalhado.
+        """
+        if estado.baseline is not None:
+            return []
+
+        baseline = estado.calibrator.push(norm)
+        if baseline is None:
+            if estado.calibrator.failed(norm.ts):
+                # SPEC-004, critério 2: sem medida não se começa. O countdown recomeça, e o
+                # motivo já está sendo dito pelos avisos de cena deste mesmo frame.
+                logger.info(
+                    "calibracao de %s reiniciada: %s amostras boas, %s descartadas",
+                    estado.session_id,
+                    estado.calibrator.samples,
+                    estado.calibrator.discarded,
+                )
+                estado.calibrator.reset()
+            return []
+
+        estado.baseline = baseline
+        estado.normalizer.set_baseline(baseline)
+        estado.analyzer.baseline = baseline
+        # O relógio dos 30 s começa AQUI (SPEC-009 + SPEC-004): o que veio antes foi a pessoa
+        # se posicionando, e cobrar isso do treino dela seria errado.
+        estado.exercise_started_wall_ms = self._now
+        logger.info("sessao %s calibrada, exercicio valendo", estado.session_id)
+
+        return [
+            self._wrap(
+                estado,
+                SessionCalibrated(
+                    torso=float(baseline.torso or 0.0),
+                    shoulder_width=float(baseline.shoulder_width or 0.0),
+                    shoulder_span=float(baseline.shoulder_span or 0.0),
+                    wrist_rest_y=float(baseline.wrist_rest_y or 0.0),
+                    samples=estado.calibrator.samples,
+                ),
+            )
+        ]
 
     def _on_session_completed(self, envelope: Envelope) -> list[Envelope]:
         """Fim vindo de fora (API/TTL/cliente): fecha o estado e reemite com o total de reps."""

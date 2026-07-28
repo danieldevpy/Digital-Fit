@@ -13,7 +13,12 @@ import pytest
 
 from eval.evalctl import build_report, collect_items, load_manifest, main, print_results, run_items
 from eval.pipeline import EVAL_SOURCE, analyze_frames, analyze_video, commit_hash
-from tests.synthetic_keypoints import jumping_jack_poses, sequence, still_poses
+from tests.synthetic_keypoints import (
+    jumping_jack_poses,
+    sequence,
+    session_poses,
+    still_poses,
+)
 from workers.shared.events import Code, Source
 
 
@@ -58,16 +63,19 @@ def video_falso(tmp_path: Path, monkeypatch) -> Path:
 
 
 def test_analyze_frames_conta_as_reps_do_video() -> None:
-    resultado = analyze_frames(sequence(jumping_jack_poses(12)), name="jj_12.mp4", expected_reps=12)
+    resultado = analyze_frames(
+        sequence(session_poses(jumping_jack_poses(12))), name="jj_12.mp4", expected_reps=12
+    )
 
     assert resultado.reps == 12
     assert resultado.rep_error == 0
     assert resultado.exact is True
-    assert resultado.duration_s == pytest.approx(12.1, abs=0.5)
+    # +1,3 s do countdown: a sessão real inclui a preparação (T-019).
+    assert resultado.duration_s == pytest.approx(13.4, abs=0.5)
 
 
 def test_analyze_frames_reporta_erro_de_contagem() -> None:
-    resultado = analyze_frames(sequence(jumping_jack_poses(10)), expected_reps=12)
+    resultado = analyze_frames(sequence(session_poses(jumping_jack_poses(10))), expected_reps=12)
 
     assert resultado.reps == 10
     assert resultado.rep_error == 2
@@ -75,7 +83,7 @@ def test_analyze_frames_reporta_erro_de_contagem() -> None:
 
 
 def test_sem_rotulo_nao_ha_erro_a_calcular() -> None:
-    resultado = analyze_frames(sequence(jumping_jack_poses(3)))
+    resultado = analyze_frames(sequence(session_poses(jumping_jack_poses(3))))
 
     assert resultado.rep_error is None
     assert resultado.exact is None
@@ -92,14 +100,18 @@ def test_video_negativo_de_pessoa_parada_da_zero_reps() -> None:
 
 
 def test_reps_pregui_osas_aparecem_como_sinais_no_resultado() -> None:
-    resultado = analyze_frames(sequence(jumping_jack_poses(4, amplitude=0.6)), expected_reps=0)
+    resultado = analyze_frames(
+        sequence(session_poses(jumping_jack_poses(4, amplitude=0.6))), expected_reps=0
+    )
 
     assert resultado.reps == 0
     assert resultado.quality_signals[Code.ARMS_TOO_LOW.value] == 4
 
 
 def test_resultado_traz_duracoes_e_cadencia() -> None:
-    resultado = analyze_frames(sequence(jumping_jack_poses(5, frames_per_rep=15), fps=15.0))
+    resultado = analyze_frames(
+        sequence(session_poses(jumping_jack_poses(5, frames_per_rep=15)), fps=15.0)
+    )
 
     assert len(resultado.rep_durations_ms) == 5
     assert resultado.cadence_rpm == pytest.approx(60.0, rel=0.25)
@@ -156,7 +168,7 @@ def test_importar_o_pipeline_nao_puxa_mediapipe_nem_opencv() -> None:
 
 
 def test_analyze_video_processa_do_arquivo_ate_o_resultado(video_falso: Path) -> None:
-    extractor = FakeExtractor(sequence(jumping_jack_poses(8)))
+    extractor = FakeExtractor(sequence(session_poses(jumping_jack_poses(8))))
 
     resultado = analyze_video(video_falso, expected_reps=8, extractor=extractor)
 
@@ -168,12 +180,12 @@ def test_analyze_video_processa_do_arquivo_ate_o_resultado(video_falso: Path) ->
 
 def test_frames_sem_pose_detectada_sao_contados(video_falso: Path) -> None:
     """Vídeo em que a pessoa sai do quadro: o relatório mostra quantos frames vieram vazios."""
-    extractor = FakeExtractor(sequence(jumping_jack_poses(3)))
+    extractor = FakeExtractor(sequence(session_poses(jumping_jack_poses(3))))
 
     resultado = analyze_video(video_falso, extractor=extractor)
 
     assert resultado.frames_no_pose > 0
-    assert resultado.frames == len(sequence(jumping_jack_poses(3)))
+    assert resultado.frames == len(sequence(session_poses(jumping_jack_poses(3))))
 
 
 # --------------------------------------------------------------------------------------
@@ -280,7 +292,7 @@ def test_falha_de_leitura_nao_interrompe_os_demais(tmp_path: Path, monkeypatch) 
             CorpusItem(path=bom, exercise="jumping_jack", expected_reps=5),
         ],
         target_fps=15.0,
-        extractor=FakeExtractor(sequence(jumping_jack_poses(5))),
+        extractor=FakeExtractor(sequence(session_poses(jumping_jack_poses(5)))),
     )
 
     assert "nao foi possivel abrir" in (resultados[0].error or "")
@@ -313,7 +325,9 @@ def test_exercicio_desconhecido_e_reportado_por_video(tmp_path: Path, monkeypatc
 
 
 def test_relatorio_carrega_versao_commit_e_modelo() -> None:
-    relatorio = build_report([analyze_frames(sequence(jumping_jack_poses(2)))], target_fps=15.0)
+    relatorio = build_report(
+        [analyze_frames(sequence(session_poses(jumping_jack_poses(2))))], target_fps=15.0
+    )
 
     assert relatorio["tool"] == "evalctl"
     assert relatorio["report_version"] == 1
@@ -324,7 +338,9 @@ def test_relatorio_carrega_versao_commit_e_modelo() -> None:
 
 
 def test_relatorio_e_json_serializavel() -> None:
-    relatorio = build_report([analyze_frames(sequence(jumping_jack_poses(2)))], target_fps=None)
+    relatorio = build_report(
+        [analyze_frames(sequence(session_poses(jumping_jack_poses(2))))], target_fps=None
+    )
 
     texto = json.dumps(relatorio)
 
@@ -340,7 +356,7 @@ def test_cli_run_escreve_o_eval_json(tmp_path: Path, monkeypatch, capsys) -> Non
     )
     monkeypatch.setattr(
         "eval.sources.MediaPipeExtractor",
-        lambda **kwargs: FakeExtractor(sequence(jumping_jack_poses(6))),
+        lambda **kwargs: FakeExtractor(sequence(session_poses(jumping_jack_poses(6)))),
     )
     destino = tmp_path / "out" / "eval.json"
 
@@ -390,9 +406,13 @@ def test_fps_zero_significa_todos_os_frames(tmp_path: Path, monkeypatch) -> None
 
 def test_tabela_mostra_erro_por_video(capsys) -> None:
     resultados = [
-        analyze_frames(sequence(jumping_jack_poses(20)), name="jj_bom.mp4", expected_reps=20),
         analyze_frames(
-            sequence(jumping_jack_poses(2, amplitude=0.6)), name="jj_lento.mp4", expected_reps=2
+            sequence(session_poses(jumping_jack_poses(20))), name="jj_bom.mp4", expected_reps=20
+        ),
+        analyze_frames(
+            sequence(session_poses(jumping_jack_poses(2, amplitude=0.6))),
+            name="jj_lento.mp4",
+            expected_reps=2,
         ),
     ]
 

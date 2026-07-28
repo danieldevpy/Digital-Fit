@@ -35,7 +35,7 @@
 | T-016 | pose-worker: consumer `frames.raw` → MediaPipe CPU → `pose.frame` (cgroup 1 vCPU) | 005 | done |
 | T-017 | Semáforo `slots:cloud=3` (Lua atômico) + liberação em todos os finais | 009 | done |
 | T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | done |
-| T-019 | Baseline/calibração no countdown (mediana 1s) + FSM usando baseline | 004 | todo |
+| T-019 | Baseline/calibração no countdown (mediana 1s); FSM NÃO usa baseline no divisor — ver Descobertas | 004 | done |
 | T-020 | report-builder: consolidação + `SessionResult` no Postgres + tela de relatório | 010 | todo |
 | T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | todo |
 | T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | todo |
@@ -128,6 +128,25 @@
   mudar o environment do compose. Por isso o `prod.sh up` sempre reconstrói. Se um dia isso
   incomodar, a saída é o cliente ler a origem da própria página (same-origin) em vez de uma
   variável — hoje `apiBaseUrl()` cairia no default de `localhost:8000`.
+- **[A/T-019] A baseline NÃO serve como divisor de `ankle_spread` — medido, não suposto.** O
+  critério 3 da SPEC-004 pedia isso; implementei, o corpus reprovou, e a spec foi corrigida.
+  O divisor por frame **se autocorrige**: com a pessoa em ângulo, abertura dos pés e largura
+  de ombros encurtam juntas em perspectiva, e a razão se mantém. Fixá-lo destrói a
+  invariância. Números: o vídeo frontal caiu de 20/20 para 18/20, e a varredura de limiares
+  que consertava o frontal derrubava o oblíquo de 19/21 para **3/21** — não existe fator
+  global que sirva aos dois. A baseline segue valendo para a escala da normalização
+  (SPEC-006) e vai no `session.calibrated` para o relatório e para a T-030.
+- **[A/T-019] Os 30 s passaram a correr do fim da calibração, não do primeiro frame.** O
+  countdown é preparação; descontá-lo do treino encurtaria a sessão de quem demora a se
+  posicionar — justamente quem mais precisa dos 30 s. Efeito colateral bom: o motivo de fim
+  `timeout`, que era inalcançável, virou o teto de vida da sessão e agora cobre o caso de uma
+  calibração que nunca fecha (frames continuam chegando, então `no_data` não salvaria).
+- **[A/T-019] A bancada passou a calibrar também** (`analyze_frames(calibrate=True)`), senão
+  `evalctl` mediria um pipeline que não existe mais. Consequência: vídeo de corpus sem
+  countdown perde as reps que acontecem durante a medição. Os vídeos `02` e `03` são assim e
+  caem 2 reps cada por isso — o `01`, que tem 2 s parados, segue 20/20. O guia de gravação
+  passou a exigir 2–3 s parado no início, e `--no-calibrate` existe para comparar com o
+  comportamento anterior.
 - **[A/T-038] A FSM perde a primeira rep quando a gravação começa com a pessoa já ABERTA.**
   Diagnosticado no `polichinelo-02.mp4` (14 de 15): no `ts=0` os features já são
   `arm_angle=143°, ankle_spread=3.19` — posição aberta. A FSM nasce em `Phase.CLOSED` e o

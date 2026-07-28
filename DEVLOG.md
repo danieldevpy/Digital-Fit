@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-07-28 · T-019 — calibração no countdown (e um critério de spec derrubado por medição)
+
+- Entregue: `workers/analysis_worker/calibration.py`, `session.calibrated` no contrato,
+  `Baseline` com `shoulder_span`/`wrist_rest_y`, `Normalizer.set_baseline()`, orquestração no
+  router, calibração também na bancada, `tests/test_calibration.py` (12 testes),
+  `session_poses()` nas fixtures.
+- **O critério 3 da SPEC-004 estava errado, e o corpus provou.** A spec pedia `ankle_spread`
+  relativo à largura de ombros medida na calibração. Implementei e a acurácia PIOROU: MAE de
+  0,67 para 2,00, com o vídeo frontal caindo de 20/20 para 18/20.
+  - Diagnóstico: a escala de `ankle_spread` subiu ~1,37× (p50 de 1,60 para 2,19) e a fração de
+    frames abaixo do limiar de fechar caiu de 36% para 24% — as reps deixavam de FECHAR.
+  - Tentei reexpressar os limiares por esse fator. A varredura mostrou que **não existe fator
+    global**: o que levava o vídeo frontal a 20/20 derrubava o oblíquo de 19/21 para 3/21.
+  - A razão é conceitual, e é o que fecha o caso: o divisor por frame **se autocorrige**. Com
+    a pessoa em ângulo, abertura dos pés e largura de ombros encurtam JUNTAS em perspectiva, e
+    a razão se mantém. Fixar o divisor numa medida única destrói exatamente essa invariância —
+    e o vídeo oblíquo é quem paga.
+  - Revertido; SPEC-004 corrigida com a medição registrada. A baseline segue valendo para a
+    escala da normalização e para o relatório/T-030.
+- Decisões:
+  - **Os 30 s correm do fim da calibração**, não do primeiro frame: o countdown é preparação.
+    Efeito colateral bom — o motivo `timeout`, que era inalcançável, virou o teto de vida da
+    sessão e cobre a calibração que nunca fecha (com frames chegando, `no_data` não salvaria).
+  - **Nada de contagem antes da medida** (SPEC-004, critério 2). Um "1" no placar durante o
+    countdown seria uma repetição que a pessoa não fez.
+  - **Frame degradado é recusado pela calibração**: landmark adivinhado pelo modelo viraria
+    proporção inventada. Mediana, nunca média, pelo mesmo motivo.
+  - **A bancada calibra também.** Se `evalctl` pulasse a calibração, mediria um pipeline que
+    não existe — e diria uma acurácia que nenhum usuário experimenta.
+- Consequência no corpus: MAE 1,333. O vídeo `01` (2 s parados no início) volta a **20/20**;
+  `02` e `03` perdem 2 cada porque **não têm countdown** e a medição come exercício real. O
+  guia de gravação passou a exigir 2–3 s parado, e `--no-calibrate` existe para comparação.
+- Gates: ruff + format limpos, pytest 425 verde.
+- Pendências geradas (3 em "Descobertas").
+
+---
+
 ## 2026-07-28 · Corpus com 3 vídeos: paridade confirmada, dois erros de contagem diagnosticados
 
 - Daniel gravou mais dois vídeos, ambos em retrato 576×1024 (o primeiro era paisagem):

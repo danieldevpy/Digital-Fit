@@ -60,6 +60,7 @@ __all__ = [
     "QualitySignal",
     "RepDetected",
     "SceneWarning",
+    "SessionCalibrated",
     "SessionCapability",
     "SessionCompleted",
     "SessionEndReason",
@@ -114,6 +115,7 @@ class EventType(StrEnum):
     SESSION_STARTED = "session.started"
     FRAME_RAW = "frame.raw"  # só modo cloud; morre no pose-worker (SPEC-005)
     POSE_FRAME = "pose.frame"
+    SESSION_CALIBRATED = "session.calibrated"  # baseline medida (SPEC-004)
     EXERCISE_PHASE = "exercise.phase"
     REP_DETECTED = "rep.detected"
     QUALITY_SIGNAL = "quality.signal"
@@ -153,6 +155,7 @@ STREAM_FOR_TYPE: dict[EventType, Stream] = {
     # O pose-worker (T-016) lê daqui e devolve `pose.frame` — é ali que o vídeo morre.
     EventType.FRAME_RAW: Stream.FRAMES_RAW,
     EventType.POSE_FRAME: Stream.POSE_FRAMES,
+    EventType.SESSION_CALIBRATED: Stream.EVENTS_ANALYSIS,
     EventType.EXERCISE_PHASE: Stream.EVENTS_ANALYSIS,
     EventType.REP_DETECTED: Stream.EVENTS_ANALYSIS,
     EventType.QUALITY_SIGNAL: Stream.EVENTS_ANALYSIS,
@@ -180,6 +183,9 @@ ANALYSIS_INPUT_TYPES: frozenset[EventType] = frozenset(
 #: nunca volta, e `quality.signal` é insumo do feedback engine — o HUD só vê `feedback.issued`.
 CLIENT_PUSH_TYPES: frozenset[EventType] = frozenset(
     {
+        # O cliente precisa deste para encerrar o countdown na hora certa: é o servidor que
+        # decide quando o exercicio comecou, e o anel de 30s tem de ancorar no MESMO instante.
+        EventType.SESSION_CALIBRATED,
         EventType.EXERCISE_PHASE,
         EventType.REP_DETECTED,
         EventType.SCENE_WARNING,
@@ -465,6 +471,46 @@ class PoseFrame:
 
 
 @dataclass(frozen=True, slots=True)
+class SessionCalibrated:
+    """Baseline medida no countdown — a partir daqui o exercício vale (SPEC-004).
+
+    Marca a fronteira entre preparação e exercício: é neste instante que o timer autoritativo
+    dos 30 s começa a contar (SPEC-009). Antes disso a pessoa está se posicionando, e cobrar
+    esse tempo do treino dela seria errado.
+
+    As medidas seguem em duas unidades — ver `Baseline` em `workers/shared/normalize.py`.
+    """
+
+    TYPE: ClassVar[EventType] = EventType.SESSION_CALIBRATED
+
+    torso: float
+    shoulder_width: float
+    shoulder_span: float
+    wrist_rest_y: float
+    #: Frames que entraram na mediana. Baixo demais é sinal de calibração no limite.
+    samples: int = 0
+
+    def to_data(self) -> dict[str, Any]:
+        return {
+            "torso": self.torso,
+            "shoulder_width": self.shoulder_width,
+            "shoulder_span": self.shoulder_span,
+            "wrist_rest_y": self.wrist_rest_y,
+            "samples": self.samples,
+        }
+
+    @classmethod
+    def from_data(cls, data: dict[str, Any]) -> Self:
+        return cls(
+            torso=float(_require(data, "torso")),
+            shoulder_width=float(_require(data, "shoulder_width")),
+            shoulder_span=float(_require(data, "shoulder_span")),
+            wrist_rest_y=float(_require(data, "wrist_rest_y")),
+            samples=_as_int(data.get("samples", 0), "samples"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ExercisePhase:
     """Transição de fase da FSM — habilita a animação de fase no HUD (SPEC-007)."""
 
@@ -622,6 +668,7 @@ _PAYLOAD_FOR_TYPE: dict[EventType, Any] = {
     EventType.SESSION_STARTED: SessionStarted,
     EventType.FRAME_RAW: FrameRaw,
     EventType.POSE_FRAME: PoseFrame,
+    EventType.SESSION_CALIBRATED: SessionCalibrated,
     EventType.EXERCISE_PHASE: ExercisePhase,
     EventType.REP_DETECTED: RepDetected,
     EventType.QUALITY_SIGNAL: QualitySignal,

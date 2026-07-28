@@ -92,11 +92,26 @@ DEFAULT_PARAMS = NormParams()
 class Baseline:
     """Referências corporais medidas na calibração (SPEC-004 / T-019).
 
-    Enquanto não existir baseline (Fase 0), a normalização usa o valor instantâneo do frame.
+    Sem baseline, a normalização usa o valor instantâneo do frame — que funciona, mas mede o
+    corpo enquanto ele se mexe. É por isso que a calibração existe: durante o countdown a
+    pessoa está parada e de frente, e é a única hora em que as proporções podem ser medidas
+    sem o movimento no meio.
+
+    **Duas unidades convivem aqui, de propósito.** `torso` e `shoulder_width` ficam em unidades
+    de frame (0–1), porque quem os consome é a validação de distância (SPEC-003): o tamanho
+    APARENTE é justamente o sinal de "longe demais". Já `shoulder_span` e `wrist_rest_y` ficam
+    em torsos, porque quem os consome é a FSM (SPEC-007), que raciocina em proporção corporal
+    e não pode depender de a pessoa estar perto ou longe.
     """
 
+    #: Distância ombro-médio → quadril-médio, em unidades de frame.
     torso: float | None = None
+    #: Largura de ombros em unidades de frame (tamanho aparente).
     shoulder_width: float | None = None
+    #: Largura de ombros em TORSOS — a referência da FSM para `ankle_spread`.
+    shoulder_span: float | None = None
+    #: Altura de repouso dos pulsos em torsos (y cresce para baixo), SPEC-004.
+    wrist_rest_y: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +169,16 @@ class Normalizer:
             mincutoff=params.scale_mincutoff, beta=params.scale_beta, dcutoff=params.dcutoff
         )
         self._last_torso: float | None = None
+
+    def set_baseline(self, baseline: Baseline) -> None:
+        """Instala a baseline medida na calibração (SPEC-004).
+
+        A partir daqui a escala para de ser o valor instantâneo do frame e passa a ser a
+        medida — o que torna a normalização estável quando a pessoa se aproxima ou gira. O
+        filtro de escala fica para trás de propósito: ele existia justamente para suavizar a
+        medida instantânea que acabou de deixar de ser usada.
+        """
+        self._baseline = baseline
 
     def push(self, frame: RawFrame) -> NormFrame:
         """Normaliza um frame. Chamar em ordem de `ts` crescente."""

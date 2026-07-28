@@ -8,7 +8,12 @@ import pytest
 from eval.evalctl import build_report, main
 from eval.metrics import aggregate, compare, format_comparison, format_metrics
 from eval.pipeline import analyze_frames
-from tests.synthetic_keypoints import jumping_jack_poses, sequence, still_poses
+from tests.synthetic_keypoints import (
+    jumping_jack_poses,
+    sequence,
+    session_poses,
+    still_poses,
+)
 from workers.shared.keypoints import (
     SCHEMA_VERSION,
     KeypointFixture,
@@ -123,7 +128,11 @@ def test_agregado_de_lista_vazia_nao_explode() -> None:
 
 def test_relatorio_do_run_inclui_metricas() -> None:
     relatorio = build_report(
-        [analyze_frames(sequence(jumping_jack_poses(5)), name="jj.mp4", expected_reps=5)],
+        [
+            analyze_frames(
+                sequence(session_poses(jumping_jack_poses(5))), name="jj.mp4", expected_reps=5
+            )
+        ],
         target_fps=15.0,
     )
 
@@ -249,7 +258,7 @@ def test_cli_compare_grava_json(tmp_path: Path) -> None:
 
 
 def test_fixture_sobrevive_ao_round_trip(tmp_path: Path) -> None:
-    frames = sequence(jumping_jack_poses(2))
+    frames = sequence(session_poses(jumping_jack_poses(2)))
     original = KeypointFixture(
         label="jj_2reps",
         frames=frames,
@@ -271,7 +280,7 @@ def test_fixture_sobrevive_ao_round_trip(tmp_path: Path) -> None:
 
 def test_fixture_gravada_conta_as_mesmas_reps(tmp_path: Path) -> None:
     """SPEC-012, critério 3: pytest consome a fixture sem conversão nenhuma."""
-    frames = sequence(jumping_jack_poses(7))
+    frames = sequence(session_poses(jumping_jack_poses(7)))
     caminho = save_fixture(
         tmp_path / "jj.json", KeypointFixture(label="jj_7", frames=frames, expected_reps=7)
     )
@@ -329,7 +338,7 @@ def test_save_keypoints_exporta_fixture_por_video(tmp_path: Path, monkeypatch) -
     )
     monkeypatch.setattr(
         "eval.sources.MediaPipeExtractor",
-        lambda **kwargs: FakeExtractor(sequence(jumping_jack_poses(6))),
+        lambda **kwargs: FakeExtractor(sequence(session_poses(jumping_jack_poses(6)))),
     )
     destino = tmp_path / "fixtures"
 

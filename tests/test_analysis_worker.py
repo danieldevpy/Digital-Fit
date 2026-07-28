@@ -6,7 +6,12 @@ ack — sem Redis no ar.
 
 import pytest
 
-from tests.synthetic_keypoints import jumping_jack_poses, sequence, still_poses
+from tests.synthetic_keypoints import (
+    jumping_jack_poses,
+    sequence,
+    session_poses,
+    still_poses,
+)
 from workers.analysis_worker.main import BATCH, GROUP, Shutdown, run
 from workers.analysis_worker.router import DEFAULT_DURATION_S, AnalysisRouter
 from workers.shared.bus import InMemoryBus
@@ -75,7 +80,7 @@ def rodar(*envelopes: Envelope) -> tuple[InMemoryBus, AnalysisRouter]:
 
 
 def test_worker_conta_reps_e_publica_em_events_analysis() -> None:
-    frames = [envelope_pose(frame) for frame in sequence(jumping_jack_poses(5))]
+    frames = [envelope_pose(frame) for frame in sequence(session_poses(jumping_jack_poses(5)))]
 
     bus, _ = rodar(envelope_started(), *frames)
 
@@ -86,7 +91,7 @@ def test_worker_conta_reps_e_publica_em_events_analysis() -> None:
 
 
 def test_eventos_de_saida_carregam_a_sessao_e_seq_monotonico() -> None:
-    frames = [envelope_pose(frame) for frame in sequence(jumping_jack_poses(3))]
+    frames = [envelope_pose(frame) for frame in sequence(session_poses(jumping_jack_poses(3)))]
 
     bus, _ = rodar(envelope_started(), *frames)
 
@@ -96,13 +101,16 @@ def test_eventos_de_saida_carregam_a_sessao_e_seq_monotonico() -> None:
 
 
 def test_saida_e_marcada_como_produzida_pelo_sistema() -> None:
-    bus, _ = rodar(envelope_started(), *[envelope_pose(f) for f in sequence(jumping_jack_poses(1))])
+    bus, _ = rodar(
+        envelope_started(),
+        *[envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(1)))],
+    )
 
     assert {envelope.source for envelope in bus.published} == {Source.SYSTEM}
 
 
 def test_todos_os_eventos_lidos_recebem_ack() -> None:
-    frames = [envelope_pose(frame) for frame in sequence(jumping_jack_poses(2))]
+    frames = [envelope_pose(frame) for frame in sequence(session_poses(jumping_jack_poses(2)))]
 
     bus, _ = rodar(envelope_started(), *frames)
 
@@ -118,7 +126,9 @@ def test_grupo_de_consumo_e_criado_no_start() -> None:
 
 
 def test_fases_e_sinais_tambem_saem_no_stream() -> None:
-    frames = [envelope_pose(f) for f in sequence(jumping_jack_poses(2, amplitude=0.6))]
+    frames = [
+        envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(2, amplitude=0.6)))
+    ]
 
     bus, _ = rodar(envelope_started(), *frames)
 
@@ -127,7 +137,7 @@ def test_fases_e_sinais_tambem_saem_no_stream() -> None:
 
 
 def test_frames_do_polichinelo_limpo_geram_fases_abertas_e_fechadas() -> None:
-    frames = [envelope_pose(f) for f in sequence(jumping_jack_poses(2))]
+    frames = [envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(2)))]
 
     bus, _ = rodar(envelope_started(), *frames)
 
@@ -150,7 +160,7 @@ def test_session_started_abre_a_sessao_com_o_exercicio_pedido() -> None:
 
 def test_frame_sem_session_started_abre_sessao_com_o_padrao() -> None:
     """Corrida de eventos não pode custar repetições."""
-    frames = [envelope_pose(f) for f in sequence(jumping_jack_poses(3))]
+    frames = [envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(3)))]
 
     bus, router = rodar(*frames)
 
@@ -167,8 +177,8 @@ def test_exercicio_desconhecido_nao_abre_sessao_nem_derruba_o_worker() -> None:
 
 def test_sessoes_diferentes_nao_se_misturam() -> None:
     outra = "3f2b9c4e-0000-4000-8000-000000000002"
-    frames_a = [envelope_pose(f, SESSAO) for f in sequence(jumping_jack_poses(3))]
-    frames_b = [envelope_pose(f, outra) for f in sequence(jumping_jack_poses(1))]
+    frames_a = [envelope_pose(f, SESSAO) for f in sequence(session_poses(jumping_jack_poses(3)))]
+    frames_b = [envelope_pose(f, outra) for f in sequence(session_poses(jumping_jack_poses(1)))]
 
     bus, router = rodar(envelope_started(SESSAO), envelope_started(outra), *frames_a, *frames_b)
 
@@ -180,7 +190,7 @@ def test_sessoes_diferentes_nao_se_misturam() -> None:
 
 
 def test_session_completed_fecha_a_sessao_e_reemite_com_o_total() -> None:
-    frames = [envelope_pose(f) for f in sequence(jumping_jack_poses(4))]
+    frames = [envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(4)))]
 
     bus, router = rodar(envelope_started(), *frames, envelope_completed())
 
@@ -200,7 +210,7 @@ def test_session_completed_de_sessao_desconhecida_e_ignorado() -> None:
 
 def test_frames_depois_do_fim_abrem_sessao_nova_do_zero() -> None:
     """Sem isso, um frame atrasado somaria repetição a uma sessão já encerrada."""
-    frames = [envelope_pose(f) for f in sequence(jumping_jack_poses(2))]
+    frames = [envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(2)))]
 
     bus, router = rodar(envelope_started(), *frames, envelope_completed(), frames[0])
 
@@ -238,7 +248,7 @@ def test_pose_frame_invalido_nao_derruba_o_worker() -> None:
         source=Source.EDGE,
         data={"landmarks": [[0.0, 0.0, 0.0, 1.0]] * 10},  # 10 landmarks, não 33
     )
-    frames = [envelope_pose(f) for f in sequence(jumping_jack_poses(2))]
+    frames = [envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(2)))]
 
     bus, _ = rodar(envelope_started(), ruim, *frames)
 
@@ -247,7 +257,12 @@ def test_pose_frame_invalido_nao_derruba_o_worker() -> None:
 
 
 def test_frames_degradados_nao_geram_evento_de_execucao() -> None:
-    """SPEC-007: frame ruim não conta nem penaliza — mas a cena avisa (SPEC-003/T-013)."""
+    """SPEC-007: frame ruim não conta nem penaliza — mas a cena avisa (SPEC-003/T-013).
+
+    Desde a T-019 a afirmação é ainda mais forte: com todos os frames degradados a baseline
+    nunca é medida, e sem baseline o exercício **não começa** (SPEC-004, critério 2). Os
+    frames ruins nem chegam à FSM — ficam no calibrador, que os recusa.
+    """
     frames = [envelope_pose(f) for f in sequence(still_poses(30), visibility=0.1)]
 
     bus, router = rodar(envelope_started(), *frames)
@@ -256,7 +271,12 @@ def test_frames_degradados_nao_geram_evento_de_execucao() -> None:
     assert bus.published_of(EventType.QUALITY_SIGNAL) == []
     assert bus.published_of(EventType.EXERCISE_PHASE) == []
     assert bus.published_of(EventType.SCENE_WARNING), "usuario fora do quadro precisa ser avisado"
-    assert router.sessions[SESSAO].analyzer.summary()["frames_degraded"] == 30
+
+    estado = router.sessions[SESSAO]
+    assert estado.baseline is None, "sessao nunca deve comecar sem medida"
+    assert estado.exercise_started_wall_ms is None
+    assert estado.calibrator.discarded == 30
+    assert bus.published_of(EventType.SESSION_CALIBRATED) == []
 
 
 def test_falha_no_processamento_nao_impede_ack_nem_o_resto_do_lote() -> None:
@@ -266,7 +286,7 @@ def test_falha_no_processamento_nao_impede_ack_nem_o_resto_do_lote() -> None:
                 raise RuntimeError("boom")
             return super().handle(envelope)
 
-    frames = [envelope_pose(f) for f in sequence(jumping_jack_poses(2))]
+    frames = [envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(2)))]
     bus = InMemoryBus()
     bus.feed(Stream.POSE_FRAMES, envelope_started(), *frames)
 
@@ -299,7 +319,7 @@ def test_loop_sem_eventos_nao_publica_nada() -> None:
 def test_router_reaproveitado_entre_lotes_mantem_a_contagem() -> None:
     """O worker real roda muitos lotes; o estado atravessa todos."""
     router = AnalysisRouter()
-    frames = sequence(jumping_jack_poses(4))
+    frames = sequence(session_poses(jumping_jack_poses(4)))
     bus = InMemoryBus()
 
     bus.feed(Stream.POSE_FRAMES, envelope_started(), *[envelope_pose(f) for f in frames[:30]])
@@ -321,7 +341,7 @@ def test_router_devolve_envelopes_prontos_para_publicar() -> None:
 
     saidas = [
         envelope
-        for frame in sequence(jumping_jack_poses(1))
+        for frame in sequence(session_poses(jumping_jack_poses(1)))
         for envelope in router.handle(envelope_pose(frame))
     ]
 
@@ -334,7 +354,7 @@ def test_router_devolve_envelopes_prontos_para_publicar() -> None:
 
 def test_router_nao_mexe_no_envelope_de_entrada() -> None:
     router = AnalysisRouter()
-    entrada = envelope_pose(sequence(jumping_jack_poses(1))[0])
+    entrada = envelope_pose(sequence(session_poses(jumping_jack_poses(1)))[0])
     copia = entrada.to_dict()
 
     router.handle(entrada)
