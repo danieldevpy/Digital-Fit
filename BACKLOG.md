@@ -9,7 +9,7 @@
 |---|---|---|---|
 | T-001 | Monorepo + docker-compose (redis, postgres, django vazio, web vite) sobe com 1 comando | — | done |
 | T-002 | `workers/shared/events.py`: envelope + eventos da fase 0 + testes de serialização | 002 | todo |
-| T-003 | Webcam + MediaPipe no browser desenhando esqueleto (validação visual) | 001/005 | todo |
+| T-003 | Webcam + MediaPipe no browser desenhando esqueleto (validação visual) | 001/005 | done |
 | T-004 | Capability probe + frame clock (ts/seq) + modo forçável por query param | 001 | todo |
 | T-005 | Gateway Channels: WS autenticado por token, publica `pose.frame` no stream | 002 | todo |
 | T-006 | Normalização + One Euro Filter como função pura + fixtures de teste | 006 | todo |
@@ -77,3 +77,15 @@
 - **[A/T-001] Toolchain Python**: a máquina tem Python 3.11 no sistema; o projeto exige 3.12+
   (convenções). Resolvido usando o Python gerenciado pelo `uv` (`uv sync` / `uv run`).
   Rodar `pytest` do sistema direto não funciona — sempre via `uv run`.
+- **[B/T-003] Serviço `web` no compose: conflito de território, NÃO feito.** A descoberta
+  `[A/T-001]` acima atribui isso ao Agente B, mas `docker-compose.yml` é território do
+  Agente A (`prompts/agente-b-web.md`: "PROIBIDO tocar em … docker-compose"). O Vite já
+  existe e o serviço pode entrar: build a partir de `web/`, `npm run dev -- --host`, porta
+  5173, `VITE_API_URL`/`VITE_WS_URL` apontando para `api`. **Atenção**: `npm run dev`
+  dispara `predev` → `scripts/setup-mediapipe.mjs`, que baixa ~5.5 MB do modelo — no
+  container isso exige rede na primeira subida ou um volume para `web/public/models/`.
+  Decisão de quem faz fica para o Daniel / sessão conjunta.
+- **[B/T-003] Assets do MediaPipe não versionados**: `web/public/wasm/` (~11 MB) e
+  `web/public/models/pose_landmarker_lite.task` (~5,5 MB) são gerados por `npm run setup`
+  e ignorados via `web/.gitignore`. Clone novo precisa de `npm install && npm run setup`
+  (ou só `npm run dev`, que roda o setup sozinho) antes de abrir o app.

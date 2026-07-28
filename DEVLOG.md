@@ -5,6 +5,44 @@
 
 ---
 
+## 2026-07-27 · [B] T-003 — Webcam + MediaPipe + esqueleto
+
+- Sessão do **Agente B** (território `web/`), rodando no worktree `../df-agent-b`
+  (branch `agent-b`) para não competir com o Agente A no BACKLOG/DEVLOG.
+- Criado o app Vite + React 19 + TypeScript do zero em `web/`: `src/capture/`
+  (câmera + overlay), `src/pose/` (MediaPipe + geometria do esqueleto), `src/store/`
+  (zustand), testes com vitest, lint com ESLint flat config.
+- Entregue: `getUserMedia` 640×480 @30fps com fallback, estados de câmera na UI
+  (desligada / pedindo permissão / pronta / negada / erro), MediaPipe Pose Landmarker
+  (modelo `lite`, WASM) desenhando os 33 landmarks e 35 conexões sobre o vídeo.
+- Decisões:
+  - **Assets do MediaPipe servidos localmente**, não por CDN: `npm run setup`
+    (`scripts/setup-mediapipe.mjs`) copia o WASM do `node_modules` e baixa o `.task`
+    para `public/`. Roda automático no `predev`/`prebuild`. Motivo: o app precisa
+    funcionar dentro do compose sem depender de CDN externo em runtime.
+  - **Delegate GPU com fallback para CPU** em caso de exceção — a mesma config será
+    usada pelo capability probe da T-004 (senão o probe mente, nota da SPEC-001).
+  - **Espelhamento por CSS no container** de vídeo+canvas juntos, então o desenho usa
+    as coordenadas normalizadas cruas do MediaPipe (sem matemática de espelho).
+  - **Geometria do esqueleto como função pura** (`src/pose/skeleton.ts`:
+    `isVisible`/`toCanvasPoint`/`visibleSegments`/`visiblePoints`), testável sem câmera;
+    só `drawSkeleton` toca o canvas. Limiar de visibilidade 0.5 (convenções).
+  - **Loop de render é `requestAnimationFrame` cru de propósito**: o frame clock real
+    (`requestVideoFrameCallback`, decimação por tempo para 15fps, `ts`/`seq`) é a T-004
+    e substitui esse loop — não antecipei.
+- Fora de escopo, não implementado: capability probe e `?mode=` (T-004), WebSocket e
+  espelho TS do contrato (o `events.py` do Agente A ainda não existe), HUD (T-012).
+- Gates: `tsc -b` limpo, `npm run lint` sem erros nem warnings, `npm run test` 13/13
+  verde, `npm run build` OK. Dev server verificado servindo `/`, `/wasm/*.wasm` (11 MB)
+  e `/models/pose_landmarker_lite.task` (5,5 MB) com 200.
+- **Validação visual com webcam real ainda pendente** — feita pelo Daniel (`npm run dev`
+  em `web/`, precisa de `localhost` ou HTTPS para o `getUserMedia` liberar).
+- Pendências geradas (2 em "Descobertas"): serviço `web` no compose ficou **sem dono**
+  (o Agente A atribuiu ao B, mas o arquivo é território do A); assets do MediaPipe não
+  versionados exigem `npm run setup` em clone novo.
+
+---
+
 ## 2026-07-28 · [A] T-001 — Monorepo + docker-compose
 
 - Trabalho em paralelo: **Agente A** (núcleo Python: server/, workers/, eval/, tests/, infra)
