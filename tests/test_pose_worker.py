@@ -10,7 +10,7 @@ import time
 
 import pytest
 
-from workers.pose_worker.main import GROUP, run
+from workers.pose_worker.main import GROUP, run, stream_id_ms
 from workers.pose_worker.router import MAX_AGE_MS, PoseRouter
 from workers.shared.bus import InMemoryBus
 from workers.shared.events import (
@@ -105,11 +105,11 @@ def test_ts_e_seq_do_frame_original_sao_preservados() -> None:
 # --------------------------------------------------------------------------------------
 
 
-def test_frame_velho_e_descartado() -> None:
+def test_frame_que_esperou_demais_na_fila_e_descartado() -> None:
     extractor = ExtractorFalso()
     router = PoseRouter(extractor=extractor)
 
-    saidas = router.handle(frame_raw(), now_ms=AGORA + MAX_AGE_MS + 1)
+    saidas = router.handle(frame_raw(), arrived_ms=AGORA, now_ms=AGORA + MAX_AGE_MS + 1)
 
     assert saidas == []
     assert router.stats.stale == 1
@@ -117,12 +117,37 @@ def test_frame_velho_e_descartado() -> None:
     assert extractor.chamadas == []
 
 
-def test_frame_no_limite_da_idade_ainda_passa() -> None:
+def test_frame_no_limite_da_espera_ainda_passa() -> None:
     router = PoseRouter(extractor=ExtractorFalso())
 
-    saidas = router.handle(frame_raw(), now_ms=AGORA + MAX_AGE_MS)
+    saidas = router.handle(frame_raw(), arrived_ms=AGORA, now_ms=AGORA + MAX_AGE_MS)
 
     assert len(saidas) == 1
+
+
+def test_relogio_atrasado_do_celular_nao_descarta_a_sessao_inteira() -> None:
+    """A regressão que motivou corrigir a nota da SPEC-005.
+
+    O frame chegou agora (relógio do servidor), mas o `ts` do cliente está 1 hora atrás.
+    Medir a idade pelo `ts` descartaria todos os frames — a sessão morreria sem nada no log.
+    """
+    router = PoseRouter(extractor=ExtractorFalso())
+    uma_hora = 3_600_000
+
+    saidas = router.handle(frame_raw(ts=AGORA - uma_hora), arrived_ms=AGORA, now_ms=AGORA + 20)
+
+    assert len(saidas) == 1
+    assert router.stats.stale == 0
+    # E o `ts` do cliente segue no evento: para a FSM o tempo é o da captura.
+    assert saidas[0].ts == AGORA - uma_hora
+
+
+def test_sem_hora_de_chegada_cai_para_o_ts_do_envelope() -> None:
+    # Degradação consciente: pior medida, mas o worker não trava se o ID vier estranho.
+    router = PoseRouter(extractor=ExtractorFalso())
+
+    assert router.handle(frame_raw(), now_ms=AGORA + MAX_AGE_MS + 1) == []
+    assert router.stats.stale == 1
 
 
 def test_sem_pessoa_no_quadro_nao_produz_evento() -> None:
@@ -170,10 +195,16 @@ def test_relogio_do_cliente_adiantado_nao_descarta() -> None:
     """Frame "do futuro" não é frame velho — descartá-lo mataria a sessão inteira."""
     router = PoseRouter(extractor=ExtractorFalso())
 
-    saidas = router.handle(frame_raw(ts=AGORA + 5_000), now_ms=AGORA)
+    saidas = router.handle(frame_raw(ts=AGORA + 5_000), arrived_ms=AGORA, now_ms=AGORA)
 
     assert len(saidas) == 1
     assert router.stats.stale == 0
+
+
+def test_id_do_stream_vira_hora_de_chegada() -> None:
+    assert stream_id_ms("1785249657004-0") == 1_785_249_657_004
+    assert stream_id_ms("1785249657004-12") == 1_785_249_657_004
+    assert stream_id_ms("formato-estranho") is None
 
 
 # --------------------------------------------------------------------------------------
@@ -183,7 +214,8 @@ def test_relogio_do_cliente_adiantado_nao_descarta() -> None:
 
 def test_loop_publica_em_pose_frames_e_da_ack() -> None:
     bus = InMemoryBus()
-    entrada = frame_raw(ts=int(time.time() * 1000))  # "agora" real: o loop não injeta relógio
+    # O `feed` carimba a chegada com o relógio real, como o Redis faria.
+    entrada = frame_raw(ts=int(time.time() * 1000))
     bus.feed(Stream.FRAMES_RAW, entrada)
 
     router = run(bus, consumer="teste", extractor=ExtractorFalso(), max_batches=1)
@@ -208,7 +240,9 @@ def test_loop_da_ack_mesmo_no_frame_descartado() -> None:
     # Sem ack, o frame velho ficaria pendente no grupo para sempre e voltaria a cada
     # reivindicação — o descarte tem de ser definitivo.
     bus = InMemoryBus()
-    bus.feed(Stream.FRAMES_RAW, frame_raw(ts=1))  # ts de 1970: velhíssimo
+    # Envelhecido pela CHEGADA, não pelo `ts`: é a fila que ficou parada.
+    entrou_ha_muito = int(time.time() * 1000) - 10 * MAX_AGE_MS
+    bus.feed(Stream.FRAMES_RAW, frame_raw(), arrived_ms=entrou_ha_muito)
 
     router = run(bus, consumer="teste", extractor=ExtractorFalso(), max_batches=1)
 

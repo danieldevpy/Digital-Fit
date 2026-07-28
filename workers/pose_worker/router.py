@@ -29,6 +29,10 @@ logger = logging.getLogger("pose-worker")
 #: quer frame velho — processá-lo gastaria o vCPU para produzir feedback sobre o passado.
 MAX_AGE_MS = 500
 
+#: A partir deste desvio entre o relógio do cliente e o do servidor, sai um aviso (uma vez por
+#: worker). Meio segundo é folgado para skew normal e apertado para relógio realmente errado.
+_AVISO_DESVIO_MS = 500
+
 
 @dataclass
 class PoseStats:
@@ -62,8 +66,18 @@ class PoseRouter:
     stats: PoseStats = field(default_factory=PoseStats)
     _avisou_relogio: bool = False
 
-    def handle(self, envelope: Envelope, *, now_ms: int | None = None) -> list[Envelope]:
-        """Zero ou um `pose.frame`. Nunca levanta: erro vira contador e log."""
+    def handle(
+        self,
+        envelope: Envelope,
+        *,
+        arrived_ms: int | None = None,
+        now_ms: int | None = None,
+    ) -> list[Envelope]:
+        """Zero ou um `pose.frame`. Nunca levanta: erro vira contador e log.
+
+        `arrived_ms` é a hora de ENTRADA no stream, do relógio do servidor (vem do ID da
+        entrada do Redis). É com ela que a espera na fila é medida — ver a nota abaixo.
+        """
         if envelope.type is not EventType.FRAME_RAW:
             # `frames.raw` é um stream de propósito único; qualquer outra coisa aqui é bug de
             # quem publicou, não deste worker.
@@ -72,20 +86,24 @@ class PoseRouter:
             return []
 
         agora = now_ms if now_ms is not None else int(time.time() * 1000)
-        idade = agora - envelope.ts
 
-        # A idade é medida com o `ts` do envelope, como a SPEC-005 manda nas notas técnicas.
-        # O preço: `ts` é o relógio do CLIENTE. Um celular atrasado faz todo frame parecer
-        # velho e o worker descarta a sessão inteira em silêncio — por isso o aviso abaixo,
-        # que transforma um sumiço inexplicável em uma linha de log. (Ver "Descobertas" no
-        # BACKLOG: medir pelo ID da entrada do stream seria imune a isso.)
-        if idade < -self.max_age_ms and not self._avisou_relogio:
+        # Espera na fila com o relógio do SERVIDOR nas duas pontas (SPEC-005, notas técnicas).
+        # Usar o `ts` do envelope aqui seria comparar relógios de máquinas diferentes: `ts` é
+        # carimbado pelo navegador, e um celular atrasado faria todo frame parecer velho —
+        # a sessão inteira sumiria sem nada no log explicando.
+        referencia = arrived_ms if arrived_ms is not None else envelope.ts
+        idade = agora - referencia
+
+        # Diagnóstico, não decisão: divergência grande entre o relógio do cliente e o nosso
+        # não muda mais nada aqui, mas explica latência estranha em `pose.frame` mais adiante.
+        desvio = agora - envelope.ts
+        if abs(desvio) > _AVISO_DESVIO_MS and not self._avisou_relogio:
             self._avisou_relogio = True
             logger.warning(
-                "frame da sessao %s chegou %dms no FUTURO: relogio do cliente adiantado; "
-                "o descarte por idade fica sem sentido nesta sessao",
+                "relogio do cliente da sessao %s difere do servidor em %dms; "
+                "o descarte por idade nao depende disso, mas o `ts` dos eventos sim",
                 envelope.session_id,
-                -idade,
+                desvio,
             )
 
         if idade > self.max_age_ms:

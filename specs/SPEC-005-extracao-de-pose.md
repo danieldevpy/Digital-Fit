@@ -46,4 +46,11 @@ Consome: `frame.raw` (cloud). Produz: `pose.frame {landmarks[33], source}`.
 
 - Ordem/índices de landmarks seguem o padrão MediaPipe Pose (0=nariz … 32=pé esq.). Documentar no `events.py`.
 - O probe do SPEC-001 usa exatamente esta config edge.
-- Descarte por idade usa `ts` do envelope, não hora de chegada.
+- Descarte por idade mede a **espera na fila** com o relógio do servidor: idade = agora − hora
+  de entrada no stream (o ID da entrada do Redis é `<ms-do-servidor>-<n>`). A versão anterior
+  desta nota mandava usar o `ts` do envelope; foi corrigida na T-016 porque `ts` é carimbado
+  pelo **navegador**, e um celular com relógio atrasado faria todo frame parecer velho — o
+  worker descartaria a sessão inteira em silêncio. O texto do comportamento sempre disse
+  "esperar na fila", que é justamente o que a hora de entrada mede.
+- O `ts` do cliente continua sendo o que vai no `pose.frame` emitido: para a FSM, o tempo que
+  importa é o da captura, não o do processamento.

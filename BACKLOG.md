@@ -127,12 +127,14 @@
   mudar o environment do compose. Por isso o `prod.sh up` sempre reconstrói. Se um dia isso
   incomodar, a saída é o cliente ler a origem da própria página (same-origin) em vez de uma
   variável — hoje `apiBaseUrl()` cairia no default de `localhost:8000`.
-- **[A/T-016] Descarte por idade usa o relógio do CLIENTE, e isso tem um risco**: a SPEC-005
-  manda medir a idade pelo `ts` do envelope. Como `ts` é carimbado pelo navegador, um celular
-  com relógio atrasado faz **todo** frame parecer velho e o worker descarta a sessão inteira
-  em silêncio. Mitigado com um log de aviso quando o `ts` vem do futuro, mas a correção de
-  verdade seria medir pela hora de entrada no stream (o ID do Redis é `<ms-do-servidor>-<n>`,
-  imune a skew). Isso contraria a nota da spec — **precisa de decisão antes de mudar**.
+- **[A/T-016] ~~Descarte por idade usava o relógio do CLIENTE~~ — RESOLVIDO, com correção da
+  SPEC-005.** A nota técnica mandava medir a idade pelo `ts` do envelope, carimbado pelo
+  navegador: um celular com relógio atrasado faria todo frame parecer velho e o worker
+  descartaria a sessão inteira em silêncio. A própria spec se contradizia — o texto do
+  comportamento diz "frame que esperar > 500ms **na fila**", e espera na fila é relógio de
+  servidor. A nota foi corrigida e o worker passou a medir pela hora de entrada no stream
+  (ID do Redis, `<ms-do-servidor>-<n>`). O `ts` do cliente segue no `pose.frame` emitido, que
+  é o certo: para a FSM o tempo é o da captura. Teste de regressão com celular 1h atrasado.
 - **[A/T-016] `pose-worker` roda em `RunningMode.IMAGE`, a bancada em `VIDEO`**: registrado
   como ADR-007. A bancada é uma sequência contínua num processo só (pode rastrear); o worker
   lê de consumer group, onde frames da mesma sessão caem em réplicas diferentes. Consequência

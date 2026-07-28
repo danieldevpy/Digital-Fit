@@ -21,7 +21,7 @@ from workers.pose_worker.router import PoseRouter
 from workers.shared.bus import EventBus, RedisBus
 from workers.shared.events import Stream
 
-__all__ = ["main", "run"]
+__all__ = ["main", "run", "stream_id_ms"]
 
 logger = logging.getLogger("pose-worker")
 
@@ -35,6 +35,20 @@ BATCH = 5
 
 #: A cada quantos frames processados sair uma linha de estatística.
 LOG_EVERY = 100
+
+
+def stream_id_ms(message_id: str) -> int | None:
+    """Hora de entrada no stream, em epoch ms, a partir do ID do Redis (`<ms>-<n>`).
+
+    É o relógio do SERVIDOR — é isso que torna o descarte por idade imune ao relógio do
+    celular (SPEC-005). `None` quando o ID não tem o formato esperado; nesse caso o router
+    cai para o `ts` do envelope, que é pior mas não trava o worker.
+    """
+    ms, _, _ = message_id.partition("-")
+    try:
+        return int(ms)
+    except ValueError:
+        return None
 
 
 class Shutdown:
@@ -78,7 +92,7 @@ def run(
             Stream.FRAMES_RAW, group=GROUP, consumer=consumer, block_ms=BLOCK_MS, count=BATCH
         ):
             try:
-                for saida in router.handle(envelope):
+                for saida in router.handle(envelope, arrived_ms=stream_id_ms(message_id)):
                     bus.publish(saida, stream=Stream.POSE_FRAMES)
             except Exception:
                 # `handle` já trata o que sabe; isto cobre falha ao PUBLICAR, que não pode

@@ -10,6 +10,7 @@ sem Redis no loop de teste.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Protocol
 
 from workers.shared.events import (
@@ -133,11 +134,18 @@ class InMemoryBus:
     def ensure_group(self, stream: Stream, group: str) -> None:
         self.groups.add((stream.value, group))
 
-    def feed(self, stream: Stream, *envelopes: Envelope) -> None:
-        """Coloca eventos para serem consumidos."""
+    def feed(self, stream: Stream, *envelopes: Envelope, arrived_ms: int | None = None) -> None:
+        """Coloca eventos para serem consumidos.
+
+        O ID imita o do Redis (`<ms-do-servidor>-<n>`) porque ele **é dado**: o pose-worker
+        mede a espera na fila por ele (SPEC-005). Com um contador começando em 1, todo frame
+        pareceria ter chegado em 1970 e o worker descartaria tudo — o dublê precisa ser fiel
+        nesse ponto, senão esconde exatamente o comportamento que se quer testar.
+        """
+        base = arrived_ms if arrived_ms is not None else int(time.time() * 1000)
         for envelope in envelopes:
             self._proximo_id += 1
-            self._pendentes.setdefault(stream, []).append((f"{self._proximo_id}-0", envelope))
+            self._pendentes.setdefault(stream, []).append((f"{base}-{self._proximo_id}", envelope))
 
     def publish(self, envelope: Envelope, *, stream: Stream | None = None) -> str:
         # Mesmo default do RedisBus: sem destino explícito vale a rota do contrato.
