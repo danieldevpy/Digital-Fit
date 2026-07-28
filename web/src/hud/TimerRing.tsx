@@ -1,3 +1,5 @@
+import { formatClock } from '../session/countdown'
+
 interface TimerRingProps {
   secondsLeft: number
   secondsTotal: number
@@ -7,12 +9,6 @@ const SIZE = 84
 const STROKE = 5
 const RADIUS = (SIZE - STROKE) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
-
-function formatClock(seconds: number): string {
-  const minutes = Math.floor(seconds / 60)
-  const rest = seconds % 60
-  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
-}
 
 export function TimerRing({ secondsLeft, secondsTotal }: TimerRingProps) {
   const progress = secondsTotal > 0 ? Math.min(Math.max(secondsLeft / secondsTotal, 0), 1) : 0

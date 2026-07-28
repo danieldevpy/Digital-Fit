@@ -1,10 +1,20 @@
 // Estado da sessão em um único store (convenções §Código).
 import { create } from 'zustand'
-import type { Mode } from '../lib/events'
+import type {
+  Mode,
+  Phase,
+  RepDetectedData,
+  SessionCompletedData,
+  SessionEndReason,
+  SessionStartedData,
+} from '../lib/events'
+import type { GatewayStatus } from '../lib/gateway'
 import type { PoseDelegate } from '../pose/poseLandmarker'
 import type { ProbeOutcome } from '../probe/runProbe'
+import type { CoachEntry } from '../session/coachCard'
 
 export type CameraStatus = 'idle' | 'requesting' | 'ready' | 'denied' | 'error'
+export type SessionStatus = 'idle' | 'running' | 'completed'
 export type PoseStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type ProbeStatus = 'idle' | 'running' | 'done' | 'error'
 
@@ -37,6 +47,22 @@ export interface SessionState {
    * bottom nav iniciar a sessão sem que a nav precise conhecer o pipeline.
    */
   cameraControls: { start: () => void; stop: () => void } | null
+
+  // ---- sessão (eventos vindos do gateway) ----
+  gatewayStatus: GatewayStatus
+  sessionId: string | null
+  exerciseKey: string | null
+  sessionStatus: SessionStatus
+  endReason: SessionEndReason | null
+  /** Contador autoritativo: vem de `rep.detected.rep_count`, não é somado aqui. */
+  repCount: number
+  phase: Phase | null
+  durationS: number
+  /** epoch ms do `session.started` — base do countdown cosmético. */
+  startedAt: number | null
+  sceneEntry: CoachEntry | null
+  feedbackEntry: CoachEntry | null
+
   error: string | null
 
   setCameraStatus: (status: CameraStatus) => void
@@ -51,8 +77,29 @@ export interface SessionState {
   setRecording: (recording: boolean) => void
   setRecordedFrames: (count: number) => void
   setCameraControls: (controls: SessionState['cameraControls']) => void
+  setGatewayStatus: (status: GatewayStatus) => void
+  applySessionStarted: (data: SessionStartedData, sessionId: string) => void
+  applyRepDetected: (data: RepDetectedData) => void
+  applyPhase: (phase: Phase) => void
+  applySceneWarning: (entry: CoachEntry) => void
+  applyFeedback: (entry: CoachEntry) => void
+  applySessionCompleted: (data: SessionCompletedData) => void
+  resetSession: () => void
   setError: (message: string | null) => void
   resetPipeline: () => void
+}
+
+const SESSION_DEFAULTS = {
+  sessionId: null,
+  exerciseKey: null,
+  sessionStatus: 'idle' as SessionStatus,
+  endReason: null,
+  repCount: 0,
+  phase: null,
+  durationS: 30,
+  startedAt: null,
+  sceneEntry: null,
+  feedbackEntry: null,
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -68,6 +115,8 @@ export const useSessionStore = create<SessionState>((set) => ({
   recording: false,
   recordedFrames: 0,
   cameraControls: null,
+  gatewayStatus: 'idle',
+  ...SESSION_DEFAULTS,
   error: null,
 
   setCameraStatus: (cameraStatus) => set({ cameraStatus }),
@@ -82,6 +131,31 @@ export const useSessionStore = create<SessionState>((set) => ({
   setRecording: (recording) => set({ recording }),
   setRecordedFrames: (recordedFrames) => set({ recordedFrames }),
   setCameraControls: (cameraControls) => set({ cameraControls }),
+  setGatewayStatus: (gatewayStatus) => set({ gatewayStatus }),
+
+  applySessionStarted: (data, sessionId) =>
+    set({
+      sessionId,
+      exerciseKey: data.exercise,
+      durationS: data.duration_s,
+      sessionStatus: 'running',
+      endReason: null,
+      repCount: 0,
+      phase: null,
+      startedAt: Date.now(),
+      sceneEntry: null,
+      feedbackEntry: null,
+    }),
+
+  applyRepDetected: (data) => set({ repCount: data.rep_count, phase: data.phase }),
+  applyPhase: (phase) => set({ phase }),
+  applySceneWarning: (sceneEntry) => set({ sceneEntry }),
+  applyFeedback: (feedbackEntry) => set({ feedbackEntry }),
+
+  applySessionCompleted: (data) =>
+    set({ sessionStatus: 'completed', endReason: data.reason, repCount: data.rep_count }),
+
+  resetSession: () => set({ ...SESSION_DEFAULTS }),
   setError: (error) => set({ error }),
 
   resetPipeline: () =>

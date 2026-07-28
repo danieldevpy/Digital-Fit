@@ -45,6 +45,23 @@ só `drawSkeleton` toca o canvas. Mesma regra da análise no lado Python.
 o layout, não o comportamento: contador, timer, ângulo e kcal são estáticos até a T-012
 ligá-los aos eventos do contrato. Não espalhe valor de fachada por outros arquivos.
 
+## Mock do gateway
+
+O gateway real é a T-005 (Agente A). Enquanto isso:
+
+```bash
+npm run mock:gateway     # ws://localhost:8787 — contrato v1, MessagePack
+npm run dev              # em outro terminal
+```
+
+`web/dev/mock-gateway.mjs` fica **fora do bundle** e emite só tipos do contrato
+(`session.started` + os `CLIENT_PUSH_TYPES`): reps a cada ~1,2s, dois feedbacks, um warning
+de cena e `session.completed` aos 30s. Os envelopes dele foram validados contra
+`workers/shared/events.py`.
+
+**Trocar mock → real é uma variável**: `VITE_WS_URL` no `.env` (sem ela, aponta para o mock).
+Cliente e mock usam a mesma implementação de `src/lib/gateway.ts`.
+
 ## Gravador de fixtures (T-007)
 
 Com a câmera ligada, o chip de dev tem **● gravar fixture**. Ele acumula os keypoints da

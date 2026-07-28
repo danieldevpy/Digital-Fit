@@ -361,11 +361,32 @@ button {
   text-transform: uppercase;
 }
 
+.tip__action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .tip__text {
   margin: 0;
   color: #d4d4dc;
   font-size: 0.78rem;
   line-height: 1.32;
+}
+
+.tip__hint {
+  margin: 5px 0 0;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+/* Warning de cena tem prioridade máxima e precisa se distinguir da dica. */
+.card--tip-scene {
+  border-color: rgba(255, 138, 61, 0.45);
+}
+
+.card--tip-scene .tip__title {
+  color: var(--hot);
 }
 
 .tip__action {

@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-07-27 · [B] T-012 — Tela de Sessão (SPEC-013) contra o mock de gateway
+
+- **Mock do gateway** (`web/dev/mock-gateway.mjs`, fora do bundle): servidor node que fala o
+  contrato v1 em MessagePack. Emite `session.started`, fases, reps, dois feedbacks, um
+  warning de cena e `session.completed` aos 30s. **Validado contra o `events.py` do Agente A**:
+  43 envelopes capturados passaram por `Envelope.from_dict` + `payload()`, `seq` monotônico
+  0..42 sem repetição, nenhum tipo fora de `CLIENT_PUSH_TYPES` + `session.started`.
+- **Cliente WS** (`src/lib/gateway.ts`) é o MESMO para mock e real — muda só `VITE_WS_URL`.
+  Envelope inválido é descartado com log e não derruba a conexão (mesma regra da SPEC-002).
+- Tela ligada aos eventos: contador vem de `rep.detected.rep_count` (**não é somado no
+  cliente** — a autoridade é o worker), anel de 30s é cosmético a partir de `session.started`,
+  card do treinador consome `feedback.issued`/`scene.warning`.
+- **Prioridade do card** (`resolveCoachCard`, função pura): cena > feedback > `default_tip`.
+  O card nunca fica vazio. Catálogo de exercícios do cliente ganhou os campos que a SPEC-013
+  pede (`display_name`, `category`, `muscle_group`, `default_tip`, `main_angle`).
+- Fase Inicial conforme a spec: SÉRIE fixo em `1`, REPETIÇÕES sem meta, ÂNGULO `--` (é a
+  T-044) e KCAL `--` (MET é evolução). `placeholders.ts` da T-043 foi **deletado** — não
+  sobrou número inventado na tela.
+- Bug pego pelo lint e que valeu a pena: eu lia `Date.now()` no render do card. Além de
+  impuro, era silencioso — o TTL só reavaliaria quando outra coisa causasse re-render, e o
+  card ficaria preso no aviso vencido. Virou `useNow`, que só tiquetaqueia com aviso ativo.
+- Gates: `tsc -b` limpo, `npm run lint` sem erros nem warnings, `npm run test` **97/97**,
+  `npm run build` OK, screenshot 430×932 conferido.
+- **Não verificado**: critério 1 (celular real) e o card trocando com sessão ao vivo —
+  dependem de webcam. O caminho mock → tela só roda de ponta a ponta com câmera.
+- Pendências geradas (2 em "Descobertas"): `scene.warning` **não tem campo `message`** (o
+  cliente ficou com um mapa código → pt-BR que duplica o catálogo da T-010); e **não existe
+  evento de "aviso resolvido"**, contornado com TTL de 6s no cliente.
+
+---
+
 ## 2026-07-27 · [B] T-043 (2ª passada) — Alinhamento à SPEC-013
 
 - Descobri no DEVLOG que o Arquiteto formalizou a referência na **SPEC-013** e atualizou meu

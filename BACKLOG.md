@@ -18,7 +18,7 @@
 | T-009 | analysis-worker: consumer de `pose.frames`, roda FSM, publica `events.analysis` | 007 | todo |
 | T-010 | Feedback engine (catálogo YAML, throttle, prioridade) + faixa de feedback no HUD | 008 | todo |
 | T-011 | Ciclo de sessão mínimo: `POST /sessions`, token HMAC, TTL 45s, timer autoritativo | 009 | todo |
-| T-012 | HUD completo: contador, timer 30s, fase aberto/fechado, warnings de enquadramento | 008/003 | todo |
+| T-012 | HUD completo: contador, timer 30s, fase aberto/fechado, warnings de enquadramento | 008/003/013 | done |
 | T-013 | Validação de cena mínima: OUT_OF_FRAME + TOO_FAR/TOO_CLOSE com debounce | 003 | todo |
 | T-014 | E2E local: 30s de polichinelo real → contagem correta na tela (demo gravável) | todas | todo |
 | T-037 | CLI `evalctl run`: vídeo mp4 → MediaPipe → normalização → FSM → resultado JSON (reusa módulos dos workers) | 012 | todo |
@@ -86,6 +86,17 @@
   dispara `predev` → `scripts/setup-mediapipe.mjs`, que baixa ~5.5 MB do modelo — no
   container isso exige rede na primeira subida ou um volume para `web/public/models/`.
   Decisão de quem faz fica para o Daniel / sessão conjunta.
+- **[B/T-012] `scene.warning` não tem campo `message`.** O contrato manda só `code`,
+  `severity` e `hint?`, e a SPEC-013 exige que o card do treinador exiba o aviso de cena com
+  prioridade máxima. Como não há texto para mostrar, o cliente ficou com um mapa
+  código → pt-BR em `src/session/coachCard.ts` — que **duplica** o catálogo YAML do feedback
+  engine (T-010). Decidir: ou o gateway/worker enriquece `scene.warning` com `message` (como
+  já faz em `feedback.issued`), ou o mapa do cliente é oficialmente a fonte para cena.
+- **[B/T-012] Não existe evento de "aviso resolvido".** Nada no contrato diz que um
+  `scene.warning` ou `feedback.issued` deixou de valer, então o card ficaria preso no último
+  aviso até o fim da sessão. Contornei com TTL de 6s no cliente (`COACH_ENTRY_TTL_MS`),
+  puramente cosmético. Se a intenção da SPEC-008 é que o worker reemita enquanto o problema
+  persistir, o TTL está certo; se não, falta um evento de limpeza no contrato.
 - **[B/T-043] Anel de countdown: spec e imagem discordam.** A SPEC-013 diz duas vezes que o
   gradiente é roxo (`§3` "gradiente roxo" e `§Design tokens` "gradiente: accent → accent-2"),
   mas na imagem de referência o anel vai de **ciano** a roxo. Segui a spec (roxo → roxo
