@@ -5,6 +5,44 @@
 
 ---
 
+## 2026-07-27 · [A] T-006 — Normalização & One Euro Filter
+
+- `workers/shared/filters.py`: One Euro Filter próprio, vetorizado em numpy — um filtro
+  mantém estado por canal, então os 33×3 coordenadas passam numa chamada. `visibility` nunca
+  é filtrada.
+- `workers/shared/normalize.py`: `normalize(frames) -> frames` (função pura da SPEC-006) e
+  `Normalizer` (mesma lógica com estado explícito, para o worker frame a frame). Saída
+  `NormFrame` em torsos, com `to_data()` para o campo `data.norm` do mesmo `pose.frame`.
+- `tests/synthetic_keypoints.py`: gerador determinístico de bonecos de 33 landmarks
+  (abdução dos braços × afastamento dos tornozelos), com distância da câmera, posição no
+  quadro, fps, visibilidade e jitter parametrizáveis. Serve também para a FSM da T-008.
+- Decisões:
+  - **Filtra em torsos, não em pixels**: normaliza primeiro, filtra depois. Assim `mincutoff`
+    e `beta` significam a mesma coisa para quem está a 2 m e a 4 m — sem isso os parâmetros
+    teriam de mudar com a distância.
+  - **A escala também é suavizada** (filtro próprio, `scale_mincutoff=0.4`): o torso medido
+    frame a frame tem ruído, e dividir por escala ruidosa injetaria jitter em tudo.
+  - **Frame `degraded` não entra no filtro** e a escala anterior é mantida: landmarks
+    "adivinhados" pelo modelo poluiriam o estado e sujariam os frames bons seguintes.
+  - **`degraded` = média de visibilidade das 6 âncoras** (ombros, quadris, tornozelos) < 0.5 —
+    os landmarks de que normalização e features dependem. Rosto/mãos invisíveis não invalidam
+    o frame.
+  - `Baseline` (torso/largura de ombros) já é parâmetro opcional; **medir** a baseline é a
+    T-019 — aqui só se usa quando existe, senão vale o valor instantâneo.
+  - Defaults `mincutoff=0.4, beta=1.5` escolhidos por **grade medida** (6×5 combinações) em
+    10/15/30 fps contra os dois critérios da spec, não por chute.
+- Gates: `ruff` limpo, **109 testes** verdes (29 novos de normalização, 12 do filtro).
+  Critérios da SPEC-006 verificados um a um:
+  1. 2 m vs 4 m ⇒ features idênticas (bem dentro dos 5%; a sequência inteira bate a 1e-6);
+  2. jitter de pessoa parada **−70,1%** (exigido ≥ 60%) com **0 frames** de atraso no
+     movimento rápido e 93% da amplitude preservada;
+  3. `normalize()` pura — mesma entrada dá mesma saída, não muta a entrada, e o `Normalizer`
+     incremental produz exatamente o mesmo resultado.
+- Medido de lado: 0,056 ms/frame ⇒ ~0,08% de 1 vCPU por sessão a 15 fps (o orçamento do
+  ARCHITECTURE §8 para o analysis-worker é 1–2%, então a FSM da T-008 tem folga).
+
+---
+
 ## 2026-07-27 · [A] T-002 — **Contrato v1 publicado** (`workers/shared/events.py`)
 
 > **Agente B: este é o contrato.** Envelope `{v, type, session_id, ts, seq, source, data}`,
