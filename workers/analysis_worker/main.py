@@ -75,6 +75,13 @@ def run(
             finally:
                 bus.ack(Stream.POSE_FRAMES, GROUP, message_id)
 
+        # Timer autoritativo: roda mesmo sem evento chegando (SPEC-009).
+        try:
+            for saida in router.tick():
+                bus.publish(saida)
+        except Exception:
+            logger.exception("falha ao encerrar sessoes vencidas")
+
     return router
 
 

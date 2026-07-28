@@ -5,6 +5,46 @@
 
 ---
 
+## 2026-07-27 · [A] T-011 — Ciclo de sessão (`POST /api/sessions` + timer autoritativo)
+
+> **Agente B**: o fluxo de abertura está pronto. `POST /api/sessions`
+> `{exercise, requested_mode, probe_result}` → `{session_id, token, ws_url, mode, exercise,
+> duration_s, expires_at}`. Use o `ws_url` como veio (já traz o token). Pedido de `cloud`
+> responde `mode: "denied_cloud"` — Fase 0 é edge only. O **fim da sessão vem do servidor**
+> (`session.completed` pelo WS); o timer do HUD é cosmético.
+
+- `server/api/sessions.py`: `SessionRequest.parse` (validação), `create_session` (registro em
+  Redis com TTL, publicação de `session.started` e, quando houver probe, `session.capability`).
+- `server/api/views.py`: `POST /api/sessions` → 201 com o ticket, 400 para pedido inválido,
+  503 quando o Redis está fora.
+- `workers/analysis_worker/router.py`: `SessionState.expiry_reason` + `AnalysisRouter.tick()`,
+  chamado a cada volta do loop do worker (roda mesmo sem evento chegando).
+- Decisões:
+  - **Timer no relógio do servidor, não no `ts` do cliente**: celular com relógio torto não pode
+    encurtar nem esticar a sessão. Há teste com `ts` no futuro provando isso.
+  - **Duas regras de fim**: 30 s desde o primeiro frame ⇒ `completed`; 10 s sem frame ⇒
+    `no_data` (critério 4 da SPEC-009). A regra de TTL virou código morto e foi removida — uma
+    das duas sempre vence antes dos 45 s; `timeout` fica no vocabulário para o caminho de
+    semáforo/quotas (T-017/T-025).
+  - **Sessão negada não nasce**: pedido de cloud não gera registro, evento nem slot.
+  - Estado da sessão em Redis (hash com TTL), não em Postgres: Fase 0 é anônima e a sessão é
+    efêmera. Persistir resultado é a SPEC-010 (T-020).
+- Bug encontrado por teste: sessão fechada por `no_data` **sem nenhum frame** montava envelope
+  com `ts=0`, que o contrato recusa. Agora o `ts` cai para o relógio do servidor.
+- Bug encontrado só na verificação real (e é o mais importante do dia): com `redis-py` 8, o
+  `channels_redis` estoura `TimeoutError` na leitura do channel layer e **mata o consumer do
+  WebSocket** — o cliente recebia as reps e depois nada. `redis>=5.2,<6` resolveu. Nenhum teste
+  pegaria isso: eles usam channel layer em memória.
+- Verificado ponta a ponta com os 5 serviços no ar (curl + cliente WebSocket real):
+  - `POST /api/sessions` devolve ticket com token válido para aquela sessão; `requested_mode:
+    cloud` ⇒ `denied_cloud`; exercício inexistente ⇒ 400;
+  - abrir o WS com o `ws_url` do ticket, mandar 3 polichinelos e **parar de enviar** ⇒ o servidor
+    encerrou sozinho 11 s depois (`no_data`, 3 reps) e o cliente recebeu o fim;
+  - mandando frames sem parar ⇒ o servidor encerrou em **30,0 s** com `completed` e 29 reps.
+- Gates: `ruff` limpo, **297 testes** verdes (26 novos), compose com 5 serviços de pé.
+
+---
+
 ## 2026-07-27 · [A] T-005 — Gateway Channels (WS ↔ streams)
 
 > **Agente B**: o WebSocket está no ar. `ws://localhost:8001/ws/session/{session_id}?token=…`,

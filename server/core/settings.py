@@ -80,6 +80,9 @@ else:
         }
     }
 
+# URL publica do gateway WebSocket, devolvida no ticket de sessao (SPEC-009).
+GATEWAY_WS_URL = os.environ.get("GATEWAY_WS_URL", "ws://localhost:8001")
+
 # Segredo de assinatura do token de sessao (SPEC-009). Separado do SECRET_KEY para poder
 # rotacionar sem invalidar outras assinaturas do Django.
 SESSION_TOKEN_SECRET = os.environ.get("SESSION_TOKEN_SECRET", "")

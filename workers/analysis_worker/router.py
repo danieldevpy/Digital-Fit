@@ -11,6 +11,7 @@ memória, como o ARCHITECTURE §6 previu; retomada por snapshot é evolução (T
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 
 from workers.analysis_worker.exercises import ExerciseAnalyzer, feed, get_analyzer
@@ -21,6 +22,7 @@ from workers.shared.events import (
     Mode,
     PoseFrame,
     SessionCompleted,
+    SessionEndReason,
     SessionStarted,
     Source,
     make_envelope,
@@ -33,6 +35,14 @@ logger = logging.getLogger(__name__)
 
 #: Duração padrão quando a sessão chega sem `session.started` (SPEC-009: sessão de 30 s).
 DEFAULT_DURATION_S = 30
+
+#: Sessão sem frame nenhum por 10 s é abortada (SPEC-009, critério 4).
+NO_DATA_TIMEOUT_MS = 10_000
+
+#: Margem entre a duração da sessão e o TTL do registro em Redis (30 + 15 = 45 s, SPEC-009).
+#: O worker não usa isso para expirar: ele sempre fecha antes, por duração ou por falta de
+#: dados. A margem existe para que o token e o registro sobrevivam até o fim do exercício.
+TTL_MARGIN_MS = 15_000
 
 
 @dataclass(slots=True)
@@ -49,6 +59,13 @@ class SessionState:
     last_ts: int | None = None
     frames: int = 0
     out_seq: int = 0
+    #: Relógio de parede do servidor — é ele que manda no timer (SPEC-009), não o `ts` do
+    #: cliente, que pode vir com o relógio do celular torto.
+    #: `None` = instante desconhecido. Não usar 0 como sentinela: 0 é um instante válido e
+    #: quebraria qualquer teste de falsidade.
+    opened_wall_ms: int | None = None
+    first_frame_wall_ms: int | None = None
+    last_frame_wall_ms: int | None = None
 
     def __post_init__(self) -> None:
         if self.analyzer is None:
@@ -63,19 +80,45 @@ class SessionState:
     def summary(self) -> dict[str, object]:
         return self.analyzer.summary()
 
+    def expiry_reason(self, now_wall_ms: int) -> SessionEndReason | None:
+        """Por que esta sessão deveria terminar agora — ou `None` se ela segue viva.
+
+        Dois prazos, ambos em relógio do servidor:
+
+        1. os 30 s de exercício correram desde o primeiro frame ⇒ `completed` (é **este** o
+           timer autoritativo da SPEC-009; o do HUD é cosmético);
+        2. nenhum frame por 10 s ⇒ `no_data` (critério 4 da SPEC-009).
+
+        `timeout` fica no vocabulário para o caminho do TTL em Redis, mas na Fase 0 ele nunca
+        dispara aqui: uma das duas regras acima sempre vence antes dos 45 s.
+        """
+        if (
+            self.first_frame_wall_ms is not None
+            and now_wall_ms - self.first_frame_wall_ms >= self.duration_s * 1000
+        ):
+            return SessionEndReason.COMPLETED
+        referencia = (
+            self.last_frame_wall_ms if self.last_frame_wall_ms is not None else self.opened_wall_ms
+        )
+        if referencia is not None and now_wall_ms - referencia >= NO_DATA_TIMEOUT_MS:
+            return SessionEndReason.NO_DATA
+        return None
+
 
 class AnalysisRouter:
     """Traduz eventos de entrada em eventos de análise, sem I/O."""
 
-    __slots__ = ("sessions",)
+    __slots__ = ("_now", "sessions")
 
     def __init__(self) -> None:
         self.sessions: dict[str, SessionState] = {}
+        self._now = 0
 
     # ------------------------------------------------------------------ entrada
 
-    def handle(self, envelope: Envelope) -> list[Envelope]:
+    def handle(self, envelope: Envelope, *, now_wall_ms: int | None = None) -> list[Envelope]:
         """Processa um envelope de `pose.frames` e devolve o que publicar."""
+        self._now = now_wall_ms if now_wall_ms is not None else _wall_ms()
         match envelope.type:
             case EventType.SESSION_STARTED:
                 return self._on_session_started(envelope)
@@ -99,6 +142,7 @@ class AnalysisRouter:
                 exercise=dados.exercise,
                 mode=dados.mode,
                 duration_s=dados.duration_s,
+                opened_wall_ms=self._now,
             )
         except ValueError as exc:
             # Exercício desconhecido: a sessão não abre, mas o worker segue vivo.
@@ -119,7 +163,7 @@ class AnalysisRouter:
         if estado is None:
             # Frame antes do `session.started` (ou depois do fim): abre com o padrão da SPEC-009
             # em vez de descartar — perder repetições por corrida de eventos seria pior.
-            estado = SessionState(session_id=envelope.session_id)
+            estado = SessionState(session_id=envelope.session_id, opened_wall_ms=self._now)
             self.sessions[envelope.session_id] = estado
             logger.info(
                 "sessao %s aberta por pose.frame (sem session.started)", envelope.session_id
@@ -133,7 +177,9 @@ class AnalysisRouter:
 
         if estado.first_ts is None:
             estado.first_ts = envelope.ts
+            estado.first_frame_wall_ms = self._now
         estado.last_ts = envelope.ts
+        estado.last_frame_wall_ms = self._now
         estado.frames += 1
 
         norm = estado.normalizer.push(
@@ -166,14 +212,46 @@ class AnalysisRouter:
             )
         ]
 
+    # --------------------------------------------------------------------- timer
+
+    def tick(self, now_wall_ms: int | None = None) -> list[Envelope]:
+        """Fecha sessões cujo prazo venceu. Chamado a cada volta do loop do worker.
+
+        É aqui que mora o **timer autoritativo** da SPEC-009: a sessão termina porque o servidor
+        decidiu, não porque o cliente avisou.
+        """
+        agora = now_wall_ms if now_wall_ms is not None else _wall_ms()
+        self._now = agora
+        saidas: list[Envelope] = []
+        for session_id, estado in list(self.sessions.items()):
+            motivo = estado.expiry_reason(agora)
+            if motivo is None:
+                continue
+            self.sessions.pop(session_id, None)
+            reps = int(estado.analyzer.summary()["reps"])
+            logger.info(
+                "sessao %s encerrada pelo servidor (%s) com %s reps", session_id, motivo.value, reps
+            )
+            saidas.append(self._wrap(estado, SessionCompleted(reason=motivo, rep_count=reps)))
+        return saidas
+
     # -------------------------------------------------------------------- saída
 
     def _wrap(self, estado: SessionState, payload) -> Envelope:
-        """Envelopa um payload da FSM: `session_id` e `seq` são do worker, não do analisador."""
+        """Envelopa um payload da FSM: `session_id` e `seq` são do worker, não do analisador.
+
+        Sem frame nenhum (sessão fechada por `no_data`), o `ts` vem do relógio do servidor: zero
+        não é epoch válido e o contrato recusaria o envelope.
+        """
         return make_envelope(
             payload,
             session_id=estado.session_id,
-            ts=estado.last_ts or 0,
+            ts=estado.last_ts if estado.last_ts is not None else max(self._now, 1),
             seq=estado.next_seq(),
             source=Source.SYSTEM,
         )
+
+
+def _wall_ms() -> int:
+    """Relógio de parede do servidor em ms."""
+    return int(time.time() * 1000)

@@ -9,7 +9,9 @@ dependencies = [
     "msgpack>=1.1",
     "numpy>=2.1",
     "pyyaml>=6.0",
-    "redis>=5.2",
+    # Fixado em 5.x: com redis-py 8 o `channels_redis` estoura `TimeoutError` na leitura
+    # bloqueante do channel layer e mata o consumer do WebSocket (visto em teste real).
+    "redis>=5.2,<6",
 ]
 
 [project.optional-dependencies]

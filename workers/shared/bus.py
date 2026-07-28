@@ -50,6 +50,11 @@ class RedisBus:
         self._client = client
         self._maxlen = maxlen
 
+    @property
+    def client(self):
+        """Cliente Redis cru — para quem precisa de chaves comuns (ex.: registro de sessao)."""
+        return self._client
+
     @classmethod
     def from_url(cls, url: str, **kwargs) -> RedisBus:
         import redis

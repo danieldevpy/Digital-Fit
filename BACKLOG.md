@@ -17,7 +17,7 @@
 | T-008 | Interface `ExerciseAnalyzer` + FSM do polichinelo + testes (20 limpos, preguiçosos, jitter) | 007 | done |
 | T-009 | analysis-worker: consumer de `pose.frames`, roda FSM, publica `events.analysis` | 007 | done |
 | T-010 | Feedback engine (catálogo YAML, throttle, prioridade) + faixa de feedback no HUD | 008 | todo |
-| T-011 | Ciclo de sessão mínimo: `POST /sessions`, token HMAC, TTL 45s, timer autoritativo | 009 | todo |
+| T-011 | Ciclo de sessão mínimo: `POST /sessions`, token HMAC, TTL 45s, timer autoritativo | 009 | done |
 | T-012 | Tela de Sessão conforme referência (SPEC-013): barra de métricas, esqueleto sobre câmera, card exercício + anel 30s, card do treinador, warnings — mobile-first | 013/008/003 | todo |
 | T-043 | App shell mobile-first: design tokens (SPEC-013), bottom nav (placeholders) + FAB de iniciar sessão | 013 | todo |
 | T-044 | Ângulo articular ao vivo no HUD (client-side edge, fórmula espelhada da FSM, ≤10Hz, teste de paridade <5°) | 013 | todo |
@@ -97,4 +97,12 @@
   o analysis-worker **não** derrota o WS (critério 2 da SPEC-002 verificado), e as repetições
   seguintes continuam chegando — mas o `rep_count` reinicia, porque o estado da FSM é só de
   memória. É o comportamento previsto para a Fase 0; a retomada por snapshot é a T-031.
+- **[A/T-011] `redis-py` fixado em 5.x**: com `redis-py` 8, o `channels_redis` 4.3 estoura
+  `redis.exceptions.TimeoutError` na leitura bloqueante do channel layer e **mata o consumer do
+  WebSocket** — o cliente parava de receber eventos depois de ~10 s de silêncio. Só apareceu em
+  teste real (os testes usam camada em memória). Fixado `redis>=5.2,<6` no `pyproject.toml`;
+  revisitar quando o `channels_redis` declarar suporte a 6+.
+- **[A/T-011] `session.completed` com motivo `timeout` não é emitido na Fase 0**: o worker sempre
+  fecha antes, por duração (30 s) ou por falta de dados (10 s). O motivo continua no vocabulário
+  para o caminho do TTL em Redis, que só passa a valer com semáforo/quotas (T-017/T-025).
 
