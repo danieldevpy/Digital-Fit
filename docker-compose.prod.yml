@@ -1,0 +1,153 @@
+# Digital Fit — producao simplista (VPS unica, atras do SEU nginx).
+#
+#   ./scripts/prod.sh up      # nao chame `docker compose` direto: o script deriva as
+#                             # URLs publicas a partir do DOMAIN e valida os segredos.
+#
+# Este arquivo e AUTONOMO, nao um override do docker-compose.yml. Um override herdaria os
+# bind mounts e o `runserver` do dev calados — e o dia em que isso for percebido ja e tarde.
+#
+# Diferencas deliberadas em relacao ao dev:
+#   - redis e postgres NAO sao publicados no host (so a rede interna os alcanca)
+#   - `api` sobe em gunicorn, nao em `runserver`
+#   - nada de bind mount: a imagem e o artefato, o codigo do host nao vaza para dentro
+#   - o `web` e build estatico servido por nginx, nao o dev server do Vite
+#   - as portas ficam em 127.0.0.1 por padrao: quem expoe ao mundo e o seu nginx
+#
+# Nome de projeto separado do dev: volumes e rede nao se misturam se os dois rodarem
+# na mesma maquina.
+name: digital-fit-prod
+
+x-django-env: &django-env
+  DJANGO_DEBUG: "false"
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?defina no .env.prod (veja .env.prod.example)}
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?derivado do DOMAIN pelo scripts/prod.sh}
+  DJANGO_BEHIND_PROXY: "true"
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?derivado do DOMAIN pelo scripts/prod.sh}
+  SESSION_TOKEN_SECRET: ${SESSION_TOKEN_SECRET:?defina no .env.prod (veja .env.prod.example)}
+  GATEWAY_WS_URL: ${GATEWAY_WS_URL:?derivado do DOMAIN pelo scripts/prod.sh}
+  POSTGRES_HOST: postgres
+  POSTGRES_DB: ${POSTGRES_DB:-digitalfit}
+  POSTGRES_USER: ${POSTGRES_USER:-digitalfit}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env.prod (veja .env.prod.example)}
+  REDIS_URL: redis://redis:6379/0
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  redis:
+    image: redis:7-alpine
+    # `noeviction` de proposito: perder frame de sessao em silencio e pior que recusar
+    # escrita ruidosamente. Sem persistencia — o barramento e efemero por design.
+    command: >
+      redis-server
+      --maxmemory ${REDIS_MAXMEMORY:-256mb}
+      --maxmemory-policy noeviction
+      --save ""
+      --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-digitalfit}
+      POSTGRES_USER: ${POSTGRES_USER:-digitalfit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env.prod}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-digitalfit} -d ${POSTGRES_DB:-digitalfit}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    # WSGI sincrono: gunicorn. O `--timeout` curto e proposital — a admissao e um POST de
+    # milissegundos; se travar mais que isso, matar e melhor que empilhar requisicao.
+    command: >
+      gunicorn core.wsgi:application
+      --bind 0.0.0.0:8000
+      --workers ${API_WORKERS:-3}
+      --timeout 30
+      --access-logfile -
+      --error-logfile -
+    environment:
+      <<: *django-env
+      # O relay pertence ao gateway. Se subisse aqui tambem, cada evento de analise seria
+      # empurrado duas vezes ao cliente.
+      GATEWAY_RELAY: "0"
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${API_PORT:-8000}:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    # ASGI: WebSocket de ingestao + relay de `events.analysis`. O relay usa o channel layer
+    # (Redis), entao mais de um worker funciona — mas cada processo abre seu proprio
+    # consumidor do stream. Um so ate haver motivo medido para crescer.
+    command: uvicorn core.asgi:application --host 0.0.0.0 --port 8001 --workers 1
+    environment: *django-env
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${GATEWAY_PORT:-8001}:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  analysis-worker:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    working_dir: /app
+    command: python -m workers.analysis_worker.main
+    # NAO escale este servico. A FSM guarda estado por sessao em memoria, e o consumer
+    # group do Redis distribuiria frames da MESMA sessao entre replicas — a contagem de
+    # reps quebraria de um jeito que so aparece sob carga.
+    deploy:
+      replicas: 1
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        # Gravada no bundle em build time — trocar de dominio exige rebuild, e o
+        # `scripts/prod.sh up` sempre reconstroi por isso.
+        VITE_API_URL: ${VITE_API_URL:?derivado do DOMAIN pelo scripts/prod.sh}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${WEB_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

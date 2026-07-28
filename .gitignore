@@ -9,6 +9,8 @@ __pycache__/
 # Env
 .env
 .env.local
+# Segredos de producao (DJANGO_SECRET_KEY, SESSION_TOKEN_SECRET, senha do banco).
+.env.prod
 
 # Django
 server/**/staticfiles/

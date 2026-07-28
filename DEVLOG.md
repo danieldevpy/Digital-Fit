@@ -5,6 +5,56 @@
 
 ---
 
+## 2026-07-28 · T-023 — ambiente de produção (VPS + domínio) separado do de dev
+
+- **Motivo, e ele não é infraestrutural**: `getUserMedia` só existe em contexto seguro, então
+  a câmera não abre por IP de rede local. Sem HTTPS de verdade, a T-014 (30s de polichinelo
+  no celular) não tem como acontecer. Produção nasceu como pré-requisito de teste, não como
+  entrega de produto.
+- Entregue: `docker-compose.prod.yml` (autônomo), `docker/web.Dockerfile` (build multi-stage
+  do Vite → nginx), `docker/web-nginx.conf`, `scripts/prod.sh`, `.env.prod.example`,
+  `docs/DEPLOY.md`. `gunicorn` entrou no extra `server`.
+- Decisões:
+  - **Arquivo autônomo, não override.** Um `-f base -f prod` herdaria bind mounts e
+    `runserver` em silêncio; o dia em que isso for percebido já é tarde. Custa duplicação
+    entre os dois compose e vale a pena.
+  - **Um domínio, três portas.** `/` → web, `/api/` → api, `/ws/` → gateway. Same-origin
+    zera CORS e mantém `wss://` no mesmo host do `https://` — os dois pontos onde deploy
+    assim quebra. Portas em `127.0.0.1`; quem expõe é o nginx do Daniel.
+  - **`DOMAIN` como fonte única.** O script deriva `VITE_API_URL`, `GATEWAY_WS_URL`,
+    `DJANGO_ALLOWED_HOSTS` e `CORS_ALLOWED_ORIGINS`. Mantidas à mão, essas quatro divergem
+    calado, e cliente falando com um host enquanto o WS fala com outro só aparece no celular.
+  - **`replicas: 1` fixo no `analysis-worker`.** A FSM tem estado em memória por sessão e o
+    consumer group dividiria frames da mesma sessão entre réplicas — quebraria só sob carga.
+  - **`gunicorn` para o `api`, `uvicorn` para o `gateway`**: a divisão WSGI/ASGI da
+    ARCHITECTURE vale em produção também. `GATEWAY_RELAY=0` no `api` para o relay não
+    empurrar cada evento duas vezes.
+  - **Segredos: gerar, nunca sobrescrever.** `prod.sh secrets` só preenche campo vazio —
+    rotacionar `SESSION_TOKEN_SECRET` sem querer derrubaria toda sessão em voo.
+  - **`down`/`ps`/`logs` toleram `.env.prod` quebrado.** A hora em que mais se precisa
+    derrubar uma stack é justamente quando a configuração está errada.
+- Bugs encontrados e corrigidos **antes** da VPS:
+  - `docker compose wait` bloqueia até o container **parar**, não até ficar saudável — a
+    linha teria travado o primeiro deploy para sempre. Removida: `compose run` já respeita
+    `depends_on: service_healthy`.
+  - `.env.prod` não estava no `.gitignore` — segredos a um `git add -A` do repositório.
+  - `.dockerignore` excluía `web/` inteiro, o que impedia a imagem do cliente de existir.
+    Trocado por exclusões específicas (`web/node_modules`, `web/dist`, `public/wasm`…).
+  - `application/wasm` explícito no nginx do container: com o MIME errado o navegador recusa
+    o módulo, a câmera abre e a pose nunca carrega.
+- Verificação (stack de produção subida localmente em portas alternativas, `Host` do domínio):
+  `/healthz` e `/readyz` ok; `POST /api/sessions` devolvendo `ws_url` já como
+  `wss://<domínio>/ws/session/…`; wasm servido como `application/wasm`; `redis` e `postgres`
+  sem porta no host; `Host` estranho recusado com 400; worker abrindo e fechando a sessão
+  criada por curl.
+- Gates: ruff limpo, pytest 353 verde, tsc limpo, eslint limpo, vitest 132 verde.
+- Pendências geradas (3 em "Descobertas"): Caddy→nginx manual; `VITE_API_URL` é build time
+  (rebuild obrigatório ao trocar de domínio); produção sem backup/quota/auth (T-022/025/026)
+  e sem snapshot de estado (T-031).
+- **Não fecha a T-014**: falta o deploy real e os 30s de polichinelo no celular.
+
+---
+
 ## 2026-07-28 · [A+B] Cliente ligado à API real + CORS + E2E headless
 
 > **Para o Daniel**: falta só você na frente da câmera. `docker compose up`, abrir

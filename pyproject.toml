@@ -23,6 +23,9 @@ server = [
     "djangorestframework>=3.15",
     "psycopg[binary]>=3.2",
     "uvicorn[standard]>=0.34",
+    # Servidor WSGI do `api` em producao. O gateway continua em uvicorn (ASGI): a divisao
+    # WSGI/ASGI da ARCHITECTURE vale em producao tambem, nao so no compose de dev.
+    "gunicorn>=23.0",
 ]
 
 # Bancada de avaliacao (SPEC-012): roda local, sem Docker. Pesado (MediaPipe + OpenCV) e

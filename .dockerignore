@@ -1,6 +1,5 @@
 .git
 .venv
-web
 node_modules
 __pycache__
 *.py[cod]
@@ -13,3 +12,13 @@ specs
 prompts
 context
 *.md
+
+# `web/` entra no contexto por causa do docker/web.Dockerfile — mas so o fonte.
+# Artefatos locais ficam de fora: o node_modules do host tem binario nativo do host, e
+# public/wasm + public/models sao regerados pelo `npm run setup` dentro do build.
+web/node_modules
+web/dist
+web/.vite
+web/public/wasm
+web/public/models
+

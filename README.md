@@ -24,6 +24,22 @@ curl localhost:8000/healthz   # liveness  -> {"status":"ok","service":"api"}
 curl localhost:8000/readyz    # postgres + redis respondendo
 ```
 
+## Subir em produção (VPS + domínio)
+
+```bash
+cp .env.prod.example .env.prod   # decidir o DOMAIN
+./scripts/prod.sh secrets
+./scripts/prod.sh up
+./scripts/prod.sh nginx          # server block de referência para o seu nginx
+```
+
+Arquivo separado (`docker-compose.prod.yml`), projeto docker separado, sem bind mount e com
+`gunicorn` no lugar do `runserver`. TLS e domínio ficam com o seu nginx — passo a passo e
+limites conhecidos em [docs/DEPLOY.md](docs/DEPLOY.md).
+
+Existe por um motivo concreto: `getUserMedia` exige contexto seguro, então **a câmera não
+abre pelo IP da rede local** — testar no celular pede HTTPS de verdade.
+
 ## Desenvolvimento Python (fora do Docker)
 
 ```bash
@@ -50,7 +66,10 @@ contrário.
 
 ```
 docker-compose.yml     # dev local: um comando
-docker/                # Dockerfiles
+docker-compose.prod.yml # produção: autônomo, não é override do de cima
+scripts/prod.sh        # deploy: build + migrate + start + nginx de referência
+docker/                # Dockerfiles (server, web)
+docs/DEPLOY.md         # como sobe na VPS e o que ainda não tem
 server/                # Django: core (settings), api (DRF), gateway (Channels, T-005)
 workers/               # Python puro, sem Django
   shared/events.py     #   contrato de eventos — única fonte da verdade

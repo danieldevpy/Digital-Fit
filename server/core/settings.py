@@ -46,6 +46,13 @@ MIDDLEWARE = [
 #: Origens do cliente web fora de DEBUG (em DEBUG qualquer origem passa — ver core/cors.py).
 CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS", "")
 
+# Atrás de um proxy que termina TLS (o nginx da VPS), o Django enxerga a conexão interna em
+# http e `request.is_secure()` mente. Nada na Fase 0 depende disso ainda; fica ligado por
+# variável porque só é correto quando o proxy REESCREVE o header — confiar nele com a porta
+# aberta ao mundo deixaria o cliente forjar `https`.
+if _env_bool("DJANGO_BEHIND_PROXY", False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 ROOT_URLCONF = "core.urls"
 WSGI_APPLICATION = "core.wsgi.application"
 ASGI_APPLICATION = "core.asgi.application"

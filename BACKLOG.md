@@ -46,7 +46,7 @@
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-023 | compose.prod + Caddy TLS + deploy na VPS Debian + healthchecks | — | todo |
+| T-023 | compose.prod + deploy na VPS Debian + healthchecks (TLS/nginx são manuais, por decisão) | — | done |
 | T-024 | Fila de espera cloud com posição visível + limite edge | 009 | todo |
 | T-025 | Quotas por plano em Redis + enforcement no POST /sessions | 009/011 | todo |
 | T-026 | Logs estruturados JSON + página de status + backup diário do Postgres | — | todo |
@@ -117,6 +117,20 @@
   normalmente — o erro parece grave e não é. Enquanto não há um perfil separado, o caminho é
   `docker compose up -d` para a infra e o Vite na mão, **ou** só o compose. Vale um
   `profiles: [web]` no serviço quando alguém encostar no arquivo.
+- **[A/T-023] Caddy trocado por nginx manual**: a task previa Caddy pelo TLS automático, mas a
+  VPS já tem nginx configurado à mão. O compose de produção passou a expor três portas em
+  `127.0.0.1` (web 8080, api 8000, gateway 8001) e o proxy fica fora do projeto —
+  `./scripts/prod.sh nginx` imprime o server block de referência. Um domínio só para os três,
+  o que zera CORS (same-origin) e mantém `wss://` no mesmo host do `https://`.
+- **[A/T-023] `VITE_API_URL` é build time, não runtime**: variável `VITE_*` é gravada no
+  bundle pelo Vite, então trocar de domínio exige **rebuild** da imagem do web — não adianta
+  mudar o environment do compose. Por isso o `prod.sh up` sempre reconstrói. Se um dia isso
+  incomodar, a saída é o cliente ler a origem da própria página (same-origin) em vez de uma
+  variável — hoje `apiBaseUrl()` cairia no default de `localhost:8000`.
+- **[A/T-023] Produção não tem backup, quota nem auth**: o volume `postgres-data` é tudo
+  (T-026), qualquer um que alcance a URL abre sessão (T-022/T-025), e reiniciar o
+  `analysis-worker` derruba as sessões em voo (T-031). Aceitável para um domínio privado de
+  teste; não para público. Listado em `docs/DEPLOY.md` para não virar surpresa.
 - **[A/T-014] Stack parcialmente morta engana o diagnóstico**: com `redis`/`api` fora e o
   `gateway` de pé, o cliente mostra "API fora do ar" (correto) enquanto o `analysis-worker`
   entra em crash loop de DNS (`Temporary failure in name resolution`) — dois sintomas
