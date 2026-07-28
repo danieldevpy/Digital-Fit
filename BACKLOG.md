@@ -23,7 +23,7 @@
 | T-044 | Ângulo articular ao vivo no HUD (client-side edge, fórmula espelhada da FSM, ≤10Hz, teste de paridade <5°) | 013 | todo |
 | T-013 | Validação de cena mínima: OUT_OF_FRAME + TOO_FAR/TOO_CLOSE com debounce | 003 | todo |
 | T-014 | E2E local: 30s de polichinelo real → contagem correta na tela (demo gravável) | todas | todo |
-| T-037 | CLI `evalctl run`: vídeo mp4 → MediaPipe → normalização → FSM → resultado JSON (reusa módulos dos workers) | 012 | todo |
+| T-037 | CLI `evalctl run`: vídeo mp4 → MediaPipe → normalização → FSM → resultado JSON (reusa módulos dos workers) | 012 | done |
 | T-038 | Corpus inicial: 12–15 vídeos rotulados (manifest.yaml) + guia de gravação | 012 | todo |
 | T-039 | Métricas agregadas + `evalctl compare` (regressão entre versões) + `--save-keypoints` | 012 | todo |
 
@@ -81,3 +81,12 @@
 - **[A/T-001] Toolchain Python**: a máquina tem Python 3.11 no sistema; o projeto exige 3.12+
   (convenções). Resolvido usando o Python gerenciado pelo `uv` (`uv sync` / `uv run`).
   Rodar `pytest` do sistema direto não funciona — sempre via `uv run`.
+- **[A/T-037] MediaPipe 1.0 removeu a API `mp.solutions`**: o extractor usa a **Tasks API**
+  (`vision.PoseLandmarker`), que é a mesma que a SPEC-005 manda usar no cliente web — bom para
+  paridade edge×bancada, mas exige um arquivo de modelo `.task` (5,5 MB, fora do git). Baixar
+  uma vez com `python -m eval.evalctl fetch-model`. Quando o `pose-worker` da T-016 nascer, tem
+  de usar o MESMO modelo e o MESMO caminho de resolução (`DIGITALFIT_POSE_MODEL`).
+- **[A/T-037] `uv sync` sem extras remove o Django**: o fluxo local é
+  `uv sync --extra server` (e `--extra eval` para a bancada). README e CI atualizados; a CI
+  não instala o extra `eval` de propósito (MediaPipe pesa ~200 MB).
+

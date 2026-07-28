@@ -23,6 +23,7 @@ web/.vite/
 eval/corpus/**/*.mp4
 eval/corpus/**/*.mov
 eval/out/
+eval/models/*.task
 data/
 *.parquet
 

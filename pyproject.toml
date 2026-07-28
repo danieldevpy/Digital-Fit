@@ -8,6 +8,7 @@ requires-python = ">=3.12"
 dependencies = [
     "msgpack>=1.1",
     "numpy>=2.1",
+    "pyyaml>=6.0",
     "redis>=5.2",
 ]
 
@@ -17,6 +18,13 @@ server = [
     "django>=5.1,<6.0",
     "djangorestframework>=3.15",
     "psycopg[binary]>=3.2",
+]
+
+# Bancada de avaliacao (SPEC-012): roda local, sem Docker. Pesado (MediaPipe + OpenCV) e
+# deliberadamente fora da imagem dos servicos — nada em server/ ou workers/ importa isto.
+eval = [
+    "mediapipe>=0.10.14",
+    "opencv-python-headless>=4.10",
 ]
 
 [dependency-groups]

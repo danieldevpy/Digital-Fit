@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-07-27 · [A] T-037 — `evalctl run` (bancada de avaliação)
+
+- `eval/`: `sources.py` (decode de vídeo + extração de pose), `pipeline.py` (frames →
+  normalização → FSM → `VideoResult`), `evalctl.py` (CLI `run` e `fetch-model`), rodável com
+  `uv run python -m eval.evalctl run video.mp4 --expected-reps 20 --report eval/out/eval.json`.
+- Decisões:
+  - **Extração de pose por interface** (`PoseExtractor`): a implementação real é MediaPipe, e os
+    testes injetam um dublê alimentado por keypoints sintéticos. Resultado: 26 testes da bancada
+    rodam em ~1 s, sem MediaPipe, sem OpenCV e sem vídeo.
+  - **Imports pesados são tardios** e há teste que prova isso (subprocesso verifica que
+    `import eval.pipeline` não carrega `mediapipe` nem `cv2`).
+  - **`source: "file"` entrou no contrato** (`Source.FILE`), como a SPEC-012 previa: resultado de
+    bancada nunca se disfarça de sessão real no dataset. Mudança de contrato registrada aqui
+    para o Agente B — é adição de valor no enum, não quebra nada existente.
+  - **MediaPipe Tasks, não `mp.solutions`**: a API legada não existe mais no MediaPipe 1.0, e a
+    Tasks é justamente a que a SPEC-005 manda usar no cliente. Modelo `pose_landmarker_lite.task`
+    fica fora do git; `evalctl fetch-model` baixa uma vez (5,5 MB). Resolução do caminho:
+    argumento `--model` > `DIGITALFIT_POSE_MODEL` > `eval/models/`.
+  - **Decimação por tempo** (não por contagem) no leitor de vídeo, igual ao frame clock do
+    cliente (SPEC-001) — a bancada vê a mesma cadência que o navegador enviaria.
+  - **Um vídeo ruim não derruba o corpus**: falha vira campo `error` no resultado daquele vídeo.
+    Erro de leitura sai com código 1; contagem errada **não** é erro de execução (isso é métrica,
+    T-039).
+  - `manifest.yaml` traz `expected_reps` e `conditions`; pasta sem manifest processa os vídeos
+    sem rótulo.
+- Verificado de ponta a ponta com MediaPipe de verdade (não só com o dublê):
+  - vídeo sintético sem pessoa ⇒ 30 frames sem pose, 0 reps, `eval.json` com commit e versão do
+    modelo — encanamento decode → Tasks → normalização → FSM → JSON;
+  - foto real de polichinelo aberto (a referência do Daniel) ⇒ pose detectada e features
+    coerentes: `arm_angle=148°`, `ankle_spread=2.44`, pulsos acima dos ombros, frame não
+    degradado. As features leem a imagem como "aberto", que é o que a FSM precisa.
+- Gates: `ruff` limpo, **183 testes** verdes (26 novos). Critérios da SPEC-012 atendidos: roda só
+  com Python (1), bancada e worker importam o mesmo módulo — há teste que verifica o
+  `__module__` (2), vídeo negativo de pessoa parada dá 0 reps (4). `--save-keypoints` é T-039 (3).
+
+---
+
 ## 2026-07-27 · [A] T-008 — `ExerciseAnalyzer` + FSM do polichinelo
 
 - `workers/analysis_worker/exercises/base.py`: interface `ExerciseAnalyzer` (Protocol) com

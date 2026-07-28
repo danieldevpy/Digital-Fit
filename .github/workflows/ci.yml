@@ -16,8 +16,10 @@ jobs:
         with:
           enable-cache: true
 
+      # Sem o extra `eval` de proposito: MediaPipe/OpenCV pesam ~200 MB e os testes da
+      # bancada rodam com extractor injetado. Eval em CI e a T-042.
       - name: Instalar dependencias
-        run: uv sync --frozen --all-extras
+        run: uv sync --frozen --extra server
 
       - name: ruff
         run: |

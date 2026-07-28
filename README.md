@@ -27,10 +27,24 @@ curl localhost:8000/readyz    # postgres + redis respondendo
 ## Desenvolvimento Python (fora do Docker)
 
 ```bash
-uv sync --all-extras     # cria .venv com Python 3.12
+uv sync --extra server   # cria .venv com Python 3.12 (api + workers + testes)
 uv run ruff check .
 uv run pytest
 ```
+
+## Bancada de avaliação (`evalctl`)
+
+Mede a precisão do pipeline contra vídeos rotulados, sem sistema no ar (SPEC-012). As
+dependências são pesadas (MediaPipe + OpenCV) e ficam num extra separado:
+
+```bash
+uv sync --extra server --extra eval
+uv run python -m eval.evalctl run video.mp4 --exercise jumping_jack --expected-reps 20
+uv run python -m eval.evalctl run eval/corpus/ --report eval/out/eval.json
+```
+
+Nada em `server/` ou `workers/` importa `eval/` — a bancada usa os módulos deles, nunca o
+contrário.
 
 ## Estrutura
 

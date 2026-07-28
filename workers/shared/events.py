@@ -91,6 +91,9 @@ class Source(StrEnum):
     EDGE = "edge"
     CLOUD = "cloud"
     SYSTEM = "system"
+    #: Bancada de avaliação lendo arquivo de vídeo ou fixture (SPEC-012). Existe para que um
+    #: resultado de eval nunca se disfarce de sessão real no dataset.
+    FILE = "file"
 
 
 class Mode(StrEnum):
