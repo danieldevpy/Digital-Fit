@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-07-27 · [B] T-007 — Gravador de fixtures
+
+- Botão de dev que acumula os keypoints da sessão e baixa um JSON para os testes do núcleo.
+- **Formato**: `events` é uma lista de envelopes `pose.frame` do contrato, sem nenhum campo
+  inventado. Rótulo, `capability`, resolução e `target_fps` ficam **em volta** dessa lista,
+  não dentro dos envelopes — embalagem de fixture não é protocolo.
+- **Interop verificada de verdade**, não só por teste unitário: gerei uma fixture pelo
+  gravador e carreguei no lado Python do Agente A — 20 envelopes passaram por
+  `Envelope.from_dict` + `payload()`, viraram `RawFrame` e rodaram em `normalize()` da
+  SPEC-006 sem nenhum ajuste. É a primeira prova de que os dois territórios se encaixam.
+- Decisões:
+  - Gravador é **instância única fora do React**: o loop escreve nele a 15Hz e não pode
+    provocar render. O store só guarda `recording`/`recordedFrames` para a UI.
+  - Cada gravação abre uma sessão nova (`seq` recomeça do zero), igual ao contrato.
+  - Frame sem pose detectada é descartado: viraria `landmarks: []`, que o contrato rejeita
+    por exigir exatamente 33.
+  - `window.prompt` para o rótulo — é ferramenta de dev; um modal próprio seria escopo que
+    a task não pede.
+- Gates: `tsc -b` limpo, `npm run lint` sem erros nem warnings, `npm run test` **78/78**.
+- Pendências geradas (2 em "Descobertas"): **escopo do `seq`** (por sessão ou por tipo?) —
+  bloqueia a ponta cliente do WS e precisa de decisão do Agente A; e o invólucro da fixture,
+  que é trocável se o A preferir outro.
+
+---
+
 ## 2026-07-27 · [B] T-004 — Capability probe + frame clock + `?mode=`
 
 - **Contrato v1 consumido.** O `workers/shared/events.py` do Agente A já existia, então

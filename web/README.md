@@ -45,6 +45,34 @@ só `drawSkeleton` toca o canvas. Mesma regra da análise no lado Python.
 o layout, não o comportamento: contador, timer, ângulo e kcal são estáticos até a T-012
 ligá-los aos eventos do contrato. Não espalhe valor de fachada por outros arquivos.
 
+## Gravador de fixtures (T-007)
+
+Com a câmera ligada, o chip de dev tem **● gravar fixture**. Ele acumula os keypoints da
+sessão e baixa um JSON para os testes do núcleo Python.
+
+```jsonc
+{
+  "format": "digital-fit/pose-fixture",
+  "version": 1,
+  "session_id": "dev-a1b2c3d4",
+  "label": "polichinelo-20-limpos",
+  "capability": { "mode": "edge", "probe_fps": 28.3, "webgl": true, "ua": "..." },
+  "video": { "width": 640, "height": 480 },
+  "target_fps": 15,
+  "events": [ /* envelopes `pose.frame` do contrato, nada além disso */ ]
+}
+```
+
+`events` são envelopes do contrato **sem nenhum campo inventado** — o resto é embalagem de
+fixture (rótulo, device) e fica de fora deles de propósito. Do lado Python:
+
+```python
+envelopes = [Envelope.from_dict(e) for e in fixture["events"]]
+frames = [RawFrame(ts=e.ts, seq=e.seq, landmarks=e.payload().landmarks) for e in envelopes]
+```
+
+Verificado nesta forma contra `Envelope.from_dict`, `RawFrame` e `normalize()`.
+
 ## Interface com o servidor
 
 A **única** interface entre os dois territórios é o contrato de eventos:

@@ -13,6 +13,7 @@ import { createEdgePoseLandmarker, detectPose } from '../pose/poseLandmarker'
 import { clearCanvas, drawSkeleton } from '../pose/skeleton'
 import { parseModeOverride } from '../probe/capability'
 import { runCapabilityProbe } from '../probe/runProbe'
+import { getFixtureRecorder } from '../dev/recorder'
 import { useSessionStore } from '../store/session'
 import { EDGE_TARGET_FPS, createFrameClock } from './frameClock'
 import { createVideoFrameLoop } from './videoFrameLoop'
@@ -65,6 +66,9 @@ export function useEdgePipeline(
       const landmarks = detectPose(landmarker, video, performance.now())
       drawSkeleton(context, landmarks)
 
+      const recorder = getFixtureRecorder()
+      recorder.addFrame(tick, landmarks)
+
       windowFrames += 1
       if (windowStart === 0) windowStart = tick.ts
       const elapsed = tick.ts - windowStart
@@ -74,9 +78,11 @@ export function useEdgePipeline(
         windowFrames = 0
       }
 
-      const { setLandmarksDetected, setFrameStats, frameStats } = useSessionStore.getState()
+      const { setLandmarksDetected, setFrameStats, setRecordedFrames, frameStats } =
+        useSessionStore.getState()
       setLandmarksDetected(landmarks.length)
       setFrameStats({ seq: tick.seq, ts: tick.ts, fps: fps ?? frameStats?.fps ?? 0 })
+      if (recorder.isRecording) setRecordedFrames(recorder.frameCount)
     }
 
     const startPipeline = async () => {

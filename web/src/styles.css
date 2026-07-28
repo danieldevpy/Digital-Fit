@@ -177,10 +177,15 @@ button {
   letter-spacing: 0.02em;
 }
 
-.stage__dev-stop {
+.stage__dev-stop,
+.stage__dev-rec {
   color: var(--accent-soft);
   font-size: 0.6875rem;
   font-weight: 600;
+}
+
+.stage__dev-rec--on {
+  color: #f87171;
 }
 
 /* ---------- barra de métricas (flutua sobre a câmera) ---------- */

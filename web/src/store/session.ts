@@ -29,6 +29,9 @@ export interface SessionState {
   videoResolution: { width: number; height: number } | null
   landmarksDetected: number
   frameStats: FrameStats | null
+  /** Gravador de fixtures (T-007) — ferramenta de dev, não faz parte da sessão real. */
+  recording: boolean
+  recordedFrames: number
   error: string | null
 
   setCameraStatus: (status: CameraStatus) => void
@@ -40,6 +43,8 @@ export interface SessionState {
   setVideoResolution: (resolution: { width: number; height: number }) => void
   setLandmarksDetected: (count: number) => void
   setFrameStats: (stats: FrameStats | null) => void
+  setRecording: (recording: boolean) => void
+  setRecordedFrames: (count: number) => void
   setError: (message: string | null) => void
   resetPipeline: () => void
 }
@@ -54,6 +59,8 @@ export const useSessionStore = create<SessionState>((set) => ({
   videoResolution: null,
   landmarksDetected: 0,
   frameStats: null,
+  recording: false,
+  recordedFrames: 0,
   error: null,
 
   setCameraStatus: (cameraStatus) => set({ cameraStatus }),
@@ -65,6 +72,8 @@ export const useSessionStore = create<SessionState>((set) => ({
   setVideoResolution: (videoResolution) => set({ videoResolution }),
   setLandmarksDetected: (landmarksDetected) => set({ landmarksDetected }),
   setFrameStats: (frameStats) => set({ frameStats }),
+  setRecording: (recording) => set({ recording }),
+  setRecordedFrames: (recordedFrames) => set({ recordedFrames }),
   setError: (error) => set({ error }),
 
   resetPipeline: () =>
@@ -75,5 +84,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       capability: null,
       landmarksDetected: 0,
       frameStats: null,
+      recording: false,
+      recordedFrames: 0,
     }),
 }))

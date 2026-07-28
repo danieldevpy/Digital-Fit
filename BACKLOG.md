@@ -13,7 +13,7 @@
 | T-004 | Capability probe + frame clock (ts/seq) + modo forçável por query param | 001 | done |
 | T-005 | Gateway Channels: WS autenticado por token, publica `pose.frame` no stream | 002 | todo |
 | T-006 | Normalização + One Euro Filter como função pura + fixtures de teste | 006 | todo |
-| T-007 | Gravador de fixtures: salvar sequência de keypoints do browser em JSON p/ testes | 006/007 | todo |
+| T-007 | Gravador de fixtures: salvar sequência de keypoints do browser em JSON p/ testes | 006/007 | done |
 | T-008 | Interface `ExerciseAnalyzer` + FSM do polichinelo + testes (20 limpos, preguiçosos, jitter) | 007 | todo |
 | T-009 | analysis-worker: consumer de `pose.frames`, roda FSM, publica `events.analysis` | 007 | todo |
 | T-010 | Feedback engine (catálogo YAML, throttle, prioridade) + faixa de feedback no HUD | 008 | todo |
@@ -86,6 +86,19 @@
   dispara `predev` → `scripts/setup-mediapipe.mjs`, que baixa ~5.5 MB do modelo — no
   container isso exige rede na primeira subida ou um volume para `web/public/models/`.
   Decisão de quem faz fica para o Daniel / sessão conjunta.
+- **[B/T-004] Escopo do `seq`: por sessão ou por tipo de evento?** O contrato diz "contador
+  monotônico **por sessão** (nunca repete nem retrocede)". Se o cliente manda
+  `session.capability` antes do primeiro `pose.frame`, os dois disputam o `seq` 0 — o frame
+  clock começa em 0 e não sabe de outros eventos. Hoje contornei mantendo o `seq` do frame
+  clock só nos `pose.frame` (e a capability fora dos envelopes, na embalagem da fixture),
+  mas **a ponta cliente do WS precisa da decisão do Agente A**: ou o `seq` é um contador
+  único do cliente que todos os tipos compartilham (e o frame clock deixa de ser o dono
+  dele), ou o contrato passa a dizer "por sessão e por tipo".
+- **[B/T-007] Embalagem da fixture não é evento.** O JSON gravado tem `format`, `version`,
+  `label`, `capability`, `video` e `target_fps` **em volta** da lista `events`. Só `events`
+  é contrato (envelopes `pose.frame` puros). Se o Agente A preferir outro invólucro para os
+  testes dele, é trocar `build()` em `web/src/dev/fixtureRecorder.ts` — o formato dos
+  envelopes não muda. Já validado contra `Envelope.from_dict`, `RawFrame` e `normalize()`.
 - **[B/T-043] "Série" e "Kcal" não existem em nenhuma spec.** A referência de design pede
   quatro métricas no topo (série, repetições, ângulo, kcal), mas só *repetições* e *ângulo*
   saem do pipeline atual. **Série** pressupõe treino com múltiplas séries — a SPEC-009 define

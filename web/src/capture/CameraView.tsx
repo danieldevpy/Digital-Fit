@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { FixtureControls } from '../dev/FixtureControls'
 import { Mode } from '../lib/events'
 import { useSessionStore } from '../store/session'
 import { useCamera } from './useCamera'
@@ -83,6 +84,7 @@ export function CameraView() {
               {videoResolution.width}×{videoResolution.height}
             </span>
           )}
+          <FixtureControls />
           <button type="button" className="stage__dev-stop" onClick={stop}>
             parar
           </button>
