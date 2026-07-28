@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-07-27 · [A] T-013 — Validação de cena mínima
+
+> **Agente B**: `scene.warning` já chega pelo WS com `{code, severity, hint}` — códigos
+> `OUT_OF_FRAME`, `TOO_FAR`, `TOO_CLOSE`. O `hint` vem em pt-BR e pode ir direto para a tela
+> enquanto o catálogo do feedback engine não estiver na frente dele.
+
+- `workers/analysis_worker/scene.py`: `SceneValidator` (um por sessão) com as duas travas da
+  SPEC-003 Fase Inicial — enquadramento pelas 4 âncoras (ombros e tornozelos, `visibility ≥ 0.5`)
+  e distância pela altura do corpo entre 40% e 95% do frame — e o debounce de 1 s para ligar /
+  2 s para repetir.
+- Ligado no `AnalysisRouter`: a cena é checada **antes** da FSM, então um frame ruim ainda avisa
+  o usuário mesmo com a FSM congelada. É exatamente quando o aviso importa.
+- Decisões:
+  - **Altura do corpo sai dos pontos normalizados × escala**: `(tornozelo_y − nariz_y)` em torsos
+    × `torso` (unidades de frame) = fração da altura do frame. Sem isso, o validador precisaria
+    dos landmarks crus e teria uma segunda porta de entrada.
+  - **`OUT_OF_FRAME` tem prioridade e interrompe a checagem de distância**: sem âncoras
+    visíveis, a altura viria de landmarks adivinhados pelo modelo — mediria ruído.
+  - O validador **conta** os avisos (`counts`) porque a SPEC-003 manda anexá-los ao relatório
+    (T-020).
+  - Rosto/mãos invisíveis não são problema de enquadramento — só as 4 âncoras contam.
+- Gates: `ruff` limpo, **319 testes** verdes (22 novos). Critérios da SPEC-003: 2 s fora do quadro
+  ⇒ **exatamente 1 aviso** (6 s ⇒ 3 avisos, pelo intervalo de 2 s); **zero falso positivo** em
+  cena padrão, inclusive durante 20 polichinelos (o movimento muda a altura aparente e não
+  dispara distância); 0,5 s de falha ⇒ nenhum aviso.
+
+---
+
 ## 2026-07-27 · [A] T-011 — Ciclo de sessão (`POST /api/sessions` + timer autoritativo)
 
 > **Agente B**: o fluxo de abertura está pronto. `POST /api/sessions`

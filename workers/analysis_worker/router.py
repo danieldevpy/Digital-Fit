@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass, field
 
 from workers.analysis_worker.exercises import ExerciseAnalyzer, feed, get_analyzer
+from workers.analysis_worker.scene import SceneValidator
 from workers.shared.events import (
     Envelope,
     EventType,
@@ -55,6 +56,7 @@ class SessionState:
     duration_s: int = DEFAULT_DURATION_S
     analyzer: ExerciseAnalyzer = field(default=None)  # type: ignore[assignment]
     normalizer: Normalizer = field(default_factory=Normalizer)
+    scene: SceneValidator = field(default_factory=SceneValidator)
     first_ts: int | None = None
     last_ts: int | None = None
     frames: int = 0
@@ -185,9 +187,14 @@ class AnalysisRouter:
         norm = estado.normalizer.push(
             RawFrame(ts=envelope.ts, seq=envelope.seq, landmarks=payload.landmarks)
         )
-        return [
+
+        # Cena primeiro: um frame ruim ainda deve avisar o usuário, mesmo que a FSM congele
+        # nele (é justamente quando o aviso importa).
+        saidas = [self._wrap(estado, aviso) for aviso in estado.scene.check(norm)]
+        saidas.extend(
             self._wrap(estado, payload_evento) for payload_evento in feed(estado.analyzer, norm)
-        ]
+        )
+        return saidas
 
     def _on_session_completed(self, envelope: Envelope) -> list[Envelope]:
         """Fim vindo de fora (API/TTL/cliente): fecha o estado e reemite com o total de reps."""

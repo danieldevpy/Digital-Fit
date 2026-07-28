@@ -246,12 +246,16 @@ def test_pose_frame_invalido_nao_derruba_o_worker() -> None:
     assert len(bus.acked) == len(frames) + 2  # o inválido também recebe ack
 
 
-def test_frames_degradados_nao_geram_evento() -> None:
+def test_frames_degradados_nao_geram_evento_de_execucao() -> None:
+    """SPEC-007: frame ruim não conta nem penaliza — mas a cena avisa (SPEC-003/T-013)."""
     frames = [envelope_pose(f) for f in sequence(still_poses(30), visibility=0.1)]
 
     bus, router = rodar(envelope_started(), *frames)
 
-    assert bus.published == []
+    assert bus.published_of(EventType.REP_DETECTED) == []
+    assert bus.published_of(EventType.QUALITY_SIGNAL) == []
+    assert bus.published_of(EventType.EXERCISE_PHASE) == []
+    assert bus.published_of(EventType.SCENE_WARNING), "usuario fora do quadro precisa ser avisado"
     assert router.sessions[SESSAO].analyzer.summary()["frames_degraded"] == 30
 
 
