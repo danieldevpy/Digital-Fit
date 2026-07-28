@@ -128,6 +128,14 @@ export function useSession(enabled: boolean) {
       })
         .then((ticket) => {
           if (cancelado) return
+          // O ticket é a única fonte de `session_id` no caminho real: `session.started` não
+          // está nos CLIENT_PUSH_TYPES, então ele nunca chega pelo WS. Sem isto o cliente
+          // não sabe em nome de quem enviar `pose.frame` — e não envia nada.
+          useSessionStore.getState().applyTicket({
+            sessionId: ticket.session_id,
+            exercise: ticket.exercise,
+            durationS: ticket.duration_s,
+          })
           // `ws_url` vem pronto do ticket, com o token — usar como veio.
           conectar({ sessionId: ticket.session_id, url: ticket.ws_url })
         })

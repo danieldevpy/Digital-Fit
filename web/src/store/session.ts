@@ -38,6 +38,12 @@ export interface SessionState {
   /** Resolução realmente entregue pelo device (pode diferir da preferida). */
   videoResolution: { width: number; height: number } | null
   landmarksDetected: number
+  /**
+   * Faixa de `visibility` do último frame. Existe porque a visibilidade é o que decide o
+   * desenho do esqueleto (limiar 0.5) **e** a validação de cena no worker: se o provedor não
+   * preencher o campo, os dois falham em silêncio, e nenhum log diz o motivo.
+   */
+  landmarkVisibility: { min: number; max: number } | null
   frameStats: FrameStats | null
   /** Ângulo articular ao vivo, calculado no cliente (T-044) — cosmético. */
   armAngleDeg: number | null
@@ -75,12 +81,21 @@ export interface SessionState {
   setModeOverride: (mode: Mode | null) => void
   setVideoResolution: (resolution: { width: number; height: number }) => void
   setLandmarksDetected: (count: number) => void
+  setLandmarkVisibility: (range: { min: number; max: number } | null) => void
   setFrameStats: (stats: FrameStats | null) => void
   setArmAngleDeg: (angle: number | null) => void
   setRecording: (recording: boolean) => void
   setRecordedFrames: (count: number) => void
   setCameraControls: (controls: SessionState['cameraControls']) => void
   setGatewayStatus: (status: GatewayStatus) => void
+  /**
+   * Sessão admitida (`POST /api/sessions`). É **daqui** que vem o `session_id` no caminho
+   * real: `session.started` não está nos `CLIENT_PUSH_TYPES`, então o gateway nunca o
+   * empurra — o mock mandava, e era só por isso que o cliente funcionava contra ele.
+   */
+  applyTicket: (ticket: { sessionId: string; exercise: string; durationS: number }) => void
+  /** Primeiro frame enviado: é onde o timer autoritativo do servidor começa a contar. */
+  markFirstFrame: (at: number) => void
   applySessionStarted: (data: SessionStartedData, sessionId: string) => void
   applyRepDetected: (data: RepDetectedData) => void
   applyPhase: (phase: Phase) => void
@@ -105,7 +120,7 @@ const SESSION_DEFAULTS = {
   feedbackEntry: null,
 }
 
-export const useSessionStore = create<SessionState>((set) => ({
+export const useSessionStore = create<SessionState>((set, get) => ({
   cameraStatus: 'idle',
   poseStatus: 'idle',
   poseDelegate: null,
@@ -114,6 +129,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   modeOverride: null,
   videoResolution: null,
   landmarksDetected: 0,
+  landmarkVisibility: null,
   frameStats: null,
   armAngleDeg: null,
   recording: false,
@@ -131,12 +147,34 @@ export const useSessionStore = create<SessionState>((set) => ({
   setModeOverride: (modeOverride) => set({ modeOverride }),
   setVideoResolution: (videoResolution) => set({ videoResolution }),
   setLandmarksDetected: (landmarksDetected) => set({ landmarksDetected }),
+  setLandmarkVisibility: (landmarkVisibility) => set({ landmarkVisibility }),
   setFrameStats: (frameStats) => set({ frameStats }),
   setArmAngleDeg: (armAngleDeg) => set({ armAngleDeg }),
   setRecording: (recording) => set({ recording }),
   setRecordedFrames: (recordedFrames) => set({ recordedFrames }),
   setCameraControls: (cameraControls) => set({ cameraControls }),
   setGatewayStatus: (gatewayStatus) => set({ gatewayStatus }),
+
+  applyTicket: ({ sessionId, exercise, durationS }) =>
+    set({
+      sessionId,
+      exerciseKey: exercise,
+      durationS,
+      sessionStatus: 'running',
+      endReason: null,
+      repCount: 0,
+      phase: null,
+      // `startedAt` fica null de propósito: o countdown só faz sentido a partir do primeiro
+      // frame, que é a âncora do timer do servidor. Admitir a sessão não é começar a treinar.
+      startedAt: null,
+      sceneEntry: null,
+      feedbackEntry: null,
+    }),
+
+  markFirstFrame: (at) => {
+    if (get().startedAt !== null) return
+    set({ startedAt: at })
+  },
 
   applySessionStarted: (data, sessionId) =>
     set({

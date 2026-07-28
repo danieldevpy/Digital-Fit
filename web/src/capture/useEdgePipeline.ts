@@ -33,6 +33,27 @@ const FPS_WINDOW_MS = 1000
 /** SPEC-013: ângulo atualiza no máximo a 10Hz para não piscar. */
 const ANGLE_MIN_INTERVAL_MS = 100
 
+/**
+ * Faixa de `visibility` do frame, para o chip de diagnóstico.
+ *
+ * Não é enfeite: visibilidade abaixo de 0.5 apaga o esqueleto na tela **e** faz o worker
+ * acusar `OUT_OF_FRAME`. Quando isso acontece, a tela fica muda e o log não explica — este
+ * número é a única forma de distinguir "o modelo não te viu" de "o campo não veio preenchido".
+ */
+function visibilityRange(
+  landmarks: readonly { visibility?: number }[],
+): { min: number; max: number } | null {
+  if (landmarks.length === 0) return null
+  let min = Number.POSITIVE_INFINITY
+  let max = Number.NEGATIVE_INFINITY
+  for (const { visibility } of landmarks) {
+    const valor = visibility ?? 1
+    if (valor < min) min = valor
+    if (valor > max) max = valor
+  }
+  return { min, max }
+}
+
 export function useEdgePipeline(
   videoRef: RefObject<HTMLVideoElement | null>,
   canvasRef: RefObject<HTMLCanvasElement | null>,
@@ -89,7 +110,7 @@ export function useEdgePipeline(
       // velho) é do cliente de gateway.
       const gateway = getGatewayClient()
       if (gateway && landmarks.length === LANDMARK_COUNT) {
-        const sessionId = useSessionStore.getState().sessionId
+        const { sessionId, markFirstFrame } = useSessionStore.getState()
         if (sessionId) {
           gateway.send(
             makeEnvelope({
@@ -101,6 +122,9 @@ export function useEdgePipeline(
               data: { landmarks: toLandmarkTuples(landmarks) },
             }),
           )
+          // O countdown da tela ancora no primeiro frame porque é aí que o timer
+          // autoritativo do servidor começa (SPEC-009) — não na admissão.
+          markFirstFrame(tick.ts)
         }
       }
 
@@ -121,9 +145,15 @@ export function useEdgePipeline(
         windowFrames = 0
       }
 
-      const { setLandmarksDetected, setFrameStats, setRecordedFrames, frameStats } =
-        useSessionStore.getState()
+      const {
+        setLandmarksDetected,
+        setLandmarkVisibility,
+        setFrameStats,
+        setRecordedFrames,
+        frameStats,
+      } = useSessionStore.getState()
       setLandmarksDetected(landmarks.length)
+      setLandmarkVisibility(visibilityRange(landmarks))
       setFrameStats({ seq: tick.seq, ts: tick.ts, fps: fps ?? frameStats?.fps ?? 0 })
       if (recorder.isRecording) setRecordedFrames(recorder.frameCount)
     }

@@ -23,6 +23,8 @@ export function CameraView() {
   const probeStatus = useSessionStore((state) => state.probeStatus)
   const capability = useSessionStore((state) => state.capability)
   const videoResolution = useSessionStore((state) => state.videoResolution)
+  const landmarksDetected = useSessionStore((state) => state.landmarksDetected)
+  const landmarkVisibility = useSessionStore((state) => state.landmarkVisibility)
   const frameStats = useSessionStore((state) => state.frameStats)
   const gatewayStatus = useSessionStore((state) => state.gatewayStatus)
   const error = useSessionStore((state) => state.error)
@@ -105,6 +107,11 @@ export function CameraView() {
               seq {frameStats.seq} · {frameStats.fps.toFixed(1)}fps
             </span>
           )}
+          <span>
+            {landmarksDetected} lm
+            {landmarkVisibility &&
+              ` · vis ${landmarkVisibility.min.toFixed(2)}–${landmarkVisibility.max.toFixed(2)}`}
+          </span>
           {videoResolution && (
             <span>
               {videoResolution.width}×{videoResolution.height}
