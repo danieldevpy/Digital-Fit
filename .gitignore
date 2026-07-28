@@ -27,6 +27,11 @@ eval/corpus/**/*.mov
 eval/out/
 eval/models/*.task
 data/
+# Corpus de keypoints gravado pelo dataset-writer (SPEC-010): sai da maquina por rsync,
+# nunca pelo git. A pasta em si e versionada (vazia) de proposito: se o bind mount do compose
+# a criar, ela nasce dona do root e o host precisa de sudo para ler o proprio corpus.
+dataset/*
+!dataset/.gitkeep
 *.parquet
 
 # Editores / SO

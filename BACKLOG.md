@@ -37,7 +37,7 @@
 | T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | done |
 | T-019 | Baseline/calibração no countdown (mediana 1s); FSM NÃO usa baseline no divisor — ver Descobertas | 004 | done |
 | T-020 | report-builder: consolidação + `SessionResult` no Postgres + tela de relatório | 010 | done |
-| T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | todo |
+| T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | done |
 | T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | todo |
 | T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness | 012 | todo |
 | T-041 | `evalctl replay --ws`: injetar keypoints gravados via gateway (integração + carga sintética) | 012 | todo |
@@ -310,3 +310,26 @@
   `web/public/models/pose_landmarker_lite.task` (~5,5 MB) são gerados por `npm run setup`
   e ignorados via `web/.gitignore`. Clone novo precisa de `npm install && npm run setup`
   (ou só `npm run dev`, que roda o setup sozinho) antes de abrir o app.
+- **[A/T-021] A coluna `degraded` do dataset é sempre `false`.** O contrato do `pose.frame`
+  tem o campo, mas nenhum produtor o preenche: quem calcula degradação é o `Normalizer`
+  dentro do analysis-worker (SPEC-006, item 4), e esse resultado não volta para o evento. O
+  cliente edge (`useEdgePipeline.ts`) e o pose-worker mandam só `landmarks`. Consequência: o
+  corpus não carrega a máscara de qualidade, e quem treinar precisa derivá-la das colunas
+  `_v`. Opções: (a) o produtor calcula visibilidade das âncoras antes de enviar — barato, é
+  uma média de 6 números; (b) a análise reemite o frame marcado, o que dobra o tráfego do
+  stream; (c) aceitar e documentar (feito em `docs/DATASET.md`). Proposta: **(a)**, como task
+  nova, porque `degraded` também é o que faz a FSM congelar e hoje ela nunca congela por essa
+  via.
+- **[A/T-021] Duas réplicas de dataset-writer partiriam a sessão ao meio.** O consumer group
+  distribui frames entre consumidores, e cada um bufferiza por conta própria: a mesma sessão
+  sairia como dois arquivos parciais com o mesmo nome (o segundo sobrescrevendo o primeiro).
+  Fixado em `replicas: 1` no compose de produção, com o motivo escrito lá. Escalar de verdade
+  exige particionar por sessão (ex.: um stream por hash de `session_id`) ou consolidar os
+  arquivos depois — nenhum dos dois é problema enquanto uma réplica der conta de 15 fps.
+- **[A/T-021] O corpus não sabe se a sessão foi boa.** O Parquet guarda keypoints e o rótulo
+  do exercício, mas não o desfecho (reps contadas, motivo do fim, warnings de cena) — isso
+  vive no `SessionResult`, no Postgres, ligado pelo `session_id`. Para treinar classificador
+  basta o que está no arquivo; para *filtrar* o conjunto de treino ("só sessões com scene
+  score ≥ X") vai ser preciso juntar as duas fontes. A SPEC-010 já prevê isso na Fase
+  Evolução ("Filtro de qualidade do dataset"); registrado aqui só para que a junção não seja
+  descoberta na hora do treino.

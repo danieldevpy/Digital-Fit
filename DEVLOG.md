@@ -5,6 +5,56 @@
 
 ---
 
+## 2026-07-28 · T-021 — dataset-writer (Parquet por sessão + schema documentado)
+
+- Entregue: `workers/dataset_writer/` (`collector.py` puro, `parquet.py` com o schema,
+  `main.py` com o loop); extra `dataset` (pyarrow) e imagem própria
+  (`docker/dataset-writer.Dockerfile`); serviço no compose de dev e de prod;
+  `docs/DATASET.md` (o "schema documentado" do critério 3); `tests/test_dataset_writer.py`
+  (21 testes).
+- **Lê dois streams, e não dá para escolher um.** Os frames vivem em `pose.frames`, mas o
+  `session.completed` autoritativo é emitido pelo analysis-worker em `events.analysis` — ler
+  só o primeiro perderia toda sessão encerrada pelo timer dos 30 s, que é o caso normal. Como
+  os dois são independentes, o encerramento pode ultrapassar os últimos frames: daí a
+  **carência de 1,5 s** antes de fechar o arquivo. Sem ela a cauda de cada série sumiria em
+  silêncio, e um corpus com o fim de todo exercício faltando é pior que um corpus menor.
+- **Ack imediato, ao contrário do report-builder.** Lá as mensagens ficam pendentes até o
+  relatório estar no banco. Aqui isso seria teatro: `pose.frames` é aparado por `MAXLEN ~5000`
+  (~11 sessões) e entrada aparada some do stream mesmo continuando no PEL — o restart
+  reencontraria pendências vazias e acharia que se protegeu. O dataset é best-effort por
+  construção, e a spec pede dele só que o arquivo seja legível.
+- Decisões:
+  - **O dataset guarda o dado de entrada, não keypoints canônicos.** A spec diz "sequências
+    normalizadas" e era tentador aplicar a SPEC-006 aqui. Mas assar a canonicalização de hoje
+    no arquivo congelaria `mincutoff`/`beta` dentro do corpus: mexer nos filtros amanhã
+    invalidaria tudo que já foi gravado. Landmarks 0–1 no frame são reversíveis; normalização
+    é reproduzível a partir deles, e continua sendo decisão revisável.
+  - **Formato longo, 138 colunas** (`nose_x`… `right_foot_index_v`), `float32`, zstd, uma
+    linha por frame. `df[COORD_COLUMNS].to_numpy()` já é a matriz `(n_frames, 132)` que um
+    modelo temporal consome; uma coluna de listas custaria um `explode` em todo notebook.
+  - **`session_id` entra como coluna**, além do nome do arquivo — não está na lista da spec e
+    entra de propósito: um treino concatena centenas de arquivos e sem isso não há como dizer
+    onde uma sequência termina.
+  - **Sessão abandonada é gravada, não descartada** — o oposto do report-builder. Um relatório
+    de sessão que não terminou seria errado; keypoints continuam sendo keypoints. Pelo mesmo
+    motivo o SIGTERM faz `drain()`: deploy no meio da captura não pode virar sessão perdida.
+  - **Escrita atômica** (`.tmp` + `os.replace`): crash no meio da escrita deixa o arquivo
+    anterior intacto em vez de um Parquet truncado que só explodiria meses depois, dentro de
+    um treino.
+  - `RedisBus.consume` ganhou `block_ms=0` = **não bloquear** (no Redis, `BLOCK 0` bloqueia
+    para sempre). É o que permite ler dois streams na mesma volta sem dobrar a latência
+    ociosa. Tem teste com fakeredis: se a tradução se perder, o teste trava — melhor que o
+    processo travar em produção.
+- Gates: ruff + format limpos, pytest **466** verde (+21), `npm run e2e` 3/3 contra a stack
+  real. No disco, sessões de verdade: 320 frames × 138 colunas lidas com `pandas.read_parquet`,
+  `seq` contíguo de 0 a 141 nas três sessões do E2E (nenhum frame perdido), metadados
+  `schema_version=1` no arquivo, ~725 B/frame.
+- Pendências geradas: 3 itens em "Descobertas" (`degraded` sempre `false` porque nenhum
+  produtor o preenche; duas réplicas partiriam a sessão ao meio; o corpus não carrega o
+  desfecho da sessão, que vive no Postgres).
+
+---
+
 ## 2026-07-28 · T-020 — relatório da sessão (consolidação + Postgres + tela)
 
 - Entregue: `session.report.ready` no contrato; `workers/report_builder/builder.py` (puro);

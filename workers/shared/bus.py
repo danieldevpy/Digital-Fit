@@ -37,7 +37,9 @@ class EventBus(Protocol):
 
     def consume(
         self, stream: Stream, *, group: str, consumer: str, block_ms: int = 1000, count: int = 50
-    ) -> list[tuple[str, Envelope]]: ...
+    ) -> list[tuple[str, Envelope]]:
+        """`block_ms=0` = leitura não bloqueante (ver `RedisBus.consume`)."""
+        ...
 
     def consume_pending(
         self, stream: Stream, *, group: str, consumer: str, count: int = 100
@@ -95,9 +97,19 @@ class RedisBus:
     def consume(
         self, stream: Stream, *, group: str, consumer: str, block_ms: int = 1000, count: int = 50
     ) -> list[tuple[str, Envelope]]:
-        """Lê o próximo lote. Envelope inválido é logado e descartado, não derruba o loop."""
+        """Lê o próximo lote. Envelope inválido é logado e descartado, não derruba o loop.
+
+        `block_ms=0` significa **não bloquear** — devolve o que houver e volta na hora. Cuidado
+        ao ler isto como o Redis: lá `BLOCK 0` bloqueia para *sempre*, então o zero é traduzido
+        para "sem BLOCK". Quem lê dois streams na mesma volta precisa disso: bloquear nos dois
+        dobraria a latência de cada volta ociosa.
+        """
         resposta = self._client.xreadgroup(
-            group, consumer, {stream.value: ">"}, count=count, block=block_ms
+            group,
+            consumer,
+            {stream.value: ">"},
+            count=count,
+            block=block_ms if block_ms > 0 else None,
         )
         eventos: list[tuple[str, Envelope]] = []
         for _, mensagens in resposta or []:

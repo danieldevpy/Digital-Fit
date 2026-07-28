@@ -160,6 +160,32 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  dataset-writer:
+    # SPEC-010: o corpus de keypoints que financia o ML futuro. Fora do hot path por
+    # construcao — se este servico cair, nenhuma sessao deixa de funcionar; so para de gravar.
+    build:
+      context: .
+      dockerfile: docker/dataset-writer.Dockerfile
+    working_dir: /app
+    command: python -m workers.dataset_writer.main
+    # PODE escalar (o ack e imediato, nao ha PEL a recuperar), mas nao adianta: uma replica da
+    # conta de 15 fps por sessao com folga, e duas dividiriam os frames de uma MESMA sessao
+    # entre dois buffers — dois arquivos parciais no lugar de um inteiro.
+    deploy:
+      replicas: 1
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATASET_DIR: /data/dataset
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      # Bind mount de proposito: o corpus e o ativo que sai da VPS por rsync. Num volume
+      # nomeado ele ficaria refem do Docker daquela maquina.
+      - ${DATASET_DIR:-./dataset}:/data/dataset
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   pose-worker:
     build:
       context: .

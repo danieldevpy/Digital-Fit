@@ -148,6 +148,28 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  dataset-writer:
+    # SPEC-010: bufferiza pose.frames por sessao e grava dataset/{data}/{session_id}.parquet.
+    # Imagem propria (pyarrow, ~100 MB) para nao engordar api/gateway/analysis.
+    build:
+      context: .
+      dockerfile: docker/dataset-writer.Dockerfile
+    working_dir: /app
+    command: python -m workers.dataset_writer.main
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATASET_DIR: /data/dataset
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./workers:/app/workers
+      # Bind mount e nao volume nomeado: o corpus existe para ser LIDO por notebook e por
+      # script de treino, que rodam no host. Dentro de um volume ele so sairia por `docker cp`.
+      - ./dataset:/data/dataset
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   pose-worker:
     # Modo cloud (SPEC-005): frames.raw -> MediaPipe CPU -> pose.frame.
     # Imagem propria (MediaPipe + OpenCV, ~250 MB) para nao engordar api/gateway/analysis.

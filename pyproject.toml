@@ -38,6 +38,13 @@ pose = [
     "opencv-python-headless>=4.10",
 ]
 
+# Runtime do `dataset-writer` (SPEC-010, T-021). Extra proprio pela mesma razao do `pose`:
+# pyarrow pesa ~100 MB instalado e so um servico grava Parquet — api, gateway e
+# analysis-worker nao tem o que fazer com ele.
+dataset = [
+    "pyarrow>=18.0",
+]
+
 # Bancada de avaliacao (SPEC-012): roda local, sem Docker. Mesmas dependencias do extra
 # `pose` (e pela mesma razao: o modelo e o decoder tem de ser identicos aos do worker).
 eval = [
@@ -55,6 +62,10 @@ dev = [
     "ruff>=0.9",
     # Executa Lua de verdade: e o que torna o teste do semaforo (T-017) significativo.
     "fakeredis[lua]>=2.26",
+    # O criterio 3 da SPEC-010 diz "legivel por pandas", entao o teste le com pandas de
+    # verdade — pyarrow sozinho verificaria uma promessa mais fraca que a feita.
+    "pandas>=2.2",
+    "pyarrow>=18.0",
 ]
 
 # Monorepo: nao ha pacote a construir, apenas pastas de servicos.
