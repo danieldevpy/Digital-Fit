@@ -5,6 +5,7 @@
 #   ./scripts/prod.sh secrets   # preenche os segredos vazios do .env.prod
 #   ./scripts/prod.sh up        # build + migrate + start
 #   ./scripts/prod.sh nginx     # imprime o server block de referencia
+#   ./scripts/prod.sh modelo    # baixa o modelo de pose e religa o pose-worker
 #   ./scripts/prod.sh ps | logs | down | restart
 #
 # TLS, dominio e o nginx da frente sao seus. Este script cuida do que roda atras deles.
@@ -180,12 +181,49 @@ verifica_portas() {
 }
 
 # --------------------------------------------------------------------------------------
+# Modelo de pose
+# --------------------------------------------------------------------------------------
+
+MODELO="$RAIZ/eval/models/pose_landmarker_lite.task"
+
+# O `.task` e gitignorado (5,5 MB de binario nao entram no repo) e o pose-worker o recebe
+# por bind mount, nao assado na imagem. Logo: num clone novo na VPS o arquivo simplesmente
+# nao existe, o Docker cria o diretorio vazio no lugar, e o pose-worker entra em crash loop.
+#
+# O sintoma engana. O `up` termina verde, api/gateway/web sobem, o modo edge funciona
+# inteiro — so o celular que cai em cloud fica sem contagem, e a causa esta num container
+# que reinicia calado fora do caminho de quem esta testando.
+garante_modelo() {
+  if [[ -f "$MODELO" ]] && [[ "$(stat -c%s "$MODELO" 2>/dev/null || echo 0)" -gt 1000000 ]]; then
+    return 0
+  fi
+
+  [[ -e "$MODELO" ]] && amarelo "modelo de pose truncado — baixando de novo"
+
+  command -v python3 >/dev/null 2>&1 ||
+    morre "modelo de pose ausente e nao ha python3 para baixar.
+Copie um pose_landmarker_lite.task para $MODELO"
+
+  verde "==> baixando o modelo de pose (5,5 MB, so na primeira vez)"
+  # Reusa o `download_model` do contrato de proposito: a URL do modelo tem UMA fonte de
+  # verdade (workers/shared/pose_model.py), e edge, cloud e bancada dependem de ser o mesmo
+  # arquivo. So stdlib la dentro, entao o python3 do sistema basta — sem uv, sem venv.
+  PYTHONPATH="$RAIZ" python3 -c \
+    'from workers.shared.pose_model import download_model; print(download_model())' ||
+    morre "download do modelo falhou. Baixe manualmente para $MODELO"
+
+  [[ "$(stat -c%s "$MODELO" 2>/dev/null || echo 0)" -gt 1000000 ]] ||
+    morre "o modelo baixado saiu truncado: $MODELO"
+}
+
+# --------------------------------------------------------------------------------------
 # Comandos
 # --------------------------------------------------------------------------------------
 
 cmd_up() {
   carrega_ambiente
   verifica_portas
+  garante_modelo
 
   verde "==> build (o web e reconstruido sempre: VITE_API_URL entra no bundle)"
   compose build
@@ -216,6 +254,18 @@ cmd_restart() { carrega_ambiente --tolerante; shift || true; compose restart "$@
 # `stop` para os containers sem remover nada (o `down` remove containers e rede).
 cmd_stop()    { carrega_ambiente --tolerante; shift || true; compose stop "$@"; }
 cmd_start()   { carrega_ambiente --tolerante; shift || true; compose start "$@"; }
+
+# Conserto de uma stack ja no ar que subiu sem o modelo: baixa e religa so o pose-worker.
+# Sem isto o caminho seria um `up` inteiro — rebuild de tudo para trocar um arquivo montado.
+cmd_modelo() {
+  carrega_ambiente --tolerante
+  garante_modelo
+  verde "modelo em $MODELO"
+  if esta_rodando pose-worker || [[ -n "$(compose ps -q pose-worker 2>/dev/null)" ]]; then
+    verde "==> religando o pose-worker"
+    compose restart pose-worker
+  fi
+}
 
 cmd_nginx() {
   carrega_ambiente
@@ -277,6 +327,7 @@ Digital Fit — producao
 
   ./scripts/prod.sh secrets          preenche os segredos vazios do .env.prod
   ./scripts/prod.sh up               build + migrate + start
+  ./scripts/prod.sh modelo           baixa o modelo de pose e religa o pose-worker
   ./scripts/prod.sh nginx            server block de referencia
   ./scripts/prod.sh ps               estado dos servicos
   ./scripts/prod.sh logs [servico]   segue os logs
@@ -305,6 +356,7 @@ case "${1:-ajuda}" in
   ps)      cmd_ps ;;
   logs)    cmd_logs "$@" ;;
   restart) cmd_restart "$@" ;;
+  modelo)  cmd_modelo ;;
   nginx)   cmd_nginx ;;
   ajuda|help|-h|--help) cmd_ajuda ;;
   *) vermelho "comando desconhecido: $1"; echo; cmd_ajuda; exit 1 ;;

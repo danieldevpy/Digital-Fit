@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-07-28 · Produção na VPS — dois bugs que só existem fora da máquina de dev
+
+Reportados pelo Daniel a partir do `docker ps` da VPS: `pose-worker` em `Restarting (1)` e
+`api` em `Up (unhealthy)`. Causas distintas, ambas invisíveis em dev.
+
+- **`pose-worker` em crash loop: o modelo não existe na VPS.** `eval/models/*.task` é
+  gitignorado (5,5 MB de binário) e o compose de prod monta `./eval/models` por bind mount —
+  num clone novo o Docker cria o diretório vazio e `resolve_model_path` estoura.
+  - O sintoma engana: o `up` termina verde, api/gateway/web sobem, o modo **edge funciona
+    inteiro**. Só o celular que cai em cloud fica sem contagem, e a causa está num container
+    que reinicia calado, fora do caminho de quem está testando.
+  - Corrigido em `scripts/prod.sh`: `garante_modelo()` roda como preflight do `up` (junto de
+    `verifica_portas`) e baixa o `.task` quando falta ou está truncado. Reusa o
+    `download_model` do contrato de propósito — a URL do modelo tem UMA fonte de verdade, e
+    edge/cloud/bancada dependem de ser o mesmo arquivo. Só stdlib lá dentro, então o
+    `python3` do sistema basta: sem `uv`, sem venv na VPS.
+  - Novo comando `./scripts/prod.sh modelo`: baixa e religa só o `pose-worker`, para
+    consertar uma stack já no ar sem rebuild de tudo.
+  - Verificado no caminho real: modelo removido → baixado, `cmp` byte a byte igual ao da
+    bancada; modelo truncado → detectado e rebaixado.
+- **`api` unhealthy com a api perfeitamente viva: o healthcheck não mandava `Host`.** Em prod
+  `ALLOWED_HOSTS` é só o `DOMAIN`; o healthcheck fazia `GET http://127.0.0.1:8000/healthz`,
+  que chega com `Host: 127.0.0.1` e leva 400 (DisallowedHost).
+  - Medido antes de mexer: `127.0.0.1 -> 400`, `fit.exemplo.com -> 200`.
+  - Escolhi mandar o `Host` certo em vez de afrouxar `ALLOWED_HOSTS`. Acrescentar `127.0.0.1`
+    resolveria o sintoma e desfaria a propriedade que a T-023 verificou de propósito (Host
+    estranho recusado) — barato de fazer, caro de perceber depois.
+  - Verificado no container real (projeto `digital-fit-hc`, porta alternativa): `healthy`,
+    `exit=0`; e o comando antigo, rodado dentro do mesmo container, continua dando
+    `HTTP Error 400`.
+- Pendência gerada: 1 item em "Descobertas" (nenhum outro bind mount de prod depende de
+  arquivo gitignorado — `./eval/models` era o único).
+
+---
+
 ## 2026-07-28 · T-019 — calibração no countdown (e um critério de spec derrubado por medição)
 
 - Entregue: `workers/analysis_worker/calibration.py`, `session.calibrated` no contrato,

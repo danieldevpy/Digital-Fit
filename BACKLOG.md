@@ -87,6 +87,12 @@
   paridade edge×bancada, mas exige um arquivo de modelo `.task` (5,5 MB, fora do git). Baixar
   uma vez com `python -m eval.evalctl fetch-model`. Quando o `pose-worker` da T-016 nascer, tem
   de usar o MESMO modelo e o MESMO caminho de resolução (`DIGITALFIT_POSE_MODEL`).
+- **[A/T-023] Artefato gitignorado + bind mount = falha só em produção**: o `pose-worker` de
+  prod monta `./eval/models`, e o `.task` não está no git — num clone novo da VPS o serviço
+  entra em crash loop enquanto o resto da stack sobe verde (edge funciona; só o cloud morre).
+  Resolvido com o preflight `garante_modelo()` no `scripts/prod.sh`. Hoje `./eval/models` é o
+  **único** bind mount de prod; qualquer novo que dependa de arquivo fora do git precisa do
+  mesmo tratamento — ou a falha volta a aparecer só na VPS, calada.
 - **[A/T-037] `uv sync` sem extras remove o Django**: o fluxo local é
   `uv sync --extra server` (e `--extra eval` para a bancada). README e CI atualizados; a CI
   não instala o extra `eval` de propósito (MediaPipe pesa ~200 MB).
