@@ -19,7 +19,11 @@ export interface SessionTicket {
   expires_at: number
 }
 
-/** Fase 0 é edge only: pedido de cloud volta com este `mode` e sem sessão criada. */
+/**
+ * Pedido de cloud sem vaga no semáforo (`slots:cloud = 3`, SPEC-009) volta com este `mode`,
+ * e a sessão não chega a nascer. É condição temporária — três vagas ocupadas agora —, não
+ * ausência de recurso: a mesma tentativa daqui a 30s tende a passar.
+ */
 export const DENIED_CLOUD = 'denied_cloud'
 
 export class AdmissionError extends Error {

@@ -28,6 +28,7 @@ from workers.shared.events import (
     Stream,
     make_envelope,
 )
+from workers.shared.slots import CloudSlots
 
 __all__ = [
     "DEFAULT_DURATION_S",
@@ -127,18 +128,33 @@ def create_session(
     now: int | None = None,
     redis_client=None,
     event_bus=None,
+    slots=None,
 ) -> SessionTicket:
     """Admite a sessão: registra em Redis, publica `session.started` e devolve o ticket.
 
-    Fase 0 é **edge only**: pedido de cloud é recusado com `mode: "denied_cloud"` porque não
-    existe `pose-worker` nem semáforo de slots ainda (T-016/T-017). O cliente trata isso como
-    indisponibilidade momentânea, exatamente como a SPEC-009 previu.
+    Edge entra sempre (sem limite na Fase Inicial). Cloud depende de vaga no semáforo
+    (`slots:cloud = 3`, SPEC-009): sem vaga, a resposta é `mode: "denied_cloud"` e o cliente
+    trata como indisponibilidade momentânea.
     """
     agora = now if now is not None else int(time.time())
     session_id = str(uuid.uuid4())
-    modo = Mode.EDGE if request.requested_mode is Mode.EDGE else None
     token = issue_token(session_id, ttl_s=ttl_s, now=agora)
     expires_at = agora + ttl_s
+
+    cliente = redis_client if redis_client is not None else bus().client
+
+    # A vaga é tomada ANTES de a sessão existir. Registrar primeiro e pedir vaga depois
+    # deixaria uma janela em que a sessão está no Redis, o token vale, e o WS abriria para
+    # uma sessão que nunca foi admitida.
+    if request.requested_mode is Mode.EDGE:
+        modo = Mode.EDGE
+    else:
+        semaforo = slots if slots is not None else CloudSlots(cliente)
+        modo = (
+            Mode.CLOUD
+            if semaforo.acquire(session_id, ttl_ms=ttl_s * 1000, now_ms=agora * 1000)
+            else None
+        )
 
     ticket = SessionTicket(
         session_id=session_id,
@@ -153,7 +169,6 @@ def create_session(
         # Sessão negada não nasce: sem registro, sem evento, sem slot ocupado.
         return ticket
 
-    cliente = redis_client if redis_client is not None else bus().client
     cliente.hset(
         session_key(session_id),
         mapping={

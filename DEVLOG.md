@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-07-28 · T-017 — semáforo de slots cloud (o modo cloud passa a existir de verdade)
+
+- Entregue: `workers/shared/slots.py` (`CloudSlots`), admissão consultando o semáforo,
+  `analysis-worker` devolvendo a vaga em todos os finais, `tests/test_slots.py` (10 testes) e
+  testes de liberação no `test_analysis_worker.py`. `fakeredis[lua]` nas dev deps.
+- Decisões:
+  - **ZSET com expiração por membro, não `INCR`/`DECR`.** A nota técnica da SPEC-009 sugeria
+    contador. Contador atende ao critério 1 (negar a 4ª sessão) mas não ao 2, que exige
+    liberar a vaga inclusive em crash de worker: quem crasha não decrementa, e depois de três
+    crashes o modo cloud estaria esgotado para sempre, sem nada em log dizendo por quê. Com
+    score = expiração e varredura a cada operação, a vaga do morto volta sozinha.
+  - **Lua porque varrer-conferir-inserir é um passo só.** Entre o `ZCARD` e o `ZADD` de dois
+    processos cabem duas admissões para a mesma vaga.
+  - **Idempotente por `session_id`**: retry de rede não pode virar vazamento de vaga.
+  - **Quem libera é o analysis-worker**, não a API: é ele que sabe quando a sessão acabou de
+    verdade, inclusive por timer e por `no_data` — caminhos que nunca passam pela API.
+  - **Libera sem perguntar o modo.** Remover membro ausente é no-op, então o worker chama
+    `release` para toda sessão. A alternativa — guardar o modo e checá-lo aqui — é o tipo de
+    detalhe que se esquece num caminho de erro e vaza vaga para sempre.
+  - **A vaga é tomada antes de a sessão existir.** Registrar primeiro deixaria uma janela com
+    token válido para uma sessão que nunca foi admitida.
+  - **Falha ao liberar não impede o encerramento**: o score recolhe a vaga depois, e travar o
+    fim da sessão deixaria o usuário sem o resultado do treino.
+- Um teste antigo caiu com razão: `test_pedido_de_cloud_e_negado_na_fase_0` afirmava que cloud
+  é sempre recusado. Virou três testes — cloud com vaga é admitido, sem vaga é negado, e edge
+  nunca consulta o semáforo (o modo padrão do produto não pode depender da capacidade cloud).
+- Verificação ao vivo contra a stack: quatro `POST /api/sessions` seguidos com
+  `requested_mode: cloud` → `cloud, cloud, cloud, denied_cloud`, com `ZCARD slots:cloud == 3`.
+  Passados 10s as três fecharam por `no_data` (o caminho do **timer do servidor**, que não
+  passa por `session.completed` externo), o ZSET voltou a 0 e uma nova sessão cloud entrou.
+- Gates: ruff + format limpos, pytest 396 verde.
+- Pendências geradas (2 em "Descobertas"): a nota técnica da SPEC-009 sobre `INCR`/`DECR` ficou
+  desatualizada e vale corrigir na próxima passada; e o registro de por que a liberação mora no
+  worker.
+
+---
+
 ## 2026-07-28 · T-016 — pose-worker: `frames.raw` → MediaPipe CPU → `pose.frame`
 
 - Entregue: `workers/pose_worker/` (extractor + router + main), `workers/shared/pose_model.py`,

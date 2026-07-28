@@ -53,6 +53,8 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-django>=4.9",
     "ruff>=0.9",
+    # Executa Lua de verdade: e o que torna o teste do semaforo (T-017) significativo.
+    "fakeredis[lua]>=2.26",
 ]
 
 # Monorepo: nao ha pacote a construir, apenas pastas de servicos.

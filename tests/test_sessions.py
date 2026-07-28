@@ -150,15 +150,52 @@ def test_sem_probe_nao_ha_capability() -> None:
     assert bus.published_of(EventType.SESSION_CAPABILITY) == []
 
 
-def test_pedido_de_cloud_e_negado_na_fase_0() -> None:
-    """Fase 0 é edge only: sem pose-worker, cloud não pode ser atendido (SPEC-009)."""
+class SemaforoFalso:
+    """Semáforo com resposta fixa — o comportamento real tem testes próprios em test_slots."""
+
+    def __init__(self, *, concede: bool) -> None:
+        self.concede = concede
+        self.pedidos: list[str] = []
+
+    def acquire(self, session_id: str, *, ttl_ms: int, now_ms: int | None = None) -> bool:
+        del ttl_ms, now_ms
+        self.pedidos.append(session_id)
+        return self.concede
+
+
+def test_cloud_com_vaga_e_admitido() -> None:
+    """Desde a T-017 cloud é atendido quando há slot (SPEC-009)."""
+    pedido = SessionRequest(exercise="jumping_jack", requested_mode=Mode.CLOUD)
+    semaforo = SemaforoFalso(concede=True)
+
+    ticket, redis, bus = criar(pedido=pedido, slots=semaforo)
+
+    assert ticket.mode == Mode.CLOUD.value
+    assert semaforo.pedidos == [ticket.session_id]
+    assert redis.hashes, "sessao admitida nasce no Redis"
+    assert bus.published, "sessao admitida publica session.started"
+
+
+def test_cloud_sem_vaga_e_negado() -> None:
+    """Sem slot livre: `denied_cloud`, e a sessão não chega a existir (SPEC-009)."""
     pedido = SessionRequest(exercise="jumping_jack", requested_mode=Mode.CLOUD)
 
-    ticket, redis, bus = criar(pedido=pedido)
+    ticket, redis, bus = criar(pedido=pedido, slots=SemaforoFalso(concede=False))
 
     assert ticket.mode == DENIED_CLOUD
     assert redis.hashes == {}, "sessao negada nao nasce"
     assert bus.published == [], "sessao negada nao gera evento"
+
+
+def test_edge_nunca_consulta_o_semaforo() -> None:
+    # Edge não tem limite na Fase Inicial. Passar pelo semáforo aqui gastaria uma ida ao
+    # Redis por sessão e, pior, faria o modo padrão do produto depender da capacidade cloud.
+    semaforo = SemaforoFalso(concede=False)
+
+    ticket, _, _ = criar(slots=semaforo)
+
+    assert ticket.mode == Mode.EDGE.value
+    assert semaforo.pedidos == []
 
 
 def test_cada_sessao_tem_id_e_token_proprios() -> None:

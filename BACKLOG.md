@@ -33,7 +33,7 @@
 |---|---|---|---|
 | T-015 | Envio de `frame.raw` JPEG 320px @10fps quando modo cloud | 001/005 | done |
 | T-016 | pose-worker: consumer `frames.raw` → MediaPipe CPU → `pose.frame` (cgroup 1 vCPU) | 005 | done |
-| T-017 | Semáforo `slots:cloud=3` (Lua atômico) + liberação em todos os finais | 009 | todo |
+| T-017 | Semáforo `slots:cloud=3` (Lua atômico) + liberação em todos os finais | 009 | done |
 | T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | todo |
 | T-019 | Baseline/calibração no countdown (mediana 1s) + FSM usando baseline | 004 | todo |
 | T-020 | report-builder: consolidação + `SessionResult` no Postgres + tela de relatório | 010 | todo |
@@ -127,6 +127,16 @@
   mudar o environment do compose. Por isso o `prod.sh up` sempre reconstrói. Se um dia isso
   incomodar, a saída é o cliente ler a origem da própria página (same-origin) em vez de uma
   variável — hoje `apiBaseUrl()` cairia no default de `localhost:8000`.
+- **[A/T-017] Semáforo é ZSET com expiração por membro, não `INCR`/`DECR`**: a nota técnica da
+  SPEC-009 sugeria contador em Lua. Um contador atende ao critério 1 (negar a 4ª) mas **não**
+  ao 2, que exige liberar a vaga inclusive em crash de worker — quem crasha não decrementa, e
+  depois de três crashes o modo cloud estaria esgotado para sempre sem nada em log. Cada
+  sessão virou membro de um ZSET com score = expiração, e toda operação varre os vencidos. A
+  nota da spec ficou desatualizada; **vale atualizar a SPEC-009** na próxima passada por ela.
+- **[A/T-017] Quem devolve a vaga é o analysis-worker, não a API**: é ele que sabe quando a
+  sessão realmente acabou, inclusive por timer e por `no_data` — caminhos que nunca passam
+  pela API. E ele libera sem perguntar o modo da sessão (liberar vaga inexistente é no-op),
+  porque "lembrar de checar o modo" é o tipo de detalhe que se esquece num caminho de erro.
 - **[A/T-016] ~~Descarte por idade usava o relógio do CLIENTE~~ — RESOLVIDO, com correção da
   SPEC-005.** A nota técnica mandava medir a idade pelo `ts` do envelope, carimbado pelo
   navegador: um celular com relógio atrasado faria todo frame parecer velho e o worker

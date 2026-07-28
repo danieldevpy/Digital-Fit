@@ -355,3 +355,72 @@ def test_qualquer_motivo_de_fim_encerra_a_sessao(motivo: SessionEndReason) -> No
     _, router = rodar(envelope_started(), envelope_completed(reason=motivo))
 
     assert router.sessions == {}
+
+
+# --------------------------------------------------------------------------------------
+# Vaga cloud (T-017 / SPEC-009, critério 2)
+# --------------------------------------------------------------------------------------
+
+
+class SemaforoEspiao:
+    def __init__(self) -> None:
+        self.liberadas: list[str] = []
+
+    def release(self, session_id: str) -> bool:
+        self.liberadas.append(session_id)
+        return True
+
+
+@pytest.mark.parametrize(
+    "motivo",
+    [
+        SessionEndReason.COMPLETED,
+        SessionEndReason.TIMEOUT,
+        SessionEndReason.ABORTED,
+        SessionEndReason.NO_DATA,
+    ],
+)
+def test_vaga_cloud_e_liberada_em_todos_os_finais(motivo: SessionEndReason) -> None:
+    """Critério 2 da SPEC-009. Um caminho de fim esquecido come uma vaga para sempre."""
+    semaforo = SemaforoEspiao()
+    router = AnalysisRouter(slots=semaforo)
+
+    router.handle(envelope_started())
+    router.handle(envelope_completed(reason=motivo))
+
+    assert semaforo.liberadas == [SESSAO]
+
+
+def test_vaga_cloud_e_liberada_quando_o_timer_do_servidor_fecha() -> None:
+    # Este é o caminho que NÃO passa por `session.completed` vindo de fora: o worker decide
+    # sozinho, no `tick`. É o mais fácil de esquecer justamente por isso.
+    semaforo = SemaforoEspiao()
+    router = AnalysisRouter(slots=semaforo)
+    router.handle(envelope_started())
+
+    saidas = router.tick(now_wall_ms=_wall_ms_apos_o_prazo())
+
+    assert [e.type for e in saidas] == [EventType.SESSION_COMPLETED]
+    assert semaforo.liberadas == [SESSAO]
+
+
+def test_falha_ao_liberar_vaga_nao_impede_o_fim_da_sessao() -> None:
+    # O score de expiração do semáforo recolhe a vaga sozinho; travar o encerramento por
+    # causa disso deixaria o usuário sem o resultado do treino.
+    class SemaforoQuebrado:
+        def release(self, session_id: str) -> bool:
+            raise ConnectionError("redis fora")
+
+    router = AnalysisRouter(slots=SemaforoQuebrado())
+    router.handle(envelope_started())
+
+    saidas = router.handle(envelope_completed(reason=SessionEndReason.COMPLETED))
+
+    assert [e.type for e in saidas] == [EventType.SESSION_COMPLETED]
+    assert router.sessions == {}
+
+
+def _wall_ms_apos_o_prazo() -> int:
+    import time
+
+    return int(time.time() * 1000) + (DEFAULT_DURATION_S + 5) * 1000

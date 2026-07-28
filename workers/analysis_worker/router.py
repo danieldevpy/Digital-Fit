@@ -118,11 +118,30 @@ class SessionState:
 class AnalysisRouter:
     """Traduz eventos de entrada em eventos de análise, sem I/O."""
 
-    __slots__ = ("_now", "sessions")
+    __slots__ = ("_now", "sessions", "slots")
 
-    def __init__(self) -> None:
+    def __init__(self, *, slots=None) -> None:
         self.sessions: dict[str, SessionState] = {}
         self._now = 0
+        #: Semáforo de vagas cloud (SPEC-009). `None` nos testes e em qualquer contexto sem
+        #: Redis — a análise nunca depende dele para funcionar.
+        self.slots = slots
+
+    def _liberar_vaga(self, session_id: str) -> None:
+        """Devolve a vaga cloud da sessão encerrada.
+
+        Chamado para TODA sessão, sem perguntar o modo: liberar uma vaga que não existe é
+        no-op, e a alternativa — guardar o modo e lembrar de checá-lo aqui — é exatamente o
+        tipo de detalhe que se esquece num caminho de erro e vaza vaga para sempre.
+        """
+        if self.slots is None:
+            return
+        try:
+            self.slots.release(session_id)
+        except Exception:
+            # Falha ao liberar não pode impedir o encerramento da sessão: o score de
+            # expiração do semáforo recolhe a vaga sozinho mais tarde.
+            logger.exception("falha ao liberar vaga cloud de %s", session_id)
 
     # ------------------------------------------------------------------ entrada
 
@@ -214,6 +233,7 @@ class AnalysisRouter:
         estado = self.sessions.pop(envelope.session_id, None)
         if estado is None:
             return []
+        self._liberar_vaga(envelope.session_id)
         try:
             motivo = SessionCompleted.from_data(envelope.data).reason
         except EventValidationError:
@@ -248,6 +268,7 @@ class AnalysisRouter:
             if motivo is None:
                 continue
             self.sessions.pop(session_id, None)
+            self._liberar_vaga(session_id)
             reps = int(estado.analyzer.summary()["reps"])
             logger.info(
                 "sessao %s encerrada pelo servidor (%s) com %s reps", session_id, motivo.value, reps

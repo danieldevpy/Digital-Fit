@@ -19,6 +19,7 @@ from types import FrameType
 from workers.analysis_worker.router import AnalysisRouter
 from workers.shared.bus import EventBus, RedisBus
 from workers.shared.events import Stream
+from workers.shared.slots import CloudSlots
 
 __all__ = ["main", "run"]
 
@@ -97,9 +98,12 @@ def main(argv: list[str] | None = None) -> int:
     bus = RedisBus.from_url(redis_url)
     shutdown = Shutdown()
     shutdown.install()
+    # É este worker que sabe quando a sessão realmente acabou — inclusive por timer e por
+    # falta de dados. Por isso é ele quem devolve a vaga cloud (SPEC-009, critério 2).
+    router = AnalysisRouter(slots=CloudSlots(bus.client))
     logger.info("analysis-worker de pe (%s) lendo %s", consumer, Stream.POSE_FRAMES.value)
     try:
-        run(bus, consumer=consumer, shutdown=shutdown)
+        run(bus, consumer=consumer, router=router, shutdown=shutdown)
     finally:
         bus.close()
     logger.info("analysis-worker encerrado")
