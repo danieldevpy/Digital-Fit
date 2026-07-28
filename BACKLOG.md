@@ -112,6 +112,17 @@
   host (o WS abre no **navegador**, então as URLs são as do host, não os nomes de serviço do
   compose). O download de 5,5 MB do modelo deixou de ser risco: `setup-mediapipe.mjs` procura
   em `DIGITALFIT_POSE_MODEL`, `../eval/models/` e `/models/` (bind mount) antes da rede.
+- **[A/T-001] `docker compose up` conflita com o `npm run dev` local na 5173**: quem já roda o
+  Vite na mão vê o serviço `web` falhar com `address already in use`, e o resto da stack sobe
+  normalmente — o erro parece grave e não é. Enquanto não há um perfil separado, o caminho é
+  `docker compose up -d` para a infra e o Vite na mão, **ou** só o compose. Vale um
+  `profiles: [web]` no serviço quando alguém encostar no arquivo.
+- **[A/T-014] Stack parcialmente morta engana o diagnóstico**: com `redis`/`api` fora e o
+  `gateway` de pé, o cliente mostra "API fora do ar" (correto) enquanto o `analysis-worker`
+  entra em crash loop de DNS (`Temporary failure in name resolution`) — dois sintomas
+  distantes da mesma causa. O worker não espera o redis voltar: morre e depende do restart
+  do Docker, e o backoff dele pode disparar antes do redis ficar `healthy`, exigindo um
+  `docker compose restart analysis-worker` a mais. Reconexão com espera é candidata a tarefa.
 - **[B/T-012] `scene.warning` não tem campo `message`.** O contrato manda só `code`,
   `severity` e `hint?`, e a SPEC-013 exige que o card do treinador exiba o aviso de cena com
   prioridade máxima. Como não há texto para mostrar, o cliente ficou com um mapa
