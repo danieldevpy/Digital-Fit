@@ -1,44 +1,53 @@
 // Gravador de fixtures (T-007): salva a sequência de keypoints de uma sessão em
-// JSON para o Agente A usar nos testes de normalização (SPEC-006) e FSM (SPEC-007).
+// JSON para os testes do núcleo (normalização SPEC-006, FSM SPEC-007).
 //
-// FORMATO — nada aqui é evento novo:
-//   `events` é uma lista de envelopes `pose.frame` do contrato, exatamente como
-//   sairiam no WebSocket. O `RawFrame(ts, seq, landmarks)` do lado Python lê
-//   direto de `ts`, `seq` e `data.landmarks`.
+// FORMATO — não é escolha minha: é o `schema: 1` de `workers/shared/keypoints.py`,
+// que o Agente A declara como "o mesmo formato que o gravador do cliente (T-007)
+// escreve e que o `evalctl run --save-keypoints` exporta. Um formato, três
+// produtores". `load_fixture()` do lado Python lê o que sai daqui sem conversão.
 //
-// O resto do arquivo é embalagem de fixture (rótulo, device, resolução), não
-// protocolo: por isso vive FORA de `events`, e não como campo inventado dentro
-// de um envelope.
-import {
-  EventType,
-  Source,
-  makeEnvelope,
-  toLandmarkTuples,
-  type Envelope,
-  type SessionCapabilityData,
-} from '../lib/events'
+// `landmarks` são os CRUS (0–1 no frame), nunca normalizados — normalização é
+// código que muda, e a fixture existe justamente para medir mudança de código.
 import type { FrameTick } from '../capture/frameClock'
+import type { LandmarkTuple, SessionCapabilityData } from '../lib/events'
+import { toLandmarkTuples } from '../lib/events'
 import type { Landmark } from '../pose/skeleton'
 
-export const FIXTURE_FORMAT = 'digital-fit/pose-fixture'
-export const FIXTURE_VERSION = 1
+export const FIXTURE_SCHEMA = 1
 
-export interface FixtureMeta {
-  /** Rótulo curto do que foi gravado, ex.: "polichinelo-20-limpos". */
-  label: string
-  notes: string
+/** Casas decimais por coordenada — mesmo `_PRECISION` do lado Python. */
+const PRECISION = 5
+
+export interface FixtureFrame {
+  ts: number
+  seq: number
+  landmarks: LandmarkTuple[]
 }
 
-export interface PoseFixture extends FixtureMeta {
-  format: typeof FIXTURE_FORMAT
-  version: typeof FIXTURE_VERSION
-  recorded_at: string
-  session_id: string
-  /** Payload `session.capability` do contrato — device e modo em que gravou. */
-  capability: SessionCapabilityData | null
-  video: { width: number; height: number } | null
-  target_fps: number | null
-  events: Envelope<typeof EventType.POSE_FRAME>[]
+export interface KeypointFixture {
+  schema: typeof FIXTURE_SCHEMA
+  label: string
+  exercise: string
+  expected_reps: number | null
+  source: string
+  fps: number | null
+  notes: string | null
+  /** Campo livre do schema: onde cabe o contexto do device sem inventar chave. */
+  conditions: Record<string, unknown>
+  frames: FixtureFrame[]
+}
+
+export interface FixtureMeta {
+  label: string
+  notes?: string | null
+  /** Quantas repetições o gravador fez de fato — o rótulo do teste. */
+  expected_reps?: number | null
+}
+
+export interface FixtureContext {
+  capability?: SessionCapabilityData | null
+  video?: { width: number; height: number } | null
+  fps?: number | null
 }
 
 export interface FixtureRecorder {
@@ -50,16 +59,21 @@ export interface FixtureRecorder {
   clear(): void
   /** Ignorado silenciosamente quando não está gravando — o loop não precisa saber. */
   addFrame(tick: FrameTick, landmarks: readonly Landmark[]): void
-  setContext(context: Partial<Pick<PoseFixture, 'capability' | 'video' | 'target_fps'>>): void
-  build(meta: FixtureMeta): PoseFixture
+  setContext(context: FixtureContext): void
+  build(meta: FixtureMeta): KeypointFixture
 }
 
-export function createFixtureRecorder(sessionId: string): FixtureRecorder {
+function round(value: number): number {
+  const factor = 10 ** PRECISION
+  return Math.round(value * factor) / factor
+}
+
+export function createFixtureRecorder(sessionId: string, exercise = 'jumping_jack'): FixtureRecorder {
   let recording = false
-  let frames: Envelope<typeof EventType.POSE_FRAME>[] = []
+  let frames: FixtureFrame[] = []
   let capability: SessionCapabilityData | null = null
   let video: { width: number; height: number } | null = null
-  let targetFps: number | null = null
+  let fps: number | null = null
 
   return {
     get sessionId() {
@@ -87,48 +101,51 @@ export function createFixtureRecorder(sessionId: string): FixtureRecorder {
 
     addFrame(tick, landmarks) {
       if (!recording) return
-      // Frame sem pose não vira fixture: seria um `landmarks` vazio, que o
-      // contrato rejeita (exige exatamente 33).
+      // Frame sem pose não vira fixture: `landmarks` vazio quebra qualquer
+      // consumidor que espere exatamente 33 pontos.
       if (landmarks.length === 0) return
 
-      frames.push(
-        makeEnvelope({
-          type: EventType.POSE_FRAME,
-          session_id: sessionId,
-          ts: tick.ts,
-          seq: tick.seq,
-          source: Source.EDGE,
-          data: { landmarks: toLandmarkTuples(landmarks) },
-        }),
-      )
+      frames.push({
+        ts: tick.ts,
+        seq: tick.seq,
+        landmarks: toLandmarkTuples(landmarks).map(
+          (tuple) => tuple.map(round) as unknown as LandmarkTuple,
+        ),
+      })
     },
 
     setContext(context) {
       if (context.capability !== undefined) capability = context.capability
       if (context.video !== undefined) video = context.video
-      if (context.target_fps !== undefined) targetFps = context.target_fps
+      if (context.fps !== undefined) fps = context.fps
     },
 
     build(meta) {
       return {
-        format: FIXTURE_FORMAT,
-        version: FIXTURE_VERSION,
-        recorded_at: new Date().toISOString(),
-        session_id: sessionId,
-        label: meta.label,
-        notes: meta.notes,
-        capability,
-        video,
-        target_fps: targetFps,
-        events: frames,
+        schema: FIXTURE_SCHEMA,
+        label: meta.label.trim() || 'sem-rotulo',
+        exercise,
+        expected_reps: meta.expected_reps ?? null,
+        source: 'camera',
+        fps,
+        notes: meta.notes ?? null,
+        conditions: {
+          session_id: sessionId,
+          recorded_at: new Date().toISOString(),
+          ...(capability ? { capability } : {}),
+          ...(video ? { video } : {}),
+        },
+        frames,
       }
     },
   }
 }
 
 /** Nome de arquivo estável e ordenável: `<label>-<ISO compacto>.json`. */
-export function fixtureFileName(fixture: PoseFixture): string {
-  const stamp = fixture.recorded_at.replace(/[:.]/g, '-').replace(/Z$/, '')
+export function fixtureFileName(fixture: KeypointFixture): string {
+  const stamp = String(fixture.conditions.recorded_at ?? new Date().toISOString())
+    .replace(/[:.]/g, '-')
+    .replace(/Z$/, '')
   const label = fixture.label.trim().replace(/\s+/g, '-').toLowerCase() || 'fixture'
   return `${label}-${stamp}.json`
 }

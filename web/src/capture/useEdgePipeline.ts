@@ -9,6 +9,7 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import type { PoseLandmarker } from '@mediapipe/tasks-vision'
 import { Mode } from '../lib/events'
+import { createArmAngleTracker } from '../pose/armAngleTracker'
 import { createEdgePoseLandmarker, detectPose } from '../pose/poseLandmarker'
 import { clearCanvas, drawSkeleton } from '../pose/skeleton'
 import { parseModeOverride } from '../probe/capability'
@@ -20,6 +21,9 @@ import { createVideoFrameLoop } from './videoFrameLoop'
 
 /** Janela do fps efetivo mostrado no diagnóstico. */
 const FPS_WINDOW_MS = 1000
+
+/** SPEC-013: ângulo atualiza no máximo a 10Hz para não piscar. */
+const ANGLE_MIN_INTERVAL_MS = 100
 
 export function useEdgePipeline(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -38,6 +42,8 @@ export function useEdgePipeline(
     store.setModeOverride(modeOverride)
 
     const clock = createFrameClock(EDGE_TARGET_FPS)
+    const angleTracker = createArmAngleTracker()
+    let lastAngleAt = 0
     let disposed = false
     let stopLoop: (() => void) | null = null
     let lastVideoTime = -1
@@ -68,6 +74,14 @@ export function useEdgePipeline(
 
       const recorder = getFixtureRecorder()
       recorder.addFrame(tick, landmarks)
+
+      // Ângulo ao vivo (T-044): calculado a cada frame para o filtro não perder
+      // amostra, mas publicado no máximo a 10Hz — a spec não quer número piscando.
+      const angle = angleTracker.push(landmarks, tick.ts)
+      if (angle !== null && tick.ts - lastAngleAt >= ANGLE_MIN_INTERVAL_MS) {
+        lastAngleAt = tick.ts
+        useSessionStore.getState().setArmAngleDeg(angle)
+      }
 
       windowFrames += 1
       if (windowStart === 0) windowStart = tick.ts

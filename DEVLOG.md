@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-07-27 · [B] T-044 — Ângulo articular ao vivo (+ correção do formato da T-007)
+
+### Correção da T-007: eu tinha inventado um formato
+
+Ao procurar a fórmula da FSM, encontrei `workers/shared/keypoints.py`, onde o Agente A já
+tinha definido o `schema: 1` de fixture e escrito, no docstring, que é "o mesmo formato que o
+gravador do cliente (T-007, Agente B) escreve". O meu gravava outra coisa (lista de envelopes
+`pose.frame`). **Reescrevi o gravador para o schema dele** — o formato de interoperação é
+dele, não meu. `load_fixture()` agora lê a saída do gravador sem conversão nenhuma, incluindo
+`expected_reps` (que passei a perguntar ao parar a gravação: sem o rótulo, a fixture tem os
+keypoints mas não a resposta certa). O contexto do device foi para `conditions`, campo livre
+do schema. **Lição**: varrer `workers/shared/` inteiro antes de definir formato, não só
+`events.py`.
+
+### T-044
+
+- `armAngle` espelha `_abduction` da FSM: `atan2(|dx|, dy)` em graus, média dos dois braços.
+- **A paridade falhou de primeira e o motivo foi instrutivo.** Meu ângulo cru errava até 22°
+  contra o worker — mais de 4× a tolerância. O erro era idêntico nos três casos de teste
+  (2m, 4m, deslocado no quadro), o que provou que a fórmula estava certa e o problema era
+  outro: o worker calcula sobre coordenadas **suavizadas** pelo One Euro, e eu comparava com
+  o valor cru. Era lag de filtro, não erro de geometria.
+- Para fechar o critério 4 tive de espelhar também `filters.py` e a ordem de
+  `Normalizer.push` (`torso → escala suavizada → recentragem → One Euro → ângulo`), com os
+  mesmos `NormParams`. Filtro só as 12 coordenadas que a fórmula usa — o One Euro tem estado
+  independente por canal, então dá exatamente o mesmo que filtrar as 99 e descartar o resto.
+- **Fixture de paridade gerada pelo código real do Agente A**: rodei o `JumpingJackAnalyzer`
+  sobre sequências sintéticas normalizadas e gravei `landmarks crus + expected_arm_angle` em
+  `web/src/pose/__fixtures__/`. 4 casos (2m, 4m, deslocado, com jitter), 128 amostras
+  cobrindo 12°–161°. O número esperado é a saída dele, não um valor que eu escolhi.
+- Um dos testes é deliberadamente ao contrário: afirma que **sem** o filtro o erro estoura a
+  tolerância. Se alguém "simplificar" o tracker tirando o filtro, esse teste explica o porquê.
+- Publicação a ≤10Hz (a spec não quer número piscando), mas o filtro é alimentado a cada
+  frame — pular amostra corromperia a estimativa de velocidade dele.
+- Gates: `tsc -b` limpo, `npm run lint` sem erros nem warnings, `npm run test` **112/112**.
+- Pendência gerada: **duplicação cross-território do One Euro**. Se o Agente A mexer em
+  `NormParams`, o teste de paridade quebra sem ninguém tocar no `web/`. Registrei as três
+  saídas possíveis em "Descobertas" — decisão é do Daniel.
+
+---
+
 ## 2026-07-27 · [B] T-012 — Tela de Sessão (SPEC-013) contra o mock de gateway
 
 - **Mock do gateway** (`web/dev/mock-gateway.mjs`, fora do bundle): servidor node que fala o

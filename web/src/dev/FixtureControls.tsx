@@ -18,7 +18,7 @@ export function FixtureControls() {
     recorder.setContext({
       capability: capability ? toCapabilityData(capability) : null,
       video: videoResolution,
-      target_fps: EDGE_TARGET_FPS,
+      fps: EDGE_TARGET_FPS,
     })
     setRecordedFrames(0)
     setRecording(true)
@@ -34,7 +34,13 @@ export function FixtureControls() {
     // que a task não pede.
     const label = window.prompt('Rótulo da fixture', 'polichinelo')
     if (label === null) return
-    downloadFixture(recorder.build({ label, notes: '' }))
+
+    // `expected_reps` é o rótulo que faz a fixture valer como teste: sem ele o
+    // núcleo tem os keypoints mas não sabe qual é a resposta certa.
+    const reps = window.prompt('Quantas repetições você fez? (vazio = não sei)', '')
+    const expected_reps = reps && Number.isFinite(Number(reps)) ? Number(reps) : null
+
+    downloadFixture(recorder.build({ label, expected_reps }))
   }
 
   return (

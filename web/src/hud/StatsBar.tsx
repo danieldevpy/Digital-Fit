@@ -1,7 +1,7 @@
 // Barra de métricas da SPEC-013 §1.
 //
 // Fase Inicial: SÉRIE fixo em 1 (circuitos são evolução), REPETIÇÕES sem meta,
-// ÂNGULO ao vivo chega na T-044, KCAL exibe "--" (estimativa MET é evolução).
+// ÂNGULO ao vivo vem do cliente (T-044), KCAL exibe "--" (MET é evolução).
 import { useSessionStore } from '../store/session'
 import { IconAngle, IconFlame, IconPulse, IconSeries } from '../ui/icons'
 
@@ -12,6 +12,7 @@ const CURRENT_SERIES = 1
 
 export function StatsBar() {
   const repCount = useSessionStore((state) => state.repCount)
+  const armAngleDeg = useSessionStore((state) => state.armAngleDeg)
 
   return (
     <div className="stats">
@@ -34,7 +35,9 @@ export function StatsBar() {
       <div className="stats__item">
         <IconAngle className="stats__icon" />
         <div>
-          <p className="stats__value tabular">{NOT_AVAILABLE}</p>
+          <p className="stats__value tabular">
+            {armAngleDeg === null ? NOT_AVAILABLE : `${Math.round(armAngleDeg)}°`}
+          </p>
           <p className="stats__label">Ângulo</p>
         </div>
       </div>

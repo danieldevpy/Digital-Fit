@@ -1,6 +1,11 @@
 // Instância única do gravador de fixtures. Vive fora do React de propósito: o
 // loop de frames escreve nela a 15Hz e não deve provocar render nenhum.
-import { createFixtureRecorder, fixtureFileName, type FixtureRecorder, type PoseFixture } from './fixtureRecorder'
+import {
+  createFixtureRecorder,
+  fixtureFileName,
+  type FixtureRecorder,
+  type KeypointFixture,
+} from './fixtureRecorder'
 
 function newSessionId(): string {
   const random =
@@ -23,7 +28,7 @@ export function startNewRecording(): FixtureRecorder {
   return current
 }
 
-export function downloadFixture(fixture: PoseFixture): void {
+export function downloadFixture(fixture: KeypointFixture): void {
   const blob = new Blob([JSON.stringify(fixture, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   try {

@@ -18,13 +18,14 @@
 | T-009 | analysis-worker: consumer de `pose.frames`, roda FSM, publica `events.analysis` | 007 | todo |
 | T-010 | Feedback engine (catálogo YAML, throttle, prioridade) + faixa de feedback no HUD | 008 | todo |
 | T-011 | Ciclo de sessão mínimo: `POST /sessions`, token HMAC, TTL 45s, timer autoritativo | 009 | todo |
-| T-012 | HUD completo: contador, timer 30s, fase aberto/fechado, warnings de enquadramento | 008/003/013 | done |
+| T-012 | Tela de Sessão conforme referência (SPEC-013): barra de métricas, esqueleto sobre câmera, card exercício + anel 30s, card do treinador, warnings — mobile-first | 013/008/003 | done |
 | T-013 | Validação de cena mínima: OUT_OF_FRAME + TOO_FAR/TOO_CLOSE com debounce | 003 | todo |
 | T-014 | E2E local: 30s de polichinelo real → contagem correta na tela (demo gravável) | todas | todo |
 | T-037 | CLI `evalctl run`: vídeo mp4 → MediaPipe → normalização → FSM → resultado JSON (reusa módulos dos workers) | 012 | todo |
 | T-038 | Corpus inicial: 12–15 vídeos rotulados (manifest.yaml) + guia de gravação | 012 | todo |
 | T-039 | Métricas agregadas + `evalctl compare` (regressão entre versões) + `--save-keypoints` | 012 | todo |
-| T-043 | Casca visual mobile (layout de referência): stats bar, card de exercício, dica do treinador, tab bar — **só design**, dados placeholder | 008 | done |
+| T-043 | App shell mobile-first: design tokens (SPEC-013), bottom nav (placeholders) + FAB de iniciar sessão | 013 | done |
+| T-044 | Ângulo articular ao vivo no HUD (client-side edge, fórmula espelhada da FSM, ≤10Hz, teste de paridade <5°) | 013 | done |
 
 ## Fase 1 — Modo cloud + persistência
 
@@ -111,11 +112,25 @@
   mas **a ponta cliente do WS precisa da decisão do Agente A**: ou o `seq` é um contador
   único do cliente que todos os tipos compartilham (e o frame clock deixa de ser o dono
   dele), ou o contrato passa a dizer "por sessão e por tipo".
-- **[B/T-007] Embalagem da fixture não é evento.** O JSON gravado tem `format`, `version`,
-  `label`, `capability`, `video` e `target_fps` **em volta** da lista `events`. Só `events`
-  é contrato (envelopes `pose.frame` puros). Se o Agente A preferir outro invólucro para os
-  testes dele, é trocar `build()` em `web/src/dev/fixtureRecorder.ts` — o formato dos
-  envelopes não muda. Já validado contra `Envelope.from_dict`, `RawFrame` e `normalize()`.
+- **[B/T-007] ~~Formato da fixture divergiu~~ — RESOLVIDO na mesma sessão.** A primeira
+  versão do gravador escrevia uma lista de envelopes `pose.frame`. Depois encontrei
+  `workers/shared/keypoints.py`, onde o Agente A já tinha definido o `schema: 1` e escrito
+  que é "o mesmo formato que o gravador do cliente (T-007) escreve". Os dois eram
+  incompatíveis. **O gravador foi reescrito para o schema do Agente A** — ele é o dono desse
+  formato, não eu. Verificado: `load_fixture()` lê o que o gravador produz sem conversão.
+  Lição para as próximas: varrer `workers/shared/` inteiro antes de definir qualquer formato
+  de interoperação, não só `events.py`.
+- **[B/T-044] One Euro Filter duplicado no cliente.** Para o ângulo ao vivo ficar dentro dos
+  5° do worker (critério 4 da SPEC-013), não bastou espelhar a fórmula: o worker calcula sobre
+  coordenadas **suavizadas**, e só o lag do filtro dava até 22° de diferença no meio do
+  polichinelo. Foi preciso espelhar também `filters.py` e a ordem de `Normalizer.push` em
+  `web/src/pose/oneEuro.ts` + `armAngleTracker.ts`, incluindo os valores de `NormParams`
+  (`mincutoff 0.4`, `beta 1.5`, `dcutoff 1.0`, escala `0.4/0.0`). **Isso é duplicação
+  cross-território e vai driftar**: se o Agente A mexer em `NormParams` ou na ordem do
+  pipeline, o teste de paridade quebra sem que ninguém tenha tocado no `web/`. Opções para o
+  Daniel decidir: (a) aceitar e tratar a quebra do teste como o alarme; (b) o worker passa a
+  mandar o ângulo num evento (a SPEC-013 já prevê `metrics.update` para o modo cloud);
+  (c) afrouxar a tolerância para o ângulo cru caber.
 - **[B/T-043] "Série" e "Kcal" não existem em nenhuma spec.** A referência de design pede
   quatro métricas no topo (série, repetições, ângulo, kcal), mas só *repetições* e *ângulo*
   saem do pipeline atual. **Série** pressupõe treino com múltiplas séries — a SPEC-009 define

@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { FrameTick } from '../capture/frameClock'
-import { EventType, LANDMARK_COUNT, Mode, Source, isValidEnvelope } from '../lib/events'
+import { LANDMARK_COUNT, Mode } from '../lib/events'
 import type { Landmark } from '../pose/skeleton'
-import {
-  FIXTURE_FORMAT,
-  FIXTURE_VERSION,
-  createFixtureRecorder,
-  fixtureFileName,
-} from './fixtureRecorder'
+import { FIXTURE_SCHEMA, createFixtureRecorder, fixtureFileName } from './fixtureRecorder'
 
-const META = { label: 'polichinelo', notes: '' }
+const META = { label: 'polichinelo' }
 
 function pose(seed = 0): Landmark[] {
   return Array.from({ length: LANDMARK_COUNT }, (_, i) => ({
@@ -63,33 +58,52 @@ describe('gravação', () => {
   })
 })
 
-describe('formato do contrato', () => {
-  it('gera envelopes pose.frame válidos', () => {
-    const { events } = record(4).build(META)
-    expect(events).toHaveLength(4)
-    for (const envelope of events) {
-      expect(isValidEnvelope(envelope)).toBe(true)
-      expect(envelope.type).toBe(EventType.POSE_FRAME)
-      expect(envelope.source).toBe(Source.EDGE)
-      expect(envelope.session_id).toBe('sess-fixture')
-    }
+// O schema é o de `workers/shared/keypoints.py`. Se algum campo sumir daqui,
+// `load_fixture()` do lado Python quebra.
+describe('schema de workers/shared/keypoints.py', () => {
+  it('declara schema 1 e os campos de topo esperados', () => {
+    const fixture = record(2).build(META)
+    expect(fixture.schema).toBe(FIXTURE_SCHEMA)
+    expect(Object.keys(fixture).sort()).toEqual(
+      [
+        'schema',
+        'label',
+        'exercise',
+        'expected_reps',
+        'source',
+        'fps',
+        'notes',
+        'conditions',
+        'frames',
+      ].sort(),
+    )
   })
 
-  it('cada frame carrega os 33 landmarks como [x, y, z, visibility]', () => {
-    const [first] = record(1).build(META).events
-    expect(first!.data.landmarks).toHaveLength(LANDMARK_COUNT)
-    for (const tuple of first!.data.landmarks) {
+  it('cada frame é {ts, seq, landmarks} — nada de envelope', () => {
+    const [first] = record(1).build(META).frames
+    expect(Object.keys(first!).sort()).toEqual(['ts', 'seq', 'landmarks'].sort())
+    expect(first!.landmarks).toHaveLength(LANDMARK_COUNT)
+    for (const tuple of first!.landmarks) {
       expect(tuple).toHaveLength(4)
-      expect(tuple.every((value) => typeof value === 'number')).toBe(true)
     }
   })
 
-  it('preserva ts e seq do frame clock — é o que vira RawFrame no Python', () => {
-    const { events } = record(6).build(META)
-    expect(events.map((e) => e.seq)).toEqual([0, 1, 2, 3, 4, 5])
-    for (let i = 1; i < events.length; i++) {
-      expect(events[i]!.seq).toBeGreaterThan(events[i - 1]!.seq)
-      expect(events[i]!.ts).toBeGreaterThan(events[i - 1]!.ts)
+  it('grava landmarks CRUS com 5 casas decimais', () => {
+    const recorder = createFixtureRecorder('sess-1')
+    recorder.start()
+    recorder.addFrame(tick(0), [
+      ...Array.from({ length: LANDMARK_COUNT - 1 }, () => ({ x: 0, y: 0, z: 0, visibility: 1 })),
+      { x: 0.123456789, y: 0.987654321, z: -0.5000004, visibility: 0.9123456 },
+    ])
+    const last = recorder.build(META).frames[0]!.landmarks[LANDMARK_COUNT - 1]!
+    expect(last).toEqual([0.12346, 0.98765, -0.5, 0.91235])
+  })
+
+  it('preserva ts e seq do frame clock', () => {
+    const { frames } = record(6).build(META)
+    expect(frames.map((f) => f.seq)).toEqual([0, 1, 2, 3, 4, 5])
+    for (let i = 1; i < frames.length; i++) {
+      expect(frames[i]!.ts).toBeGreaterThan(frames[i - 1]!.ts)
     }
   })
 
@@ -99,48 +113,43 @@ describe('formato do contrato', () => {
   })
 })
 
-describe('embalagem da fixture', () => {
-  it('marca formato e versão', () => {
-    const fixture = record(1).build(META)
-    expect(fixture.format).toBe(FIXTURE_FORMAT)
-    expect(fixture.version).toBe(FIXTURE_VERSION)
-    expect(() => new Date(fixture.recorded_at).toISOString()).not.toThrow()
-  })
-
-  it('guarda contexto do device fora dos envelopes', () => {
+describe('metadados', () => {
+  it('guarda contexto do device em conditions (campo livre do schema)', () => {
     const recorder = record(2)
     recorder.setContext({
       capability: { mode: Mode.EDGE, probe_fps: 27.5, webgl: true, ua: 'test-ua' },
       video: { width: 640, height: 480 },
-      target_fps: 15,
+      fps: 15,
     })
-    const fixture = recorder.build({ label: 'com-contexto', notes: 'luz baixa' })
+    const fixture = recorder.build({ label: 'com-contexto', notes: 'luz baixa', expected_reps: 20 })
 
-    expect(fixture.capability?.probe_fps).toBe(27.5)
-    expect(fixture.video).toEqual({ width: 640, height: 480 })
-    expect(fixture.target_fps).toBe(15)
+    expect(fixture.fps).toBe(15)
     expect(fixture.notes).toBe('luz baixa')
-    // O contexto não contamina os envelopes.
-    expect(Object.keys(fixture.events[0]!.data)).toEqual(['landmarks'])
+    expect(fixture.expected_reps).toBe(20)
+    expect(fixture.source).toBe('camera')
+    expect(fixture.conditions).toMatchObject({
+      session_id: 'sess-fixture',
+      video: { width: 640, height: 480 },
+    })
   })
 
-  it('começa sem contexto quando nada foi informado', () => {
+  it('usa nulos quando nada foi informado', () => {
     const fixture = record(1).build(META)
-    expect(fixture.capability).toBeNull()
-    expect(fixture.video).toBeNull()
-    expect(fixture.target_fps).toBeNull()
+    expect(fixture.fps).toBeNull()
+    expect(fixture.notes).toBeNull()
+    expect(fixture.expected_reps).toBeNull()
+  })
+
+  it('rótulo vazio vira "sem-rotulo", igual ao default do Python', () => {
+    expect(record(1).build({ label: '   ' }).label).toBe('sem-rotulo')
   })
 })
 
 describe('fixtureFileName', () => {
   it('usa rótulo e timestamp ordenável', () => {
-    const fixture = record(1).build({ label: 'Polichinelo Limpo', notes: '' })
-    const name = fixtureFileName(fixture)
-    expect(name).toMatch(/^polichinelo-limpo-\d{4}-\d{2}-\d{2}T[\d-]+\.json$/)
-  })
-
-  it('cai para um nome genérico se o rótulo estiver vazio', () => {
-    const fixture = record(1).build({ label: '   ', notes: '' })
-    expect(fixtureFileName(fixture)).toMatch(/^fixture-/)
+    const fixture = record(1).build({ label: 'Polichinelo Limpo' })
+    expect(fixtureFileName(fixture)).toMatch(
+      /^polichinelo-limpo-\d{4}-\d{2}-\d{2}T[\d-]+\.json$/,
+    )
   })
 })
