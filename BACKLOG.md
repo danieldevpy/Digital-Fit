@@ -14,11 +14,13 @@
 | T-005 | Gateway Channels: WS autenticado por token, publica `pose.frame` no stream | 002 | todo |
 | T-006 | Normalização + One Euro Filter como função pura + fixtures de teste | 006 | done |
 | T-007 | Gravador de fixtures: salvar sequência de keypoints do browser em JSON p/ testes | 006/007 | todo |
-| T-008 | Interface `ExerciseAnalyzer` + FSM do polichinelo + testes (20 limpos, preguiçosos, jitter) | 007 | todo |
+| T-008 | Interface `ExerciseAnalyzer` + FSM do polichinelo + testes (20 limpos, preguiçosos, jitter) | 007 | done |
 | T-009 | analysis-worker: consumer de `pose.frames`, roda FSM, publica `events.analysis` | 007 | todo |
 | T-010 | Feedback engine (catálogo YAML, throttle, prioridade) + faixa de feedback no HUD | 008 | todo |
 | T-011 | Ciclo de sessão mínimo: `POST /sessions`, token HMAC, TTL 45s, timer autoritativo | 009 | todo |
-| T-012 | HUD completo: contador, timer 30s, fase aberto/fechado, warnings de enquadramento | 008/003 | todo |
+| T-012 | Tela de Sessão conforme referência (SPEC-013): barra de métricas, esqueleto sobre câmera, card exercício + anel 30s, card do treinador, warnings — mobile-first | 013/008/003 | todo |
+| T-043 | App shell mobile-first: design tokens (SPEC-013), bottom nav (placeholders) + FAB de iniciar sessão | 013 | todo |
+| T-044 | Ângulo articular ao vivo no HUD (client-side edge, fórmula espelhada da FSM, ≤10Hz, teste de paridade <5°) | 013 | todo |
 | T-013 | Validação de cena mínima: OUT_OF_FRAME + TOO_FAR/TOO_CLOSE com debounce | 003 | todo |
 | T-014 | E2E local: 30s de polichinelo real → contagem correta na tela (demo gravável) | todas | todo |
 | T-037 | CLI `evalctl run`: vídeo mp4 → MediaPipe → normalização → FSM → resultado JSON (reusa módulos dos workers) | 012 | todo |
@@ -64,6 +66,8 @@
 | T-034 | Ferramenta de rotulagem do dataset + primeiro treino do classificador temporal | 010/007 | todo |
 | T-035 | Coach por voz (TTS dos feedbacks) | 008 | todo |
 | T-036 | Planos pagos + Stripe/Mercado Pago + LGPD (export/exclusão) | 011 | todo |
+| T-045 | Meta de reps (`target_reps`, fim por `target_reached`) + séries/circuitos com descanso | 013/009 | todo |
+| T-046 | KCAL estimada (MET × peso do perfil) + acumulado do dia + telas Exercícios/Progresso/Perfil | 013/010/011 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 

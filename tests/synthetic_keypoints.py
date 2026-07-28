@@ -180,6 +180,9 @@ def jumping_jack_poses(
 
     `amplitude` < 1 encolhe o movimento (rep "preguiçosa"): 0.6 chega a ~105° de braço, abaixo
     do limiar de 110° da SPEC-007.
+
+    A sequência **termina em pé, fechado** (dois frames de sobra): uma gravação real acaba com
+    a pessoa parada, e sem isso a última repetição ficaria eternamente "em andamento".
     """
     poses: list[Pose] = []
     for _rep in range(reps):
@@ -192,4 +195,4 @@ def jumping_jack_poses(
                     ankle_spread=FEET_TOGETHER + (FEET_APART - FEET_TOGETHER) * fraction,
                 )
             )
-    return poses
+    return [*poses, Pose(), Pose()]

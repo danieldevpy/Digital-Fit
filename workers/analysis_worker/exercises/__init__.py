@@ -1,0 +1,31 @@
+"""Um módulo por exercício, cada um implementando `ExerciseAnalyzer` (SPEC-007).
+
+Exercício novo entra aqui e em mais lugar nenhum — se precisar mexer fora desta pasta, a
+interface está errada (SPEC-007, notas técnicas).
+"""
+
+from workers.analysis_worker.exercises.base import (
+    EXERCISES,
+    AnalysisEvent,
+    ExerciseAnalyzer,
+    Features,
+    SceneHints,
+    feed,
+    get_analyzer,
+)
+from workers.analysis_worker.exercises.jumping_jack import (
+    JumpingJackAnalyzer,
+    JumpingJackThresholds,
+)
+
+__all__ = [
+    "EXERCISES",
+    "AnalysisEvent",
+    "ExerciseAnalyzer",
+    "Features",
+    "JumpingJackAnalyzer",
+    "JumpingJackThresholds",
+    "SceneHints",
+    "feed",
+    "get_analyzer",
+]

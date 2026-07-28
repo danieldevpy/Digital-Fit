@@ -5,6 +5,68 @@
 
 ---
 
+## 2026-07-27 · [A] T-008 — `ExerciseAnalyzer` + FSM do polichinelo
+
+- `workers/analysis_worker/exercises/base.py`: interface `ExerciseAnalyzer` (Protocol) com
+  `features`/`step`/`ready_pose`/`scene_hints`/`summary`, os tipos `Features` e
+  `AnalysisEvent`, o helper `feed(analyzer, frame)` e o registro `EXERCISES` +
+  `get_analyzer(slug)` (o usuário escolhe o exercício; nada de detecção automática).
+- `workers/analysis_worker/exercises/jumping_jack.py`: features (`arm_angle`,
+  `wrist_above_shoulder`, `ankle_spread`, `cadence_10s`, `degraded`) + FSM fechado ⇄ aberto
+  com histerese e debounce de 250 ms, e sinais de rep parcial.
+- Decisões:
+  - **A FSM emite payloads do contrato** (`ExercisePhase`, `RepDetected`, `QualitySignal`), não
+    envelopes: `session_id`/`seq` são do worker. Analisador puro, sem I/O.
+  - **`degraded` entra no dicionário de features** — a assinatura `step(feats, ts)` é fixada
+    pela SPEC-007, e a qualidade do frame é informação que a FSM precisa para congelar.
+  - **`ankle_spread` divide pela largura de ombros já normalizada** (em torsos), não pela de
+    `NormFrame.shoulder_width` (unidades de frame) — misturar as duas escalas seria erro
+    dimensional. A versão com baseline é a T-019.
+  - **Sinal de rep parcial nasce ao voltar à posição fechada**, um por tentativa: reclamar a
+    cada frame seria spam, e o throttle da SPEC-008 não deve existir para corrigir excesso da
+    FSM.
+  - `JumpingJackThresholds` é dataclass frozen e parametrizável porque a bancada da SPEC-012
+    vai varrer esses limiares contra o corpus.
+- **Para o Agente B (T-044, ângulo ao vivo no HUD)**: a fórmula a espelhar é
+  `arm_angle = média dos dois braços de degrees(atan2(|dx|, dy))`, com `dx`/`dy` de
+  ombro→pulso **nos pontos normalizados** (y cresce para baixo): 0° = braços ao lado do corpo,
+  180° = acima da cabeça. Mesmo cálculo em TS dá paridade bem abaixo dos 5° exigidos.
+- Dois bugs encontrados pelos próprios testes (e corrigidos):
+  1. `EXERCISES[JumpingJackAnalyzer.slug]` registrava o *descritor do slot* como chave — em
+     dataclass com `slots=True` o atributo de classe não é o default. Agora é literal.
+  2. O gerador de fixtures terminava a sequência no instante exato do fechamento, então a
+     última repetição ficava "em andamento" e a contagem dava 19/20 em alguns fps. As
+     sequências agora terminam em pé, como uma gravação real.
+- Gates: `ruff` limpo, **157 testes** verdes (48 novos). Critérios da SPEC-007:
+  1. 20 polichinelos limpos ⇒ **exatamente 20** (também 1, 5, 20; a 10/15/30 fps; a 0,15/0,30/
+     0,45 de torso, isto é, ~4 m a ~1,5 m da câmera);
+  2. reps preguiçosas (amplitude 0,6 ⇒ pico ~105° e ~1,27) ⇒ **0 reps** + `ARMS_TOO_LOW` e
+     `LEGS_TOO_CLOSED`, um sinal por tentativa;
+  3. tremor parado (σ = 0,006, 300 frames) ⇒ **0 reps**; oscilar em cima do limiar ⇒ 0 reps;
+  4. `step()` em **0,0009 ms** (exigido < 1 ms); com `features()`, o pipeline de análise custa
+     0,008% de 1 vCPU por sessão a 15 fps.
+- Medido de lado: o debounce de 250 ms conta corretamente até **~2 rep/s** (120 rpm) e descarta
+  3+ rep/s como ruído. Cadência humana de polichinelo é 40–80 rpm, então há folga — mas é o
+  teto da regra da spec, registrado aqui para não virar surpresa.
+
+---
+
+## 2026-07-27 · [Arquiteto] SPEC-013 — Interface Mobile a partir da referência do Daniel
+
+- Referência visual aprovada movida para `referencias/ui-sessao-mobile-v1.png` e formalizada
+  na SPEC-013 (vinculante para toda UI, mobile-first): barra de métricas (série/reps/ângulo/
+  kcal), esqueleto sobre câmera, card do exercício + anel de countdown, card "Dica do
+  Treinador" (superfície do feedback engine), bottom nav + FAB. Design tokens extraídos.
+- A referência introduz features novas, faseadas: ângulo ao vivo (Fase 0, client-side, T-044);
+  meta de reps e séries (evolução, T-045); kcal por MET + telas de catálogo/progresso/perfil
+  (evolução, T-046). Nenhum evento novo no contrato v1 — ângulo é cosmético no edge;
+  `metrics.update` só quando o modo cloud precisar.
+- Propagado: T-012 redefinida (segue SPEC-013), T-043/T-044 na Fase 0; SPEC-008 aponta o card
+  do treinador como sua superfície; SPEC-009 ganha meta/séries na evolução; prompt do Agente B
+  atualizado (SPEC-013 + imagem viraram leitura obrigatória, ordem de tasks ajustada).
+
+---
+
 ## 2026-07-27 · [A] T-006 — Normalização & One Euro Filter
 
 - `workers/shared/filters.py`: One Euro Filter próprio, vetorizado em numpy — um filtro
