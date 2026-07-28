@@ -32,7 +32,7 @@
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-015 | Envio de `frame.raw` JPEG 320px @10fps quando modo cloud | 001/005 | done |
-| T-016 | pose-worker: consumer `frames.raw` → MediaPipe CPU → `pose.frame` (cgroup 1 vCPU) | 005 | todo |
+| T-016 | pose-worker: consumer `frames.raw` → MediaPipe CPU → `pose.frame` (cgroup 1 vCPU) | 005 | done |
 | T-017 | Semáforo `slots:cloud=3` (Lua atômico) + liberação em todos os finais | 009 | todo |
 | T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | todo |
 | T-019 | Baseline/calibração no countdown (mediana 1s) + FSM usando baseline | 004 | todo |
@@ -127,6 +127,21 @@
   mudar o environment do compose. Por isso o `prod.sh up` sempre reconstrói. Se um dia isso
   incomodar, a saída é o cliente ler a origem da própria página (same-origin) em vez de uma
   variável — hoje `apiBaseUrl()` cairia no default de `localhost:8000`.
+- **[A/T-016] Descarte por idade usa o relógio do CLIENTE, e isso tem um risco**: a SPEC-005
+  manda medir a idade pelo `ts` do envelope. Como `ts` é carimbado pelo navegador, um celular
+  com relógio atrasado faz **todo** frame parecer velho e o worker descarta a sessão inteira
+  em silêncio. Mitigado com um log de aviso quando o `ts` vem do futuro, mas a correção de
+  verdade seria medir pela hora de entrada no stream (o ID do Redis é `<ms-do-servidor>-<n>`,
+  imune a skew). Isso contraria a nota da spec — **precisa de decisão antes de mudar**.
+- **[A/T-016] `pose-worker` roda em `RunningMode.IMAGE`, a bancada em `VIDEO`**: registrado
+  como ADR-007. A bancada é uma sequência contínua num processo só (pode rastrear); o worker
+  lê de consumer group, onde frames da mesma sessão caem em réplicas diferentes. Consequência
+  prática a lembrar na T-018: os dois lados NÃO produzem landmarks idênticos frame a frame —
+  a paridade que a spec pede é de contagem de reps (±1 em 20), não de keypoints.
+- **[A/T-016] Modelo `.task` fica fora da imagem, vem por volume**: `DIGITALFIT_POSE_MODEL`
+  aponta para `/models`, montado de `./eval/models`. Assar o modelo na imagem faria cliente,
+  bancada e worker divergirem sem ninguém perceber. O custo é que a VPS precisa do arquivo
+  antes do primeiro deploy do modo cloud (`python -m eval.evalctl fetch-model`).
 - **[A/T-015] O caminho cloud existe mas ainda não pode ser exercitado**: o cliente já envia
   `frame.raw`, o gateway já aceita e roteia para `frames.raw` — mas ninguém consome (T-016) e
   a admissão continua recusando cloud com `denied_cloud` (T-017). Para ver o fluxo inteiro é

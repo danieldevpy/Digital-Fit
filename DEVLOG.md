@@ -5,6 +5,50 @@
 
 ---
 
+## 2026-07-28 · T-016 — pose-worker: `frames.raw` → MediaPipe CPU → `pose.frame`
+
+- Entregue: `workers/pose_worker/` (extractor + router + main), `workers/shared/pose_model.py`,
+  `docker/pose-worker.Dockerfile`, serviço `pose-worker` nos dois compose, extra `pose` no
+  pyproject, `tests/test_pose_worker.py` (14 testes), ADR-007.
+- Decisões:
+  - **ADR-007: `RunningMode.IMAGE`, sem estado entre frames.** A bancada usa `VIDEO`, que
+    pressupõe uma sequência contínua com timestamps crescentes por instância. O worker lê de
+    consumer group: dois frames seguidos da mesma sessão podem cair em réplicas diferentes,
+    então essa premissa não vale. Manter rastreamento exigiria prender sessão a réplica
+    (perdendo a tolerância a falha que o grupo dá de graça) ou misturar o rastreamento de
+    sessões distintas — pior, porque o estado de uma pessoa influenciaria os landmarks de
+    outra. Em troca, o mesmo JPEG dá sempre o mesmo resultado, e é isso que dá sentido à
+    T-018.
+  - **Modelo resolvido em `workers/shared/pose_model.py`**, reusado pela bancada (direção
+    eval → workers, nunca o contrário). Três pontas carregam o mesmo `.task`; se cada uma
+    resolvesse à sua maneira, o sintoma de divergência seria "a contagem mudou", sem nada
+    apontando para o modelo.
+  - **Mesmo decoder JPEG da bancada (cv2).** Com PIL de um lado e OpenCV do outro, a T-018
+    mediria a diferença dos decodificadores, não a do pipeline.
+  - **`ts` e `seq` do frame original são preservados** no `pose.frame`. Carimbar a hora do
+    processamento faria a cadência vista pela FSM virar a do servidor sob carga, e os
+    limiares de duração de repetição passariam a medir a fila, não o exercício.
+  - **Imagem própria** (MediaPipe + OpenCV ≈ 250 MB): api, gateway e analysis-worker seguem
+    enxutos. Modelo entra por volume, não assado na imagem.
+  - **Lote de 5, não 50.** Cada frame custa uma detecção completa; puxar 50 encheria a
+    memória com trabalho que vence por idade antes de ser feito.
+  - **Sem pessoa no quadro não vira evento.** Um `pose.frame` com landmarks inventados faria
+    a validação de cena (SPEC-003) dizer que está tudo bem.
+- Verificação ponta a ponta contra a stack real, com JPEG de verdade (a referência de UI
+  reduzida a 320px, 11 KB — dentro da faixa de 10–25 KB prevista no contrato): três
+  `frame.raw` pelo WebSocket saíram como três `pose.frame` com `source=cloud`, 33 landmarks,
+  todos visíveis, nariz em (0.518, 0.258). Os três resultados **idênticos** entre si —
+  confirmando na prática o determinismo que motivou o ADR-007. No mesmo stream, lado a lado
+  com `pose.frame` `source=edge` de sessões anteriores: é o critério 4 da SPEC-005 (downstream
+  sem branch por origem) verificado com os olhos.
+- Gates: ruff + format limpos, pytest 374 verde, compose de dev e de produção válidos.
+- Pendências geradas (3 em "Descobertas"): descarte por idade usa relógio do cliente (risco de
+  skew, contraria a nota da spec corrigir — precisa de decisão); IMAGE×VIDEO significa que a
+  paridade da T-018 é de contagem, não de keypoints; modelo por volume exige `fetch-model` na
+  VPS antes do primeiro deploy cloud.
+
+---
+
 ## 2026-07-28 · T-015 — envio de `frame.raw` no modo cloud (início da Fase 1)
 
 - Contrato primeiro (`AGENTS.md`): `EventType.FRAME_RAW`, dataclass `FrameRaw` e rota

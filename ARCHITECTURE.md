@@ -248,6 +248,7 @@ digital-fit/
 | 004 | FSM baseada em regras antes de ML | explicável, zero dado necessário, feedback específico | dataset ≥ ~500 sessões |
 | 005 | Edge como modo padrão | VPS 4vCPU vira roteador de eventos, não fábrica de CV | nunca (é o superpoder do design) |
 | 006 | Sessão fixa de 30 s + admission control | capacidade previsível por construção | planos premium com sessões maiores |
+| 007 | `pose-worker` sem estado entre frames (MediaPipe `RunningMode.IMAGE`) | frames chegam por consumer group: dois frames seguidos da mesma sessão podem cair em réplicas diferentes, e o modo `VIDEO` pressupõe sequência contínua por instância. Sem estado, a réplica pode morrer no meio da sessão sem perda, e o mesmo JPEG dá sempre o mesmo resultado — que é o que dá sentido ao teste de paridade edge×cloud (T-018) | o custo da detecção completa por frame estourar o orçamento de 1 vCPU, ou sessão passar a ser fixada a uma réplica |
 
 ## 12. Primeiros passos concretos
 

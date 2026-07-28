@@ -123,6 +123,28 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  pose-worker:
+    # Modo cloud (SPEC-005): frames.raw -> MediaPipe CPU -> pose.frame.
+    # Imagem propria (MediaPipe + OpenCV, ~250 MB) para nao engordar api/gateway/analysis.
+    build:
+      context: .
+      dockerfile: docker/pose-worker.Dockerfile
+    working_dir: /app
+    command: python -m workers.pose_worker.main
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DIGITALFIT_POSE_MODEL: /models/pose_landmarker_lite.task
+    volumes:
+      - ./workers:/app/workers
+      # Mesmo `.task` do evalctl e do cliente web — paridade edge x cloud x bancada depende
+      # de os tres carregarem literalmente o mesmo arquivo (SPEC-005, criterio 1).
+      - ./eval/models:/models:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   web:
     # Cliente Vite em modo dev. Imagem node crua + `npm install` no start: sem Dockerfile
     # proprio o `web` continua sendo "abra e mexa"; imagem de build e a T-027.

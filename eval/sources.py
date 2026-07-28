@@ -10,13 +10,22 @@ para que `evalctl --help` e os testes não paguem por isso.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 from workers.shared.normalize import RawFrame
+
+# Reexportados de `workers/shared/pose_model.py`: a bancada e o `pose-worker` TEM de
+# resolver o mesmo arquivo (SPEC-005, criterio 1). A direcao da dependencia e
+# eval -> workers, nunca o contrario.
+from workers.shared.pose_model import (
+    MODEL_FILENAME,
+    MODEL_URL,
+    download_model,
+    resolve_model_path,
+)
 
 __all__ = [
     "MODEL_FILENAME",
@@ -164,39 +173,5 @@ class MediaPipeExtractor:
 
 
 #: Modelo `lite` do Pose Landmarker. Fica fora do git (binário) e é baixado uma vez.
-MODEL_FILENAME = "pose_landmarker_lite.task"
-MODEL_URL = (
-    "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
-    "pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
-)
-MODEL_DIR = Path(__file__).resolve().parent / "models"
-
-
-def resolve_model_path(model_path: Path | None = None) -> Path:
-    """Onde está o `.task`: argumento > `DIGITALFIT_POSE_MODEL` > `eval/models/`."""
-    if model_path is not None:
-        candidato = Path(model_path)
-    elif os.environ.get("DIGITALFIT_POSE_MODEL"):
-        candidato = Path(os.environ["DIGITALFIT_POSE_MODEL"])
-    else:
-        candidato = MODEL_DIR / MODEL_FILENAME
-
-    if not candidato.exists():
-        raise FileNotFoundError(
-            f"modelo de pose nao encontrado em {candidato}.\n"
-            f"Baixe uma vez com:  python -m eval.evalctl fetch-model\n"
-            f"(ou aponte DIGITALFIT_POSE_MODEL para um {MODEL_FILENAME} existente)"
-        )
-    return candidato
-
-
-def download_model(destination: Path | None = None) -> Path:
-    """Baixa o modelo `lite` oficial do MediaPipe. Passo explícito, nunca automático."""
-    from urllib.request import urlopen
-
-    destino = Path(destination) if destination else MODEL_DIR / MODEL_FILENAME
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    # URL fixa e oficial do MediaPipe — nada aqui vem de entrada do usuario.
-    with urlopen(MODEL_URL, timeout=120) as resposta:
-        destino.write_bytes(resposta.read())
-    return destino
+#: `download_model` e `resolve_model_path` vivem em `workers/shared/pose_model.py` — a
+#: bancada e o `pose-worker` precisam resolver exatamente o mesmo arquivo.

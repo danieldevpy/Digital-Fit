@@ -28,8 +28,18 @@ server = [
     "gunicorn>=23.0",
 ]
 
-# Bancada de avaliacao (SPEC-012): roda local, sem Docker. Pesado (MediaPipe + OpenCV) e
-# deliberadamente fora da imagem dos servicos — nada em server/ ou workers/ importa isto.
+# Runtime de visao computacional do `pose-worker` (modo cloud, SPEC-005). Fica num extra
+# proprio porque so UM servico paga por ele: a imagem do api/gateway/analysis-worker continua
+# enxuta. O decoder JPEG e o mesmo da bancada (cv2) de proposito — decodificadores diferentes
+# deslocariam os landmarks, e o teste de paridade da T-018 mediria a diferenca deles, nao a
+# do pipeline.
+pose = [
+    "mediapipe>=0.10.14",
+    "opencv-python-headless>=4.10",
+]
+
+# Bancada de avaliacao (SPEC-012): roda local, sem Docker. Mesmas dependencias do extra
+# `pose` (e pela mesma razao: o modelo e o decoder tem de ser identicos aos do worker).
 eval = [
     "mediapipe>=0.10.14",
     "opencv-python-headless>=4.10",

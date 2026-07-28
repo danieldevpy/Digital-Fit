@@ -428,6 +428,10 @@ eval = [
     { name = "mediapipe" },
     { name = "opencv-python-headless" },
 ]
+pose = [
+    { name = "mediapipe" },
+    { name = "opencv-python-headless" },
+]
 server = [
     { name = "channels" },
     { name = "channels-redis" },
@@ -455,15 +459,17 @@ requires-dist = [
     { name = "djangorestframework", marker = "extra == 'server'", specifier = ">=3.15" },
     { name = "gunicorn", marker = "extra == 'server'", specifier = ">=23.0" },
     { name = "mediapipe", marker = "extra == 'eval'", specifier = ">=0.10.14" },
+    { name = "mediapipe", marker = "extra == 'pose'", specifier = ">=0.10.14" },
     { name = "msgpack", specifier = ">=1.1" },
     { name = "numpy", specifier = ">=2.1" },
     { name = "opencv-python-headless", marker = "extra == 'eval'", specifier = ">=4.10" },
+    { name = "opencv-python-headless", marker = "extra == 'pose'", specifier = ">=4.10" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'server'", specifier = ">=3.2" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "redis", specifier = ">=5.2,<6" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.34" },
 ]
-provides-extras = ["server", "eval"]
+provides-extras = ["server", "pose", "eval"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -137,6 +137,32 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  pose-worker:
+    build:
+      context: .
+      dockerfile: docker/pose-worker.Dockerfile
+    working_dir: /app
+    command: python -m workers.pose_worker.main
+    # 2 replicas, 1 vCPU cada (SPEC-005). Diferente do analysis-worker, ESTE escala: nao ha
+    # estado entre frames (RunningMode.IMAGE), entao o consumer group pode distribuir a
+    # vontade. O limite de CPU e o que mantem os 4 vCPU da VPS previsiveis — sem ele, dois
+    # workers de visao competiriam com o gateway pela mesma maquina.
+    deploy:
+      replicas: ${POSE_WORKER_REPLICAS:-2}
+      resources:
+        limits:
+          cpus: "${POSE_WORKER_CPUS:-1.0}"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DIGITALFIT_POSE_MODEL: /models/pose_landmarker_lite.task
+    volumes:
+      - ./eval/models:/models:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   web:
     build:
       context: .
