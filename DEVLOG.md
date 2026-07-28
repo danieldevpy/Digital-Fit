@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-07-27 · [A] T-002 — **Contrato v1 publicado** (`workers/shared/events.py`)
+
+> **Agente B: este é o contrato.** Envelope `{v, type, session_id, ts, seq, source, data}`,
+> MessagePack no WebSocket. Tabela dos 9 eventos da Fase 0 na SPEC-002 (seção "Contrato v1
+> publicado"); a fonte da verdade é `workers/shared/events.py`.
+
+- Eventos v1 (Fase 0): `session.capability`, `session.started`, `pose.frame`,
+  `exercise.phase`, `rep.detected`, `quality.signal`, `scene.warning`, `feedback.issued`,
+  `session.completed`. Uma dataclass por payload, com `to_data()`/`from_data()`.
+- Vocabulário fechado em enums: `Source` (edge/cloud/system), `Mode`, `Phase` (closed/open),
+  `Severity` (info/warning), `Code` (ARMS_TOO_LOW, LEGS_TOO_CLOSED, OUT_OF_FRAME, TOO_FAR,
+  TOO_CLOSE), `SessionEndReason` (completed/timeout/aborted/no_data), `Landmark` (33 índices
+  do MediaPipe) e `Stream`.
+- Decisões (importam para o cliente):
+  - **`pose.frames` = entrada da análise** (frames + metadados da sessão); **`events.analysis`
+    = saída** (o que HUD, relatório e dataset consomem). `STREAM_FOR_TYPE` é a rota padrão.
+  - **`CLIENT_PUSH_TYPES`**: o gateway devolve ao cliente só fase, rep, cena, feedback e fim.
+    `pose.frame` nunca volta; `quality.signal` é insumo interno do feedback engine — o HUD vê
+    `feedback.issued`.
+  - **Um campo por entrada de stream** (`e` = envelope MessagePack): WS e Redis usam
+    exatamente a mesma serialização, sem conversão campo-a-campo no hot path.
+  - Normalização (SPEC-006) enriquece o **mesmo** `pose.frame` em `data.norm` — sem tipo novo.
+  - Validação leve: envelope valida no `__post_init__` (tipo/fonte/ts/seq/versão); a contagem
+    de 33 landmarks só é checada quando o payload é decodificado, para não pesar no gateway.
+  - `MAXLEN ~5000` e `CONSUMER_GROUPS` declarados aqui, mas aplicá-los é do produtor/consumidor.
+- Gates: `ruff check` + `ruff format --check` limpos; **66 testes** verdes (round-trip
+  MessagePack e stream de todos os payloads, 11 formas de envelope inválido, bytes corrompidos,
+  payload sem campo, código desconhecido, tabelas de roteamento e landmarks).
+  Medido em processo real: `pose.frame` = **1339 bytes** ⇒ ~19,6 KB/s a 15 fps (orçamento do
+  ARCHITECTURE §4 é 20–30 KB/s). Nenhum import de Django no caminho dos workers.
+- `pyproject.toml`: `ignore = ["RUF002", "RUF003"]` — docstrings/comentários em pt-BR usam
+  travessão e meia-risca; RUF001 (strings de código) segue ativo.
+
+---
+
 ## 2026-07-27 · [A] T-001 — Monorepo + docker-compose
 
 - Trabalho em paralelo: **Agente A** (núcleo Python: server/, workers/, eval/, tests/, infra)

@@ -45,6 +45,9 @@ select = [
     "SIM",  # simplify
     "RUF",
 ]
+# Docstrings e comentarios sao em pt-BR: travessao e meia-risca sao tipografia, nao
+# "unicode ambiguo". RUF001 (strings de codigo) fica ativo de proposito.
+ignore = ["RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B011"]

@@ -38,6 +38,35 @@ Reconexão com resume, compressão delta de keypoints, WebRTC, multi-gateway.
 
 Dono do envelope de TODOS os eventos. Tabela completa em `ARCHITECTURE.md` §5.
 
+### Contrato v1 publicado (T-002)
+
+Fonte da verdade: `workers/shared/events.py`. O código manda; esta tabela é vista de leitura.
+
+| `type` | Produtor | Stream padrão | `data` |
+|---|---|---|---|
+| `session.capability` | cliente | `pose.frames` | `mode, probe_fps, webgl, ua` |
+| `session.started` | api | `pose.frames` | `exercise, mode, duration_s` |
+| `pose.frame` | cliente (edge) / pose-worker (cloud) | `pose.frames` | `landmarks[33]`, `norm?`, `degraded?` |
+| `exercise.phase` | analysis-worker | `events.analysis` | `phase: closed\|open` |
+| `rep.detected` | analysis-worker | `events.analysis` | `rep_count, phase, duration_ms` |
+| `quality.signal` | analysis-worker | `events.analysis` | `code, value?, rep_index?` |
+| `scene.warning` | worker de cena | `events.analysis` | `code, severity, hint?` |
+| `feedback.issued` | feedback engine | `events.analysis` | `code, severity, message, hint?` |
+| `session.completed` | analysis-worker / api | `events.analysis` | `reason, rep_count` |
+
+- Envelope: `{v: 1, type, session_id, ts (epoch ms), seq (monotônico por sessão), source, data}`.
+  Fora do contrato ⇒ `EventValidationError` (o gateway loga e descarta — critério 3).
+- `pose.frames` é o fluxo de **entrada** da análise (frames + metadados da sessão);
+  `events.analysis` é a **saída** dela (HUD, relatório, dataset).
+- No stream, o envelope viaja em **um único campo** (`e`) do `XADD`, com a mesma serialização
+  MessagePack do WebSocket — nunca espalhado em colunas.
+- O gateway empurra ao cliente apenas `CLIENT_PUSH_TYPES` (fase, rep, cena, feedback, fim):
+  `pose.frame` nunca volta e `quality.signal` é insumo interno do feedback engine.
+- Medido: `pose.frame` com 33 landmarks = ~1,3 KB ⇒ ~20 KB/s a 15 fps (dentro do orçamento
+  de banda edge do `ARCHITECTURE.md` §4).
+- Fora da v1, por fase: `frame.raw` (T-015/SPEC-005), `session.report.ready` (T-020/SPEC-010),
+  `scene.status` e `hold.progress` (Fase Evolução das SPEC-003/007).
+
 ## Notas técnicas
 
 - `events.py` declara os eventos como dataclasses + validação leve (sem pydantic pesado nos hot paths).
