@@ -122,14 +122,30 @@ polichinelo (T-014).
 
 ```bash
 ./scripts/prod.sh ps
-./scripts/prod.sh logs                  # tudo
+./scripts/prod.sh logs                   # tudo
 ./scripts/prod.sh logs analysis-worker   # um serviço
+./scripts/prod.sh stop                   # para sem remover
+./scripts/prod.sh start                  # religa
 ./scripts/prod.sh restart gateway
-./scripts/prod.sh down                   # o volume do postgres sobrevive
+./scripts/prod.sh down                   # remove containers e rede; o volume do postgres fica
 ```
 
-`ps`, `logs`, `restart` e `down` funcionam mesmo com o `.env.prod` incompleto — a hora em que
-se mais precisa derrubar uma stack é justamente quando a configuração está quebrada.
+Use sempre o script, **não** `docker compose -f docker-compose.prod.yml` direto. As quatro
+URLs públicas são derivadas do `DOMAIN` dentro dele, e o compose se recusa a interpolar sem
+elas:
+
+```
+required variable CORS_ALLOWED_ORIGINS is missing a value:
+derivado do DOMAIN — use ./scripts/prod.sh em vez de docker compose direto
+```
+
+Isso é deliberado. A alternativa seria dar um default vazio a essas variáveis, e aí um erro de
+configuração viraria um deploy silenciosamente errado — `ALLOWED_HOSTS` vazio, bundle apontando
+para `localhost`. Falhar alto é melhor.
+
+`ps`, `logs`, `stop`, `start`, `restart` e `down` funcionam mesmo com o `.env.prod` incompleto —
+a hora em que mais se precisa derrubar uma stack é justamente quando a configuração está
+quebrada.
 
 Atualizar depois de um `git pull`: `./scripts/prod.sh up` de novo. Ele sempre reconstrói,
 porque `VITE_API_URL` é gravada no bundle em build time e não dá para trocar por environment.

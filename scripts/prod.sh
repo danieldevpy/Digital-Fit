@@ -213,6 +213,9 @@ cmd_down()    { carrega_ambiente --tolerante; compose down; }
 cmd_ps()      { carrega_ambiente --tolerante; compose ps; }
 cmd_logs()    { carrega_ambiente --tolerante; shift || true; compose logs -f --tail 100 "$@"; }
 cmd_restart() { carrega_ambiente --tolerante; shift || true; compose restart "$@"; }
+# `stop` para os containers sem remover nada (o `down` remove containers e rede).
+cmd_stop()    { carrega_ambiente --tolerante; shift || true; compose stop "$@"; }
+cmd_start()   { carrega_ambiente --tolerante; shift || true; compose start "$@"; }
 
 cmd_nginx() {
   carrega_ambiente
@@ -277,8 +280,13 @@ Digital Fit — producao
   ./scripts/prod.sh nginx            server block de referencia
   ./scripts/prod.sh ps               estado dos servicos
   ./scripts/prod.sh logs [servico]   segue os logs
+  ./scripts/prod.sh stop [servico]   para sem remover
+  ./scripts/prod.sh start [servico]  religa o que foi parado
   ./scripts/prod.sh restart [svc]    reinicia
   ./scripts/prod.sh down             derruba (o volume do postgres fica)
+
+Use SEMPRE o script, nao `docker compose -f docker-compose.prod.yml` direto: as URLs
+publicas sao derivadas do DOMAIN aqui dentro, e sem elas o compose recusa interpolar.
 
 Primeira vez na VPS:
   cp .env.prod.example .env.prod && nano .env.prod   # ponha o DOMAIN
@@ -292,6 +300,8 @@ case "${1:-ajuda}" in
   secrets) cmd_secrets ;;
   up)      cmd_up ;;
   down)    cmd_down ;;
+  stop)    cmd_stop "$@" ;;
+  start)   cmd_start "$@" ;;
   ps)      cmd_ps ;;
   logs)    cmd_logs "$@" ;;
   restart) cmd_restart "$@" ;;
