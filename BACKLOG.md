@@ -24,7 +24,7 @@
 | T-013 | Validação de cena mínima: OUT_OF_FRAME + TOO_FAR/TOO_CLOSE com debounce | 003 | done |
 | T-014 | E2E local: 30s de polichinelo real → contagem correta na tela (demo gravável) | todas | doing — máquina verificada (`npm run e2e`), falta a passada com câmera + pessoa |
 | T-037 | CLI `evalctl run`: vídeo mp4 → MediaPipe → normalização → FSM → resultado JSON (reusa módulos dos workers) | 012 | done |
-| T-038 | Corpus inicial: 12–15 vídeos rotulados (manifest.yaml) + guia de gravação | 012 | todo |
+| T-038 | Corpus inicial: 12–15 vídeos rotulados (manifest.yaml) + guia de gravação | 012 | doing — manifest + guia de gravação prontos, 1 de 12–15 vídeos (falta gravar) |
 | T-039 | Métricas agregadas + `evalctl compare` (regressão entre versões) + `--save-keypoints` | 012 | done |
 
 ## Fase 1 — Modo cloud + persistência
@@ -34,7 +34,7 @@
 | T-015 | Envio de `frame.raw` JPEG 320px @10fps quando modo cloud | 001/005 | done |
 | T-016 | pose-worker: consumer `frames.raw` → MediaPipe CPU → `pose.frame` (cgroup 1 vCPU) | 005 | done |
 | T-017 | Semáforo `slots:cloud=3` (Lua atômico) + liberação em todos os finais | 009 | done |
-| T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | doing — `evalctl parity` pronto e verificado no encanamento; falta rodar em vídeo com polichinelo real (depende da T-038) |
+| T-018 | Teste de paridade edge×cloud: mesmo vídeo, reps idênticas (±1/20) | 005 | done |
 | T-019 | Baseline/calibração no countdown (mediana 1s) + FSM usando baseline | 004 | todo |
 | T-020 | report-builder: consolidação + `SessionResult` no Postgres + tela de relatório | 010 | todo |
 | T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | todo |

@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-07-28 · T-018 fechada com vídeo real + início do corpus (T-038)
+
+- Daniel forneceu o primeiro vídeo rotulado: 20 polichinelos, 854×480 @30fps, 28,9s, com ~2s
+  parados no início.
+- **Paridade edge × cloud: `edge=20  cloud=20`, delta 0.** E as duas contagens batem com o
+  rótulo humano — ou seja, o resultado valida três coisas de uma vez: o caminho cloud não
+  perde repetição, a FSM acerta em vídeo real, e a bancada mede o que diz medir.
+  - frames: edge 374 (15fps), cloud 248 (10fps); sem pose: 59 e 41
+  - cadência 55,1 e 55,6 rpm; duração mediana da rep 1001 ms nos dois
+  - zero sinais de qualidade, zero frames degradados
+  - a rep mais longa (3,8 s) é a primeira, porque engloba os 2 s parados do começo
+- **Banda cloud medida em vídeo real: 3,1 KB/frame (~31 KB/s por sessão)** — três vezes menor
+  que a medição anterior sobre a referência de UI (9,8 KB), que era uma imagem renderizada
+  cheia de detalhe. Três sessões simultâneas ≈ 0,75 Mbit/s. Folgado no orçamento da VPS.
+- `evalctl run eval/corpus/`: MAE 0.000, 100% exatos. Baseline gravado em
+  `eval/out/baseline.json` para o `evalctl compare` ter contra o que comparar.
+- **T-038 começou**: `eval/corpus/manifest.yaml` com o primeiro vídeo rotulado e
+  `eval/corpus/README.md` com o guia de gravação — o que variar entre vídeos (distância, luz,
+  ângulo, execução preguiçosa) e por que execuções imperfeitas são as mais valiosas (são elas
+  que testam o feedback engine, não só a contagem). Vídeos não são versionados; o manifest e o
+  guia sim.
+- Gates: ruff + format limpos, pytest 413 verde.
+
+---
+
 ## 2026-07-28 · T-018 (parcial) — arruamento da paridade edge × cloud
 
 - Entregue: `eval/parity.py` (`CloudPathExtractor`, `compare_paths`, tolerância),

@@ -1,0 +1,18 @@
+# Corpus de avaliação (SPEC-012 / T-038).
+#
+# Os vídeos NÃO são versionados (ver .gitignore) — só este manifest é. Quem clonar o
+# repositório precisa das gravações para rodar `evalctl run eval/corpus/`.
+#
+# `expected_reps` é o rótulo humano: a contagem que uma pessoa fez assistindo. É contra ele
+# que a acurácia é medida, então errar aqui envenena toda a bancada.
+
+- file: polichinelo-01.mp4
+  exercise: jumping_jack
+  expected_reps: 20
+  conditions:
+    # Preencher o que for sabido da gravação; campos vazios são melhores que campos errados.
+    resolucao: 854x480
+    fps: 30
+    duracao_s: 29
+    enquadramento: corpo inteiro
+    observacoes: os primeiros ~2s sao parados, antes do exercicio comecar
