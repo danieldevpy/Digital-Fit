@@ -15,9 +15,12 @@ dependencies = [
 [project.optional-dependencies]
 # Camada Django (api + gateway). Workers NUNCA importam isto.
 server = [
+    "channels>=4.2",
+    "channels-redis>=4.2",
     "django>=5.1,<6.0",
     "djangorestframework>=3.15",
     "psycopg[binary]>=3.2",
+    "uvicorn[standard]>=0.34",
 ]
 
 # Bancada de avaliacao (SPEC-012): roda local, sem Docker. Pesado (MediaPipe + OpenCV) e
@@ -29,7 +32,10 @@ eval = [
 
 [dependency-groups]
 dev = [
+    # `channels.testing` importa daphne; so o teste precisa dele (o gateway sobe com uvicorn).
+    "daphne>=4.1",
     "pytest>=8.3",
+    "pytest-asyncio>=0.24",
     "pytest-django>=4.9",
     "ruff>=0.9",
 ]
@@ -67,3 +73,4 @@ pythonpath = [".", "server"]
 DJANGO_SETTINGS_MODULE = "core.settings"
 testpaths = ["tests"]
 addopts = "-q"
+asyncio_mode = "auto"

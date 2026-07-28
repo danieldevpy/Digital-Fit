@@ -77,6 +77,33 @@ services:
       retries: 10
       start_period: 15s
 
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    # ASGI (uvicorn): WebSocket de ingestão + push de feedback. O `api` segue em WSGI.
+    command: uvicorn core.asgi:application --host 0.0.0.0 --port 8001
+    environment:
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-nao-usar-em-producao}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,gateway,[::1]}
+      SESSION_TOKEN_SECRET: ${SESSION_TOKEN_SECRET:-dev-token-secret}
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-digitalfit}
+      POSTGRES_USER: ${POSTGRES_USER:-digitalfit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-digitalfit}
+      REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${GATEWAY_PORT:-8001}:8001"
+    volumes:
+      - ./server:/app/server
+      - ./workers:/app/workers
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   analysis-worker:
     build:
       context: .

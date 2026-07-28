@@ -11,7 +11,7 @@
 | T-002 | `workers/shared/events.py`: envelope + eventos da fase 0 + testes de serialização | 002 | done |
 | T-003 | Webcam + MediaPipe no browser desenhando esqueleto (validação visual) | 001/005 | todo |
 | T-004 | Capability probe + frame clock (ts/seq) + modo forçável por query param | 001 | todo |
-| T-005 | Gateway Channels: WS autenticado por token, publica `pose.frame` no stream | 002 | todo |
+| T-005 | Gateway Channels: WS autenticado por token, publica `pose.frame` no stream | 002 | done |
 | T-006 | Normalização + One Euro Filter como função pura + fixtures de teste | 006 | done |
 | T-007 | Gravador de fixtures: salvar sequência de keypoints do browser em JSON p/ testes | 006/007 | todo |
 | T-008 | Interface `ExerciseAnalyzer` + FSM do polichinelo + testes (20 limpos, preguiçosos, jitter) | 007 | done |
@@ -89,4 +89,12 @@
 - **[A/T-037] `uv sync` sem extras remove o Django**: o fluxo local é
   `uv sync --extra server` (e `--extra eval` para a bancada). README e CI atualizados; a CI
   não instala o extra `eval` de propósito (MediaPipe pesa ~200 MB).
+- **[A/T-005] Porta 8000 do host ocupada**: durante o desenvolvimento havia um processo Python
+  do usuário escutando em `0.0.0.0:8000`, o que impede o serviço `api` de subir
+  (`address already in use`). O gateway (8001), o worker, o redis e o postgres subiram normais.
+  Se acontecer, `API_PORT=8002 docker compose up` resolve sem tocar no processo alheio.
+- **[A/T-005] Sem snapshot de estado, worker reiniciado recomeça a numeração**: matar e religar
+  o analysis-worker **não** derrota o WS (critério 2 da SPEC-002 verificado), e as repetições
+  seguintes continuam chegando — mas o `rep_count` reinicia, porque o estado da FSM é só de
+  memória. É o comportamento previsto para a Fase 0; a retomada por snapshot é a T-031.
 

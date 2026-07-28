@@ -5,6 +5,49 @@
 
 ---
 
+## 2026-07-27 · [A] T-005 — Gateway Channels (WS ↔ streams)
+
+> **Agente B**: o WebSocket está no ar. `ws://localhost:8001/ws/session/{session_id}?token=…`,
+> binário/MessagePack nos dois sentidos. O gateway aceita do cliente **só**
+> `pose.frame`, `session.capability` e `session.completed` (abort) — publicar `rep.detected`
+> pelo cliente é recusado de propósito. De volta chegam fase, rep, cena, feedback e fim.
+> Token inválido/expirado fecha com **4401**; envelope de outra sessão fecha com **4400**.
+
+- `server/api/tokens.py`: token de sessão HMAC-SHA256 truncado (`{expira_em}.{assinatura}`),
+  TTL de 45 s, comparação em tempo constante. Emitido pela API na T-011, verificado aqui.
+- `server/gateway/consumers.py`: `SessionConsumer` — valida token, entra no grupo da sessão,
+  valida envelope, confere que a sessão do envelope é a da URL e enfileira para publicação.
+- `server/gateway/relay.py`: um consumidor por processo lê `events.analysis` (grupo `gateway`)
+  e faz `group_send` ao grupo da sessão; quem tem a conexão empurra pelo WS.
+- `core/asgi.py` virou `ProtocolTypeRouter` (HTTP + WS) e sobe o relay; serviço `gateway`
+  (uvicorn, porta 8001) no compose.
+- Decisões:
+  - **`group_send` via channel layer** em vez de o relay falar direto com a conexão: com 2
+    processos de gateway (ADR-002), o evento lido por um processo precisa alcançar a conexão que
+    está no outro. Sem isso, metade dos feedbacks se perderia ao escalar.
+  - **Publicação em tarefa separada com fila de 3** (`INGEST_BUFFER`): `receive` nunca bloqueia,
+    e frame novo desbanca frame velho — é o backpressure da SPEC-002 aplicado onde o servidor
+    pode aplicá-lo.
+  - **`CLIENT_INGEST_TYPES`**: o cliente só publica frames, capability e encerramento. Sem essa
+    lista, um navegador poderia injetar `rep.detected` e a contagem não valeria nada.
+  - **Sem `daphne` em produção**: o gateway sobe com uvicorn; daphne ficou só no grupo `dev`
+    porque `channels.testing` o importa.
+  - Texto no WS é ignorado (o transporte é MessagePack) e envelope corrompido é logado sem
+    derrubar a conexão — critério 3 da SPEC-002.
+- Verificado com o compose no ar (gateway + worker + redis), cliente WebSocket real:
+  - 62 `pose.frame` de 4 polichinelos ⇒ **4 `rep.detected` + 8 `exercise.phase` chegaram ao
+    cliente**, e o `session.completed` voltou com `rep_count=4` (critério 1 do fluxo);
+  - **latência frame → evento no cliente: mediana 18 ms, p95 28 ms, máx 31 ms** (orçamento da
+    SPEC-002 é < 150 ms) — medido com envio em tempo real a 15 fps;
+  - **matar o `analysis-worker` no meio da sessão não derrubou o WS** (critério 2): o cliente
+    seguiu conectado, e ao religar o worker as repetições voltaram a chegar. Ressalva honesta:
+    sem snapshot, a FSM recomeça e o `rep_count` reinicia — previsto para a Fase 0 (T-031);
+  - token `lixo` não conecta (o servidor recusa o upgrade).
+- Gates: `ruff` limpo, **271 testes** verdes (32 novos), compose com 5 serviços (o `api` não
+  subiu por porta 8000 ocupada no host — registrado em Descobertas).
+
+---
+
 ## 2026-07-27 · [A] T-009 — analysis-worker (consumer de `pose.frames`)
 
 > **Pegadinha do contrato, importante para a T-011 e para o gateway**: quem quer que o

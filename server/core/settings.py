@@ -26,10 +26,14 @@ DEBUG = _env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,api,[::1]")
 
 INSTALLED_APPS = [
+    # Sem `daphne`: o gateway sobe com uvicorn (`core.asgi:application`) e o `api` segue em
+    # WSGI. Instalar daphne só para trocar o runserver não paga o peso.
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",
+    "channels",
     "rest_framework",
     "api",
+    "gateway",
 ]
 
 MIDDLEWARE = [
@@ -63,6 +67,22 @@ DATABASES = {
 
 # Barramento de eventos (Redis Streams). Consumido pelo gateway e pelos workers.
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+# Channel layer: fanout do relay para a conexao que tem cada sessao. Em teste, camada em
+# memoria (`CHANNEL_LAYER_IN_MEMORY=1`) para nao exigir Redis no pytest.
+if _env_bool("CHANNEL_LAYER_IN_MEMORY", False):
+    CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [REDIS_URL]},
+        }
+    }
+
+# Segredo de assinatura do token de sessao (SPEC-009). Separado do SECRET_KEY para poder
+# rotacionar sem invalidar outras assinaturas do Django.
+SESSION_TOKEN_SECRET = os.environ.get("SESSION_TOKEN_SECRET", "")
 
 LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "UTC"
