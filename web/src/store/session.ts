@@ -104,6 +104,8 @@ export interface SessionState {
    * worker, e o anel tem de andar junto com ele, não com a medição.
    */
   countingFrom: number | null
+  /** Quanto durou a preparação pedida, em ms — denominador do anel do "3, 2, 1" (T-049). */
+  countdownMs: number
   /** epoch ms do primeiro frame enviado — só para saber há quanto tempo se está calibrando. */
   firstFrameAt: number | null
   sceneEntry: CoachEntry | null
@@ -170,6 +172,7 @@ const SESSION_DEFAULTS = {
   durationS: 30,
   startedAt: null,
   countingFrom: null,
+  countdownMs: 0,
   firstFrameAt: null,
   sceneEntry: null,
   feedbackEntry: null,
@@ -245,6 +248,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({
       startedAt: valeEm,
       countingFrom: valeEm,
+      countdownMs: Math.max(0, countdownMs),
       // Sem preparação o estado vai direto a `running`, como antes da T-049.
       sessionStatus: countdownMs > 0 ? 'preparing' : 'running',
     })

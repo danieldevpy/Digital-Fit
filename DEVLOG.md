@@ -34,10 +34,18 @@
   - **A preferência mora no aparelho, não na conta.** A SPEC-011 é explícita em que treinar não
     exige conta; uma preferência que só funciona depois de cadastrar seria uma punição por não
     se cadastrar, no produto que se define por não precisar disso.
-  - **UX: número enorme, sozinho, sem texto para ler.** A pessoa já esperou a câmera, o modelo
-    e a medição — um quarto passo com instrução seria atrito. Cada segundo tem batida própria
-    (a `key` do nó muda e a animação reinicia), o fundo escurece só o bastante para o número
-    destacar sem esconder a pessoa que está se posicionando, e há `prefers-reduced-motion`.
+  - **UX em três níveis, do mais rápido de ler para o mais lento** (revisto depois de o Daniel
+    pedir mais clareza): o anel que se esvazia dá o "está acabando" no periférico, sem leitura
+    nenhuma; o número gigante dá o quanto falta; e a linha de apoio — "Fique parado. Comece o
+    polichinelo quando aparecer **VAI!**" — resolve a única dúvida que custa caro, "já é pra
+    começar?". A linha some no VAI!, porque aí a resposta é óbvia e texto sobrando durante o
+    exercício é ruído. O anel reusa o gradiente e a técnica do `TimerRing` dos 30 s: é a mesma
+    ideia visual (um tempo que corre), e duas linguagens para dois relógios no mesmo produto
+    seria custo sem retorno. Fundo escurece só o bastante para destacar sem esconder a pessoa
+    que está se posicionando, e há `prefers-reduced-motion`.
+  - **A primeira versão dizia só "preparando…"**, e era insuficiente pelo motivo certo: quem vê
+    a tela pela primeira vez não pode ficar em dúvida se já devia estar pulando — errar isso
+    custa as primeiras repetições, que é exatamente o que a task existe para proteger.
   - **O controle fica na capa da câmera**, não em tela de ajustes: ela não existe (Perfil é
     conta e histórico), e este é o único instante em que a escolha importa. Ciclo por toque
     (3 → 5 → 10 → desligado) em vez de `<select>`, que abriria roleta nativa sobre a câmera.
@@ -47,7 +55,7 @@
   CONTAGEM herdando em silêncio uma decisão de produto. Agora declaram `countdown_s=0` no
   próprio corpo — quando o default mudar de novo, eles não se mexem.
 - Gates: `pytest` 514 verde (era 507), `ruff` limpo, `npm run typecheck`/`eslint` limpos,
-  vitest 271 (era 254). E-2-e 5/5 contra a stack real, com um caso novo que prova a corrente
+  vitest 278 (era 254). E-2-e 5/5 contra a stack real, com um caso novo que prova a corrente
   inteira: a preferência sai do cliente, atravessa a admissão, vira `session.started` no
   barramento e chega ao worker — que emite `countdown_ms: 10000` e **não conta** nenhuma das 5
   repetições feitas durante a preparação.
