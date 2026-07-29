@@ -66,7 +66,7 @@
 | T-031 | Reconexão com resume (WS) + retomada de sessão via snapshot | 002/009 | todo |
 | T-050 | `Phase` deixa de ser vocabulário de polichinelo: par neutro (`rest`/`peak`) no contrato | 007/002 | done |
 | T-051 | Seleção de exercício no cliente (hoje `useSession.ts` fixa `DEFAULT_EXERCISE`) — sem isto o exercício 2 é inalcançável pelo produto | 013/007 | done |
-| T-052 | Gerador sintético de poses além do polichinelo (`Pose` só tem `arm_angle`/`ankle_spread`) — sem isto a FSM 2 não tem fixture nem critério de aceite | 007/012 | todo |
+| T-052 | Gerador sintético de poses além do polichinelo (`Pose` só tem `arm_angle`/`ankle_spread`) — sem isto a FSM 2 não tem fixture nem critério de aceite | 007/012 | done |
 | T-032 | Exercício 2: agachamento (novo módulo `exercises/squat.py`) — depende de T-050/051/052 | 007 | todo |
 | T-033 | Form score por rep (amplitude, simetria, estabilidade) | 007 | todo |
 | T-034 | Ferramenta de rotulagem do dataset + primeiro treino do classificador temporal | 010/007 | todo |
@@ -185,6 +185,30 @@
   a bancada é real. Proposta: **T-047** — ~~aberta~~ **RESOLVIDA**: `--no-calibrate` no `02`
   passou de 14 para 15/15. O que sobra naquele vídeo é a calibração comendo exercício, não a
   contagem.
+- **[A/T-052] De frente, o ângulo do joelho MENTE — e por muito. Medido no gerador:**
+
+  | joelho real | visto de frente | altura ombro→tornozelo |
+  |---|---|---|
+  | 172° (em pé) | 177° | 0,607 |
+  | 140° | 165° | 0,588 |
+  | 110° | 152° | 0,549 |
+  | 80° (agachado) | **133°** | 0,491 |
+  | 70° | 124° | 0,468 |
+
+  O joelho de um agachamento viaja para a **frente**, e uma câmera frontal quase não vê esse
+  eixo. Uma FSM que decidisse "agachou" por `knee_angle < 90°` lido do plano da imagem **nunca
+  dispararia** em vídeo frontal — que é o enquadramento que o produto pede em toda a SPEC-003.
+  O que a câmera enxerga bem é a **altura ombro→tornozelo**, que cai de forma monotônica
+  (0,607 → 0,468, ~19%) e é candidata a feature principal do agachamento. **Consequência
+  direta para a T-032**: as features do agachamento não podem espelhar as do polichinelo (lá o
+  ângulo do braço é lido no plano da imagem e funciona, porque a abdução acontece nesse
+  plano). Decidir isso antes de escrever a FSM, não depois de ela reprovar no corpus.
+- **[A/T-052] O gerador é conservador quanto ao encolhimento, de propósito**: um agachamento
+  real também **inclina o tronco à frente**, e de frente isso encurta ainda mais a projeção. O
+  boneco mantém o tronco vertical, então mostra MENOS sinal do que o vídeo terá. Errar para
+  menos é o lado seguro (a FSM não fica dependente de um sinal que talvez não venha); errar
+  para mais aprovaria limiares que reprovam em produção. Se a T-032 quiser o tronco inclinado,
+  é um parâmetro novo em `Pose` — não foi adicionado por não ter consumidor ainda.
 - **[A/T-051] O catálogo do cliente e o registro do servidor podem divergir sem ninguém ver.**
   `EXERCISE_CATALOG` (web) é conteúdo de apresentação; `EXERCISES` (worker) é quem existe de
   verdade, e o `POST /sessions` recusa slug desconhecido dizendo quais aceita. Se alguém

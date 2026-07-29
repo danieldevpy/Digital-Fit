@@ -32,14 +32,39 @@ ARMS_UP = 168.0
 # Afastamento de tornozelos, em larguras de ombro.
 FEET_TOGETHER = 0.55
 FEET_APART = 1.75
+# Ângulo do joelho (quadril–joelho–tornozelo), em graus. 180° seria trava articular, que
+# ninguém faz nem deve fazer; "em pé" é quase reto.
+KNEE_STRAIGHT = 180.0
+KNEE_STANDING = 172.0
+KNEE_SQUAT = 80.0
+# Pés na largura dos ombros — a base de um agachamento, mais aberta que "pés juntos".
+FEET_SHOULDER_WIDTH = 1.0
+
+#: Quanto do avanço do joelho aparece numa câmera FRONTAL. O joelho de um agachamento viaja
+#: sobretudo para a FRENTE (eixo de profundidade), e de frente isso quase não se vê — o que
+#: se vê é o joelho abrindo um pouco para fora. Este fator é a projeção desse avanço no
+#: plano da imagem, e é baixo de propósito: uma fixture que mostrasse o ângulo do joelho
+#: inteiro de frente produziria uma FSM que só funciona em vídeo lateral.
+_KNEE_FRONTAL_PROJECTION = 0.35
 
 
 @dataclass(frozen=True, slots=True)
 class Pose:
-    """Uma pose do polichinelo, independente de escala e posição no quadro."""
+    """Uma configuração do corpo, independente de escala e posição no quadro.
+
+    Era só polichinelo (braço + tornozelo). `knee_angle` entrou na T-052 para que o segundo
+    exercício tenha fixture — sem gerador não há critério de aceite, e os critérios da
+    SPEC-007 são todos baseados em fixture.
+
+    O default `KNEE_STRAIGHT` mantém toda pose antiga idêntica ao byte: perna reta é
+    exatamente a geometria que existia antes, e é isso que faz a extensão não mexer em
+    nenhuma das fixtures do polichinelo.
+    """
 
     arm_angle: float = ARMS_DOWN
     ankle_spread: float = FEET_TOGETHER
+    #: Ângulo quadril–joelho–tornozelo. Menor = mais agachado.
+    knee_angle: float = KNEE_STRAIGHT
 
 
 def stick_figure(
@@ -60,8 +85,19 @@ def stick_figure(
     arm = _ARM_LENGTH * torso
     leg = _LEG_LENGTH * torso
 
-    hip_y = cy
-    shoulder_y = cy - torso
+    # Pernas primeiro: quando o joelho dobra, é o QUADRIL que desce — o chão não se move.
+    # `center` continua sendo o quadril de quem está em pé, então nenhuma fixture antiga muda.
+    half_gap = pose.ankle_spread * shoulder_w / 2
+    # Coxa e canela têm metade da perna cada; o ângulo do joelho encurta a distância
+    # quadril→tornozelo por trigonometria do triângulo isósceles.
+    hip_to_ankle = leg * math.sin(math.radians(pose.knee_angle) / 2)
+    drop = math.sqrt(max(hip_to_ankle**2 - half_gap**2, (0.2 * leg) ** 2))
+    drop_em_pe = math.sqrt(max(leg**2 - half_gap**2, (0.2 * leg) ** 2))
+    descida = drop_em_pe - drop  # zero com a perna reta
+
+    hip_y = cy + descida
+    shoulder_y = hip_y - torso
+    ground_y = cy + drop_em_pe
 
     # Braços: ângulo medido a partir do vetor "para baixo", abrindo para fora.
     theta = math.radians(pose.arm_angle)
@@ -77,16 +113,19 @@ def stick_figure(
         (right_shoulder[1] + right_wrist[1]) / 2,
     )
 
-    # Pernas: tornozelos afastados por `ankle_spread` larguras de ombro; a altura encurta com
-    # o afastamento (a perna não estica).
-    half_gap = pose.ankle_spread * shoulder_w / 2
+    # Tornozelos afastados por `ankle_spread` larguras de ombro, apoiados no chão.
     left_hip = (cx - hip_w / 2, hip_y)
     right_hip = (cx + hip_w / 2, hip_y)
-    drop = math.sqrt(max(leg**2 - half_gap**2, (0.2 * leg) ** 2))
-    left_ankle = (cx - half_gap, hip_y + drop)
-    right_ankle = (cx + half_gap, hip_y + drop)
-    left_knee = ((left_hip[0] + left_ankle[0]) / 2, (left_hip[1] + left_ankle[1]) / 2)
-    right_knee = ((right_hip[0] + right_ankle[0]) / 2, (right_hip[1] + right_ankle[1]) / 2)
+    left_ankle = (cx - half_gap, ground_y)
+    right_ankle = (cx + half_gap, ground_y)
+
+    # O joelho sai da reta quadril→tornozelo na medida em que a perna dobra. `desvio` é o
+    # avanço real do joelho (cateto do triângulo isósceles); só uma fração dele aparece numa
+    # câmera frontal, e é essa fração que vai para o x.
+    metade = hip_to_ankle / 2
+    desvio = math.sqrt(max((leg / 2) ** 2 - metade**2, 0.0)) * _KNEE_FRONTAL_PROJECTION
+    left_knee = ((left_hip[0] + left_ankle[0]) / 2 - desvio, (left_hip[1] + left_ankle[1]) / 2)
+    right_knee = ((right_hip[0] + right_ankle[0]) / 2 + desvio, (right_hip[1] + right_ankle[1]) / 2)
 
     nose = (cx, shoulder_y - _HEAD_OFFSET * torso)
     eye_dx, eye_dy = 0.05 * torso, 0.04 * torso
@@ -212,3 +251,38 @@ def jumping_jack_poses(
                 )
             )
     return [*poses, Pose(), Pose()]
+
+
+def standing_pose(*, feet: float = FEET_SHOULDER_WIDTH) -> Pose:
+    """Em pé para agachar: pés na largura dos ombros, joelho quase reto, braços baixos."""
+    return Pose(ankle_spread=feet, knee_angle=KNEE_STANDING)
+
+
+def squat_poses(
+    reps: int,
+    *,
+    frames_per_rep: int = 15,
+    amplitude: float = 1.0,
+    feet: float = FEET_SHOULDER_WIDTH,
+) -> list[Pose]:
+    """Poses de `reps` agachamentos contínuos, interpolados por cosseno (T-052).
+
+    Mesma forma de `jumping_jack_poses` de propósito — `amplitude` < 1 é o agachamento raso,
+    que é o análogo da rep preguiçosa, e a sequência termina **em pé** para a última repetição
+    não ficar eternamente em andamento.
+
+    Os braços ficam parados: o que define um agachamento é a perna. Quem quiser variar o
+    braço (à frente, na nuca) monta a `Pose` na mão — não é o caso comum.
+    """
+    em_pe = standing_pose(feet=feet)
+    poses: list[Pose] = []
+    for _rep in range(reps):
+        for index in range(frames_per_rep):
+            fraction = (1 - math.cos(2 * math.pi * index / frames_per_rep)) / 2 * amplitude
+            poses.append(
+                Pose(
+                    ankle_spread=feet,
+                    knee_angle=KNEE_STANDING + (KNEE_SQUAT - KNEE_STANDING) * fraction,
+                )
+            )
+    return [*poses, em_pe, em_pe]

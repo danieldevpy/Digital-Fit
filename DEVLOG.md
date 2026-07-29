@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-07-29 · T-052 — O gerador de fixtures aprende a dobrar o joelho
+
+- Por quê antes da T-032: todos os critérios de aceite da SPEC-007 são baseados em fixture.
+  Sem gerador, a FSM 2 não teria como ser aceita — e essa metade do trabalho estava invisível
+  no título da T-032.
+- Feito: `Pose` ganhou `knee_angle`, `stick_figure` passou a montar a perna como cadeia de
+  dois segmentos, e nasceram `squat_poses()`/`standing_pose()`, espelhando a forma do gerador
+  do polichinelo.
+- Decisões:
+  - **Default `KNEE_STRAIGHT` = perna reta = a geometria que já existia.** A suíte inteira
+    (535 testes) passa sem um número se mexer, e há teste explícito para isso. Um deslocamento
+    de milésimos aqui reescreveria em silêncio o significado de todos os limiares medidos até
+    hoje — inclusive os do corpus.
+  - **Ao agachar, quem desce é o quadril; o chão fica.** Ancorar no quadril e deixar o
+    tornozelo subir daria a mesma geometria relativa, mas a altura do corpo no quadro não
+    mudaria — e a validação de cena veria um agachamento como alguém parado, enquanto em vídeo
+    o corpo encolhe visivelmente.
+- **A medição que muda a T-032**: de frente, 80° reais de joelho leem **133°**. O joelho viaja
+  para a frente e a câmera frontal não vê esse eixo. Uma FSM com limiar de 90° lido do plano
+  da imagem **nunca dispararia** no enquadramento que o produto pede. O que se vê bem é a
+  altura ombro→tornozelo (0,607 → 0,468). O gerador reproduz essa perda de propósito: uma
+  fixture que entregasse o ângulo verdadeiro de frente produziria uma FSM aprovada em teste e
+  reprovada em vídeo — o pior resultado possível para uma bancada. Tabela nas Descobertas.
+- Um teste meu falhou e o certo era corrigir o teste: eu tinha afirmado encolhimento de 25%
+  sem medir; o real é 19%. Trocado pelo número medido, com o porquê de ele ser conservador
+  (o gerador não inclina o tronco, e vídeo real inclina).
+- Gates: `ruff` limpo, `pytest` **535** (era 521, +14).
+
+---
+
 ## 2026-07-29 · T-051 — O cliente passa a escolher o exercício
 
 - O buraco: `useSession.ts` mandava `DEFAULT_EXERCISE` fixo. Um exercício podia estar pronto,
