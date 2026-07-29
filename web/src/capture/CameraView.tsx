@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 import { FixtureControls } from '../dev/FixtureControls'
 import { VideoSourceControl } from '../dev/VideoSourceControl'
 import { useDevTools } from '../dev/gate'
+import { CountdownSetting } from '../hud/CountdownSetting'
+import { GetReady } from '../hud/GetReady'
 import { Mode } from '../lib/events'
 import { useSessionStore } from '../store/session'
 import { useCamera } from './useCamera'
@@ -72,6 +74,9 @@ export function CameraView() {
             {cameraStatus === 'requesting' ? 'Aguardando…' : 'Ligar câmera'}
           </button>
 
+          {/* A escolha só importa aqui, logo antes de treinar (T-049). */}
+          <CountdownSetting />
+
           {/* A fonte de arquivo precisa estar acessível ANTES da câmera (T-040): ela existe
               justamente para medir o pipeline sem câmera — em máquina sem webcam, ou sem
               gastar a permissão. Deixá-la só dentro do chip de diagnóstico, que exige
@@ -88,9 +93,12 @@ export function CameraView() {
         <p className="stage__banner">Calibrando o dispositivo…</p>
       )}
 
-      {/* Preparação (SPEC-004): a câmera roda e os frames já sobem, mas o exercício ainda
-          não vale. Quem encerra esta fase é o servidor (`session.calibrated`) — por isso
-          aqui não há contagem regressiva própria, que poderia terminar antes dele. */}
+      {/* "3, 2, 1" entre o corpo medido e a contagem valer (T-049). Quem segura a contagem
+          é o worker; isto aqui só desenha o mesmo prazo. */}
+      {isReady && <GetReady />}
+
+      {/* Medição (SPEC-004): a câmera roda e os frames já sobem, mas o exercício ainda não
+          vale. Quem encerra esta fase é o servidor (`session.calibrated`). */}
       {isReady && sessionStatus === 'calibrating' && (
         <div className="stage__prepare">
           <p className="stage__prepare-title">Fique em pé, parado</p>

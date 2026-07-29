@@ -42,6 +42,7 @@
 | T-048 | Gate das ferramentas de dev: separadas da UI de produto, liberadas por conta (`is_admin`) para inspecionar produção | 012/011 | done |
 | T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness — dentro do gate da T-048, nunca na UI de produto | 012 | done — falta 1 passada manual (abrir um vídeo do corpus no navegador e exportar o JSON) |
 | T-041 | `evalctl replay --ws`: injetar keypoints gravados via gateway (integração + carga sintética) | 012 | todo |
+| T-049 | Preparação "3, 2, 1" configurável entre o corpo medido e a contagem valer (3s padrão, 5/10s ou desligado) | 004/013 | done |
 | T-047 | FSM inicia a fase pelo que observa, não assumindo `CLOSED` (perde a 1ª rep quando a captura começa com a pessoa aberta — ver Descobertas) | 007/004 | todo |
 
 ## Fase 2 — SaaS na VPS
@@ -410,3 +411,23 @@
   gravar vídeo longo vai comparar 30 s de navegador contra 45 s de harness e achar que
   encontrou divergência. Ou o corpus se mantém abaixo de 30 s, ou a paridade passa a recortar
   o vídeo antes de entregar ao harness.
+- **[A/T-049] `session.calibrated` mudou de significado.** Antes queria dizer "a contagem
+  começou"; agora quer dizer "o corpo foi medido", e quem lê precisa somar `countdown_ms` para
+  saber quando o relógio dos 30 s anda. Nenhum consumidor atual quebrou (o cliente foi
+  atualizado; o report-builder só usa `samples`), mas qualquer consumidor novo que trate o
+  evento como marco de início vai errar em 3 s por padrão — e errar em silêncio, que é pior.
+- **[A/T-049] Não há segundo evento para o "JÁ".** Foi considerado um `session.counting` e
+  descartado: o cliente já ancorava o anel no relógio DELE ao receber o `session.calibrated`,
+  então um evento novo custaria uma ida ao servidor sem comprar autoridade nenhuma. A
+  autoridade que importa está no worker, que não alimenta a FSM antes do prazo. Se algum dia o
+  anel precisar bater com o servidor ao milissegundo, aí o evento passa a valer a pena.
+- **[A/T-049] A preparação não vale para sessão aberta sem `session.started`.** O
+  `SessionState` do worker tem `countdown_s = 0` como default, e não os 3 s do produto: esse
+  caminho é o fallback em que um `pose.frame` abre a sessão sem admissão, onde não há cliente
+  coordenando nada. Engolir 3 s de frames ali seria perder dado para preparar uma pessoa que
+  não existe.
+- **[A/T-049] Toda suíte que conta reps precisou declarar `countdown_s=0`.** Sete testes
+  quebraram ao mudar o default, em `test_analysis_worker`, `test_calibration`, `test_sessions`,
+  `test_feedback` e no e2e do cliente. Não é ruído: cada um deles é um teste de CONTAGEM que
+  estava herdando em silêncio uma decisão de produto. Agora dizem no próprio corpo que não
+  querem preparação — e o dia em que o default mudar de novo, eles não se mexem.

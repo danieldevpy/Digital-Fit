@@ -9,6 +9,7 @@ import {
   type ExercisePhaseData,
   type FeedbackIssuedData,
   type RepDetectedData,
+  type SessionCalibratedData,
   type SceneWarningData,
   type SessionCompletedData,
   type SessionStartedData,
@@ -28,11 +29,19 @@ function handle(envelope: Envelope) {
   const now = Date.now()
 
   switch (envelope.type) {
-    case EventType.SESSION_CALIBRATED:
-      // Marco de "agora vale": o servidor mediu o corpo e o timer dos 30 s começou. O
-      // cliente ancora o anel AQUI para não mostrar um tempo diferente do autoritativo.
-      store.applyCalibrated(now)
+    case EventType.SESSION_CALIBRATED: {
+      // Marco de "corpo MEDIDO" — não mais de "contagem começou" (T-049). Entre um e outro
+      // pode haver a preparação, e é o worker quem a segura: ele não alimenta a FSM antes do
+      // prazo. O cliente só desenha o "3, 2, 1" em cima do mesmo número.
+      const preparo = (envelope.data as SessionCalibratedData).countdown_ms ?? 0
+      store.applyCalibrated(now, preparo)
+      if (preparo > 0) {
+        // O `setTimeout` é cosmético: se ele atrasar, o placar não sai errado — quem decide
+        // o que conta é o servidor. Ele só troca o estado da tela na hora certa.
+        setTimeout(() => useSessionStore.getState().startCounting(), preparo)
+      }
       break
+    }
     case EventType.SESSION_STARTED:
       store.applySessionStarted(envelope.data as SessionStartedData, envelope.session_id)
       break

@@ -43,10 +43,22 @@ def envelope_pose(frame, session_id: str = SESSAO) -> Envelope:
 
 
 def envelope_started(
-    session_id: str = SESSAO, *, exercise: str = "jumping_jack", duration_s: int = 30
+    session_id: str = SESSAO,
+    *,
+    exercise: str = "jumping_jack",
+    duration_s: int = 30,
+    countdown_s: int = 0,
 ) -> Envelope:
+    """`session.started` do teste.
+
+    `countdown_s=0` por padrão: estes testes são sobre CONTAGEM, e a preparação da T-049 só
+    atrasaria o começo deles sem mudar o que verificam. Quem testa a preparação passa o valor
+    explicitamente — é o assunto do teste, então tem de estar escrito nele.
+    """
     return make_envelope(
-        SessionStarted(exercise=exercise, mode=Mode.EDGE, duration_s=duration_s),
+        SessionStarted(
+            exercise=exercise, mode=Mode.EDGE, duration_s=duration_s, countdown_s=countdown_s
+        ),
         session_id=session_id,
         ts=1_722_100_000_000,
         seq=0,

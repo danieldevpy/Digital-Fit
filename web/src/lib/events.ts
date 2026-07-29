@@ -139,6 +139,8 @@ export interface SessionStartedData {
   exercise: string
   mode: Mode
   duration_s: number
+  /** Preparação antes de a contagem valer (T-049). `0` desliga. */
+  countdown_s?: number
 }
 
 /**
@@ -171,6 +173,13 @@ export interface SessionCalibratedData {
   shoulder_span: number
   wrist_rest_y: number
   samples: number
+  /**
+   * Quanto falta até a contagem valer (T-049). `0` = vale a partir deste evento.
+   *
+   * O evento significa "corpo MEDIDO", não "contagem começou": quem lê tem de somar isto
+   * para saber quando o anel dos 30 s anda.
+   */
+  countdown_ms?: number
 }
 
 /** `[x, y, z, visibility]`, normalizado 0–1 no frame. */

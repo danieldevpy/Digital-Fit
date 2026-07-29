@@ -65,8 +65,20 @@ class SessionState:
     #: alimentam a calibração e a validação de cena — mas não a contagem.
     calibrator: Calibrator = field(default_factory=Calibrator)
     baseline: Baseline | None = None
+    #: Preparação pedida por quem treina (T-049), vinda do `session.started`. `0` = contagem
+    #: vale assim que o corpo é medido, que era o comportamento antes da task.
+    #:
+    #: O default aqui é 0, e não o `DEFAULT_COUNTDOWN_S` do produto, porque este default só é
+    #: usado no caminho em que um `pose.frame` abre a sessão SEM admissão. Aí não há cliente
+    #: coordenando nada: ninguém está vendo um "3, 2, 1", e engolir 3 s de frames seria perder
+    #: dado para preparar uma pessoa que não existe. A preparação é combinada entre cliente e
+    #: servidor — sem o combinado, não há preparação.
+    countdown_s: int = 0
+    #: Instante (relógio do servidor) a partir do qual a FSM vê os frames. Fica no FUTURO
+    #: durante o "3, 2, 1".
+    counting_from_wall_ms: int | None = None
     #: Instante (relógio do servidor) em que o exercício passou a valer. É daqui que os 30 s
-    #: correm, e não do primeiro frame: o countdown é preparação, não treino.
+    #: correm, e não do primeiro frame: a preparação é preparação, não treino.
     exercise_started_wall_ms: int | None = None
     first_ts: int | None = None
     last_ts: int | None = None
@@ -83,6 +95,10 @@ class SessionState:
     def __post_init__(self) -> None:
         if self.analyzer is None:
             self.analyzer = get_analyzer(self.exercise)
+
+    def counting(self, now_wall_ms: int) -> bool:
+        """A FSM já pode ver os frames? Falso enquanto mede o corpo e durante a preparação."""
+        return self.counting_from_wall_ms is not None and now_wall_ms >= self.counting_from_wall_ms
 
     def next_seq(self) -> int:
         """`seq` dos eventos de saída — monotônico por sessão, contado pelo worker."""
@@ -101,8 +117,6 @@ class SessionState:
 
     def expiry_reason(self, now_wall_ms: int) -> SessionEndReason | None:
         """Por que esta sessão deveria terminar agora — ou `None` se ela segue viva.
-
-        Dois prazos, ambos em relógio do servidor:
 
         Três prazos, todos em relógio do servidor:
 
@@ -191,6 +205,7 @@ class AnalysisRouter:
                 exercise=dados.exercise,
                 mode=dados.mode,
                 duration_s=dados.duration_s,
+                countdown_s=dados.countdown_s,
                 opened_wall_ms=self._now,
             )
         except ValueError as exc:
@@ -241,10 +256,17 @@ class AnalysisRouter:
         avisos = estado.scene.check(norm)
 
         calibracao = self._calibrar(estado, norm)
-        if estado.baseline is None:
-            # Ainda medindo: nada de contagem. A pessoa está se posicionando, e um "1" no
-            # placar durante o countdown seria uma repetição que ela não fez.
-            saidas = [self._wrap(estado, aviso) for aviso in avisos]
+
+        if not estado.counting(self._now):
+            # Duas fases caem aqui: medindo o corpo, e a preparação do "3, 2, 1" (T-049).
+            #
+            # Os frames continuam sendo normalizados — o One Euro precisa ficar quente, senão
+            # o primeiro movimento que vale chegaria cru — e a validação de cena continua
+            # falando, que é justamente quando "entre no quadro" mais ajuda. O que não roda é
+            # a FSM: um "1" no placar antes do JÁ seria uma repetição que a pessoa não fez, e
+            # é para impedir exatamente isso que a espera mora no servidor e não na animação.
+            saidas = [*calibracao]
+            saidas.extend(self._wrap(estado, aviso) for aviso in avisos)
             saidas.extend(
                 self._wrap(estado, mensagem)
                 for mensagem in estado.feedback.push(avisos, envelope.ts)
@@ -290,10 +312,16 @@ class AnalysisRouter:
         estado.baseline = baseline
         estado.normalizer.set_baseline(baseline)
         estado.analyzer.baseline = baseline
-        # O relógio dos 30 s começa AQUI (SPEC-009 + SPEC-004): o que veio antes foi a pessoa
-        # se posicionando, e cobrar isso do treino dela seria errado.
-        estado.exercise_started_wall_ms = self._now
-        logger.info("sessao %s calibrada, exercicio valendo", estado.session_id)
+
+        # Preparação (T-049): entre o corpo medido e a contagem valer. Com `countdown_s = 0`
+        # os dois instantes coincidem e o comportamento é o de antes da task.
+        countdown_ms = estado.countdown_s * 1000
+        estado.counting_from_wall_ms = self._now + countdown_ms
+        # O relógio dos 30 s começa no "JÁ", não agora (SPEC-009 + SPEC-004): o que veio antes
+        # foi a pessoa se posicionando, e cobrar isso do treino dela seria errado. Fica no
+        # futuro de propósito — `expired()` compara contra ele e só passa a contar lá.
+        estado.exercise_started_wall_ms = estado.counting_from_wall_ms
+        logger.info("sessao %s calibrada, exercicio vale em %s ms", estado.session_id, countdown_ms)
 
         return [
             self._wrap(
@@ -304,6 +332,7 @@ class AnalysisRouter:
                     shoulder_span=float(baseline.shoulder_span or 0.0),
                     wrist_rest_y=float(baseline.wrist_rest_y or 0.0),
                     samples=estado.calibrator.samples,
+                    countdown_ms=countdown_ms,
                 ),
             )
         ]

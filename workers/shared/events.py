@@ -348,6 +348,32 @@ class SessionCapability:
         )
 
 
+#: Preparação entre "corpo medido" e "vale agora" (SPEC-004 / T-049).
+#:
+#: 3 s é o default porque é o tempo do "3, 2, 1" que a SPEC-004 já pedia na Fase Inicial e que
+#: a T-019 acabou colapsando: hoje a contagem começa no mesmo frame em que a medida fica
+#: pronta, sem aviso nenhum para quem está do outro lado.
+DEFAULT_COUNTDOWN_S = 3
+
+#: Teto de 10 s. Não é técnico — é para o campo não virar uma forma de segurar vaga de sessão
+#: (SPEC-009) sem treinar: o TTL do ticket é 45 s, e uma preparação longa comeria o slot.
+MAX_COUNTDOWN_S = 10
+
+
+def clamp_countdown_s(valor: Any) -> int:
+    """Normaliza a preferência: inteiro entre 0 e `MAX_COUNTDOWN_S`.
+
+    Aceita lixo em silêncio de propósito. É preferência de conforto, não parâmetro de
+    medição: recusar a sessão inteira porque alguém mandou `"três"` seria trocar um treino
+    por um erro de digitação.
+    """
+    try:
+        segundos = int(valor)
+    except (TypeError, ValueError):
+        return DEFAULT_COUNTDOWN_S
+    return max(0, min(MAX_COUNTDOWN_S, segundos))
+
+
 @dataclass(frozen=True, slots=True)
 class SessionStarted:
     """Sessão admitida pela API; abre o estado no analysis-worker (SPEC-009)."""
@@ -357,9 +383,19 @@ class SessionStarted:
     exercise: str
     mode: Mode
     duration_s: int
+    #: Segundos entre o corpo estar medido e a contagem valer (SPEC-004 / T-049). `0` desliga.
+    #: Vem da preferência de quem treina e viaja aqui porque quem SEGURA a contagem é o
+    #: analysis-worker: fosse só animação no cliente, uma repetição feita durante o "3, 2, 1"
+    #: entraria no total — que é exatamente o que o recurso existe para evitar.
+    countdown_s: int = DEFAULT_COUNTDOWN_S
 
     def to_data(self) -> dict[str, Any]:
-        return {"exercise": self.exercise, "mode": self.mode.value, "duration_s": self.duration_s}
+        return {
+            "exercise": self.exercise,
+            "mode": self.mode.value,
+            "duration_s": self.duration_s,
+            "countdown_s": self.countdown_s,
+        }
 
     @classmethod
     def from_data(cls, data: dict[str, Any]) -> Self:
@@ -367,6 +403,9 @@ class SessionStarted:
             exercise=_as_str(_require(data, "exercise"), "exercise"),
             mode=_as_enum(Mode, _require(data, "mode"), "mode"),
             duration_s=_as_int(_require(data, "duration_s"), "duration_s"),
+            # Ausente = sessão criada antes da T-049 (ou por cliente velho): cai no default,
+            # em vez de quebrar a admissão por um campo que não existia.
+            countdown_s=clamp_countdown_s(data.get("countdown_s", DEFAULT_COUNTDOWN_S)),
         )
 
 
@@ -494,6 +533,15 @@ class SessionCalibrated:
     wrist_rest_y: float
     #: Frames que entraram na mediana. Baixo demais é sinal de calibração no limite.
     samples: int = 0
+    #: Quanto falta até a contagem valer (T-049). `0` = vale a partir deste evento, que é o
+    #: comportamento de antes da task.
+    #:
+    #: O evento passou a significar "corpo MEDIDO", não mais "contagem começou" — quem lê
+    #: precisa somar isto para saber quando o relógio dos 30 s anda. Não há um segundo evento
+    #: para o "JÁ": o cliente já ancorava o anel no relógio dele ao receber este aqui, então um
+    #: `session.counting` custaria uma ida ao servidor sem comprar autoridade nenhuma. Quem
+    #: segura a contagem de verdade é o worker, que não alimenta a FSM antes do prazo.
+    countdown_ms: int = 0
 
     def to_data(self) -> dict[str, Any]:
         return {
@@ -502,6 +550,7 @@ class SessionCalibrated:
             "shoulder_span": self.shoulder_span,
             "wrist_rest_y": self.wrist_rest_y,
             "samples": self.samples,
+            "countdown_ms": self.countdown_ms,
         }
 
     @classmethod
@@ -512,6 +561,7 @@ class SessionCalibrated:
             shoulder_span=float(_require(data, "shoulder_span")),
             wrist_rest_y=float(_require(data, "wrist_rest_y")),
             samples=_as_int(data.get("samples", 0), "samples"),
+            countdown_ms=_as_int(data.get("countdown_ms", 0), "countdown_ms"),
         )
 
 

@@ -14,10 +14,11 @@
  * a parte "pessoa de verdade na frente da câmera" é a única que exige gente.
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { fetchHistory, register } from '../auth/api'
 import { installStorage, uninstallStorage } from '../auth/testStorage'
+import { setCountdownPreference } from './preferences'
 import {
   EventType,
   Source,
@@ -103,6 +104,15 @@ async function esperarEvento(
 }
 
 describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
+  // Sem preparação (T-049): estes testes contam REPS, e os 3 s de "3, 2, 1" do default
+  // engoliriam as primeiras — medindo a preparação onde se queria medir a contagem. O caso
+  // que exercita a preparação a liga explicitamente, porque lá ela é o assunto.
+  beforeEach(() => {
+    installStorage()
+    setCountdownPreference(0)
+  })
+  afterEach(uninstallStorage)
+
   it(
     'admite a sessão, manda pose.frame e recebe a contagem do servidor',
     { timeout: 60_000 },
@@ -304,13 +314,70 @@ describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
   )
 
   it(
+    'a preparação segura a contagem no SERVIDOR, não só na animação (T-049)',
+    { timeout: 60_000 },
+    async () => {
+      // O que este caso prova e nenhum unitário prova: o `countdown_s` sai da preferência do
+      // cliente, atravessa a admissão, vira `session.started` no barramento e chega ao
+      // analysis-worker — que então NÃO alimenta a FSM. Se qualquer elo dessa corrente
+      // esquecer o campo, as reps abaixo aparecem.
+      setCountdownPreference(10)
+
+      const ticket = await requestSession({
+        exercise: 'jumping_jack',
+        requestedMode: Mode.EDGE,
+        probe: null,
+      })
+      const socket = new WebSocket(ticket.ws_url)
+      socket.binaryType = 'arraybuffer'
+      const { decode, encode } = await import('@msgpack/msgpack')
+      const recebidos: Envelope[] = []
+
+      socket.addEventListener('message', (evento) => {
+        recebidos.push(decode(new Uint8Array(evento.data as ArrayBuffer)) as Envelope)
+      })
+      await new Promise<void>((resolve) =>
+        socket.addEventListener('open', () => resolve(), { once: true }),
+      )
+
+      // ~5 s de polichinelos, todos dentro dos 10 s de preparação.
+      const quadros = sequencia(5)
+      for (const [indice, marcos] of quadros.entries()) {
+        socket.send(
+          encode(
+            makeEnvelope({
+              type: EventType.POSE_FRAME,
+              session_id: ticket.session_id,
+              ts: Date.now(),
+              seq: indice,
+              source: Source.EDGE,
+              data: { landmarks: marcos },
+            }),
+          ),
+        )
+        await new Promise((r) => setTimeout(r, 1000 / FPS))
+      }
+      await new Promise((r) => setTimeout(r, 1000))
+      socket.close()
+
+      // O corpo foi medido, e o evento diz quanto falta — é com este número que a tela
+      // desenha o "3, 2, 1".
+      const calibrado = recebidos.find((e) => e.type === EventType.SESSION_CALIBRATED)
+      expect(calibrado).toBeDefined()
+      expect((calibrado!.data as { countdown_ms?: number }).countdown_ms).toBe(10_000)
+
+      // E nenhuma das repetições feitas durante a preparação entrou no placar.
+      expect(recebidos.filter((e) => e.type === EventType.REP_DETECTED)).toHaveLength(0)
+    },
+  )
+
+  it(
     'a sessão de quem tem conta aparece no histórico dela (SPEC-011)',
     { timeout: 60_000 },
     async () => {
       // O que nenhum teste unitário prova: o `SessionClaim` gravado na admissão e o
       // `SessionResult` gravado pelo report-builder — dois serviços, duas tabelas, nenhuma
       // chave estrangeira entre eles — se encontram no `GET /api/sessions?mine`.
-      installStorage()
       try {
         const email = `e2e+${Date.now()}@example.com`
         await register(email, 'senha-de-teste-123', 'E2E')
@@ -370,7 +437,7 @@ describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
         expect(historico).toHaveLength(1)
         expect(historico[0]?.rep_count).toBe(relatorio!.rep_count)
       } finally {
-        uninstallStorage()
+        // o `afterEach` do describe desmonta o armazenamento
       }
     },
   )

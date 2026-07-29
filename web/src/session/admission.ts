@@ -5,6 +5,7 @@
 // O `ws_url` vem pronto (já com o token na query) e é usado como veio: montar a URL de novo
 // aqui seria uma segunda implementação do mesmo contrato, pronta para divergir.
 import { identityHeaders, rememberDeviceId } from '../auth/storage'
+import { countdownPreference } from './preferences'
 import type { Mode } from '../lib/events'
 import { Mode as ModeValues } from '../lib/events'
 import { toCapabilityData, type ProbeOutcome } from '../probe/runProbe'
@@ -80,6 +81,10 @@ export async function requestSession(
   const corpo = JSON.stringify({
     exercise,
     requested_mode: requestedMode,
+    // Preparação escolhida por quem treina (T-049). Vai na admissão porque quem SEGURA a
+    // contagem é o analysis-worker — no cliente seria só animação, e a rep feita durante o
+    // "3, 2, 1" entraria no total.
+    countdown_s: countdownPreference(),
     // Mesmos campos do `session.capability` — o servidor monta o evento a partir daqui.
     probe_result: probe ? toCapabilityData(probe) : null,
   })

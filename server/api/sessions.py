@@ -21,11 +21,13 @@ from api.tokens import DEFAULT_TTL_S, issue_token
 from workers.analysis_worker.exercises import EXERCISES
 from workers.shared.bus import RedisBus
 from workers.shared.events import (
+    DEFAULT_COUNTDOWN_S,
     Mode,
     SessionCapability,
     SessionStarted,
     Source,
     Stream,
+    clamp_countdown_s,
     make_envelope,
 )
 from workers.shared.slots import CloudSlots
@@ -67,6 +69,8 @@ class SessionRequest:
     exercise: str
     requested_mode: Mode
     probe: dict[str, Any] | None = None
+    #: Preparação antes de a contagem valer (T-049). Preferência de quem treina, não medição.
+    countdown_s: int = DEFAULT_COUNTDOWN_S
 
     @classmethod
     def parse(cls, data: Any) -> SessionRequest:
@@ -88,7 +92,14 @@ class SessionRequest:
         if probe is not None and not isinstance(probe, dict):
             raise ValueError("probe_result deve ser objeto")
 
-        return cls(exercise=exercise, requested_mode=requested_mode, probe=probe)
+        return cls(
+            exercise=exercise,
+            requested_mode=requested_mode,
+            probe=probe,
+            # `clamp` em vez de recusar: é conforto, não parâmetro de medição. Derrubar a
+            # sessão inteira porque veio `-1` trocaria um treino por uma mensagem de erro.
+            countdown_s=clamp_countdown_s(data.get("countdown_s", DEFAULT_COUNTDOWN_S)),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,7 +195,12 @@ def create_session(
     barramento = event_bus if event_bus is not None else bus()
     ts_ms = agora * 1000
     abertura = make_envelope(
-        SessionStarted(exercise=request.exercise, mode=modo, duration_s=duration_s),
+        SessionStarted(
+            exercise=request.exercise,
+            mode=modo,
+            duration_s=duration_s,
+            countdown_s=request.countdown_s,
+        ),
         session_id=session_id,
         ts=ts_ms,
         seq=0,

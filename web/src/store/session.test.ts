@@ -69,3 +69,56 @@ describe('sessão admitida pelo ticket', () => {
     expect(useSessionStore.getState().sessionId).toBeNull()
   })
 })
+
+describe('preparação antes de a contagem valer (T-049)', () => {
+  it('sem preparação, calibrar já põe a sessão em `running`', () => {
+    const store = useSessionStore.getState()
+    store.resetSession()
+    store.applyCalibrated(1_000, 0)
+
+    const depois = useSessionStore.getState()
+    expect(depois.sessionStatus).toBe('running')
+    expect(depois.startedAt).toBe(1_000)
+    expect(depois.countingFrom).toBe(1_000)
+  })
+
+  it('com preparação, a sessão fica em `preparing` e a âncora vai para o futuro', () => {
+    const store = useSessionStore.getState()
+    store.resetSession()
+    store.applyCalibrated(1_000, 3_000)
+
+    const depois = useSessionStore.getState()
+    expect(depois.sessionStatus).toBe('preparing')
+    // O anel dos 30 s ancora no "JÁ", não na medição: a preparação não é cobrada do treino.
+    expect(depois.startedAt).toBe(4_000)
+    expect(depois.countingFrom).toBe(4_000)
+  })
+
+  it('`startCounting` fecha a preparação', () => {
+    const store = useSessionStore.getState()
+    store.resetSession()
+    store.applyCalibrated(1_000, 3_000)
+    useSessionStore.getState().startCounting()
+
+    expect(useSessionStore.getState().sessionStatus).toBe('running')
+  })
+
+  it('`startCounting` fora da preparação não mexe em nada', () => {
+    const store = useSessionStore.getState()
+    store.resetSession()
+    store.applySessionCompleted({ reason: 'completed', rep_count: 12 } as never)
+    useSessionStore.getState().startCounting()
+
+    // Sem o guarda, um timer atrasado reabriria uma sessão já encerrada.
+    expect(useSessionStore.getState().sessionStatus).toBe('completed')
+  })
+
+  it('calibração repetida não reinicia a preparação', () => {
+    const store = useSessionStore.getState()
+    store.resetSession()
+    store.applyCalibrated(1_000, 3_000)
+    useSessionStore.getState().applyCalibrated(9_000, 3_000)
+
+    expect(useSessionStore.getState().countingFrom).toBe(4_000)
+  })
+})

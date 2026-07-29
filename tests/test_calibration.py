@@ -46,9 +46,17 @@ def envelope_pose(frame, session_id: str = SESSAO) -> Envelope:
     )
 
 
-def envelope_started(session_id: str = SESSAO) -> Envelope:
+def envelope_started(session_id: str = SESSAO, *, countdown_s: int = 0) -> Envelope:
+    """`session.started` do teste.
+
+    `countdown_s=0` por padrão: estes testes são sobre CONTAGEM, e a preparação da T-049 só
+    atrasaria o começo deles sem mudar o que verificam. Quem testa a preparação passa o valor
+    explicitamente — é o assunto do teste, então tem de estar escrito nele.
+    """
     return make_envelope(
-        SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
+        SessionStarted(
+            exercise="jumping_jack", mode=Mode.EDGE, duration_s=30, countdown_s=countdown_s
+        ),
         session_id=session_id,
         ts=1_722_100_000_000,
         seq=0,
@@ -227,3 +235,92 @@ def test_contagem_completa_depois_do_countdown() -> None:
 
     reps = [e for e in saidas if e.type is EventType.REP_DETECTED]
     assert len(reps) == 5
+
+
+# --------------------------------------------------------------------------------------
+# Preparação "3, 2, 1" entre o corpo medido e a contagem valer (T-049 / SPEC-004)
+# --------------------------------------------------------------------------------------
+
+
+def test_sem_preparacao_a_contagem_vale_no_frame_seguinte() -> None:
+    """`countdown_s=0` reproduz o comportamento anterior à T-049 — nada regrediu."""
+    router = AnalysisRouter()
+    router.handle(envelope_started(countdown_s=0), now_wall_ms=1_000_000)
+    estado = router.sessions[SESSAO]
+
+    for frame in sequence(still_poses(20)):
+        router.handle(envelope_pose(frame), now_wall_ms=1_000_000 + frame.seq * 66)
+
+    assert estado.baseline is not None
+    assert estado.counting_from_wall_ms == estado.exercise_started_wall_ms
+    assert estado.counting(estado.counting_from_wall_ms) is True
+
+
+def test_a_preparacao_adia_a_contagem_e_o_relogio_dos_30s() -> None:
+    router = AnalysisRouter()
+    router.handle(envelope_started(countdown_s=3), now_wall_ms=1_000_000)
+    estado = router.sessions[SESSAO]
+
+    for frame in sequence(still_poses(20)):
+        router.handle(envelope_pose(frame), now_wall_ms=1_000_000 + frame.seq * 66)
+
+    medido_em = estado.counting_from_wall_ms - 3_000
+    assert estado.counting(medido_em) is False
+    assert estado.counting(medido_em + 2_999) is False
+    assert estado.counting(medido_em + 3_000) is True
+    # Os 30 s começam no "JÁ", não na medição: a preparação não é cobrada do treino.
+    assert estado.exercise_started_wall_ms == estado.counting_from_wall_ms
+
+
+def test_rep_feita_durante_a_preparacao_NAO_conta() -> None:
+    """O motivo de a espera morar no servidor.
+
+    Se fosse só animação no cliente, o polichinelo feito durante o "3, 2, 1" entraria no
+    total — e o recurso estaria enganando quem confia nele.
+    """
+
+    def rodar(countdown_s: int) -> int:
+        router = AnalysisRouter()
+        router.handle(envelope_started(countdown_s=countdown_s), now_wall_ms=1_000_000)
+        saidas: list[Envelope] = []
+        for frame in sequence(session_poses(jumping_jack_poses(5))):
+            saidas.extend(
+                router.handle(envelope_pose(frame), now_wall_ms=1_000_000 + frame.seq * 66)
+            )
+        return len([e for e in saidas if e.type is EventType.REP_DETECTED])
+
+    # Os mesmos 5 polichinelos, a mesma sequência de frames: só muda a preparação.
+    assert rodar(0) == 5
+    # 10 s cobrem o movimento inteiro (~5 s a 15 fps): nada chega à FSM.
+    assert rodar(10) == 0
+    # E no meio do caminho a conta fecha: 3 s engolem as primeiras reps, não todas. Este é o
+    # numero que prova que a janela é medida, e não que a contagem foi simplesmente desligada.
+    assert rodar(3) == 2
+
+
+def test_o_evento_de_calibracao_carrega_quanto_falta() -> None:
+    """O cliente anima o "3, 2, 1" com este número — sem ele, não saberia o que desenhar."""
+    router = AnalysisRouter()
+    router.handle(envelope_started(countdown_s=3), now_wall_ms=1_000_000)
+
+    saidas: list[Envelope] = []
+    for frame in sequence(still_poses(20)):
+        saidas.extend(router.handle(envelope_pose(frame), now_wall_ms=1_000_000 + frame.seq * 66))
+
+    calibrado = next(e for e in saidas if e.type is EventType.SESSION_CALIBRATED)
+    assert calibrado.data["countdown_ms"] == 3_000
+
+
+def test_a_cena_continua_avisando_durante_a_preparacao() -> None:
+    """É justamente quando "entre no quadro" mais ajuda — a pessoa ainda está se ajeitando."""
+    router = AnalysisRouter()
+    router.handle(envelope_started(countdown_s=3), now_wall_ms=1_000_000)
+    estado = router.sessions[SESSAO]
+
+    for frame in sequence(still_poses(20)):
+        router.handle(envelope_pose(frame), now_wall_ms=1_000_000 + frame.seq * 66)
+
+    assert estado.baseline is not None
+    assert estado.counting(estado.counting_from_wall_ms - 1) is False
+    # O normalizador seguiu recebendo: o filtro chega quente no primeiro frame que vale.
+    assert estado.frames >= 20

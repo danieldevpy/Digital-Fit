@@ -279,7 +279,7 @@ def test_resumo_da_sessao_separa_o_que_foi_detectado_do_que_foi_dito() -> None:
     frames = sequence(session_poses(jumping_jack_poses(12, amplitude=0.6)))
     router.handle(
         envelopar(
-            SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
+            SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30, countdown_s=0),
             session_id="s1",
             ts=frames[0].ts,
             seq=0,
@@ -329,7 +329,7 @@ def test_worker_publica_feedback_issued_junto_dos_sinais() -> None:
     bus.feed(
         __import__("workers.shared.events", fromlist=["Stream"]).Stream.POSE_FRAMES,
         envelopar(
-            SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
+            SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30, countdown_s=0),
             session_id="s1",
             ts=frames[0].ts,
             seq=0,
@@ -367,7 +367,7 @@ def test_cena_ruim_no_worker_gera_feedback_de_cena() -> None:
     bus.feed(
         Stream.POSE_FRAMES,
         envelopar(
-            SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
+            SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30, countdown_s=0),
             session_id="s1",
             ts=frames[0].ts,
             seq=0,

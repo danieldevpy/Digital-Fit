@@ -20,7 +20,7 @@ export type CameraStatus = 'idle' | 'requesting' | 'ready' | 'denied' | 'error'
  * exercício ainda não vale. Quem decide a passagem para `running` é o servidor, via
  * `session.calibrated` — o cliente nunca começa a sessão por conta própria.
  */
-export type SessionStatus = 'idle' | 'calibrating' | 'running' | 'completed'
+export type SessionStatus = 'idle' | 'calibrating' | 'preparing' | 'running' | 'completed'
 export type PoseStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type ProbeStatus = 'idle' | 'running' | 'done' | 'error'
 /**
@@ -96,6 +96,14 @@ export interface SessionState {
    * duração cheia: não há tempo a descontar de uma sessão que não começou.
    */
   startedAt: number | null
+  /**
+   * Instante em que a contagem passa a valer (T-049). Durante a preparação fica no FUTURO —
+   * é dele que sai o "3, 2, 1" na tela.
+   *
+   * O anel dos 30 s ancora aqui, e não no `session.calibrated`: quem segura a contagem é o
+   * worker, e o anel tem de andar junto com ele, não com a medição.
+   */
+  countingFrom: number | null
   /** epoch ms do primeiro frame enviado — só para saber há quanto tempo se está calibrando. */
   firstFrameAt: number | null
   sceneEntry: CoachEntry | null
@@ -134,7 +142,8 @@ export interface SessionState {
   /** Primeiro frame enviado: marca o início da preparação, não o do exercício. */
   markFirstFrame: (at: number) => void
   /** `session.calibrated`: o servidor mediu o corpo e começou a contar os 30 s. */
-  applyCalibrated: (at: number) => void
+  applyCalibrated: (at: number, countdownMs?: number) => void
+  startCounting: () => void
   applySessionStarted: (data: SessionStartedData, sessionId: string) => void
   applyRepDetected: (data: RepDetectedData) => void
   applyPhase: (phase: Phase) => void
@@ -160,6 +169,7 @@ const SESSION_DEFAULTS = {
   phase: null,
   durationS: 30,
   startedAt: null,
+  countingFrom: null,
   firstFrameAt: null,
   sceneEntry: null,
   feedbackEntry: null,
@@ -228,10 +238,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ firstFrameAt: at })
   },
 
-  applyCalibrated: (at) => {
+  applyCalibrated: (at, countdownMs = 0) => {
     // Idempotente: o servidor emite uma vez, mas um reenvio não pode reiniciar o anel.
     if (get().startedAt !== null) return
-    set({ startedAt: at, sessionStatus: 'running' })
+    const valeEm = at + Math.max(0, countdownMs)
+    set({
+      startedAt: valeEm,
+      countingFrom: valeEm,
+      // Sem preparação o estado vai direto a `running`, como antes da T-049.
+      sessionStatus: countdownMs > 0 ? 'preparing' : 'running',
+    })
+  },
+
+  /** Fim do "3, 2, 1": chamado pelo próprio cliente quando o prazo vence. */
+  startCounting: () => {
+    if (get().sessionStatus !== 'preparing') return
+    set({ sessionStatus: 'running' })
   },
 
   applySessionStarted: (data, sessionId) =>

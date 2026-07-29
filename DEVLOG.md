@@ -5,6 +5,58 @@
 
 ---
 
+## 2026-07-29 · T-049 — Preparação "3, 2, 1" configurável antes de a contagem valer
+
+- Pedido do Daniel: um timer de 3 s depois da preparação e antes de contar, extensível ou
+  desligável, com UX que ajude sem virar atrito.
+- **A SPEC-004 já pedia isso e a implementação tinha colapsado o passo.** A Fase Inicial diz
+  "countdown fixo 3-2-1", mas desde a T-019 o `session.calibrated` era emitido e a contagem
+  começava no MESMO frame: media o corpo e já valia, sem aviso para quem estava do outro lado.
+  O que a task acrescenta de novo é a configuração.
+- **A decisão que define a entrega: quem segura a contagem é o servidor.** Se fosse animação
+  no cliente, o polichinelo feito durante o "3, 2, 1" entraria no total — e o recurso estaria
+  enganando quem confia nele. Entrou uma fase no analysis-worker em que os frames continuam
+  sendo normalizados (o One Euro precisa chegar quente ao primeiro movimento que vale) e a
+  cena continua avisando (é quando "entre no quadro" mais ajuda), mas a FSM não os vê.
+- Contrato primeiro, como manda o AGENTS.md: `SessionStarted.countdown_s` e
+  `SessionCalibrated.countdown_ms`. O evento de calibração **mudou de significado** — era
+  "contagem começou", agora é "corpo medido".
+- Decisões:
+  - **Os 30 s começam no "JÁ", não na medição.** `exercise_started_wall_ms` passa a ser um
+    instante no futuro; `expiry_reason` já comparava contra ele e não precisou mudar. Cobrar a
+    preparação do treino encurtaria a sessão de quem escolheu 10 s.
+  - **Sem um `session.counting`.** Foi considerado e descartado: o cliente já ancorava o anel
+    no relógio dele ao receber o `session.calibrated`, então o evento novo custaria uma ida ao
+    servidor sem comprar autoridade. A autoridade está em o worker não alimentar a FSM.
+  - **`clamp` em vez de recusa** no `countdown_s` (0–10 s): é conforto, não parâmetro de
+    medição. Derrubar a sessão porque veio `-1` trocaria um treino por uma mensagem de erro. O
+    teto de 10 s não é técnico — é para o campo não virar forma de segurar vaga sem treinar.
+  - **A preferência mora no aparelho, não na conta.** A SPEC-011 é explícita em que treinar não
+    exige conta; uma preferência que só funciona depois de cadastrar seria uma punição por não
+    se cadastrar, no produto que se define por não precisar disso.
+  - **UX: número enorme, sozinho, sem texto para ler.** A pessoa já esperou a câmera, o modelo
+    e a medição — um quarto passo com instrução seria atrito. Cada segundo tem batida própria
+    (a `key` do nó muda e a animação reinicia), o fundo escurece só o bastante para o número
+    destacar sem esconder a pessoa que está se posicionando, e há `prefers-reduced-motion`.
+  - **O controle fica na capa da câmera**, não em tela de ajustes: ela não existe (Perfil é
+    conta e histórico), e este é o único instante em que a escolha importa. Ciclo por toque
+    (3 → 5 → 10 → desligado) em vez de `<select>`, que abriria roleta nativa sobre a câmera.
+- Erro que peguei na revisão: o `.stage` inteiro é espelhado (`scaleX(-1)`, visão de espelho) e
+  o "3" sairia invertido. As outras camadas já desfaziam o espelho; a nova não. Corrigido.
+- **Sete testes quebraram ao mudar o default, e isso foi informação.** Cada um era um teste de
+  CONTAGEM herdando em silêncio uma decisão de produto. Agora declaram `countdown_s=0` no
+  próprio corpo — quando o default mudar de novo, eles não se mexem.
+- Gates: `pytest` 514 verde (era 507), `ruff` limpo, `npm run typecheck`/`eslint` limpos,
+  vitest 271 (era 254). E-2-e 5/5 contra a stack real, com um caso novo que prova a corrente
+  inteira: a preferência sai do cliente, atravessa a admissão, vira `session.started` no
+  barramento e chega ao worker — que emite `countdown_ms: 10000` e **não conta** nenhuma das 5
+  repetições feitas durante a preparação.
+- Pendências geradas (4 em "Descobertas"): a mudança de significado do `session.calibrated`, a
+  ausência deliberada do `session.counting`, o default 0 no caminho sem admissão, e a lição
+  dos testes que herdavam o default.
+
+---
+
 ## 2026-07-29 · T-040 — Fonte de vídeo no navegador e a terceira perna da paridade
 
 - Entregue: `web/src/dev/videoSource.ts` (dirige o `<video>` a partir de um arquivo),

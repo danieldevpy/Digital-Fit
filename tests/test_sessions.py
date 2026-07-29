@@ -428,7 +428,9 @@ def test_duracao_vence_antes_do_ttl() -> None:
 def test_tick_fecha_a_sessao_e_publica_o_total_de_reps() -> None:
     router = AnalysisRouter()
     abertura = make_envelope(
-        SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
+        # `countdown_s=0`: este teste é sobre o TIMER, e a preparação da T-049 só atrasaria
+        # o relógio sem mudar o que ele verifica.
+        SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30, countdown_s=0),
         session_id="s1",
         ts=1_722_100_000_000,
         seq=0,
