@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-07-29 · T-032 — Exercício 2: o agachamento
+
+- Entregue: `exercises/squat.py` + 33 testes, `Code.SQUAT_TOO_SHALLOW` no contrato, mensagem
+  no catálogo de feedback, entrada no catálogo do cliente (e portanto **selecionável** — o
+  seletor da T-051 passou a desenhar de verdade).
+- **A decisão que define o módulo: a feature não é o ângulo do joelho, e a SPEC-007 estava
+  errada ao sugerir que fosse** ("agachamento: ângulo do joelho + profundidade do quadril").
+  O joelho viaja para a frente e a câmera frontal — o enquadramento que a SPEC-003 pede em
+  todo o produto — quase não vê esse eixo: 80° reais leem 133° no plano da imagem. Um limiar
+  de `knee_angle < 90°` **nunca dispararia**. A spec foi corrigida.
+  - O que se usa é a **altura do quadril** (quadril→tornozelo em torsos): 1,02 em pé → 0,64
+    no fundo, monotônica, e sobrevive à normalização — a origem no quadril médio apaga a
+    descida absoluta, mas não a perna encolhendo em relação ao próprio torso.
+  - Divisor por frame, não da calibração. A lição da T-019 aplicada de novo.
+  - `knee_angle_view` existe como feature, com `view` no nome de propósito: serve ao relatório
+    e à bancada, e o nome grita que não é o ângulo do corpo. Tem teste travando que ele **não**
+    serve de critério — para um "conserto" bem-intencionado falhar alto em vez de silenciar a
+    contagem.
+- Achado durante os testes: **o One Euro corta o fundo do agachamento acima de ~90 rpm**.
+  Exato até 90, zero em 120 — e não é a FSM: o filtro entrega 0,727 contra o limiar de 0,72 e
+  todo agachamento vira "raso". A 30 fps o mesmo ritmo volta a contar, o que fecha o
+  diagnóstico. Os parâmetros do filtro foram medidos para o polichinelo, cujo pulso anda ~3
+  torsos/s; o quadril anda bem menos. Não mexi no limiar de profundidade, que tem
+  justificativa anatômica (coxa paralela ao chão) — o caminho certo é parâmetro por exercício
+  na SPEC-006, e está nas Descobertas.
+- No cliente, `main_angle: 'none'` para o agachamento e a célula "Ângulo" passa a mostrar
+  `--`. Exibir o ângulo do braço durante um agachamento seria um número parado em ~12° o
+  treino inteiro — e número imóvel enquanto a pessoa se esforça lê como "não está me vendo",
+  que é a ansiedade que o esqueleto sobre a imagem existe para evitar (SPEC-013).
+- **Limitação declarada, não escondida**: os limiares saem da geometria do gerador, não de
+  vídeo de gente agachando (o corpus só tem polichinelo). São conservadores — o gerador não
+  inclina o tronco e vídeo real inclina, o que aumenta o sinal. Virou **T-053**.
+- Gates: `ruff` limpo, `pytest` **569**; web `lint`/`typecheck`/`test` (288) limpos; **e2e
+  5/5**. Verificado ao vivo: `POST /api/sessions` com `"exercise":"squat"` devolve ticket, e
+  slug inválido responde `disponiveis: jumping_jack, squat`.
+- Pendências geradas: T-053 (corpus de agachamento) e T-054 (`KNEES_INWARD` — o valgo é a
+  falha que a câmera frontal vê melhor que qualquer outra, e precisa de parâmetro novo no
+  gerador de poses).
+
+---
+
 ## 2026-07-29 · T-052 — O gerador de fixtures aprende a dobrar o joelho
 
 - Por quê antes da T-032: todos os critérios de aceite da SPEC-007 são baseados em fixture.

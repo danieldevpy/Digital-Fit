@@ -9,8 +9,17 @@ export interface ExerciseInfo {
   muscle_group: string
   /** Estado vazio do card do treinador — ele nunca fica sem texto. */
   default_tip: string
-  /** Qual ângulo articular a barra de métricas exibe (usado pela T-044). */
-  main_angle: 'arm_abduction'
+  /**
+   * Qual ângulo a barra de métricas exibe ao vivo (T-044).
+   *
+   * `none` não é ausência de dado: é a afirmação de que, para este exercício, **nenhum ângulo
+   * lido no plano da imagem diz a verdade**. No agachamento o joelho viaja para a frente e
+   * uma câmera frontal lê ~133° onde o corpo faz 80° (medido na T-052). Mostrar esse número
+   * seria pior que mostrar "--": ele mal se mexe enquanto a pessoa agacha, e um número parado
+   * na tela durante o esforço lê como "não está me vendo" — exatamente a ansiedade que o
+   * esqueleto sobre a imagem existe para evitar (SPEC-013).
+   */
+  main_angle: 'arm_abduction' | 'none'
 }
 
 export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
@@ -20,6 +29,13 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
     muscle_group: 'Corpo inteiro',
     default_tip: 'Mantenha o core contraído e movimentos controlados.',
     main_angle: 'arm_abduction',
+  },
+  squat: {
+    display_name: 'Agachamento',
+    category: 'Força',
+    muscle_group: 'Pernas e glúteos',
+    default_tip: 'Desça com o peso nos calcanhares e o peito aberto.',
+    main_angle: 'none',
   },
 }
 

@@ -277,9 +277,13 @@ class Code(StrEnum):
     (T-010) e pode mudar sem quebrar cliente nem dataset.
     """
 
-    # Execução — SPEC-007, viram `quality.signal`
+    # Execução — SPEC-007, viram `quality.signal`.
+    # Ficam num espaço só, sem prefixo por exercício: o código diz o que a PESSOA fez, e a
+    # FSM que o emitiu já é conhecida pelo `exercise` da sessão. Prefixar geraria
+    # `JUMPING_JACK_ARMS_TOO_LOW` e um dicionário de mensagens quase duplicado por exercício.
     ARMS_TOO_LOW = "ARMS_TOO_LOW"
     LEGS_TOO_CLOSED = "LEGS_TOO_CLOSED"
+    SQUAT_TOO_SHALLOW = "SQUAT_TOO_SHALLOW"
     # Cena — SPEC-003, viram `scene.warning`
     OUT_OF_FRAME = "OUT_OF_FRAME"
     TOO_FAR = "TOO_FAR"

@@ -67,7 +67,9 @@
 | T-050 | `Phase` deixa de ser vocabulário de polichinelo: par neutro (`rest`/`peak`) no contrato | 007/002 | done |
 | T-051 | Seleção de exercício no cliente (hoje `useSession.ts` fixa `DEFAULT_EXERCISE`) — sem isto o exercício 2 é inalcançável pelo produto | 013/007 | done |
 | T-052 | Gerador sintético de poses além do polichinelo (`Pose` só tem `arm_angle`/`ankle_spread`) — sem isto a FSM 2 não tem fixture nem critério de aceite | 007/012 | done |
-| T-032 | Exercício 2: agachamento (novo módulo `exercises/squat.py`) — depende de T-050/051/052 | 007 | todo |
+| T-032 | Exercício 2: agachamento (novo módulo `exercises/squat.py`) | 007 | done — limiares calibrados no gerador; falta corpus de vídeo (T-053) |
+| T-053 | Corpus de agachamento + varredura dos limiares contra ele (hoje calibrados só no gerador sintético) | 012/007 | todo |
+| T-054 | `KNEES_INWARD` (valgo dinâmico) — a falha de agachamento que a câmera FRONTAL vê melhor que qualquer outra; exige parâmetro novo no gerador de poses | 007/012 | todo |
 | T-033 | Form score por rep (amplitude, simetria, estabilidade) | 007 | todo |
 | T-034 | Ferramenta de rotulagem do dataset + primeiro treino do classificador temporal | 010/007 | todo |
 | T-035 | Coach por voz (TTS dos feedbacks) | 008 | todo |
@@ -185,6 +187,19 @@
   a bancada é real. Proposta: **T-047** — ~~aberta~~ **RESOLVIDA**: `--no-calibrate` no `02`
   passou de 14 para 15/15. O que sobra naquele vídeo é a calibração comendo exercício, não a
   contagem.
+- **[A/T-032] O One Euro corta o fundo do agachamento acima de ~90 rpm.** Medido: a contagem é
+  exata até 90 rpm (1,5 agachamentos/s, já mais rápido do que se faz) e vai a zero em 120 rpm
+  — e o motivo **não é a FSM**: o filtro entrega fundo de 0,727 torsos contra o limiar de
+  0,72, e o agachamento inteiro vira "raso". A 30 fps o mesmo ritmo volta a contar 5 de 8,
+  o que confirma o diagnóstico (mais amostras, menos corte). Os parâmetros do One Euro foram
+  medidos para o polichinelo (SPEC-006: "o pulso percorre ~3 torsos/s"); o quadril de um
+  agachamento anda bem menos e o filtro trata mais do movimento como ruído. Se algum
+  exercício futuro precisar de mais banda, o caminho é **parâmetro por exercício na SPEC-006**
+  — não afrouxar o limiar de profundidade, que tem justificativa anatômica.
+- **[A/T-032] Os limiares do agachamento NÃO foram medidos em vídeo de gente agachando.** O
+  corpus (T-038) só tem polichinelo. Eles saem da geometria do gerador sintético, e são
+  conservadores porque o gerador não inclina o tronco à frente — vídeo real inclina, o que
+  aumenta o sinal. É honesto, mas não é medição: proposta **T-053**.
 - **[A/T-052] De frente, o ângulo do joelho MENTE — e por muito. Medido no gerador:**
 
   | joelho real | visto de frente | altura ombro→tornozelo |

@@ -10,6 +10,7 @@ from tests.synthetic_keypoints import (
     jumping_jack_poses,
     sequence,
     session_poses,
+    squat_poses,
     still_poses,
 )
 from workers.analysis_worker.main import BATCH, GROUP, Shutdown, run
@@ -168,6 +169,24 @@ def test_session_started_abre_a_sessao_com_o_exercicio_pedido() -> None:
     assert estado.exercise == "jumping_jack"
     assert estado.duration_s == 45
     assert estado.mode is Mode.EDGE
+
+
+def test_sessao_de_agachamento_conta_agachamentos() -> None:
+    """A costura que os testes de FSM não cobrem: `session.started` → `get_analyzer` → contagem.
+
+    Vale a pena existir separada porque é onde um exercício novo pode estar perfeito e ainda
+    assim nunca rodar — o worker escolhe o analisador pelo slug, e ninguém mais faz isso.
+    """
+    frames = [envelope_pose(f) for f in sequence(session_poses(squat_poses(4)))]
+
+    bus, router = rodar(envelope_started(exercise="squat"), *frames)
+
+    estado = router.sessions[SESSAO]
+    assert estado.exercise == "squat"
+    assert estado.analyzer.summary()["exercise"] == "squat"
+    assert estado.analyzer.summary()["reps"] == 4
+    reps = bus.published_of(EventType.REP_DETECTED)
+    assert len(reps) == 4
 
 
 def test_frame_sem_session_started_abre_sessao_com_o_padrao() -> None:

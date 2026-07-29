@@ -64,9 +64,18 @@ describe('catálogo', () => {
     expect(typeof getExercise('levitacao').display_name).toBe('string')
   })
 
-  it('não oferece escolha enquanto houver um exercício só', () => {
-    // Trava a decisão da T-051: o caminho da escolha existe desde já, a superfície aparece
-    // quando o catálogo crescer. Este teste vira `true` sozinho no dia da T-032.
-    expect(offersChoice()).toBe(EXERCISE_KEYS.length > 1)
+  it('agora HÁ escolha — o seletor da T-051 desenha de verdade desde a T-032', () => {
+    // Era `EXERCISE_KEYS.length > 1` quando só existia o polichinelo, e virou verdade sozinho
+    // quando o agachamento entrou. É a prova de que a T-051 entregou o caminho inteiro, e não
+    // só a metade que dava para ver.
+    expect(offersChoice()).toBe(true)
+    expect(EXERCISE_KEYS).toEqual(expect.arrayContaining(['jumping_jack', 'squat']))
+  })
+
+  it('todo exercício do catálogo tem nome e dica — o card nunca fica vazio', () => {
+    for (const chave of EXERCISE_KEYS) {
+      expect(getExercise(chave).display_name.length).toBeGreaterThan(0)
+      expect(getExercise(chave).default_tip.length).toBeGreaterThan(0)
+    }
   })
 })

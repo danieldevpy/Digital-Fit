@@ -52,7 +52,19 @@ Outros exercícios, detecção automática do exercício, score de forma por rep
 
 ## Fase Evolução
 
-- **Novos exercícios**: agachamento (ângulo do joelho + profundidade do quadril), flexão (ângulo do cotovelo + alinhamento do corpo), prancha (hold time + ângulo quadril — modalidade *tempo*, não *reps*; a interface já suporta via eventos `hold.progress`).
+- **Novos exercícios**: ~~agachamento~~ (**feito, T-032** — ver abaixo), flexão (ângulo do cotovelo + alinhamento do corpo), prancha (hold time + ângulo quadril — modalidade *tempo*, não *reps*; a interface já suporta via eventos `hold.progress`).
+
+### Agachamento (`squat`) — entregue na T-032
+
+FSM `EM PÉ ⇄ AGACHADO`, mesma forma do polichinelo (histerese, debounce de 250 ms, `degraded` congela, rep rasa vira `SQUAT_TOO_SHALLOW`).
+
+**A feature NÃO é o ângulo do joelho, e a spec estava errada ao sugerir que fosse.** O joelho de um agachamento viaja para a *frente*, e a câmera frontal — o enquadramento que a SPEC-003 pede em todo o produto — quase não vê esse eixo: medidos no gerador de fixtures, 80° reais de joelho leem **133°** no plano da imagem. Um limiar de `knee_angle < 90°` nunca dispararia.
+
+O que se usa é a **altura do quadril**: distância quadril→tornozelo em torsos, que cai de 1,02 (em pé) para 0,64 (fundo), é monotônica e sobrevive à normalização — a origem no quadril médio apaga a descida absoluta, mas não a perna encolhendo em relação ao próprio torso. Abre em `< 0,72`, fecha em `> 0,90`.
+
+O divisor é o torso **deste frame**, não o da calibração — a mesma lição medida na T-019.
+
+**Limitação conhecida**: os limiares foram calibrados no gerador sintético, não em vídeo de gente agachando (o corpus só tem polichinelo). São conservadores — o gerador não inclina o tronco à frente e vídeo real inclina, o que aumenta o sinal. Gravar agachamentos e varrer os limiares contra eles é o que fecha a conta.
 - **Form score por rep** (0–100): amplitude, simetria esq/dir, estabilidade do tronco.
 - **Detecção automática do exercício**: classificador temporal (janela 2–3s, 1D-CNN/ST-GCN leve em ONNX) treinado com o dataset da SPEC-010; a FSM continua validando a execução (ML identifica, regras julgam).
 - **Thresholds adaptativos** por perfil do usuário (mobilidade reduzida ≠ atleta) — par com perfil corporal da SPEC-004.

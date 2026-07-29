@@ -17,6 +17,7 @@ from workers.analysis_worker.exercises.jumping_jack import (
     JumpingJackAnalyzer,
     JumpingJackThresholds,
 )
+from workers.analysis_worker.exercises.squat import SquatAnalyzer, SquatThresholds
 
 __all__ = [
     "EXERCISES",
@@ -26,6 +27,8 @@ __all__ = [
     "JumpingJackAnalyzer",
     "JumpingJackThresholds",
     "SceneHints",
+    "SquatAnalyzer",
+    "SquatThresholds",
     "feed",
     "get_analyzer",
 ]
