@@ -66,7 +66,18 @@ de vídeo da bancada aparecem só para quem tem direito, decidido em `web/src/de
 - **local** (`npm run dev`): sempre ligadas, sem login;
 - **produção**: para contas com `is_admin`, que é como se inspeciona o servidor que está no ar.
 
-A flag só se concede por shell — nenhuma rota da API a aceita:
+Para criar uma conta já com as ferramentas ligadas:
+
+```bash
+docker compose exec api python manage.py createsuperuser    # dev
+./scripts/prod.sh exec api python manage.py createsuperuser # producao
+```
+
+Apesar do nome, ela **não** é superusuário do Django: não há painel, grupos nem permissões, e
+as rotas continuam filtrando por dono da sessão — ela não lê o histórico de mais ninguém. O que
+ganha é a superfície de dev do cliente.
+
+Para ligar/desligar numa conta que já existe (nenhuma rota da API aceita o campo):
 
 ```bash
 ./scripts/prod.sh exec api python manage.py admin_tools voce@exemplo.com --on

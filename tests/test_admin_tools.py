@@ -8,6 +8,8 @@ Se um dia alguém aceitar `is_admin` no corpo de uma rota, os dois primeiros tes
 
 from __future__ import annotations
 
+from io import StringIO
+
 import pytest
 from api.models import User
 from django.core.management import CommandError, call_command
@@ -23,8 +25,6 @@ def usuario(db) -> User:
 
 
 def executar(*args: str) -> str:
-    from io import StringIO
-
     saida = StringIO()
     call_command("admin_tools", *args, stdout=saida)
     return saida.getvalue()
@@ -102,3 +102,32 @@ def test_listagem_mostra_quem_tem_acesso(usuario) -> None:
     executar(EMAIL, "--on")
 
     assert EMAIL in executar("--list")
+
+
+@pytest.mark.django_db
+def test_createsuperuser_cria_conta_com_as_ferramentas(db) -> None:
+    """`createsuperuser` é o primeiro comando que qualquer um tenta — tem de funcionar.
+
+    Até a T-048 ele estourava `AttributeError` porque o `UserManager` não tinha
+    `create_superuser`. O conceito de admin não existia; agora existe.
+    """
+    call_command(
+        "createsuperuser",
+        interactive=False,
+        email="chefe@exemplo.com",
+        stdout=StringIO(),
+    )
+
+    usuario = User.objects.get(email="chefe@exemplo.com")
+    assert usuario.is_admin is True
+
+
+@pytest.mark.django_db
+def test_superuser_daqui_nao_e_superusuario_do_django(db) -> None:
+    """Ele ganha a superfície de dev, não acesso ao dado dos outros."""
+    usuario = User.objects.create_superuser(email="chefe@exemplo.com", password=SENHA)
+
+    assert usuario.is_admin is True
+    # Sem `PermissionsMixin` no modelo: não há painel, grupo nem permissão para conceder.
+    assert not hasattr(usuario, "is_superuser")
+    assert not hasattr(usuario, "is_staff")

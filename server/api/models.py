@@ -25,11 +25,7 @@ __all__ = ["SessionClaim", "SessionResult", "User"]
 
 
 class UserManager(BaseUserManager):
-    """Criação de conta com e-mail normalizado.
-
-    Sem `create_superuser`: não há `django.contrib.admin` no projeto, e um método que ninguém
-    chama é uma porta a mais para manter fechada. Quando houver painel, ele entra junto.
-    """
+    """Criação de conta com e-mail normalizado."""
 
     def create_user(self, email: str, password: str, **extra) -> User:
         if not email:
@@ -40,6 +36,22 @@ class UserManager(BaseUserManager):
         usuario.password = make_password(password)
         usuario.save(using=self._db)
         return usuario
+
+    def create_superuser(self, email: str, password: str, **extra) -> User:
+        """Conta com as ferramentas de diagnóstico ligadas (`manage.py createsuperuser`).
+
+        Não existia até a T-048, e a ausência era defensável enquanto "admin" não significava
+        nada aqui — não há `django.contrib.admin` neste projeto. Com o `is_admin` da T-048 o
+        conceito passou a existir, e `createsuperuser` é o primeiro comando que qualquer um
+        tenta: deixá-lo estourando `AttributeError` seria esconder a porta certa atrás de um
+        erro de programação.
+
+        **Não** é superusuário no sentido do Django: não há painel, permissões nem grupos. O
+        que esta conta ganha é a superfície de dev do cliente. As rotas continuam filtrando
+        por dono da sessão — ela não lê o histórico de mais ninguém.
+        """
+        extra.setdefault("is_admin", True)
+        return self.create_user(email, password, **extra)
 
 
 class User(AbstractBaseUser):
