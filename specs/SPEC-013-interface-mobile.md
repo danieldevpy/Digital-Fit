@@ -53,6 +53,7 @@ Tipografia: sans geométrica (Inter/Manrope); nome do exercício em itálico bla
 - Tela de sessão completa conforme anatomia acima, com: barra de métricas (SÉRIE fixo `1`, REPETIÇÕES sem meta, ÂNGULO ao vivo, KCAL oculto ou `--`), esqueleto sobre câmera, card do exercício + anel de 30s, card do treinador ligado ao `feedback.issued` (com `default_tip` como estado vazio), warnings de cena como estado do card do treinador com prioridade máxima.
 - **Ângulo ao vivo (edge)**: calculado no cliente a partir dos landmarks (mesma fórmula de `arm_angle` da FSM, replicada em TS) — puramente cosmético/informativo; autoridade de contagem continua no worker. Atualiza no máximo a 10Hz para não piscar.
 - App shell: bottom nav com as 4 telas (Exercícios/Progresso/Perfil como placeholders "em breve") + FAB iniciando o fluxo de sessão.
+- Escolha do exercício na capa da câmera, junto com a preparação (T-051): é o instante em que importa — logo antes de treinar e antes de a sessão abrir. **Não desenha nada enquanto o catálogo tiver um item só**; a aba Exercícios (Fase Evolução) é a superfície de navegar e conhecer, esta é a escolha rápida de quem já sabe o que veio fazer.
 - Mobile-first: layout de referência em ≤ 480px; desktop adapta com a mesma hierarquia.
 
 ### Fora de escopo (vai para Evolução)

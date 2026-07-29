@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-07-29 · T-051 — O cliente passa a escolher o exercício
+
+- O buraco: `useSession.ts` mandava `DEFAULT_EXERCISE` fixo. Um exercício podia estar pronto,
+  testado e medido no worker e ainda assim ser inalcançável pelo produto — só por `curl`. A
+  SPEC-007 diz "usuário **seleciona** o exercício" desde o dia 1 e isso nunca foi construído.
+- Decisões:
+  - **O seletor não desenha nada enquanto houver um exercício só.** Um controle de uma opção
+    não é escolha, é ruído em cima da câmera. O que a task entrega é o caminho da escolha até
+    o `POST /sessions`; a superfície aparece sozinha quando o catálogo crescer. Virou regra
+    nomeada (`offersChoice()`) com teste que se inverte sozinho no dia da T-032, em vez de um
+    `&&` solto dentro do componente.
+  - Mora na capa da câmera, ao lado da preparação, pelo mesmo motivo dela: é o instante em
+    que a escolha importa, e é antes de a sessão abrir. A aba Exercícios (T-046) será a
+    superfície de navegar; esta é a escolha rápida de quem já sabe o que veio fazer.
+  - Persistida em `localStorage` como o countdown — treinar não exige conta (SPEC-011).
+  - **Validada na leitura, não só na escrita.** Um slug guardado hoje pode sumir do catálogo
+    amanhã; um aparelho parado há meses voltaria pedindo um exercício que não existe e levaria
+    recusa do servidor a cada tentativa, sem caminho de volta pela interface.
+  - Chips e não `<select>`: são nomes, e a roleta nativa abriria por cima da câmera.
+- **Um defeito real, achado por um teste que eu escrevi esperando ver passar**: `'toString' in
+  EXERCISE_CATALOG` é `true`. `in` percorre o protótipo, então `toString` passava por
+  exercício válido, ia para o `POST /sessions`, e `getExercise` devolvia uma função no lugar
+  do card — `.display_name` viraria `undefined` no meio da tela. `Object.hasOwn` nos dois
+  pontos. Registrado como regra geral do web nas Descobertas.
+- Gates: `lint`/`typecheck` limpos, vitest **287** (era 278); **e2e 5/5** com a stack subida.
+- Pendências geradas: divergência possível entre o catálogo do web e o registro do worker —
+  hoje falha alto na admissão, então não bloqueia; o fim da classe seria o servidor publicar
+  o catálogo. Decidir junto com a T-046, que é quem precisa da lista completa.
+
+---
+
 ## 2026-07-29 · T-050 — `Phase` vira par neutro (`rest`/`peak`)
 
 - Por quê agora: mudança de contrato, e o AGENTS.md manda contrato primeiro. Escrever a FSM 2

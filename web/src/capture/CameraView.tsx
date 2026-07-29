@@ -3,6 +3,7 @@ import { FixtureControls } from '../dev/FixtureControls'
 import { VideoSourceControl } from '../dev/VideoSourceControl'
 import { useDevTools } from '../dev/gate'
 import { CountdownSetting } from '../hud/CountdownSetting'
+import { ExercisePicker } from '../hud/ExercisePicker'
 import { GetReady } from '../hud/GetReady'
 import { Mode } from '../lib/events'
 import { useSessionStore } from '../store/session'
@@ -74,7 +75,10 @@ export function CameraView() {
             {cameraStatus === 'requesting' ? 'Aguardando…' : 'Ligar câmera'}
           </button>
 
-          {/* A escolha só importa aqui, logo antes de treinar (T-049). */}
+          {/* As escolhas só importam aqui, logo antes de treinar: o que fazer (T-051) e
+              quanto tempo para se preparar (T-049). O seletor de exercício não desenha nada
+              enquanto o catálogo tiver um item só. */}
+          <ExercisePicker />
           <CountdownSetting />
 
           {/* A fonte de arquivo precisa estar acessível ANTES da câmera (T-040): ela existe

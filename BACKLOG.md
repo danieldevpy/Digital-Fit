@@ -65,7 +65,7 @@
 | T-030 | Gate de prontidão por pose + silhueta-alvo no HUD | 004 | todo |
 | T-031 | Reconexão com resume (WS) + retomada de sessão via snapshot | 002/009 | todo |
 | T-050 | `Phase` deixa de ser vocabulário de polichinelo: par neutro (`rest`/`peak`) no contrato | 007/002 | done |
-| T-051 | Seleção de exercício no cliente (hoje `useSession.ts` fixa `DEFAULT_EXERCISE`) — sem isto o exercício 2 é inalcançável pelo produto | 013/007 | todo |
+| T-051 | Seleção de exercício no cliente (hoje `useSession.ts` fixa `DEFAULT_EXERCISE`) — sem isto o exercício 2 é inalcançável pelo produto | 013/007 | done |
 | T-052 | Gerador sintético de poses além do polichinelo (`Pose` só tem `arm_angle`/`ankle_spread`) — sem isto a FSM 2 não tem fixture nem critério de aceite | 007/012 | todo |
 | T-032 | Exercício 2: agachamento (novo módulo `exercises/squat.py`) — depende de T-050/051/052 | 007 | todo |
 | T-033 | Form score por rep (amplitude, simetria, estabilidade) | 007 | todo |
@@ -185,6 +185,20 @@
   a bancada é real. Proposta: **T-047** — ~~aberta~~ **RESOLVIDA**: `--no-calibrate` no `02`
   passou de 14 para 15/15. O que sobra naquele vídeo é a calibração comendo exercício, não a
   contagem.
+- **[A/T-051] O catálogo do cliente e o registro do servidor podem divergir sem ninguém ver.**
+  `EXERCISE_CATALOG` (web) é conteúdo de apresentação; `EXERCISES` (worker) é quem existe de
+  verdade, e o `POST /sessions` recusa slug desconhecido dizendo quais aceita. Se alguém
+  adicionar exercício só no web, o usuário escolhe e leva uma recusa de admissão. É alto e
+  explicado, não silencioso — por isso não bloqueia a T-032. O jeito de acabar com a classe
+  toda seria o servidor **publicar** o catálogo (ex.: `GET /api/exercises`) e o cliente
+  desenhar o que veio, em vez de manter uma segunda lista. Vale decidir junto com a aba
+  Exercícios (T-046), que é quem realmente precisa da lista completa.
+- **[A/T-051] `'toString' in EXERCISE_CATALOG` é `true`** — pego por teste que escrevi
+  esperando ver passar. `in` percorre o protótipo, então um `toString` guardado no aparelho
+  passava por exercício válido, ia parar no `POST /sessions` e fazia `getExercise` devolver
+  uma função no lugar do card (`.display_name` = `undefined` no meio da tela). Trocado por
+  `Object.hasOwn` nos dois pontos. Vale como regra geral do web: **catálogo indexado por
+  string vinda de fora usa `Object.hasOwn`, nunca `in`.**
 - **[A/T-047] O ganho da fase lida não aparece no corpus calibrado — e isso é a guarda
   funcionando.** Medido antes e depois: `evalctl run eval/corpus/` devolve exatamente
   `20/13/19` nos dois casos. Só o caminho `--no-calibrate` melhorou. O motivo é que

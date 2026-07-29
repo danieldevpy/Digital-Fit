@@ -20,7 +20,7 @@ import { waitForReport } from '../report/sessionReport'
 import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
 import { AdmissionError, TRIAL_EXHAUSTED, modeToRequest, requestSession } from './admission'
-import { DEFAULT_EXERCISE } from './catalog'
+import { exercisePreference } from './preferences'
 import { entryFromEvent } from './coachCard'
 import { setGatewayClient, startNewSequence } from './gatewayInstance'
 
@@ -169,7 +169,9 @@ export function useSession(enabled: boolean) {
       const { modeOverride, capability } = useSessionStore.getState()
       useSessionStore.getState().setGatewayStatus('connecting')
       void requestSession({
-        exercise: DEFAULT_EXERCISE,
+        // A escolha de quem treina (T-051), lida no instante do pedido. Antes era
+        // `DEFAULT_EXERCISE` fixo, e o produto não tinha como pedir outra coisa.
+        exercise: exercisePreference(),
         requestedMode: modeToRequest(modeOverride, capability),
         probe: capability,
       })
