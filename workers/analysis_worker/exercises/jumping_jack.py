@@ -151,6 +151,15 @@ class JumpingJackAnalyzer:
 
         if self._phase_since_ms is None:
             self._phase_since_ms = ts
+            # A fase inicial é lida, não assumida (T-047). Se a captura já abre com a pessoa
+            # ABERTA, nascer em `CLOSED` perde o ciclo inteiro: o debounce exige 250 ms de
+            # estabilidade que um movimento em curso não oferece, e a abertura nunca é aceita.
+            if self.initial_phase(feats) is Phase.OPEN:
+                self.phase = Phase.OPEN
+                # A rep começou antes da câmera. Contar a duração a partir daqui a subestima —
+                # é o melhor que este frame permite saber, e é honesto quanto ao que foi visto.
+                self._rep_started_ms = ts
+                return [ExercisePhase(phase=Phase.OPEN)]
 
         arm_angle = float(feats["arm_angle"])
         ankle_spread = float(feats["ankle_spread"])
@@ -218,6 +227,24 @@ class JumpingJackAnalyzer:
         return QualitySignal(code=code, value=round(value, 2), rep_index=self.rep_count + 1)
 
     # ------------------------------------------------------- resto da interface
+
+    def initial_phase(self, feats: Features) -> Phase:
+        """Fase do primeiro frame utilizável (T-047, contrato em `base.py`).
+
+        Usa os MESMOS limiares de abertura da transição — e os dois juntos, não um deles. É o
+        que separa "está no topo de um polichinelo" de "está parado com os braços erguidos":
+        de pé com os pés juntos, `ankle_spread` reprova, a fase adotada é `CLOSED`, e baixar
+        os braços não vira repetição. Sem essa exigência dupla, quem calibrasse com o braço
+        levantado ganharia uma rep que não fez.
+        """
+        if feats.get("degraded"):
+            return Phase.CLOSED
+        limiares = self.thresholds
+        aberto = (
+            float(feats["arm_angle"]) > limiares.open_arm_angle
+            and float(feats["ankle_spread"]) > limiares.open_ankle_spread
+        )
+        return Phase.OPEN if aberto else Phase.CLOSED
 
     def ready_pose(self, feats: Features) -> bool:
         """Posição inicial do polichinelo: em pé, braços baixos, pés juntos."""

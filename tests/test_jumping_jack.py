@@ -8,7 +8,15 @@ import time
 
 import pytest
 
-from tests.synthetic_keypoints import Pose, jumping_jack_poses, sequence, still_poses
+from tests.synthetic_keypoints import (
+    ARMS_UP,
+    FEET_APART,
+    Pose,
+    jumping_jack_poses,
+    sequence,
+    session_poses,
+    still_poses,
+)
 from workers.analysis_worker.exercises import (
     EXERCISES,
     JumpingJackAnalyzer,
@@ -340,6 +348,73 @@ def test_ready_pose_e_falso_em_frame_degradado() -> None:
     feats = analyzer.features(um_frame(Pose(), visibility=0.1))
 
     assert not analyzer.ready_pose(feats)
+
+
+# --------------------------------------------------------------------------------------
+# T-047 — a fase inicial é lida do primeiro frame, não assumida
+# --------------------------------------------------------------------------------------
+
+
+def test_captura_que_comeca_com_a_pessoa_aberta_nao_perde_a_primeira_rep() -> None:
+    """O caso medido no `polichinelo-02.mp4`: a gravação abre no meio de uma repetição.
+
+    Nascer em `CLOSED` custava o ciclo inteiro — o debounce de 250 ms exige estabilidade que
+    um movimento em curso não dá, então a abertura nunca era aceita e a rep sumia.
+    """
+    # Índice 7 de 15 é o pico da primeira rep: braços em cima, pés abertos.
+    frames = sequence(jumping_jack_poses(2)[7:])
+
+    analyzer, _ = analisar(frames)
+
+    assert analyzer.rep_count == 2
+
+
+def test_a_fase_adotada_e_anunciada_ao_cliente() -> None:
+    """O HUD desenha a fase; adotar `OPEN` em silêncio o deixaria mostrando `closed`."""
+    frames = sequence(jumping_jack_poses(2)[7:])
+
+    _, eventos = analisar(frames)
+
+    assert do_tipo(eventos, ExercisePhase)[0].phase is Phase.OPEN
+
+
+def test_captura_que_comeca_fechada_conta_igual_a_antes() -> None:
+    """A não-regressão que importa: o caminho do produto (countdown → parado) não mudou."""
+    analyzer, eventos = analisar(sequence(session_poses(jumping_jack_poses(6))))
+
+    assert analyzer.rep_count == 6
+    assert do_tipo(eventos, ExercisePhase)[0].phase is Phase.OPEN  # a 1ª abertura de verdade
+
+
+def test_bracos_erguidos_com_pes_juntos_nao_viram_repeticao_fantasma() -> None:
+    """A troca ruim que a exigência dupla evita.
+
+    Quem calibra com o braço levantado não fez um polichinelo. Se `initial_phase` olhasse só
+    o ângulo do braço, baixar os braços viraria a rep 1 — pagar uma rep inventada para
+    recuperar uma rep perdida seria um péssimo negócio.
+    """
+    frames = sequence([Pose(arm_angle=ARMS_UP), *still_poses(20)])
+
+    analyzer, _ = analisar(frames)
+
+    assert analyzer.rep_count == 0
+
+
+def test_frame_degradado_nao_decide_a_fase_inicial() -> None:
+    """Dado ruim não escolhe nada: a FSM já congela em `degraded`, e aqui vale o mesmo."""
+    analyzer = JumpingJackAnalyzer()
+    feats = analyzer.features(um_frame(Pose(arm_angle=ARMS_UP, ankle_spread=FEET_APART)))
+
+    assert analyzer.initial_phase(feats) is Phase.OPEN
+    assert analyzer.initial_phase({**feats, "degraded": True}) is Phase.CLOSED
+
+
+def test_pose_intermediaria_comeca_fechada() -> None:
+    """Entre os limiares não há afirmação nenhuma — o repouso é o palpite seguro."""
+    analyzer = JumpingJackAnalyzer()
+    feats = analyzer.features(um_frame(Pose(arm_angle=90.0, ankle_spread=1.2)))
+
+    assert analyzer.initial_phase(feats) is Phase.CLOSED
 
 
 def test_scene_hints_declara_faixa_de_altura_do_corpo() -> None:

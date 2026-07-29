@@ -35,11 +35,14 @@
     # 15 reps em 12,2s ≈ 73 rpm, a mais rápida do corpus. Cadência alta é justamente onde a
     # decimação para 10fps do modo cloud tem mais chance de perder o pico do movimento.
     cadencia: rapida
-    # A bancada conta 14: no ts=0 a pessoa JÁ está aberta (arm 143°, spread 3.19) e a FSM
-    # nasce em CLOSED, então a primeira abertura nunca é aceita. Ver T-047.
-    # Sem countdown: a calibracao (SPEC-004) consome o primeiro segundo, que aqui e
-    # exercicio de verdade. Some 1 rep por isso, alem da 1a que ja se perdia (T-047).
-    conhecido: -2 (sem countdown + comeca com a pessoa aberta)
+    # Com `--no-calibrate` a bancada agora conta 15/15 (era 14): a T-047 fez a FSM ler a fase
+    # do primeiro frame em vez de nascer em CLOSED, e no ts=0 a pessoa JA esta aberta
+    # (arm 143°, spread 3.19). A FSM esta exata neste video.
+    # O que sobra e a calibracao: sem countdown, a SPEC-004 consome o primeiro segundo, que
+    # aqui e exercicio de verdade — a 73 rpm isso custa as 2 reps que ainda faltam. Nao e
+    # defeito de contagem, e o preco de medir o corpo num video que ja comeca em movimento;
+    # o produto nao paga esse preco porque tem o countdown (T-049).
+    conhecido: -2 com calibracao (janela de medicao cai em cima do exercicio); 0 sem
 
 - file: polichinelo-03.mp4
   exercise: jumping_jack

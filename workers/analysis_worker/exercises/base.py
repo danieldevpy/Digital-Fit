@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from workers.shared.events import ExercisePhase, QualitySignal, RepDetected
+from workers.shared.events import ExercisePhase, Phase, QualitySignal, RepDetected
 from workers.shared.normalize import NormFrame
 
 __all__ = [
@@ -56,6 +56,22 @@ class ExerciseAnalyzer(Protocol):
 
     def step(self, feats: Features, ts: int) -> list[AnalysisEvent]:
         """Avança a FSM um frame e devolve o que aconteceu. `ts` em epoch ms."""
+        ...
+
+    def initial_phase(self, feats: Features) -> Phase:
+        """Em que fase a FSM começa, LIDA do primeiro frame utilizável (T-047).
+
+        Está no contrato — e não escondida dentro de cada FSM — porque a alternativa (nascer
+        numa fase constante) custou uma repetição de verdade: no `polichinelo-02.mp4` a
+        gravação abre com a pessoa já ABERTA, a FSM assumia `CLOSED`, e a primeira abertura
+        nunca era aceita porque o debounce exigia estabilidade que o movimento em curso não
+        dava. Todo exercício novo tem de responder a esta pergunta antes de contar.
+
+        Regra da resposta: só adotar uma fase que os features afirmem **sem ambiguidade**
+        (os mesmos limiares da transição). Frame intermediário ou `degraded` devolve a fase
+        de repouso — o palpite errado aqui vira repetição fantasma, e é pior que a rep
+        perdida que este método existe para evitar.
+        """
         ...
 
     def ready_pose(self, feats: Features) -> bool:

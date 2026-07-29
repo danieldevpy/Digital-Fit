@@ -43,7 +43,7 @@
 | T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness — dentro do gate da T-048, nunca na UI de produto | 012 | done — falta 1 passada manual (abrir um vídeo do corpus no navegador e exportar o JSON) |
 | T-041 | `evalctl replay --ws`: injetar keypoints gravados via gateway (integração + carga sintética) | 012 | todo |
 | T-049 | Preparação "3, 2, 1" configurável entre o corpo medido e a contagem valer (3s padrão, 5/10s ou desligado) | 004/013 | done |
-| T-047 | FSM inicia a fase pelo que observa, não assumindo `CLOSED` (perde a 1ª rep quando a captura começa com a pessoa aberta — ver Descobertas) | 007/004 | todo |
+| T-047 | FSM inicia a fase pelo que observa, não assumindo `CLOSED` (perde a 1ª rep quando a captura começa com a pessoa aberta — ver Descobertas) | 007/004 | done |
 
 ## Fase 2 — SaaS na VPS
 
@@ -64,7 +64,10 @@
 | T-029 | Validação de cena completa: luz, tilt de câmera, gate de início, scene score | 003 | todo |
 | T-030 | Gate de prontidão por pose + silhueta-alvo no HUD | 004 | todo |
 | T-031 | Reconexão com resume (WS) + retomada de sessão via snapshot | 002/009 | todo |
-| T-032 | Exercício 2: agachamento (novo módulo `exercises/squat.py`) | 007 | todo |
+| T-050 | `Phase` deixa de ser vocabulário de polichinelo: par neutro no contrato + rótulo de exibição por exercício no catálogo do cliente | 007/002 | todo |
+| T-051 | Seleção de exercício no cliente (hoje `useSession.ts` fixa `DEFAULT_EXERCISE`) — sem isto o exercício 2 é inalcançável pelo produto | 013/007 | todo |
+| T-052 | Gerador sintético de poses além do polichinelo (`Pose` só tem `arm_angle`/`ankle_spread`) — sem isto a FSM 2 não tem fixture nem critério de aceite | 007/012 | todo |
+| T-032 | Exercício 2: agachamento (novo módulo `exercises/squat.py`) — depende de T-050/051/052 | 007 | todo |
 | T-033 | Form score por rep (amplitude, simetria, estabilidade) | 007 | todo |
 | T-034 | Ferramenta de rotulagem do dataset + primeiro treino do classificador temporal | 010/007 | todo |
 | T-035 | Coach por voz (TTS dos feedbacks) | 008 | todo |
@@ -179,7 +182,18 @@
   experimento: cortar até 3 s do início do `polichinelo-01.mp4` continua dando 20/20 — o que
   importa não é o tempo parado, é a **fase** em que o vídeo começa. No produto o countdown
   (SPEC-004 / T-019) faz a pessoa começar parada e fechada, então o caso é raro ao vivo; para
-  a bancada é real. Proposta: **T-047**.
+  a bancada é real. Proposta: **T-047** — ~~aberta~~ **RESOLVIDA**: `--no-calibrate` no `02`
+  passou de 14 para 15/15. O que sobra naquele vídeo é a calibração comendo exercício, não a
+  contagem.
+- **[A/T-047] O ganho da fase lida não aparece no corpus calibrado — e isso é a guarda
+  funcionando.** Medido antes e depois: `evalctl run eval/corpus/` devolve exatamente
+  `20/13/19` nos dois casos. Só o caminho `--no-calibrate` melhorou. O motivo é que
+  `initial_phase` exige os **dois** limiares de abertura, e no frame em que a contagem começa
+  (depois da calibração) a pessoa está em posição intermediária — nada é afirmado, adota-se
+  `CLOSED`. Foi uma escolha deliberada: aceitar só o braço levantado recuperaria mais reps na
+  bancada e criaria repetição fantasma para quem calibra com o braço erguido. **Lição: medir
+  antes e depois vale mesmo quando o número não muda** — foi o "não mudou" que provou que a
+  guarda existe de verdade, e não só no comentário.
 - **[A/T-038] Falha TOTAL de detecção é silenciosa — nem sequer vira `OUT_OF_FRAME`.**
   No `polichinelo-03.mp4` (20 de 21) a detecção é perfeita nos primeiros 20 s e **zero** pose
   do segundo 21 ao 25: a pessoa sai do quadro e a 21ª rep acontece onde o modelo não a vê. O

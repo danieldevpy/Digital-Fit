@@ -295,7 +295,13 @@ def test_rep_feita_durante_a_preparacao_NAO_conta() -> None:
     assert rodar(10) == 0
     # E no meio do caminho a conta fecha: 3 s engolem as primeiras reps, não todas. Este é o
     # numero que prova que a janela é medida, e não que a contagem foi simplesmente desligada.
-    assert rodar(3) == 2
+    #
+    # Foram 2 até a T-047 e passaram a ser 3 — a mudança é o conserto aparecendo aqui. A
+    # janela termina no meio de uma repetição, com a pessoa já ABERTA; a FSM assumia `CLOSED`
+    # e perdia esse ciclo. Agora ela lê a fase do primeiro frame que recebe e o fecha. É a
+    # mesma rep que sumia no `polichinelo-02.mp4`, e o cenário é o do produto: quem faz o
+    # exercício durante a preparação está em movimento quando o "VAI!" chega.
+    assert rodar(3) == 3
 
 
 def test_o_evento_de_calibracao_carrega_quanto_falta() -> None:

@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-07-29 · T-047 — A FSM lê a fase inicial em vez de assumi-la
+
+- Contexto: o Daniel perguntou se dá para começar o exercício 2. Auditei o código e a resposta
+  foi "a espinha aguenta, mas não comece pela T-032". A T-047 entrou primeiro porque o bug não
+  é do polichinelo — é do **padrão** que a segunda FSM vai copiar.
+- Feito: `initial_phase(feats) -> Phase` entrou no **contrato** (`exercises/base.py`), não
+  escondido dentro do polichinelo. `step()` chama no primeiro frame utilizável; se a leitura
+  der `OPEN`, a FSM nasce aberta, anuncia `exercise.phase` (o HUD desenha a fase — adotar em
+  silêncio o deixaria mentindo) e marca o início da rep.
+- Decisões:
+  - **A fase adotada exige os DOIS limiares de abertura**, não um. É o que separa "está no
+    topo de um polichinelo" de "está parado com os braços erguidos": de pé com os pés juntos,
+    `ankle_spread` reprova e baixar os braços não vira repetição. Pagar uma rep inventada para
+    recuperar uma rep perdida seria um péssimo negócio — e a rep fantasma é a mais visível das
+    duas para quem está treinando.
+  - Frame intermediário ou `degraded` ⇒ `CLOSED`. Sem afirmação, vale o repouso.
+  - O método foi para o Protocol de propósito: todo exercício novo é **obrigado** a responder
+    onde começa. Era exatamente a pergunta que ninguém tinha feito.
+- Medições (antes → depois):
+  - `polichinelo-02.mp4 --no-calibrate`: **14/15 → 15/15**. É a rep diagnosticada na T-038.
+  - `evalctl run eval/corpus/` (com calibração): **20/13/19 nos dois casos — não mudou**.
+    Rodei o corpus com o código antigo via `git stash` para ter certeza em vez de supor. O
+    motivo é a guarda dos dois limiares: no frame em que a contagem começa, depois da
+    calibração, a pessoa está em posição intermediária. O "não mudou" é a prova de que a
+    guarda existe de verdade, e não só no comentário.
+  - `test_rep_feita_durante_a_preparacao_NAO_conta`: `rodar(3)` foi de 2 para 3. Não é
+    regressão — é o conserto aparecendo no cenário do produto (quem exercita durante a
+    preparação está em movimento quando o "VAI!" chega). Atualizei o número e o porquê.
+  - Sobra no `02`: −2, e agora está inteiramente explicado — é a janela de calibração caindo
+    em cima de exercício de verdade num vídeo a 73 rpm. Não é contagem. O produto não paga
+    esse preço porque tem o countdown (T-049). Manifest atualizado.
+- Auditoria da regra "um exercício novo não muda nada fora de `exercises/`" (nota técnica da
+  SPEC-007): **falsa como está escrita**, e a spec foi corrigida para dizer isso. Agnósticos de
+  fato: registro por slug, validação no `POST /sessions`, roteamento, relatório, Parquet e o
+  catálogo de feedback. Ainda exigem mudança fora: `Phase` (T-050), seleção de exercício no
+  cliente (T-051) e o gerador de fixtures (T-052).
+- Gates: `ruff check` limpo; `pytest` **520** (era 514, +6).
+- Pendências geradas: T-050, T-051, T-052 no backlog, nesta ordem, antes da T-032.
+
+---
+
 ## 2026-07-29 · T-049 — Preparação "3, 2, 1" configurável antes de a contagem valer
 
 - Pedido do Daniel: um timer de 3 s depois da preparação e antes de contar, extensível ou
