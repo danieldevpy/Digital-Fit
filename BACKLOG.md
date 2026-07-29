@@ -70,6 +70,7 @@
 | T-032 | Exercício 2: agachamento (novo módulo `exercises/squat.py`) | 007 | done — limiares calibrados no gerador; falta corpus de vídeo (T-053) |
 | T-053 | Corpus de agachamento + varredura dos limiares contra ele (hoje calibrados só no gerador sintético) | 012/007 | todo |
 | T-054 | `KNEES_INWARD` (valgo dinâmico) — a falha de agachamento que a câmera FRONTAL vê melhor que qualquer outra; exige parâmetro novo no gerador de poses | 007/012 | todo |
+| T-055 | Relatório e histórico mostram QUAL exercício foi feito (o dado já viaja ponta a ponta; nenhuma tela o desenha) | 013/010 | todo |
 | T-033 | Form score por rep (amplitude, simetria, estabilidade) | 007 | todo |
 | T-034 | Ferramenta de rotulagem do dataset + primeiro treino do classificador temporal | 010/007 | todo |
 | T-035 | Coach por voz (TTS dos feedbacks) | 008 | todo |
@@ -187,6 +188,23 @@
   a bancada é real. Proposta: **T-047** — ~~aberta~~ **RESOLVIDA**: `--no-calibrate` no `02`
   passou de 14 para 15/15. O que sobra naquele vídeo é a calibração comendo exercício, não a
   contagem.
+- **[A/T-032] O relatório e o histórico NÃO dizem QUAL exercício foi feito.** O dado existe
+  em toda a cadeia (`SessionResult.exercise` no Postgres, coluna `exercise` no Parquet,
+  `sessionReport.ts` no cliente), mas nenhum `.tsx` o renderiza: `ReportSheet` e
+  `AccountSheet` não têm uma única menção. Com um exercício só isso era invisível; com dois, o
+  histórico vira uma lista de "12 repetições" sem dizer de quê, e duas sessões diferentes
+  ficam indistinguíveis na tela. É conserto pequeno (o `display_name` já está no catálogo do
+  cliente) e puramente de apresentação — proposta **T-055**.
+- **[A/T-032] Escolher o exercício errado dá ZERO repetições, em silêncio.** Medido: 10
+  polichinelos com o agachamento selecionado = 0 reps, nenhum sinal de qualidade, nenhum
+  aviso; e o inverso também. Não é contagem errada, é contagem nenhuma — o que é o
+  comportamento seguro, mas a pessoa fica se mexendo na frente da câmera sem entender por que
+  o contador não anda. O sistema **não sabe** o que está sendo feito: ele é informado pela
+  seleção (SPEC-007: "usuário seleciona; nada de detecção automática ainda"). Duas saídas
+  possíveis, e vale escolher antes de o terceiro exercício entrar: (a) `ready_pose()` já
+  existe no contrato e ninguém chama — dava para avisar "você não está na posição inicial do
+  agachamento" (é a T-030); (b) detecção automática pelo classificador temporal (T-034).
+  A (a) é barata e cobre o caso comum.
 - **[A/T-032] O One Euro corta o fundo do agachamento acima de ~90 rpm.** Medido: a contagem é
   exata até 90 rpm (1,5 agachamentos/s, já mais rápido do que se faz) e vai a zero em 120 rpm
   — e o motivo **não é a FSM**: o filtro entrega fundo de 0,727 torsos contra o limiar de
