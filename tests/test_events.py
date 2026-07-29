@@ -62,8 +62,8 @@ PAYLOADS = [
     SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
     PoseFrame(landmarks=landmarks()),
     PoseFrame(landmarks=landmarks(0.2), degraded=True, norm={"torso": 1.0}),
-    ExercisePhase(phase=Phase.OPEN),
-    RepDetected(rep_count=7, phase=Phase.CLOSED, duration_ms=820),
+    ExercisePhase(phase=Phase.PEAK),
+    RepDetected(rep_count=7, phase=Phase.REST, duration_ms=820),
     QualitySignal(code=Code.ARMS_TOO_LOW, value=88.4, rep_index=7),
     QualitySignal(code=Code.LEGS_TOO_CLOSED),
     SceneWarning(code=Code.OUT_OF_FRAME, severity=Severity.WARNING, hint="afaste-se da camera"),
@@ -100,7 +100,7 @@ def test_round_trip_stream_fields(payload) -> None:
 
 def test_from_stream_fields_aceita_chave_str() -> None:
     """Alguns clientes Redis devolvem chaves decodificadas."""
-    original = envelope_de(ExercisePhase(phase=Phase.CLOSED))
+    original = envelope_de(ExercisePhase(phase=Phase.REST))
     campos = {"e": encode_envelope(original)}
 
     assert from_stream_fields(campos) == original
@@ -121,7 +121,7 @@ def test_envelope_serializado_tem_exatamente_as_chaves_do_contrato() -> None:
 
 
 def test_make_envelope_usa_o_tipo_do_payload() -> None:
-    envelope = envelope_de(RepDetected(rep_count=1, phase=Phase.CLOSED, duration_ms=700))
+    envelope = envelope_de(RepDetected(rep_count=1, phase=Phase.REST, duration_ms=700))
 
     assert envelope.type is EventType.REP_DETECTED
     assert envelope.stream is Stream.EVENTS_ANALYSIS
@@ -133,7 +133,7 @@ def test_make_envelope_usa_o_tipo_do_payload() -> None:
 
 
 def test_envelope_valido_aceita_seq_zero() -> None:
-    envelope = envelope_de(ExercisePhase(phase=Phase.OPEN), seq=0)
+    envelope = envelope_de(ExercisePhase(phase=Phase.PEAK), seq=0)
 
     assert envelope.seq == 0
 
@@ -155,7 +155,7 @@ def test_envelope_valido_aceita_seq_zero() -> None:
     ],
 )
 def test_envelope_invalido_e_rejeitado(campo: str, valor) -> None:
-    bruto = envelope_de(ExercisePhase(phase=Phase.OPEN)).to_dict()
+    bruto = envelope_de(ExercisePhase(phase=Phase.PEAK)).to_dict()
     bruto[campo] = valor
 
     with pytest.raises(EventValidationError):
@@ -164,7 +164,7 @@ def test_envelope_invalido_e_rejeitado(campo: str, valor) -> None:
 
 @pytest.mark.parametrize("campo", ["type", "session_id", "ts", "seq", "source"])
 def test_envelope_sem_campo_obrigatorio_e_rejeitado(campo: str) -> None:
-    bruto = envelope_de(ExercisePhase(phase=Phase.OPEN)).to_dict()
+    bruto = envelope_de(ExercisePhase(phase=Phase.PEAK)).to_dict()
     del bruto[campo]
 
     with pytest.raises(EventValidationError, match="envelope incompleto"):
@@ -179,7 +179,7 @@ def test_bytes_invalidos_sao_rejeitados_sem_estourar_outra_excecao(bruto: bytes)
 
 def test_seq_bool_nao_passa_por_int() -> None:
     """`True` é `int` em Python — o contrato não aceita isso."""
-    bruto = envelope_de(ExercisePhase(phase=Phase.OPEN)).to_dict()
+    bruto = envelope_de(ExercisePhase(phase=Phase.PEAK)).to_dict()
     bruto["seq"] = True
 
     with pytest.raises(EventValidationError):
@@ -213,7 +213,20 @@ def test_pose_frame_omite_campos_opcionais_quando_vazios() -> None:
 
 def test_payload_sem_campo_obrigatorio_e_rejeitado() -> None:
     with pytest.raises(EventValidationError, match="campo obrigatorio ausente"):
-        RepDetected.from_data({"rep_count": 3, "phase": "closed"})
+        RepDetected.from_data({"rep_count": 3, "phase": "rest"})
+
+
+def test_fase_do_vocabulario_antigo_e_rejeitada_alto() -> None:
+    """A T-050 trocou `closed`/`open` por `rest`/`peak` — a quebra tem de ser barulhenta.
+
+    Nenhum evento antigo sobrevive em disco (a fase não vai para o Parquet nem para o
+    Postgres), então o risco real é um worker desatualizado publicando no stream. Rejeitar é o
+    que se quer: um `closed` aceito em silêncio viraria fase errada no HUD, e ninguém
+    descobriria pelo comportamento.
+    """
+    for antigo in ("closed", "open"):
+        with pytest.raises(EventValidationError, match="phase invalido"):
+            ExercisePhase.from_data({"phase": antigo})
 
 
 def test_codigo_desconhecido_e_rejeitado() -> None:

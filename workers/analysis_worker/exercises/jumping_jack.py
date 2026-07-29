@@ -6,6 +6,11 @@ FSM de duas fases com **histerese** e **debounce**::
   FECHADO ──────────────────────────────► ABERTO ──────────────────────────────► FECHADO
                                                         = 1 repetição válida
 
+No contrato essas duas fases são `Phase.REST` (fechado) e `Phase.PEAK` (aberto): o envelope
+fala em repouso e pico porque é o que serve a qualquer exercício por repetição, e "fechado"
+só quer dizer alguma coisa para este aqui. Fechado/aberto continua no texto porque é o nome
+do movimento; `REST`/`PEAK` é o nome do dado.
+
 - **Histerese**: os limiares de abrir e de fechar são diferentes, então oscilar em cima de um
   limiar não conta duas vezes.
 - **Debounce**: cada fase dura no mínimo 250 ms; ruído não vira repetição.
@@ -71,7 +76,7 @@ class JumpingJackAnalyzer:
     #: os pulsos da pessoa repousam.
     baseline: Baseline | None = None
 
-    phase: Phase = Phase.CLOSED
+    phase: Phase = Phase.REST
     rep_count: int = 0
 
     _phase_since_ms: int | None = None
@@ -154,19 +159,19 @@ class JumpingJackAnalyzer:
             # A fase inicial é lida, não assumida (T-047). Se a captura já abre com a pessoa
             # ABERTA, nascer em `CLOSED` perde o ciclo inteiro: o debounce exige 250 ms de
             # estabilidade que um movimento em curso não oferece, e a abertura nunca é aceita.
-            if self.initial_phase(feats) is Phase.OPEN:
-                self.phase = Phase.OPEN
+            if self.initial_phase(feats) is Phase.PEAK:
+                self.phase = Phase.PEAK
                 # A rep começou antes da câmera. Contar a duração a partir daqui a subestima —
                 # é o melhor que este frame permite saber, e é honesto quanto ao que foi visto.
                 self._rep_started_ms = ts
-                return [ExercisePhase(phase=Phase.OPEN)]
+                return [ExercisePhase(phase=Phase.PEAK)]
 
         arm_angle = float(feats["arm_angle"])
         ankle_spread = float(feats["ankle_spread"])
         limiares = self.thresholds
         estavel = ts - self._phase_since_ms >= limiares.min_phase_ms
 
-        if self.phase is Phase.CLOSED:
+        if self.phase is Phase.REST:
             self._peak_arm_angle = max(self._peak_arm_angle, arm_angle)
             self._peak_ankle_spread = max(self._peak_ankle_spread, ankle_spread)
 
@@ -174,7 +179,7 @@ class JumpingJackAnalyzer:
                 arm_angle > limiares.open_arm_angle and ankle_spread > limiares.open_ankle_spread
             )
             if abriu and estavel:
-                return self._enter(Phase.OPEN, ts)
+                return self._enter(Phase.PEAK, ts)
 
             # Voltou à posição fechada sem ter aberto: a tentativa acabou. Se chegou perto,
             # vira crítica de execução — reclamar disso é mais útil que ignorar.
@@ -188,12 +193,12 @@ class JumpingJackAnalyzer:
         # Fase ABERTO: só interessa voltar a fechar — aí nasce a repetição.
         fechou = arm_angle < limiares.close_arm_angle and ankle_spread < limiares.close_ankle_spread
         if fechou and estavel:
-            eventos = self._enter(Phase.CLOSED, ts)
+            eventos = self._enter(Phase.REST, ts)
             return [*eventos, self._count_rep(ts)]
         return []
 
     def _enter(self, phase: Phase, ts: int) -> list[AnalysisEvent]:
-        if phase is Phase.OPEN:
+        if phase is Phase.PEAK:
             self._rep_started_ms = self._phase_since_ms
         self.phase = phase
         self._phase_since_ms = ts
@@ -206,7 +211,7 @@ class JumpingJackAnalyzer:
         self._rep_timestamps.append(ts)
         duration_ms = ts - self._rep_started_ms if self._rep_started_ms is not None else 0
         self._rep_started_ms = None
-        return RepDetected(rep_count=self.rep_count, phase=Phase.CLOSED, duration_ms=duration_ms)
+        return RepDetected(rep_count=self.rep_count, phase=Phase.REST, duration_ms=duration_ms)
 
     def _close_partial_attempt(self) -> list[AnalysisEvent]:
         """Fecha uma tentativa incompleta, emitindo os sinais do que faltou."""
@@ -238,13 +243,13 @@ class JumpingJackAnalyzer:
         levantado ganharia uma rep que não fez.
         """
         if feats.get("degraded"):
-            return Phase.CLOSED
+            return Phase.REST
         limiares = self.thresholds
         aberto = (
             float(feats["arm_angle"]) > limiares.open_arm_angle
             and float(feats["ankle_spread"]) > limiares.open_ankle_spread
         )
-        return Phase.OPEN if aberto else Phase.CLOSED
+        return Phase.PEAK if aberto else Phase.REST
 
     def ready_pose(self, feats: Features) -> bool:
         """Posição inicial do polichinelo: em pé, braços baixos, pés juntos."""

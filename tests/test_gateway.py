@@ -260,7 +260,7 @@ async def test_cliente_nao_pode_injetar_rep_detected(bus_falso) -> None:
 
     comunicador, _ = await conectar()
     falso = make_envelope(
-        RepDetected(rep_count=999, phase=Phase.CLOSED, duration_ms=1),
+        RepDetected(rep_count=999, phase=Phase.REST, duration_ms=1),
         session_id=SESSAO,
         ts=1_722_100_001_000,
         seq=1,
@@ -369,7 +369,7 @@ async def test_relay_empurra_rep_detected_ao_cliente(bus_falso) -> None:
 
     comunicador, _ = await conectar()
     rep = make_envelope(
-        RepDetected(rep_count=3, phase=Phase.CLOSED, duration_ms=900),
+        RepDetected(rep_count=3, phase=Phase.REST, duration_ms=900),
         session_id=SESSAO,
         ts=1_722_100_003_000,
         seq=7,
@@ -422,7 +422,7 @@ async def test_evento_de_outra_sessao_nao_chega_neste_cliente(bus_falso) -> None
 
     comunicador, _ = await conectar()
     de_outro = make_envelope(
-        RepDetected(rep_count=1, phase=Phase.CLOSED, duration_ms=800),
+        RepDetected(rep_count=1, phase=Phase.REST, duration_ms=800),
         session_id="3f2b9c4e-0000-4000-8000-000000000002",
         ts=1_722_100_002_000,
         seq=1,
@@ -443,7 +443,7 @@ async def test_relay_da_ack_em_tudo_que_le(bus_falso) -> None:
         bus_falso.feed(
             Stream.EVENTS_ANALYSIS,
             make_envelope(
-                RepDetected(rep_count=indice + 1, phase=Phase.CLOSED, duration_ms=900),
+                RepDetected(rep_count=indice + 1, phase=Phase.REST, duration_ms=900),
                 session_id=SESSAO,
                 ts=1_722_100_000_000 + indice,
                 seq=indice,
@@ -469,7 +469,7 @@ async def test_cliente_desconectado_nao_impede_o_relay(bus_falso) -> None:
     bus_falso.feed(
         Stream.EVENTS_ANALYSIS,
         make_envelope(
-            RepDetected(rep_count=1, phase=Phase.CLOSED, duration_ms=900),
+            RepDetected(rep_count=1, phase=Phase.REST, duration_ms=900),
             session_id="sessao-sem-cliente",
             ts=1_722_100_000_000,
             seq=0,

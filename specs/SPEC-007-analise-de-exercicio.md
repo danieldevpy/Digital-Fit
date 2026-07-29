@@ -60,7 +60,9 @@ Outros exercícios, detecção automática do exercício, score de forma por rep
 
 ## Eventos
 
-Consome: `pose.frame` (norm). Produz: `rep.detected`, `quality.signal`, `exercise.phase` (aberto/fechado — habilita animações no HUD).
+Consome: `pose.frame` (norm). Produz: `rep.detected`, `quality.signal`, `exercise.phase` — habilita animações no HUD.
+
+O contrato carrega o par **neutro** `rest`/`peak` (T-050), não o vocabulário de um exercício. No polichinelo `rest` é fechado e `peak` é aberto; no agachamento, em pé e embaixo. `closed`/`open` no envelope obrigaria todo consumidor a saber de que exercício se trata para entender a palavra. **A palavra de tela é do cliente**: o catálogo de exercícios do web é quem traduz a fase, quando alguma tela precisar mostrá-la — hoje nenhuma mostra.
 
 ## Notas técnicas
 

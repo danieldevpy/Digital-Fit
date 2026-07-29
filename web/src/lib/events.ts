@@ -40,9 +40,17 @@ export const Mode = {
 } as const
 export type Mode = (typeof Mode)[keyof typeof Mode]
 
+/**
+ * Fase do movimento — par NEUTRO, espelho de `workers/shared/events.py` (T-050).
+ *
+ * Era `closed`/`open`, que descreve polichinelo e mais nada. `REST` é a posição de partida,
+ * `PEAK` o extremo do movimento; o que cada uma parece é do exercício (polichinelo: fechado
+ * e aberto; agachamento: em pé e embaixo). Quando alguma tela for desenhar a fase, o texto
+ * sai do catálogo de exercícios, não daqui — este arquivo é contrato, não conteúdo.
+ */
 export const Phase = {
-  CLOSED: 'closed',
-  OPEN: 'open',
+  REST: 'rest',
+  PEAK: 'peak',
 } as const
 export type Phase = (typeof Phase)[keyof typeof Phase]
 

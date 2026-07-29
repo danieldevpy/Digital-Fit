@@ -71,7 +71,7 @@ def sessao_completa(
     for indice in range(reps):
         eventos.append(
             evento(
-                RepDetected(rep_count=indice + 1, phase=Phase.CLOSED, duration_ms=intervalo),
+                RepDetected(rep_count=indice + 1, phase=Phase.REST, duration_ms=intervalo),
                 ts=inicio + intervalo * (indice + 1),
                 seq=indice + 1,
                 session_id=session_id,
@@ -147,9 +147,9 @@ def test_janelas_de_cadencia_cobrem_a_sessao_inteira_com_buracos():
             ts=inicio,
         ),
         # 2 reps na primeira janela, nenhuma na segunda, 1 na terceira.
-        evento(RepDetected(rep_count=1, phase=Phase.CLOSED, duration_ms=900), ts=inicio + 1_000),
-        evento(RepDetected(rep_count=2, phase=Phase.CLOSED, duration_ms=900), ts=inicio + 4_000),
-        evento(RepDetected(rep_count=3, phase=Phase.CLOSED, duration_ms=900), ts=inicio + 12_000),
+        evento(RepDetected(rep_count=1, phase=Phase.REST, duration_ms=900), ts=inicio + 1_000),
+        evento(RepDetected(rep_count=2, phase=Phase.REST, duration_ms=900), ts=inicio + 4_000),
+        evento(RepDetected(rep_count=3, phase=Phase.REST, duration_ms=900), ts=inicio + 12_000),
         evento(
             SessionCompleted(reason=SessionEndReason.COMPLETED, rep_count=3), ts=inicio + 15_000
         ),
@@ -232,10 +232,10 @@ def test_total_de_reps_vem_do_evento_de_fim_nao_da_contagem_de_eventos():
     )
     # Só viu as duas últimas reps de dezoito.
     acumulador.push(
-        evento(RepDetected(rep_count=17, phase=Phase.CLOSED, duration_ms=900), ts=inicio + 25_000)
+        evento(RepDetected(rep_count=17, phase=Phase.REST, duration_ms=900), ts=inicio + 25_000)
     )
     acumulador.push(
-        evento(RepDetected(rep_count=18, phase=Phase.CLOSED, duration_ms=900), ts=inicio + 27_000)
+        evento(RepDetected(rep_count=18, phase=Phase.REST, duration_ms=900), ts=inicio + 27_000)
     )
     relatorio = acumulador.push(
         evento(

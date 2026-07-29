@@ -64,7 +64,7 @@
 | T-029 | Validação de cena completa: luz, tilt de câmera, gate de início, scene score | 003 | todo |
 | T-030 | Gate de prontidão por pose + silhueta-alvo no HUD | 004 | todo |
 | T-031 | Reconexão com resume (WS) + retomada de sessão via snapshot | 002/009 | todo |
-| T-050 | `Phase` deixa de ser vocabulário de polichinelo: par neutro no contrato + rótulo de exibição por exercício no catálogo do cliente | 007/002 | todo |
+| T-050 | `Phase` deixa de ser vocabulário de polichinelo: par neutro (`rest`/`peak`) no contrato | 007/002 | done |
 | T-051 | Seleção de exercício no cliente (hoje `useSession.ts` fixa `DEFAULT_EXERCISE`) — sem isto o exercício 2 é inalcançável pelo produto | 013/007 | todo |
 | T-052 | Gerador sintético de poses além do polichinelo (`Pose` só tem `arm_angle`/`ankle_spread`) — sem isto a FSM 2 não tem fixture nem critério de aceite | 007/012 | todo |
 | T-032 | Exercício 2: agachamento (novo módulo `exercises/squat.py`) — depende de T-050/051/052 | 007 | todo |

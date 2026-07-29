@@ -377,7 +377,7 @@ def test_eventos_da_analise_nao_viram_linha(tmp_path):
     bus.feed(
         Stream.EVENTS_ANALYSIS,
         make_envelope(
-            RepDetected(rep_count=1, phase=Phase.OPEN, duration_ms=800),
+            RepDetected(rep_count=1, phase=Phase.PEAK, duration_ms=800),
             session_id="s-1",
             ts=BASE_TS + 100,
             seq=5,

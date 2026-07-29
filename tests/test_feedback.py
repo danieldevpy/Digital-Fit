@@ -138,7 +138,7 @@ def test_evento_sem_codigo_e_ignorado() -> None:
     """`rep.detected` alimenta feedback positivo, que é Fase Evolução."""
     from workers.shared.events import Phase, RepDetected
 
-    saida = motor().push([RepDetected(rep_count=1, phase=Phase.CLOSED, duration_ms=900)], TS)
+    saida = motor().push([RepDetected(rep_count=1, phase=Phase.REST, duration_ms=900)], TS)
 
     assert saida == []
 

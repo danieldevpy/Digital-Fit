@@ -47,7 +47,7 @@ Fonte da verdade: `workers/shared/events.py`. O código manda; esta tabela é vi
 | `session.capability` | cliente | `pose.frames` | `mode, probe_fps, webgl, ua` |
 | `session.started` | api | `pose.frames` | `exercise, mode, duration_s` |
 | `pose.frame` | cliente (edge) / pose-worker (cloud) | `pose.frames` | `landmarks[33]`, `norm?`, `degraded?` |
-| `exercise.phase` | analysis-worker | `events.analysis` | `phase: closed\|open` |
+| `exercise.phase` | analysis-worker | `events.analysis` | `phase: rest\|peak` (par neutro, T-050) |
 | `rep.detected` | analysis-worker | `events.analysis` | `rep_count, phase, duration_ms` |
 | `quality.signal` | analysis-worker | `events.analysis` | `code, value?, rep_index?` |
 | `scene.warning` | worker de cena | `events.analysis` | `code, severity, hint?` |

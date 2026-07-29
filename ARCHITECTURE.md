@@ -146,6 +146,8 @@ FECHADO ────────────────────────
                                                         = 1 repetição válida
 ```
 
+- No contrato de eventos as duas fases são `rest` (fechado) e `peak` (aberto) — par neutro que serve a qualquer exercício por repetição (T-050). "Fechado/aberto" é o nome do movimento; `rest`/`peak` é o nome do dado.
+- **Fase inicial lida, não assumida** (T-047): o primeiro frame utilizável decide onde a FSM começa, exigindo os **dois** limiares de abertura. Assumir `rest` perdia a repetição quando a captura já abria em movimento; aceitar com um limiar só inventaria repetição para quem se posiciona de braço erguido.
 - **Histerese**: limiares de entrada ≠ saída (ex.: abre em 1.4, só fecha abaixo de 0.9) — evita contagem dupla na fronteira.
 - **Debounce**: fase mínima de 250 ms — evita falsos positivos por ruído.
 - **Rep parcial** → feedback: passou de 70° mas não de 110° = `ARMS_TOO_LOW` ("estenda mais os braços"); tornozelos < 1.2 no pico = `LEGS_TOO_CLOSED`.

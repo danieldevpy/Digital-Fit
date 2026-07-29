@@ -243,10 +243,26 @@ LANDMARK_NAMES: tuple[str, ...] = tuple(member.name.lower() for member in Landma
 
 
 class Phase(StrEnum):
-    """Fase do movimento na FSM (SPEC-007). Polichinelo: fechado ⇄ aberto."""
+    """Fase do movimento na FSM (SPEC-007) — par NEUTRO, não vocabulário de um exercício.
 
-    CLOSED = "closed"
-    OPEN = "open"
+    Era `closed`/`open`, que é polichinelo e mais nada. Um agachamento não fecha nem abre, e
+    somar um par por exercício obrigaria todo consumidor (HUD, relatório, dataset) a virar um
+    `switch` sobre `exercise` para saber o que a palavra significa — o oposto de um contrato.
+
+    Toda contagem por repetição tem os mesmos dois extremos, então é isso que o contrato
+    nomeia:
+
+    - `REST` — a posição de partida/descanso, onde a repetição nasce e morre.
+    - `PEAK`  — o extremo do movimento, onde a amplitude é máxima.
+
+    O que cada uma *parece* é do exercício: polichinelo `REST`=fechado, `PEAK`=aberto;
+    agachamento `REST`=em pé, `PEAK`=embaixo. Palavra de tela é do cliente, não daqui.
+
+    Exercício por tempo (prancha) não usa este par — tem `hold.progress` (SPEC-007 Evolução).
+    """
+
+    REST = "rest"
+    PEAK = "peak"
 
 
 class Severity(StrEnum):

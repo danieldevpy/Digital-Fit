@@ -88,7 +88,7 @@ def test_emite_fase_a_cada_transicao() -> None:
 
     fases = [evento.phase for evento in do_tipo(eventos, ExercisePhase)]
 
-    assert fases == [Phase.OPEN, Phase.CLOSED] * 3
+    assert fases == [Phase.PEAK, Phase.REST] * 3
 
 
 def test_duracao_da_rep_e_plausivel() -> None:
@@ -375,7 +375,7 @@ def test_a_fase_adotada_e_anunciada_ao_cliente() -> None:
 
     _, eventos = analisar(frames)
 
-    assert do_tipo(eventos, ExercisePhase)[0].phase is Phase.OPEN
+    assert do_tipo(eventos, ExercisePhase)[0].phase is Phase.PEAK
 
 
 def test_captura_que_comeca_fechada_conta_igual_a_antes() -> None:
@@ -383,7 +383,7 @@ def test_captura_que_comeca_fechada_conta_igual_a_antes() -> None:
     analyzer, eventos = analisar(sequence(session_poses(jumping_jack_poses(6))))
 
     assert analyzer.rep_count == 6
-    assert do_tipo(eventos, ExercisePhase)[0].phase is Phase.OPEN  # a 1ª abertura de verdade
+    assert do_tipo(eventos, ExercisePhase)[0].phase is Phase.PEAK  # a 1ª abertura de verdade
 
 
 def test_bracos_erguidos_com_pes_juntos_nao_viram_repeticao_fantasma() -> None:
@@ -405,8 +405,8 @@ def test_frame_degradado_nao_decide_a_fase_inicial() -> None:
     analyzer = JumpingJackAnalyzer()
     feats = analyzer.features(um_frame(Pose(arm_angle=ARMS_UP, ankle_spread=FEET_APART)))
 
-    assert analyzer.initial_phase(feats) is Phase.OPEN
-    assert analyzer.initial_phase({**feats, "degraded": True}) is Phase.CLOSED
+    assert analyzer.initial_phase(feats) is Phase.PEAK
+    assert analyzer.initial_phase({**feats, "degraded": True}) is Phase.REST
 
 
 def test_pose_intermediaria_comeca_fechada() -> None:
@@ -414,7 +414,7 @@ def test_pose_intermediaria_comeca_fechada() -> None:
     analyzer = JumpingJackAnalyzer()
     feats = analyzer.features(um_frame(Pose(arm_angle=90.0, ankle_spread=1.2)))
 
-    assert analyzer.initial_phase(feats) is Phase.CLOSED
+    assert analyzer.initial_phase(feats) is Phase.REST
 
 
 def test_scene_hints_declara_faixa_de_altura_do_corpo() -> None:

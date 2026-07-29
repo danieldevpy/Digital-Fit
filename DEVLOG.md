@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-07-29 · T-050 — `Phase` vira par neutro (`rest`/`peak`)
+
+- Por quê agora: mudança de contrato, e o AGENTS.md manda contrato primeiro. Escrever a FSM 2
+  antes disso significaria escrevê-la duas vezes.
+- Raio de alcance **medido antes de mexer**, não estimado: `phase` não vai para o Parquet nem
+  para o Postgres, e nenhum componente do web a renderiza. Só existe em `events.py`,
+  `jumping_jack.py`, `lib/events.ts` e testes. Por isso a troca foi limpa, sem camada de
+  compatibilidade — que teria sido pura dívida para zero dado antigo.
+- Decisões:
+  - **`REST`/`PEAK`, não `UP`/`DOWN`.** Toda contagem por repetição tem os mesmos dois
+    extremos: a posição de partida e o extremo da amplitude. Somar um par por exercício
+    (`closed/open`, `up/down`, …) obrigaria HUD, relatório e dataset a virarem um `switch`
+    sobre `exercise` para saber o que a palavra quer dizer — o oposto de um contrato.
+  - **Nada de rótulo de exibição ainda.** A task previa isso, e eu tirei: nenhuma tela desenha
+    a fase hoje. Construir o catálogo de tradução agora seria inventar requisito. A SPEC-007
+    registra onde ele nasce quando nascer (catálogo do cliente).
+  - `closed`/`open` passam a ser **rejeitados alto** na desserialização, com teste próprio. O
+    risco real não é dado velho em disco — é um worker desatualizado publicando no stream; um
+    `closed` aceito em silêncio viraria fase errada no HUD sem ninguém perceber.
+  - No `jumping_jack.py` o texto continua dizendo FECHADO ⇄ ABERTO, porque é o nome do
+    movimento. `REST`/`PEAK` é o nome do dado. Os dois convivem, e o docstring diz isso.
+- Gates: `ruff` limpo, `pytest` **521**; web `lint`/`typecheck`/`test` (278) limpos; **e2e com
+  a stack de verdade subida: 5/5** — que é o teste que importa aqui, já que a mudança cruza a
+  rede entre o enum Python e o TS.
+- Docs: SPEC-002 (tabela de eventos), SPEC-007 (fases + de quem é a palavra de tela),
+  ARCHITECTURE §7.3.
+
+---
+
 ## 2026-07-29 · T-047 — A FSM lê a fase inicial em vez de assumi-la
 
 - Contexto: o Daniel perguntou se dá para começar o exercício 2. Auditei o código e a resposta
