@@ -8,6 +8,7 @@
 // Espelho de `SessionResult.to_report()` em `server/api/models.py`. Chaves em snake_case pelo
 // mesmo motivo do contrato de eventos: é o formato que trafega, e traduzir na fronteira só
 // criaria uma chance a mais de drift.
+import { identityHeaders } from '../auth/storage'
 import { apiBaseUrl } from '../session/admission'
 
 /** Corpo do `GET /api/sessions/{id}/report`. */
@@ -46,7 +47,13 @@ export async function fetchReport(
 ): Promise<SessionReport | null> {
   let resposta: Response
   try {
-    resposta = await fetchImpl(`${apiBaseUrl()}/api/sessions/${encodeURIComponent(sessionId)}/report`)
+    resposta = await fetchImpl(
+      `${apiBaseUrl()}/api/sessions/${encodeURIComponent(sessionId)}/report`,
+      // Sem o `Authorization`, o relatório de uma sessão COM DONO responde 404 (SPEC-011,
+      // critério 2) — e o cliente ficaria repetindo para sempre por não conseguir ler o que
+      // é dele. A identidade tem de acompanhar a busca, não só a admissão.
+      { headers: identityHeaders() },
+    )
   } catch (erro) {
     throw new ReportError(
       erro instanceof Error ? `API fora do ar: ${erro.message}` : 'API fora do ar',

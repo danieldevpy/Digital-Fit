@@ -51,6 +51,9 @@ services:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-nao-usar-em-producao}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api,[::1]}
       SESSION_TOKEN_SECRET: ${SESSION_TOKEN_SECRET:-dev-token-secret}
+      # Contas (SPEC-011). Sem JWT_SIGNING_KEY o settings assina com o DJANGO_SECRET_KEY.
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      AUTH_THROTTLE_RATE: ${AUTH_THROTTLE_RATE:-10/min}
       GATEWAY_WS_URL: ${GATEWAY_WS_URL:-ws://localhost:8001}
       POSTGRES_HOST: postgres
       POSTGRES_DB: ${POSTGRES_DB:-digitalfit}

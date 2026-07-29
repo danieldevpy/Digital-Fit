@@ -697,3 +697,200 @@ button {
   color: var(--text);
   font-size: 0.72rem;
 }
+
+/* ---------- conta e histórico (SPEC-011 / T-022) ---------- */
+
+/* Mesma linguagem do relatório: é a mesma folha subindo sobre a sessão, e uma segunda
+   gramática visual faria a conta parecer outro aplicativo. */
+.account {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(6, 6, 10, 0.72);
+  backdrop-filter: var(--glass-blur);
+}
+
+.account__card {
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 20px 18px calc(18px + env(safe-area-inset-bottom));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  background: #12121a;
+  text-align: center;
+}
+
+.account__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.account__email {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.account__trial {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 138, 61, 0.45);
+  border-radius: 12px;
+  color: var(--hot);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.account__form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.account__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.account__field span {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.account__field input {
+  padding: 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem; /* < 16px faz o iOS dar zoom ao focar o campo */
+}
+
+.account__field input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.account__error {
+  margin: 0;
+  color: var(--hot);
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.account__submit {
+  width: 100%;
+  margin-top: 6px;
+  padding: 13px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(124, 92, 255, 0.35);
+}
+
+.account__submit:disabled {
+  opacity: 0.6;
+}
+
+.account__switch,
+.account__close {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.account__totals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.account__total {
+  padding: 10px 6px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+}
+
+.account__total-value {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.account__total-label {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.account__section-title {
+  margin: 20px 0 8px;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.account__hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.account__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--surface-border);
+  font-size: 0.85rem;
+}
+
+.account__item:last-child {
+  border-bottom: none;
+}
+
+.account__item-date {
+  color: var(--text-dim);
+}
+
+.account__item-reps {
+  font-weight: 700;
+}
+
+.account__item-time {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}

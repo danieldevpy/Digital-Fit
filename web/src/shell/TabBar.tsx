@@ -1,7 +1,9 @@
-// Bottom nav do app shell (SPEC-013 §5). Exercícios, Progresso e Perfil são
-// placeholders declarados: não têm spec nem rota na Fase 0, então avisam "em
-// breve" em vez de navegar para lugar nenhum.
+// Bottom nav do app shell (SPEC-013 §5). Perfil abre a conta e o histórico (SPEC-011 /
+// T-022). Exercícios e Progresso seguem placeholders declarados: não têm spec de Fase
+// Inicial — progresso entre sessões é Fase Evolução da SPEC-010 —, então avisam "em breve"
+// em vez de navegar para lugar nenhum.
 import { useEffect, useRef, useState } from 'react'
+import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
 import { IconChart, IconDumbbell, IconHome, IconPulse, IconUser } from '../ui/icons'
 
@@ -9,7 +11,7 @@ const TABS = [
   { id: 'inicio', label: 'Início', Icon: IconHome, ready: true },
   { id: 'exercicios', label: 'Exercícios', Icon: IconDumbbell, ready: false },
   { id: 'progresso', label: 'Progresso', Icon: IconChart, ready: false },
-  { id: 'perfil', label: 'Perfil', Icon: IconUser, ready: false },
+  { id: 'perfil', label: 'Perfil', Icon: IconUser, ready: true },
 ] as const
 
 const ACTIVE_TAB = 'inicio'
@@ -31,6 +33,13 @@ export function TabBar() {
 
   const isRunning = cameraStatus === 'ready' || cameraStatus === 'requesting'
 
+  const openAccount = useAccountStore((state) => state.openSheet)
+
+  const acao = (id: string, label: string, ready: boolean) => {
+    if (id === 'perfil') return () => openAccount(true)
+    return ready ? undefined : () => showHint(label)
+  }
+
   const renderTab = ({ id, label, Icon, ready }: (typeof TABS)[number]) => (
     <button
       key={id}
@@ -38,7 +47,7 @@ export function TabBar() {
       className={`tab ${id === ACTIVE_TAB ? 'tab--active' : ''}`}
       aria-current={id === ACTIVE_TAB ? 'page' : undefined}
       aria-disabled={ready ? undefined : true}
-      onClick={ready ? undefined : () => showHint(label)}
+      onClick={acao(id, label, ready)}
     >
       <Icon className="tab__icon" />
       <span className="tab__label">{label}</span>

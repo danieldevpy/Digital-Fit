@@ -1,14 +1,116 @@
-"""Persistência da Fase 0 (SPEC-010).
+"""Persistência da API (SPEC-010 e SPEC-011).
 
-Só o resultado consolidado da sessão. A sessão **em andamento** vive em Redis com TTL
-(`api/sessions.py`) — o Postgres guarda o que sobrevive ao fim dela.
+Três tabelas, com papéis bem distintos:
+
+- `SessionResult` — o relatório consolidado, escrito pelo **report-builder** a partir dos
+  eventos (SPEC-010). Não sabe de usuário e não pode saber: ele é derivável 100% por replay
+  do stream, e um replay não conhece quem estava logado.
+- `SessionClaim` — de quem é a sessão (SPEC-011). Escrita pela **API** na admissão, que é o
+  único momento em que o dono é conhecido. Tabela separada justamente para manter a de cima
+  replayável.
+- `User` — conta de e-mail e senha (SPEC-011).
+
+A sessão **em andamento** continua em Redis com TTL (`api/sessions.py`); o Postgres guarda o
+que sobrevive ao fim dela.
 """
 
 from __future__ import annotations
 
+from django.conf import settings
+from django.contrib.auth.hashers import make_password
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.db import models
 
-__all__ = ["SessionResult"]
+__all__ = ["SessionClaim", "SessionResult", "User"]
+
+
+class UserManager(BaseUserManager):
+    """Criação de conta com e-mail normalizado.
+
+    Sem `create_superuser`: não há `django.contrib.admin` no projeto, e um método que ninguém
+    chama é uma porta a mais para manter fechada. Quando houver painel, ele entra junto.
+    """
+
+    def create_user(self, email: str, password: str, **extra) -> User:
+        if not email:
+            raise ValueError("e-mail obrigatorio")
+        # `lower()` além do `normalize_email` (que só baixa o domínio): duas contas separadas
+        # por maiúscula no local-part seriam a mesma pessoa tentando entrar e não conseguindo.
+        usuario = self.model(email=self.normalize_email(email).lower(), **extra)
+        usuario.password = make_password(password)
+        usuario.save(using=self._db)
+        return usuario
+
+
+class User(AbstractBaseUser):
+    """Conta do produto (SPEC-011, Fase Inicial): e-mail + senha, sem mais nada.
+
+    `AbstractBaseUser` e **não** `AbstractUser`: o modelo padrão do Django traz `username`
+    (obrigatório e único, enquanto a spec autentica por e-mail), `first_name`/`last_name` e a
+    árvore de permissões do admin. Nada disso tem uso aqui, e cada campo herdado é uma
+    migration a mais para sempre.
+
+    Sem `PermissionsMixin` pelo mesmo motivo: não há admin nem grupos. Se um painel nascer,
+    ele adiciona o mixin com uma migration — o caminho inverso (arrancar permissões de um
+    modelo em produção) é que seria caro.
+    """
+
+    email = models.EmailField(unique=True, max_length=254)
+    #: Como a pessoa quer ser chamada no HUD. Opcional: pedir nome no cadastro é fricção, e o
+    #: funil da SPEC-011 é o produto.
+    name = models.CharField(max_length=80, blank=True)
+    is_active = models.BooleanField(default=True)
+    date_joined = models.DateTimeField(auto_now_add=True)
+
+    objects = UserManager()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS: list[str] = []
+
+    class Meta:
+        db_table = "app_user"
+
+    def __str__(self) -> str:
+        return self.email
+
+    def to_dict(self) -> dict[str, object]:
+        """Corpo do `GET /api/me` e do bloco `user` das respostas de auth."""
+        return {
+            "id": self.pk,
+            "email": self.email,
+            "name": self.name,
+            "date_joined": self.date_joined.isoformat(),
+        }
+
+
+class SessionClaim(models.Model):
+    """De quem é a sessão, registrado na admissão (SPEC-011).
+
+    `user` nulo é o caso normal e não é exceção: a Fase 0 inteira é anônima e o trial existe
+    para que continue sendo — a conta é o degrau seguinte do funil, não o pedágio da entrada.
+
+    `device_id` é o que o trial conta (3 sessões/dia). Fica aqui, e não só no contador do
+    Redis, porque o contador expira e a pergunta "quantas sessões este aparelho já fez?"
+    sobrevive a ele.
+    """
+
+    session_id = models.CharField(max_length=64, unique=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="sessions",
+    )
+    device_id = models.CharField(max_length=64, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "session_claim"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.session_id} · {self.user or 'anonimo'}"
 
 
 class SessionResult(models.Model):

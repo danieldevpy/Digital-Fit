@@ -38,7 +38,7 @@
 | T-019 | Baseline/calibração no countdown (mediana 1s); FSM NÃO usa baseline no divisor — ver Descobertas | 004 | done |
 | T-020 | report-builder: consolidação + `SessionResult` no Postgres + tela de relatório | 010 | done |
 | T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | done |
-| T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | todo |
+| T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | done |
 | T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness | 012 | todo |
 | T-041 | `evalctl replay --ws`: injetar keypoints gravados via gateway (integração + carga sintética) | 012 | todo |
 | T-047 | FSM inicia a fase pelo que observa, não assumindo `CLOSED` (perde a 1ª rep quando a captura começa com a pessoa aberta — ver Descobertas) | 007/004 | todo |
@@ -333,3 +333,35 @@
   score ≥ X") vai ser preciso juntar as duas fontes. A SPEC-010 já prevê isso na Fase
   Evolução ("Filtro de qualidade do dataset"); registrado aqui só para que a junção não seja
   descoberta na hora do treino.
+- **[A/T-022] O device do trial vai em header, não em cookie httpOnly.** A SPEC-011 pede
+  cookie httpOnly para o id do aparelho; a entrega usa `X-Device-Id` guardado no
+  `localStorage`. Motivo: o cliente e a API vivem em origens diferentes (`web` no 5173, `api`
+  no 8000), e cookie cross-origin exige `SameSite=None; Secure` — que o navegador descarta em
+  http, ou seja, o dev inteiro. O header funciona igual nos dois ambientes e não muda a
+  garantia: a spec já assume que o funil é burlável (limpar o armazenamento zera a quota), e
+  httpOnly protegeria contra XSS um dado que não é segredo. Reverter para cookie é possível
+  sem tocar no cliente — `trial.device_id_from` lê o header, bastaria ler o cookie antes.
+- **[A/T-022] O dia do trial vira às 21h no Brasil.** A quota usa a data UTC na chave do
+  cache (`trial:<device>:<AAAA-MM-DD>`), então quem treinou às 20h50 ganha 3 sessões novas dez
+  minutos depois. Consciente: o servidor não sabe o fuso de quem está do outro lado, e
+  adivinhar por IP erraria mais do que acerta. Corrigir de verdade é mandar o offset do
+  cliente (`Intl.DateTimeFormat().resolvedOptions().timeZone`) no mesmo header da admissão —
+  mas aí o próprio cliente escolhe quando o dia vira, o que só faz sentido depois que houver
+  uma razão melhor que "3 grátis" para criar conta.
+- **[A/T-022] Não existe logout do lado do servidor.** `ROTATE_REFRESH_TOKENS: False` e sem a
+  blacklist do simplejwt: sair apaga os tokens do `localStorage` e nada mais. Um refresh
+  copiado antes disso continua valendo até os 14 dias vencerem. Aceitável enquanto a conta só
+  guarda histórico de treino; vira problema no dia em que houver pagamento ou dado sensível —
+  aí entram `rest_framework_simplejwt.token_blacklist` (uma migration, uma tabela) e rotação.
+- **[A/T-022] `django.contrib.auth` trouxe tabelas que ninguém usa.** Entrou por causa de
+  `AbstractBaseUser`/`make_password`, e junto vieram `auth_permission`, `auth_group` e
+  `django_content_type` — 12 migrations aplicadas para nada, já que não há admin nem
+  permissões. Custo real é zero (linhas paradas no Postgres) e o benefício é não reescrever o
+  hashing de senha. Registrado para quem estranhar as tabelas no banco.
+- **[A/T-022] `SessionClaim` é uma tabela nova em vez de `user_id` no `SessionResult`.** A
+  SPEC-011 diz que "`Session` ganha `user_id` opcional", mas o `SessionResult` é gravado pelo
+  report-builder a partir dos eventos, e a SPEC-010 promete que ele é 100% derivável por
+  replay do stream. Um `user_id` lá dentro quebraria isso — o dono é fato da admissão, não do
+  treino. A dona ficou em `session_claim`, escrita pela API no `POST /api/sessions`, e o
+  histórico é a junção das duas pelo `session_id`. Efeito colateral bom: apagar a conta não
+  toca no corpus da T-021.

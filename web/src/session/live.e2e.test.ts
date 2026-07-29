@@ -16,6 +16,8 @@
 
 import { describe, expect, it } from 'vitest'
 
+import { fetchHistory, register } from '../auth/api'
+import { installStorage, uninstallStorage } from '../auth/testStorage'
 import {
   EventType,
   Source,
@@ -298,6 +300,78 @@ describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
       socket.close()
 
       expect(recebidos.some((e) => e.type === EventType.SESSION_REPORT_READY)).toBe(true)
+    },
+  )
+
+  it(
+    'a sessão de quem tem conta aparece no histórico dela (SPEC-011)',
+    { timeout: 60_000 },
+    async () => {
+      // O que nenhum teste unitário prova: o `SessionClaim` gravado na admissão e o
+      // `SessionResult` gravado pelo report-builder — dois serviços, duas tabelas, nenhuma
+      // chave estrangeira entre eles — se encontram no `GET /api/sessions?mine`.
+      installStorage()
+      try {
+        const email = `e2e+${Date.now()}@example.com`
+        await register(email, 'senha-de-teste-123', 'E2E')
+
+        // `requestSession` lê o token do armazenamento que o `register` acabou de preencher.
+        const ticket = await requestSession({
+          exercise: 'jumping_jack',
+          requestedMode: Mode.EDGE,
+          probe: null,
+        })
+        // Conta não gasta trial: o campo nem vem.
+        expect(ticket.trial ?? null).toBeNull()
+
+        const socket = new WebSocket(ticket.ws_url)
+        socket.binaryType = 'arraybuffer'
+        const { encode } = await import('@msgpack/msgpack')
+        await new Promise<void>((resolve) =>
+          socket.addEventListener('open', () => resolve(), { once: true }),
+        )
+
+        const quadros = sequencia(3)
+        for (const [indice, marcos] of quadros.entries()) {
+          socket.send(
+            encode(
+              makeEnvelope({
+                type: EventType.POSE_FRAME,
+                session_id: ticket.session_id,
+                ts: Date.now(),
+                seq: indice,
+                source: Source.EDGE,
+                data: { landmarks: marcos },
+              }),
+            ),
+          )
+          await new Promise((r) => setTimeout(r, 1000 / FPS))
+        }
+        socket.send(
+          encode(
+            makeEnvelope({
+              type: EventType.SESSION_COMPLETED,
+              session_id: ticket.session_id,
+              ts: Date.now(),
+              seq: quadros.length,
+              source: Source.EDGE,
+              data: { reason: 'aborted', rep_count: 0 },
+            }),
+          ),
+        )
+
+        const relatorio = await waitForReport(ticket.session_id)
+        expect(relatorio).not.toBeNull()
+        socket.close()
+
+        const historico = await fetchHistory()
+        expect(historico.map((s) => s.session_id)).toContain(ticket.session_id)
+        // Conta nova: o histórico é exatamente esta sessão, e nada de mais ninguém.
+        expect(historico).toHaveLength(1)
+        expect(historico[0].rep_count).toBe(relatorio!.rep_count)
+      } finally {
+        uninstallStorage()
+      }
     },
   )
 })

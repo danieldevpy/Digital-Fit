@@ -41,13 +41,20 @@ cmd_secrets() {
   [[ -f "$ENV_FILE" ]] || morre "$ENV_FILE nao existe. Rode: cp .env.prod.example .env.prod"
 
   local mudou=0
-  for chave in DJANGO_SECRET_KEY SESSION_TOKEN_SECRET POSTGRES_PASSWORD; do
+  for chave in DJANGO_SECRET_KEY SESSION_TOKEN_SECRET JWT_SIGNING_KEY POSTGRES_PASSWORD; do
+    local valor
     if grep -qE "^${chave}=$" "$ENV_FILE"; then
-      local valor
       valor="$(gera_segredo)"
       # `|` como separador: base64 nao produz `|`, entao nao ha o que escapar.
       sed -i "s|^${chave}=$|${chave}=${valor}|" "$ENV_FILE"
       verde "  $chave gerado"
+      mudou=1
+    elif ! grep -qE "^${chave}=" "$ENV_FILE"; then
+      # A chave nasceu depois deste .env.prod (caso do JWT_SIGNING_KEY, SPEC-011). Acrescentar
+      # e o certo: mandar o operador editar a mao so cria a chance de ele nao editar.
+      valor="$(gera_segredo)"
+      printf '\n%s=%s\n' "$chave" "$valor" >> "$ENV_FILE"
+      verde "  $chave acrescentado"
       mudou=1
     else
       amarelo "  $chave ja tem valor — mantido"
@@ -101,7 +108,7 @@ carrega_ambiente() {
   [[ "$DOMAIN" == */* ]] &&
     morre "DOMAIN vai sem barra nem caminho: use apenas o host"
 
-  for chave in DJANGO_SECRET_KEY SESSION_TOKEN_SECRET POSTGRES_PASSWORD; do
+  for chave in DJANGO_SECRET_KEY SESSION_TOKEN_SECRET JWT_SIGNING_KEY POSTGRES_PASSWORD; do
     [[ -n "${!chave:-}" ]] || morre "$chave vazio. Rode: ./scripts/prod.sh secrets"
   done
 

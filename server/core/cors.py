@@ -19,7 +19,10 @@ from django.http import HttpRequest, HttpResponse
 __all__ = ["CorsMiddleware", "origem_permitida"]
 
 ALLOWED_METHODS = "GET, POST, OPTIONS"
-ALLOWED_HEADERS = "Content-Type"
+#: `Authorization` (JWT) e `X-Device-Id` (trial anônimo) entram na SPEC-011. Sem eles no
+#: preflight, o navegador não deixa a requisição sair — e o erro aparece como "sem conta" ou
+#: "trial zerado", não como CORS.
+ALLOWED_HEADERS = "Content-Type, Authorization, X-Device-Id"
 MAX_AGE = "600"
 
 

@@ -5,6 +5,7 @@ que funcionam no docker-compose sem nenhum arquivo .env.
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,6 +30,10 @@ INSTALLED_APPS = [
     # Sem `daphne`: o gateway sobe com uvicorn (`core.asgi:application`) e o `api` segue em
     # WSGI. Instalar daphne só para trocar o runserver não paga o peso.
     "django.contrib.contenttypes",
+    # Entra na SPEC-011 pelos hashers de senha, pelo `ModelBackend` e pelas validações de
+    # senha. NÃO entra `django.contrib.sessions`: a autenticação é JWT, e sessão de cookie
+    # seria um segundo mecanismo de login para manter seguro sem ninguém usar.
+    "django.contrib.auth",
     "django.contrib.staticfiles",
     "channels",
     "rest_framework",
@@ -117,7 +122,66 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    # JWT e só JWT (SPEC-011). Sem `SessionAuthentication`: ela viria com CSRF a reboque, e
+    # um cliente que já manda `Authorization` não deve ter um segundo caminho de entrada.
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    # `AllowAny` continua sendo o default do projeto: o núcleo funciona anônimo por decisão
+    # (SPEC-011, "o SaaS é adicionado por fora"). Quem exige conta declara na própria view.
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    # Anônimo é `None`, não `AnonymousUser`: o projeto não tem `contrib.sessions`, e um objeto
+    # que responde `is_authenticated=False` já é tudo que as views precisam distinguir.
     "UNAUTHENTICATED_USER": None,
+    #: Rate limit das rotas de auth (SPEC-011). Só elas: limitar `POST /sessions` seria mexer
+    #: na quota do trial, que é decisão de produto e vive em `api/trial.py`.
+    "DEFAULT_THROTTLE_RATES": {"auth": os.environ.get("AUTH_THROTTLE_RATE", "10/min")},
 }
+
+AUTH_USER_MODEL = "api.User"
+
+# Fora de DEBUG a senha passa pelos validadores padrão do Django. Em DEBUG ficam desligados:
+# criar conta de teste com "1234" é rotina de desenvolvimento, e nada aqui protege produção.
+AUTH_PASSWORD_VALIDATORS = (
+    []
+    if DEBUG
+    else [
+        {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+        {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+        {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    ]
+)
+
+SIMPLE_JWT = {
+    # Access curto porque ele viaja em toda chamada; refresh longo porque o app é de celular e
+    # ninguém quer logar de novo a cada semana. O treino em si NÃO depende disto: o WebSocket
+    # é autenticado pelo token HMAC de 45 s do ticket (SPEC-009), então um access vencido no
+    # meio da sessão não derruba nada — é o critério 3 da SPEC-011, e ele sai da arquitetura.
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
+    # Sem rotação e sem blacklist na Fase Inicial: o blacklist é mais um app com migrations e
+    # uma tabela que cresce, e não há o que revogar antes de existir pagamento ou logout
+    # remoto. Trocar depois é ligar duas chaves.
+    "ROTATE_REFRESH_TOKENS": False,
+    "SIGNING_KEY": os.environ.get("JWT_SIGNING_KEY") or SECRET_KEY,
+    "USER_ID_FIELD": "id",
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+# Cache — hoje serve ao contador de rate limit do DRF. Redis para que o limite valha para o
+# serviço inteiro: com cache local de processo, 3 workers gunicorn dariam 3× o limite.
+if _env_bool("DJANGO_CACHE_LOCMEM", False):
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+    }
+
+# Atrás do nginx, `REMOTE_ADDR` é o próprio proxy — sem isto o rate limit por IP contaria o
+# mundo inteiro como um cliente só. Vale exatamente quando o proxy reescreve o header, que é
+# a mesma condição do `SECURE_PROXY_SSL_HEADER` acima.
+if _env_bool("DJANGO_BEHIND_PROXY", False):
+    NUM_PROXIES = 1

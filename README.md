@@ -40,6 +40,24 @@ limites conhecidos em [docs/DEPLOY.md](docs/DEPLOY.md).
 Existe por um motivo concreto: `getUserMedia` exige contexto seguro, então **a câmera não
 abre pelo IP da rede local** — testar no celular pede HTTPS de verdade.
 
+## Contas e trial
+
+Treinar não exige conta: quem chega tem **3 sessões por dia** por aparelho (SPEC-011). A
+quarta responde `429` com `code: trial_exhausted`, e a tela convida a criar conta — de graça,
+e-mail e senha, sem confirmação. A conta serve para guardar o histórico:
+
+```
+POST /api/auth/register    # 201 + {user, access, refresh}
+POST /api/auth/login
+POST /api/auth/refresh     # troca o refresh (14 dias) por um access novo (15 min)
+GET  /api/me
+GET  /api/sessions?mine    # histórico do usuário
+```
+
+O treino em si **não** usa JWT: o WebSocket autentica pelo token HMAC de 45 s do ticket
+(SPEC-009), então renovar o access nunca derruba uma sessão em andamento. Em produção,
+`JWT_SIGNING_KEY` é gerado pelo `./scripts/prod.sh secrets` — trocá-lo desloga todo mundo.
+
 ## Desenvolvimento Python (fora do Docker)
 
 ```bash
@@ -72,6 +90,7 @@ docker/                # Dockerfiles (server, web)
 docs/DEPLOY.md         # como sobe na VPS e o que ainda não tem
 docs/DATASET.md        # schema do Parquet de keypoints (SPEC-010)
 server/                # Django: core (settings), api (DRF), gateway (Channels, T-005)
+  api/auth.py          #   contas JWT; api/trial.py = quota do visitante (SPEC-011)
   api/management/      #   report-builder roda como comando do Django (ADR-008: é o único
                        #   consumidor que escreve no Postgres)
 workers/               # Python puro, sem Django

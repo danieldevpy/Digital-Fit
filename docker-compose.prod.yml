@@ -24,6 +24,10 @@ x-django-env: &django-env
   DJANGO_BEHIND_PROXY: "true"
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?derivado do DOMAIN — use ./scripts/prod.sh em vez de docker compose direto}
   SESSION_TOKEN_SECRET: ${SESSION_TOKEN_SECRET:?defina no .env.prod (veja .env.prod.example) — e use ./scripts/prod.sh, nao docker compose direto}
+  # Assina os JWT das contas (SPEC-011). Separado do DJANGO_SECRET_KEY para que girar um nao
+  # deslogue o mundo pelo outro; sem valor, o settings cai no DJANGO_SECRET_KEY.
+  JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+  AUTH_THROTTLE_RATE: ${AUTH_THROTTLE_RATE:-10/min}
   GATEWAY_WS_URL: ${GATEWAY_WS_URL:?derivado do DOMAIN — use ./scripts/prod.sh em vez de docker compose direto}
   POSTGRES_HOST: postgres
   POSTGRES_DB: ${POSTGRES_DB:-digitalfit}

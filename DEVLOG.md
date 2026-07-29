@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-07-29 · T-022 — Auth JWT + trial anônimo + histórico do usuário
+
+- Entregue (servidor): `server/api/auth.py` (register/login/refresh/me com rate limit por IP),
+  `server/api/trial.py` (quota de 3 sessões/dia por aparelho, em Redis), modelos `User` e
+  `SessionClaim` + migration `0002`, `GET /api/sessions?mine` como histórico, e a admissão
+  passando a gravar a dona da sessão. `tests/test_auth.py` (26 testes) organizado pelos três
+  critérios da SPEC-011.
+- Entregue (cliente): `web/src/auth/` (`storage.ts`, `api.ts`, `accountSummary.ts`,
+  `AccountSheet.tsx`), `web/src/store/account.ts`, aba Perfil funcional, e a identidade
+  passando a acompanhar admissão e busca de relatório. 5 arquivos de teste novos; a suíte web
+  foi de 172 para 229.
+- **O treino continua funcionando sem conta, e isso é a arquitetura, não uma gentileza.** O
+  WebSocket da sessão autentica pelo token HMAC de 45 s do ticket (SPEC-009), não pelo JWT.
+  Consequência direta: renovar o access no meio de um treino não derruba nada, porque o treino
+  nunca dependeu dele — o critério 3 da spec sai de graça. Tem teste cujo único propósito é
+  falhar se alguém acoplar o WS ao JWT no futuro.
+- **A admissão NÃO passa pelo `authedFetch`.** Se o access venceu, `POST /api/sessions` cai no
+  trial anônimo em vez de falhar. Negar o treino de quem tem conta por causa de um token velho
+  seria pior do que contar a sessão como visitante.
+- Decisões:
+  - **`SessionClaim` em vez de `user_id` no `SessionResult`.** A spec pede `user_id` na
+    sessão, mas o `SessionResult` é gravado pelo report-builder e a SPEC-010 promete que ele é
+    derivável 100% por replay dos eventos. Dono é fato da admissão, não do treino: ficou em
+    tabela própria, escrita pela API, e o histórico é a junção pelo `session_id`. O corpus da
+    T-021 segue sem qualquer dado de pessoa.
+  - **`X-Device-Id` em header, não cookie httpOnly.** Cookie cross-origin exigiria
+    `SameSite=None; Secure`, que o navegador descarta em http — ou seja, todo o ambiente de
+    dev. E httpOnly protegeria de XSS um dado que a própria spec assume ser burlável.
+  - **Rate limit só nas rotas de auth** (`AUTH_THROTTLE_RATE`, 10/min por IP). Limitar
+    `POST /sessions` seria mexer na quota do trial, que é decisão de produto e vive em
+    `trial.py`. O contador vai no cache Redis para valer no serviço inteiro: com locmem, 3
+    workers gunicorn dariam 3× o limite.
+  - **Senha errada e e-mail inexistente devolvem a mesma mensagem**, para o login não virar
+    oráculo de quem tem conta.
+  - **`JWT_SIGNING_KEY` separado do `DJANGO_SECRET_KEY`**, para girar um não deslogar o mundo
+    pelo outro. O `prod.sh secrets` agora gera a chave e a acrescenta em `.env.prod` quando ela
+    não existe — quem já tem o arquivo de antes não precisa editar nada à mão.
+- Gates: `pytest` 492 verde (era 466), `ruff check`/`format` limpos, `tsc --noEmit` e
+  `eslint` limpos, vitest 229 verde. `npm run e2e` 4/4 contra o stack real, incluindo um caso
+  novo que faz a jornada inteira — cadastro, sessão com conta, relatório, histórico — e prova
+  que `session_claim` e `session_result`, duas tabelas sem chave estrangeira entre elas, se
+  encontram no `GET /api/sessions?mine`.
+- Pendências geradas (5 em "Descobertas"): device em header em vez de cookie; o dia do trial
+  virando às 21 h no Brasil; ausência de logout no servidor (sem blacklist de refresh); as
+  tabelas mortas que o `contrib.auth` trouxe; e o motivo do `SessionClaim`.
+
+---
+
 ## 2026-07-28 · T-021 — dataset-writer (Parquet por sessão + schema documentado)
 
 - Entregue: `workers/dataset_writer/` (`collector.py` puro, `parquet.py` com o schema,

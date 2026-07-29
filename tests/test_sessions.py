@@ -34,17 +34,32 @@ AGORA = 1_722_100_000
 
 
 class FakeRedis:
-    """Só o que `create_session` usa: `hset` e `expire`."""
+    """Só o que a admissão usa: o hash da sessão e o contador do trial (SPEC-011)."""
 
     def __init__(self) -> None:
         self.hashes: dict[str, dict] = {}
         self.ttls: dict[str, int] = {}
+        self.counters: dict[str, int] = {}
 
     def hset(self, key: str, mapping: dict) -> None:
         self.hashes.setdefault(key, {}).update(mapping)
 
     def expire(self, key: str, ttl: int) -> None:
         self.ttls[key] = ttl
+
+    def get(self, key: str):
+        return self.counters.get(key)
+
+    def incr(self, key: str) -> int:
+        self.counters[key] = self.counters.get(key, 0) + 1
+        return self.counters[key]
+
+
+class FakeBus:
+    """`bus()` da view devolve isto: só o `.client` interessa à admissão."""
+
+    def __init__(self, client) -> None:
+        self.client = client
 
 
 def criar(**kwargs):
@@ -266,16 +281,26 @@ def test_corpo_que_nao_e_objeto_e_recusado() -> None:
 # --------------------------------------------------------------------------------------
 
 
-def test_endpoint_cria_sessao(client, monkeypatch) -> None:
-    redis, bus = FakeRedis(), InMemoryBus()
-    # Patch em `api.views.create_session`, não em `api.sessions.create_session`: a view faz
-    # `from api.sessions import create_session`, então a referência dela é resolvida no import.
-    # Patchar o módulo de origem só funcionava quando a view ainda não tinha sido importada —
-    # ou seja, dependia da ordem dos arquivos de teste.
+def admissao_falsa(monkeypatch, redis: FakeRedis | None = None) -> FakeRedis:
+    """Isola a view do Redis real: `bus()` e `create_session` passam a usar dublês.
+
+    O patch é em `api.views.*` e não em `api.sessions.*` porque a view faz
+    `from api.sessions import ...` — a referência dela é resolvida no import, então patchar o
+    módulo de origem só funcionaria dependendo da ordem dos arquivos de teste.
+    """
+    redis = redis or FakeRedis()
+    bus = InMemoryBus()
+    monkeypatch.setattr("api.views.bus", lambda: FakeBus(redis))
     monkeypatch.setattr(
         "api.views.create_session",
         lambda pedido, **kwargs: create_session(pedido, redis_client=redis, event_bus=bus),
     )
+    return redis
+
+
+@pytest.mark.django_db
+def test_endpoint_cria_sessao(client, monkeypatch) -> None:
+    admissao_falsa(monkeypatch)
 
     resposta = client.post(
         "/api/sessions",
@@ -304,7 +329,7 @@ def test_endpoint_responde_503_se_o_redis_estiver_fora(client, monkeypatch) -> N
     def explodir(*args, **kwargs):
         raise ConnectionError("Redis inacessivel")
 
-    monkeypatch.setattr("api.views.create_session", explodir)
+    monkeypatch.setattr("api.views.bus", explodir)
 
     resposta = client.post("/api/sessions", data={}, content_type="application/json")
 
@@ -312,8 +337,10 @@ def test_endpoint_responde_503_se_o_redis_estiver_fora(client, monkeypatch) -> N
     assert "nao foi possivel criar a sessao" in resposta.json()["detail"]
 
 
-def test_endpoint_aceita_apenas_post(client) -> None:
-    assert client.get("/api/sessions").status_code == 405
+def test_get_em_sessions_e_o_historico_e_exige_conta(client) -> None:
+    """O mesmo caminho serve `POST` (admitir) e `GET ?mine` (histórico) — SPEC-011."""
+    assert client.get("/api/sessions").status_code == 401
+    assert client.put("/api/sessions").status_code == 405
 
 
 # --------------------------------------------------------------------------------------

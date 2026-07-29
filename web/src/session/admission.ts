@@ -4,9 +4,17 @@
 //
 // O `ws_url` vem pronto (já com o token na query) e é usado como veio: montar a URL de novo
 // aqui seria uma segunda implementação do mesmo contrato, pronta para divergir.
+import { identityHeaders, rememberDeviceId } from '../auth/storage'
 import type { Mode } from '../lib/events'
 import { Mode as ModeValues } from '../lib/events'
 import { toCapabilityData, type ProbeOutcome } from '../probe/runProbe'
+
+/** Quanto do trial anônimo deste aparelho já foi usado hoje (SPEC-011). */
+export interface TrialStatus {
+  used: number
+  limit: number
+  remaining: number
+}
 
 /** Resposta do `POST /api/sessions` — espelho de `SessionTicket` em `server/api/sessions.py`. */
 export interface SessionTicket {
@@ -17,7 +25,17 @@ export interface SessionTicket {
   exercise: string
   duration_s: number
   expires_at: number
+  /** Id do aparelho: na primeira visita quem o gera é o servidor (SPEC-011). */
+  device_id?: string
+  /** Ausente para quem tem conta — só o trial anônimo tem contador. */
+  trial?: TrialStatus | null
 }
+
+/**
+ * Código da recusa por trial esgotado (HTTP 429). O cliente distingue isto de "servidor com
+ * problema" porque a ação é outra: aqui não adianta tentar de novo, adianta criar conta.
+ */
+export const TRIAL_EXHAUSTED = 'trial_exhausted'
 
 /**
  * Pedido de cloud sem vaga no semáforo (`slots:cloud = 3`, SPEC-009) volta com este `mode`,
@@ -28,11 +46,14 @@ export const DENIED_CLOUD = 'denied_cloud'
 
 export class AdmissionError extends Error {
   readonly status?: number
+  /** `trial_exhausted` quando a recusa é a quota do visitante (SPEC-011, critério 1). */
+  readonly code?: string
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, status?: number, code?: string) {
     super(message)
     this.name = 'AdmissionError'
     this.status = status
+    this.code = code
   }
 }
 
@@ -67,7 +88,11 @@ export async function requestSession(
   try {
     resposta = await fetchImpl(`${apiBaseUrl()}/api/sessions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // `identityHeaders` traz o aparelho (trial) e o `Authorization` quando há conta. A
+      // admissão NÃO passa pelo `authedFetch`: com o access vencido ela cai no trial anônimo
+      // em vez de falhar, e negar o treino de alguém por um token velho seria pior do que
+      // contar a sessão como visitante.
+      headers: { 'Content-Type': 'application/json', ...identityHeaders() },
       body: corpo,
     })
   } catch (erro) {
@@ -77,10 +102,15 @@ export async function requestSession(
   }
 
   if (!resposta.ok) {
-    throw new AdmissionError(await mensagemDeErro(resposta), resposta.status)
+    const { detail, code, device_id } = await corpoDeErro(resposta)
+    rememberDeviceId(device_id)
+    throw new AdmissionError(detail ?? mensagemPadrao(resposta), resposta.status, code)
   }
 
   const ticket = (await resposta.json()) as SessionTicket
+  // Primeira visita: o id veio do servidor e precisa ser o MESMO na próxima sessão, senão o
+  // trial nunca chega ao limite e o funil não existe.
+  rememberDeviceId(ticket.device_id)
   if (ticket.mode === DENIED_CLOUD) {
     // Não é erro de programação: o servidor recusou o modo, a sessão não nasceu.
     throw new AdmissionError('Modo cloud indisponível agora — tente em modo edge.', 200)
@@ -91,14 +121,22 @@ export async function requestSession(
   return ticket
 }
 
-async function mensagemDeErro(resposta: Response): Promise<string> {
+interface ErroDaAdmissao {
+  detail?: string
+  code?: string
+  device_id?: string
+}
+
+async function corpoDeErro(resposta: Response): Promise<ErroDaAdmissao> {
   try {
-    const corpo = (await resposta.json()) as { error?: string; detail?: string }
-    const texto = corpo.error ?? corpo.detail
-    if (texto) return texto
+    const corpo = (await resposta.json()) as ErroDaAdmissao & { error?: string }
+    return { ...corpo, detail: corpo.error ?? corpo.detail }
   } catch {
-    // corpo não-JSON: cai no genérico
+    return {}
   }
+}
+
+function mensagemPadrao(resposta: Response): string {
   return resposta.status === 503
     ? 'Servidor sem Redis — sessão não pode ser aberta.'
     : `Falha ao abrir a sessão (HTTP ${resposta.status}).`

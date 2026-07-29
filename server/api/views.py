@@ -1,6 +1,7 @@
 """Views da API.
 
-Fase 0: saude + ciclo minimo de sessao (SPEC-009). Auth, quotas e historico sao a SPEC-011.
+Saude, ciclo de sessao (SPEC-009), relatorio (SPEC-010) e o que a conta acrescenta a eles
+(SPEC-011): trial anonimo, posse da sessao e historico. As rotas de auth ficam em `api/auth.py`.
 """
 
 import logging
@@ -12,10 +13,21 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from api.models import SessionResult
-from api.sessions import SessionRequest, create_session
+from api import trial
+from api.models import SessionClaim, SessionResult
+from api.sessions import DENIED_CLOUD, SessionRequest, bus, create_session
 
 logger = logging.getLogger("api")
+
+#: Quantas sessoes o historico devolve. Sem paginacao na Fase Inicial: a spec pede "historico
+#: do usuario", e quem tem 500 sessoes ainda nao existe. Paginar entra quando existir.
+HISTORY_LIMIT = 50
+
+
+def _usuario(request: Request):
+    """Usuario autenticado, ou `None`. Anonimo e o caso normal — nao e erro."""
+    usuario = request.user
+    return usuario if usuario is not None and usuario.is_authenticated else None
 
 
 @api_view(["GET"])
@@ -49,9 +61,20 @@ def readyz(_request: Request) -> Response:
     return Response({"status": "ready" if ready else "degraded", "checks": checks})
 
 
-@api_view(["POST"])
+@api_view(["GET", "POST"])
 def sessions(request: Request) -> Response:
-    """`POST /api/sessions` — admite a sessao e devolve o ticket do WebSocket (SPEC-009).
+    """`POST /api/sessions` admite; `GET /api/sessions?mine` lista o historico (SPEC-011).
+
+    Mesmo caminho por decisao: a spec nomeia `GET /sessions?mine`, e a colecao e a mesma —
+    criar um `/api/sessions/mine` faria a mesma coisa ter dois enderecos.
+    """
+    if request.method == "GET":
+        return _historico(request)
+    return _admitir(request)
+
+
+def _admitir(request: Request) -> Response:
+    """Admite a sessao e devolve o ticket do WebSocket (SPEC-009 + trial da SPEC-011).
 
     A sessao de 30s e a unidade de carga: o token expira com o TTL (45s) e o timer autoritativo
     roda no analysis-worker, nao aqui.
@@ -61,24 +84,100 @@ def sessions(request: Request) -> Response:
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=400)
 
+    usuario = _usuario(request)
+    # Logado não carrega device: o aparelho só interessa a quem não tem conta.
+    device_id = "" if usuario else trial.device_id_from(request.headers)
+
     try:
-        ticket = create_session(pedido)
+        cliente = bus().client
+    except Exception as exc:
+        logger.exception("falha ao falar com o Redis")
+        return Response({"detail": f"nao foi possivel criar a sessao: {exc}"}, status=503)
+
+    # Quota vale so para quem nao tem conta: a conta E o upgrade nesta fase (planos pagos sao
+    # Fase Evolucao da SPEC-011).
+    status = None
+    if usuario is None:
+        status = trial.status_for(cliente, device_id)
+        if not status.allowed:
+            return Response(
+                {
+                    "detail": trial.TRIAL_MESSAGE,
+                    "code": "trial_exhausted",
+                    "device_id": device_id,
+                    "trial": status.to_dict(),
+                },
+                # 429 e nao 403: nao e falta de permissao, e limite por tempo — e a mesma
+                # requisicao passa amanha sem o cliente mudar nada.
+                status=429,
+            )
+
+    try:
+        ticket = create_session(pedido, redis_client=cliente)
     except Exception as exc:  # Redis fora do ar: o cliente merece um erro claro
         logger.exception("falha ao criar sessao")
         return Response({"detail": f"nao foi possivel criar a sessao: {exc}"}, status=503)
 
-    return Response(ticket.to_dict(), status=201)
+    corpo = ticket.to_dict()
+    # O `device_id` volta sempre: na primeira visita ele foi gerado aqui, e o cliente precisa
+    # guardar o MESMO id para que a 4a sessao de hoje seja reconhecida como dele.
+    corpo["device_id"] = device_id
+
+    if ticket.mode == DENIED_CLOUD:
+        # Sessao negada nao nasceu: nao tem dono e nao gasta trial.
+        corpo["trial"] = status.to_dict() if status else None
+        return Response(corpo, status=201)
+
+    SessionClaim.objects.create(session_id=ticket.session_id, user=usuario, device_id=device_id)
+    if usuario is None:
+        status = trial.consume(cliente, device_id)
+    if status is not None:
+        corpo["trial"] = status.to_dict()
+    return Response(corpo, status=201)
+
+
+def _historico(request: Request) -> Response:
+    """`GET /api/sessions?mine` — sessoes do usuario logado (SPEC-011, criterio 2)."""
+    usuario = _usuario(request)
+    if usuario is None:
+        return Response({"detail": "autenticacao necessaria"}, status=401)
+    if "mine" not in request.query_params:
+        # Nao existe listagem global: sem o filtro, a pergunta seria "as sessoes de quem?".
+        return Response({"detail": "use ?mine para listar suas sessoes"}, status=400)
+
+    ids = list(
+        SessionClaim.objects.filter(user=usuario).values_list("session_id", flat=True)[
+            :HISTORY_LIMIT
+        ]
+    )
+    resultados = SessionResult.objects.filter(session_id__in=ids)
+    # A ordem vem do `SessionResult` (`-created_at`): o relatorio e o que a tela mostra, e a
+    # sessao sem relatorio (abortada antes do primeiro frame) nao tem o que exibir.
+    return Response({"count": len(resultados), "results": [r.to_report() for r in resultados]})
 
 
 @api_view(["GET"])
-def session_report(_request: Request, session_id: str) -> Response:
+def session_report(request: Request, session_id: str) -> Response:
     """`GET /api/sessions/{id}/report` — relatorio consolidado da sessao (SPEC-010).
 
     **404 nao quer dizer "nao existe", quer dizer "ainda nao"**: o relatorio nasce depois do
     `session.completed`, quando o report-builder consome o evento. O cliente que acabou de
     encerrar a sessao vai bater aqui antes disso e precisa distinguir os dois casos — por isso
     a resposta traz `pending: true` em vez de so um detalhe em texto.
+
+    Sessao de outra pessoa tambem responde 404, e sem `pending` (SPEC-011, criterio 2): 403
+    confirmaria que a sessao existe, e um `pending: true` poria o cliente a repetir para
+    sempre um pedido que nunca vai ser atendido.
     """
+    dono = SessionClaim.objects.filter(session_id=session_id).values_list("user_id", flat=True)
+    dono_id = dono[0] if dono else None
+    usuario = _usuario(request)
+    if dono_id is not None and (usuario is None or usuario.pk != dono_id):
+        return Response(
+            {"detail": "relatorio nao encontrado", "pending": False, "session_id": session_id},
+            status=404,
+        )
+
     try:
         resultado = SessionResult.objects.get(session_id=session_id)
     except SessionResult.DoesNotExist:

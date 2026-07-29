@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { deviceId } from '../auth/storage'
+import { installStorage, uninstallStorage } from '../auth/testStorage'
 import { Mode } from '../lib/events'
 import type { ProbeOutcome } from '../probe/runProbe'
-import { AdmissionError, modeToRequest, requestSession } from './admission'
+import { AdmissionError, TRIAL_EXHAUSTED, modeToRequest, requestSession } from './admission'
 
 const TICKET = {
   session_id: '6f0d2f2e-0c2e-4a3f-9f0a-2b7c2a1d3e4f',
@@ -101,6 +103,77 @@ describe('requestSession', () => {
         fetchFake({ ...TICKET, ws_url: '' }),
       ),
     ).rejects.toThrow(/ws_url/)
+  })
+})
+
+describe('trial anônimo (SPEC-011)', () => {
+  afterEach(uninstallStorage)
+
+  const pedido = { exercise: 'jumping_jack', requestedMode: Mode.EDGE, probe: null }
+
+  it('a identidade vai no pedido', async () => {
+    installStorage()
+    const fetchSpy = fetchFake({ ...TICKET, device_id: 'dev-abc12345' })
+
+    await requestSession(pedido, fetchSpy)
+    // Segunda sessão: agora o aparelho já é conhecido e acompanha o pedido.
+    const outroSpy = fetchFake(TICKET)
+    await requestSession(pedido, outroSpy)
+
+    const chamada = (outroSpy as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    const headers = (chamada?.[1] as RequestInit).headers as Record<string, string>
+    expect(headers['X-Device-Id']).toBe('dev-abc12345')
+  })
+
+  it('o id que o servidor gerou na primeira visita fica guardado', async () => {
+    installStorage()
+    await requestSession(pedido, fetchFake({ ...TICKET, device_id: 'dev-abc12345' }))
+    expect(deviceId()).toBe('dev-abc12345')
+  })
+
+  it('a recusa também traz o id — senão o contador nunca chegaria a 3', async () => {
+    installStorage()
+    const recusa = {
+      detail: 'Suas 3 sessões grátis de hoje acabaram.',
+      code: TRIAL_EXHAUSTED,
+      device_id: 'dev-abc12345',
+    }
+
+    await expect(requestSession(pedido, fetchFake(recusa, { status: 429 }))).rejects.toThrow(
+      /3 sessões grátis/,
+    )
+    expect(deviceId()).toBe('dev-abc12345')
+  })
+
+  it('trial esgotado vem com código próprio: a ação é criar conta, não tentar de novo', async () => {
+    installStorage()
+    const erro = await requestSession(
+      pedido,
+      fetchFake({ detail: 'acabou', code: TRIAL_EXHAUSTED }, { status: 429 }),
+    ).catch((falha: unknown) => falha)
+
+    expect(erro).toBeInstanceOf(AdmissionError)
+    expect((erro as AdmissionError).code).toBe(TRIAL_EXHAUSTED)
+    expect((erro as AdmissionError).status).toBe(429)
+  })
+
+  it('falha de infraestrutura não tem código — não é caso de mandar criar conta', async () => {
+    installStorage()
+    const erro = await requestSession(pedido, fetchFake({}, { status: 503 })).catch(
+      (falha: unknown) => falha,
+    )
+
+    expect((erro as AdmissionError).code).toBeUndefined()
+    expect((erro as AdmissionError).message).toMatch(/Redis/)
+  })
+
+  it('o ticket carrega quanto sobrou do trial', async () => {
+    installStorage()
+    const ticket = await requestSession(
+      pedido,
+      fetchFake({ ...TICKET, trial: { used: 2, limit: 3, remaining: 1 } }),
+    )
+    expect(ticket.trial).toEqual({ used: 2, limit: 3, remaining: 1 })
   })
 })
 

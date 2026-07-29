@@ -21,6 +21,9 @@ server = [
     "channels-redis>=4.2",
     "django>=5.1,<6.0",
     "djangorestframework>=3.15",
+    # JWT de acesso/refresh da SPEC-011. A spec nomeia SimpleJWT; e a implementacao de fato
+    # padrao do DRF e nao traz modelo proprio enquanto o blacklist ficar desligado.
+    "djangorestframework-simplejwt>=5.3",
     "psycopg[binary]>=3.2",
     "uvicorn[standard]>=0.34",
     # Servidor WSGI do `api` em producao. O gateway continua em uvicorn (ASGI): a divisao
