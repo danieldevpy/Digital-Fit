@@ -260,18 +260,31 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 def cmd_parity(args: argparse.Namespace) -> int:
     """Paridade edge x cloud (T-018). Código 1 = fora da tolerância da SPEC-005."""
-    from eval.parity import compare_paths
+    from eval.parity import compare_paths, load_browser_result
 
     alvo = Path(args.video)
     if not alvo.exists():
         print(f"video nao encontrado: {alvo}", file=sys.stderr)
         return 2
 
+    navegador = None
+    if args.browser:
+        origem = Path(args.browser)
+        if not origem.exists():
+            print(f"json do navegador nao encontrado: {origem}", file=sys.stderr)
+            return 2
+        try:
+            navegador = load_browser_result(origem)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+
     resultado = compare_paths(
         alvo,
         exercise=args.exercise,
         expected_reps=args.expected_reps,
         model_path=Path(args.model) if args.model else None,
+        browser=navegador,
     )
 
     if not args.quiet:
@@ -354,6 +367,11 @@ def build_parser() -> argparse.ArgumentParser:
     paridade.add_argument("--report", default=None, help="grava o resultado em JSON")
     paridade.add_argument("--quiet", action="store_true", help="sem saida no stdout")
     paridade.add_argument("--model", default=None, help="caminho do .task do Pose Landmarker")
+    paridade.add_argument(
+        "--browser",
+        default=None,
+        help="JSON exportado pelo painel de dev do cliente (T-040): entra como 3a perna",
+    )
     paridade.set_defaults(func=cmd_parity)
 
     fetch = subcomandos.add_parser(

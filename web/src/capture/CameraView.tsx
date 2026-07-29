@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { FixtureControls } from '../dev/FixtureControls'
+import { VideoSourceControl } from '../dev/VideoSourceControl'
 import { useDevTools } from '../dev/gate'
 import { Mode } from '../lib/events'
 import { useSessionStore } from '../store/session'
@@ -35,14 +36,19 @@ export function CameraView() {
   // Ferramentas de diagnóstico: build de dev, ou conta com `is_admin` (T-048).
   const devTools = useDevTools()
 
-  const { start, stop } = useCamera(videoRef)
+  const { start, stop, startFile } = useCamera(videoRef)
   useEdgePipeline(videoRef, canvasRef, cameraStatus === 'ready')
 
   // O FAB da bottom nav aciona a câmera sem conhecer o pipeline.
   useEffect(() => {
-    setCameraControls({ start: () => void start(), stop })
+    setCameraControls({
+      start: () => void start(),
+      stop,
+      // Só o painel de dev chama (T-040); o FAB da nav nem sabe que existe.
+      startFile: (file: File) => void startFile(file),
+    })
     return () => setCameraControls(null)
-  }, [setCameraControls, start, stop])
+  }, [setCameraControls, start, startFile, stop])
 
   const isReady = cameraStatus === 'ready'
   const isCloud = capability?.mode === Mode.CLOUD
@@ -144,6 +150,7 @@ export function CameraView() {
             </span>
           )}
           <FixtureControls />
+          <VideoSourceControl />
           <button type="button" className="stage__dev-stop" onClick={stop}>
             parar
           </button>

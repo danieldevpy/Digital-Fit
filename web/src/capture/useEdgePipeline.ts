@@ -23,6 +23,7 @@ import { clearCanvas, drawSkeleton } from '../pose/skeleton'
 import { parseModeOverride } from '../probe/capability'
 import { runCapabilityProbe } from '../probe/runProbe'
 import { getFixtureRecorder } from '../dev/recorder'
+import { rewindAndPlay } from '../dev/videoSource'
 import { useSessionStore } from '../store/session'
 import { createCloudSender } from './cloudFrames'
 import { CLOUD_TARGET_FPS, EDGE_TARGET_FPS, createFrameClock } from './frameClock'
@@ -220,6 +221,15 @@ export function useEdgePipeline(
       if (capability.mode === Mode.CLOUD) {
         stopLoop = startCloudLoop(video)
         return
+      }
+
+      // Fonte de arquivo (T-040): o probe acabou de gastar ~2 s tocando o vídeo, e esses 2 s
+      // são o trecho parado em que a calibração mede o corpo. Rebobinar aqui é o que faz o
+      // navegador ler o MESMO material que o harness lê — sem isto a paridade compararia
+      // arquivos diferentes e chamaria a diferença de "divergência JS × Python".
+      if (useSessionStore.getState().videoSource === 'file') {
+        await rewindAndPlay(video)
+        if (disposed) return
       }
 
       clock.reset()

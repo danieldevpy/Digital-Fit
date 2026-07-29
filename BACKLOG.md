@@ -40,7 +40,7 @@
 | T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | done |
 | T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | done |
 | T-048 | Gate das ferramentas de dev: separadas da UI de produto, liberadas por conta (`is_admin`) para inspecionar produção | 012/011 | done |
-| T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness — **nasce dentro do gate da T-048**, nunca na UI de produto | 012 | todo |
+| T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness — dentro do gate da T-048, nunca na UI de produto | 012 | done — falta 1 passada manual (abrir um vídeo do corpus no navegador e exportar o JSON) |
 | T-041 | `evalctl replay --ws`: injetar keypoints gravados via gateway (integração + carga sintética) | 012 | todo |
 | T-047 | FSM inicia a fase pelo que observa, não assumindo `CLOSED` (perde a 1ª rep quando a captura começa com a pessoa aberta — ver Descobertas) | 007/004 | todo |
 
@@ -389,3 +389,24 @@
   arquivos sem querer. Ou entra um `prettier.config` com as opções do projeto (e um
   `format:check` no CI), ou o eslint ganha as regras de estilo. Enquanto não houver, **não
   rodar formatador no `web/`**.
+- **[A/T-040] O capability probe come o começo do vídeo — e comeria a calibração.** O probe
+  roda 2 s de detecção no `<video>` antes de o loop começar. Com a câmera isso é inofensivo
+  (o tempo passa e a pessoa ainda está lá); com um ARQUIVO, esses 2 s são 2 s de conteúdo, e
+  logo os primeiros — que a SPEC-004 usa para medir o corpo parado. Sem tratar, a contagem do
+  navegador divergiria da do harness por montagem, e a "divergência JS × Python" que a task
+  existe para medir seria um artefato meu. Resolvido carregando o vídeo **pausado** no frame 0
+  e rebobinando depois do probe (`rewindAndPlay`). Fica o alerta para quem mexer no probe: se
+  ele passar a consumir tempo em outro ponto, a fonte de arquivo quebra em silêncio — o
+  sintoma é contagem sempre alguns abaixo, nunca acima.
+- **[A/T-040] A perna do navegador é manual e não dá para automatizar barato.** O JSON sai de
+  alguém abrir o painel, escolher o vídeo e clicar em baixar. Automatizar exigiria dirigir um
+  browser de verdade (Playwright + WASM do MediaPipe + um servidor de pé), que é ordem de
+  grandeza acima do resto da bancada e não cabe na T-042 (eval em CI) como está escrita.
+  Enquanto for manual, vale a regra: rodar a passada do navegador **antes de mexer em
+  normalização, filtro ou FSM**, porque é a única medida do que o usuário realmente executa.
+- **[A/T-040] Vídeo maior que 30 s é cortado pelo servidor, não pelo cliente.** A sessão tem
+  duração fixa (SPEC-009) e o timer é autoritativo: um arquivo de 45 s vira uma sessão de 30 s
+  e o resto do arquivo não é contado. Para o corpus atual (28–29 s) não muda nada, mas quem
+  gravar vídeo longo vai comparar 30 s de navegador contra 45 s de harness e achar que
+  encontrou divergência. Ou o corpus se mantém abaixo de 30 s, ou a paridade passa a recortar
+  o vídeo antes de entregar ao harness.

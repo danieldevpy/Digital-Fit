@@ -101,6 +101,26 @@ uv run python -m eval.evalctl run eval/corpus/ --report eval/out/eval.json
 Nada em `server/` ou `workers/` importa `eval/` — a bancada usa os módulos deles, nunca o
 contrário.
 
+### A perna do navegador (T-040)
+
+O `edge` das duas colunas acima é o MediaPipe **do Python** — não é o que roda no celular do
+usuário. Para medir o MediaPipe **do navegador** contra o mesmo vídeo:
+
+1. abra o app com as ferramentas de dev ligadas e clique em **vídeo** no chip de diagnóstico;
+2. escolha um arquivo do corpus — ele toca pelo caminho edge real e abre uma sessão de verdade;
+3. no fim, clique em **baixar json**;
+4. ponha o número ao lado dos outros dois:
+
+```bash
+uv run python -m eval.evalctl parity eval/corpus/polichinelo-01.mp4 \
+  --expected-reps 20 --browser polichinelo-01.browser.json
+# OK  …: edge=20 cloud=20 browser=20 (delta +0, browser +0, tolerancia 1)
+```
+
+O vídeo carrega **pausado**: o capability probe roda antes e consumiria os primeiros 2 s do
+arquivo — que são o trecho parado da calibração. Vídeos acima de 30 s são cortados pelo timer
+autoritativo da sessão, então mantenha o corpus abaixo disso.
+
 ## Estrutura
 
 ```

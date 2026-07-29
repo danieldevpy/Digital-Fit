@@ -66,7 +66,19 @@ export interface SessionState {
    * Controles da câmera, registrados pela CameraView. Existe para o FAB da
    * bottom nav iniciar a sessão sem que a nav precise conhecer o pipeline.
    */
-  cameraControls: { start: () => void; stop: () => void } | null
+  cameraControls: {
+    start: () => void
+    stop: () => void
+    /** Fonte de arquivo (T-040) — só chamada pela superfície de dev. */
+    startFile: (file: File) => void
+  } | null
+  /**
+   * De onde vem a imagem (T-040). `file` faz o pipeline rebobinar o vídeo depois do probe,
+   * para o começo do arquivo não ser comido pela medição — ver `dev/videoSource.ts`.
+   */
+  videoSource: 'camera' | 'file'
+  /** Nome do arquivo em uso, para o painel de dev e para o JSON de paridade. */
+  videoFileName: string | null
 
   // ---- sessão (eventos vindos do gateway) ----
   gatewayStatus: GatewayStatus
@@ -111,6 +123,7 @@ export interface SessionState {
   setRecording: (recording: boolean) => void
   setRecordedFrames: (count: number) => void
   setCameraControls: (controls: SessionState['cameraControls']) => void
+  setVideoSource: (source: 'camera' | 'file', fileName?: string | null) => void
   setGatewayStatus: (status: GatewayStatus) => void
   /**
    * Sessão admitida (`POST /api/sessions`). É **daqui** que vem o `session_id` no caminho
@@ -170,6 +183,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   recording: false,
   recordedFrames: 0,
   cameraControls: null,
+  videoSource: 'camera',
+  videoFileName: null,
   gatewayStatus: 'idle',
   ...SESSION_DEFAULTS,
   error: null,
@@ -188,6 +203,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setRecording: (recording) => set({ recording }),
   setRecordedFrames: (recordedFrames) => set({ recordedFrames }),
   setCameraControls: (cameraControls) => set({ cameraControls }),
+  setVideoSource: (videoSource, videoFileName = null) => set({ videoSource, videoFileName }),
   setGatewayStatus: (gatewayStatus) => set({ gatewayStatus }),
 
   applyTicket: ({ sessionId, exercise, durationS }) =>

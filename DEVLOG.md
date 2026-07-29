@@ -5,6 +5,49 @@
 
 ---
 
+## 2026-07-29 · T-040 — Fonte de vídeo no navegador e a terceira perna da paridade
+
+- Entregue: `web/src/dev/videoSource.ts` (dirige o `<video>` a partir de um arquivo),
+  `startFile` no `useCamera`, `VideoSourceControl` no painel de dev, `parityExport.ts` (o JSON
+  no formato do `VideoResult`), e `evalctl parity --browser <json>` como terceira perna.
+- **A task foi pequena porque o desenho já estava certo.** `useEdgePipeline` nunca soube de
+  onde vinha a imagem — ele lê do elemento `<video>`. Trocar `srcObject` (MediaStream) por
+  `src` (blob) não mudou uma linha dele. É o dividendo do "keypoint-first": a origem é
+  detalhe.
+- **O achado que quase estragou a medição: o capability probe come o começo do vídeo.** Ele
+  roda 2 s de detecção antes de o loop começar. Com câmera é inofensivo; com arquivo são 2 s
+  de conteúdo — e logo os primeiros, que a SPEC-004 usa para medir o corpo parado. Se eu
+  tivesse dado `play()` ao carregar, o navegador leria um trecho diferente do que o harness lê,
+  e a diferença apareceria como "divergência JS × Python" quando seria erro meu de montagem.
+  Resolvido carregando **pausado no frame 0** e rebobinando depois do probe. Tem teste cujo
+  único propósito é falhar se alguém puser um `play()` no carregamento.
+- Decisões:
+  - **O JSON do navegador sai no formato `VideoResult.to_dict()`**, que já existe e já é lido.
+    Inventar um segundo formato só criaria tradução na fronteira — mesma razão do contrato de
+    eventos.
+  - **`load_browser_result` recusa arquivo sem `source: "browser-edge"`.** Passar um relatório
+    do próprio harness por engano faria a comparação medir Python contra Python e responder
+    "paridade perfeita" — o resultado mais tranquilizador e mais inútil possível.
+  - **A perna do navegador entra no veredito com a mesma tolerância.** Se ela existe é porque
+    alguém quis medi-la; reportar OK ignorando-a seria pior do que não ter a perna.
+  - **O `delegate` (`gpu`/`cpu`) viaja no JSON.** Os dois dão resultados diferentes, e
+    relatório que não diz qual rodou não é reproduzível.
+  - Fim do arquivo encerra a captura pelo mesmo caminho de sempre (sem frames → `no_data`,
+    T-011). Nada de rota nova para o modo dev.
+- Gates: `pytest` 507 verde (era 500), `ruff` limpo, `npm run typecheck` limpo, `eslint` limpo,
+  vitest 254 (era 238). CLI verificada contra o corpus real:
+  `edge=20 cloud=20 browser=20 (delta +0, browser +0, tolerancia 1)`, com os dois caminhos de
+  recusa saindo com código 2 **antes** de gastar a passada do MediaPipe.
+- **O que NÃO está verificado, e é o principal:** o número do navegador naquela linha veio de
+  um JSON que eu escrevi à mão para exercitar o encanamento. A medição de verdade — abrir o
+  `polichinelo-01.mp4` no painel e ver quanto o MediaPipe WASM conta — depende de alguém
+  clicar. É a passada que fecha a task, e é justamente a que ninguém pode fazer por automação
+  barata (ver Descobertas).
+- Pendências geradas (3 em "Descobertas"): o probe consumindo tempo do arquivo, a perna do
+  navegador ser manual, e vídeo > 30 s ser cortado pelo timer autoritativo.
+
+---
+
 ## 2026-07-29 · T-048 — Gate das ferramentas de dev (e dois gates que não existiam)
 
 - Nasceu de uma pergunta do Daniel sobre a T-040: "quando você diz *eu*? porque um usuário

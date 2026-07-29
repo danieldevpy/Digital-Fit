@@ -7,6 +7,7 @@ real depende do corpus (T-038) e roda por `evalctl parity`.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from eval.parity import (
     EDGE_TARGET_FPS,
     ParityResult,
     compare_paths,
+    load_browser_result,
     rep_tolerance,
 )
 from eval.pipeline import VideoResult
@@ -183,3 +185,96 @@ def test_relatorio_tem_os_dois_lados(video_falso: Path) -> None:
     assert set(saida) >= {"video", "passed", "tolerance", "rep_delta", "edge", "cloud"}
     assert saida["edge"]["name"].endswith("[edge]")
     assert saida["cloud"]["name"].endswith("[cloud]")
+
+
+# --------------------------------------------------------------------------------------
+# Terceira perna: o navegador (T-040)
+# --------------------------------------------------------------------------------------
+
+
+def com_navegador(edge_reps: int, cloud_reps: int, browser_reps: int) -> ParityResult:
+    base = resultado(edge_reps, cloud_reps)
+    return ParityResult(
+        video=base.video,
+        edge=base.edge,
+        cloud=base.cloud,
+        browser=VideoResult(name="browser", exercise="jumping_jack", reps=browser_reps),
+        tolerance=base.tolerance,
+    )
+
+
+def test_sem_json_do_navegador_a_comparacao_segue_sendo_de_duas_pernas() -> None:
+    assert resultado(20, 20).browser_delta is None
+    assert "browser" not in resultado(20, 20).to_dict()
+
+
+def test_navegador_de_acordo_com_o_python_passa() -> None:
+    assert com_navegador(20, 20, 20).passed is True
+    assert com_navegador(20, 20, 20).browser_delta == 0
+
+
+def test_navegador_divergente_REPROVA_mesmo_com_edge_e_cloud_iguais() -> None:
+    """O ponto inteiro da T-040: JS × Python é a divergência que ninguém media."""
+    caso = com_navegador(20, 20, 16)
+
+    assert caso.rep_delta == 0  # edge e cloud concordam...
+    assert caso.browser_delta == -4  # ...e ainda assim o usuario real conta outra coisa
+    assert caso.passed is False
+
+
+def test_navegador_dentro_da_tolerancia_passa() -> None:
+    assert com_navegador(20, 20, 19).passed is True
+    assert com_navegador(20, 20, 21).passed is True
+
+
+def test_resumo_mostra_as_tres_pernas() -> None:
+    linha = com_navegador(20, 19, 18).summary_line()
+
+    assert "edge=20" in linha
+    assert "cloud=19" in linha
+    assert "browser=18" in linha
+    assert "browser -2" in linha
+
+
+def test_json_do_navegador_vira_VideoResult(tmp_path: Path) -> None:
+    origem = tmp_path / "jj_01.browser.json"
+    origem.write_text(
+        json.dumps(
+            {
+                "name": "jj_01",
+                "exercise": "jumping_jack",
+                "reps": 19,
+                "expected_reps": 20,
+                "frames": 412,
+                "duration_s": 28.4,
+                "cadence_rpm": 40.1,
+                "rep_durations_ms": [1000, 980],
+                "quality_signals": {"OUT_OF_FRAME": 2},
+                "source": "browser-edge",
+                "delegate": "gpu",
+                "user_agent": "Mozilla/5.0 (Linux; Android 13)",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    lido = load_browser_result(origem)
+
+    assert lido.reps == 19
+    assert lido.expected_reps == 20
+    assert lido.rep_error == 1
+    assert lido.quality_signals == {"OUT_OF_FRAME": 2}
+    # O delegate entra nas condições: `gpu` e `cpu` dão resultados diferentes, e um relatório
+    # que não diz qual rodou não é reproduzível.
+    assert lido.conditions["delegate"] == "gpu"
+
+
+def test_relatorio_do_proprio_harness_e_recusado(tmp_path: Path) -> None:
+    """Sem isto, comparar Python com Python diria 'paridade perfeita' — e seria mentira."""
+    origem = tmp_path / "enganado.json"
+    origem.write_text(
+        json.dumps({"name": "jj_01", "exercise": "jumping_jack", "reps": 20}), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="navegador"):
+        load_browser_result(origem)

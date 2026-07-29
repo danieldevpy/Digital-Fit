@@ -15,12 +15,17 @@ receberia em modo edge?** Se não recebe, o modo cloud não é um fallback, é o
 São exatamente as quatro degradações que o modo cloud impõe (SPEC-005, ADR-007), e nenhuma
 outra: os dois caminhos usam o MESMO arquivo de modelo e a MESMA FSM depois da extração.
 
-## O que este teste NÃO cobre
+## A terceira perna: o navegador (T-040)
 
-O "edge" aqui é o MediaPipe **do Python**, não o do navegador. Uma diferença entre a
-implementação JS e a Python passaria despercebida. Cobrir isso exigiria dirigir um browser de
-verdade; enquanto não houver, esta é a aproximação honesta — e ela já isola o que muda no
-caminho cloud, que é o risco real.
+O "edge" das duas colunas acima é o MediaPipe **do Python**. Ele não é o que o usuário roda:
+em produção quem extrai a pose é o MediaPipe **WASM/GPU do navegador**, e uma divergência
+entre as duas implementações passaria despercebida por este arquivo.
+
+Desde a T-040 dá para fechar isso sem dirigir browser por automação: a superfície de dev do
+cliente toca um arquivo de vídeo pelo caminho edge real e exporta o que contou, no formato do
+`VideoResult`. `compare_paths(..., browser=carregar_browser(caminho))` põe esse número ao lado
+dos outros dois. Continua sendo uma passada manual — mas é a passada certa, com o código que
+roda no celular de verdade.
 
 A comparação é de **contagem de repetições**, não de keypoints. Landmarks idênticos seriam
 impossíveis por construção (JPEG e modo IMAGE mudam os números), e também não é o que importa:
@@ -29,6 +34,7 @@ o produto conta reps.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -43,6 +49,7 @@ __all__ = [
     "CloudPathExtractor",
     "ParityResult",
     "compare_paths",
+    "load_browser_result",
     "rep_tolerance",
 ]
 
@@ -111,7 +118,9 @@ class ParityResult:
     video: str
     edge: VideoResult
     cloud: VideoResult
-    tolerance: int
+    #: Perna do navegador (T-040), quando houve exportação. `None` = comparação só Python.
+    browser: VideoResult | None = None
+    tolerance: int = 1
     #: Média de bytes por JPEG no caminho cloud. É o orçamento de banda da SPEC-005 medido em
     #: vez de estimado: a 10fps, 15 KB por frame são ~150 KB/s por sessão.
     cloud_jpeg_avg_bytes: int = 0
@@ -121,11 +130,23 @@ class ParityResult:
         return self.cloud.reps - self.edge.reps
 
     @property
+    def browser_delta(self) -> int | None:
+        """Navegador − edge do Python. É a divergência JS × Python que a T-040 expõe."""
+        if self.browser is None:
+            return None
+        return self.browser.reps - self.edge.reps
+
+    @property
     def passed(self) -> bool:
-        return abs(self.rep_delta) <= self.tolerance
+        if abs(self.rep_delta) > self.tolerance:
+            return False
+        # A perna do navegador entra no veredito com a MESMA tolerância: se ela existe, é
+        # porque alguém quis medi-la, e reportar "OK" ignorando-a seria o pior dos mundos.
+        delta = self.browser_delta
+        return delta is None or abs(delta) <= self.tolerance
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        corpo: dict[str, Any] = {
             "video": self.video,
             "passed": self.passed,
             "tolerance": self.tolerance,
@@ -134,12 +155,20 @@ class ParityResult:
             "edge": self.edge.to_dict(),
             "cloud": self.cloud.to_dict(),
         }
+        if self.browser is not None:
+            corpo["browser"] = self.browser.to_dict()
+            corpo["browser_delta"] = self.browser_delta
+        return corpo
 
     def summary_line(self) -> str:
         marca = "OK " if self.passed else "FALHA"
+        navegador = f" browser={self.browser.reps}" if self.browser else ""
+        deltas = f"delta {self.rep_delta:+d}"
+        if (browser_delta := self.browser_delta) is not None:
+            deltas += f", browser {browser_delta:+d}"
         return (
-            f"{marca} {self.video}: edge={self.edge.reps} cloud={self.cloud.reps} "
-            f"(delta {self.rep_delta:+d}, tolerancia {self.tolerance})"
+            f"{marca} {self.video}: edge={self.edge.reps} cloud={self.cloud.reps}"
+            f"{navegador} ({deltas}, tolerancia {self.tolerance})"
         )
 
     def bandwidth_line(self) -> str:
@@ -188,6 +217,7 @@ def compare_paths(
     edge_extractor: PoseExtractor | None = None,
     cloud_extractor: PoseExtractor | None = None,
     model_path: Path | None = None,
+    browser: VideoResult | None = None,
 ) -> ParityResult:
     """Roda o mesmo vídeo pelos dois caminhos e compara a contagem de reps.
 
@@ -220,6 +250,39 @@ def compare_paths(
         video=str(video),
         edge=edge,
         cloud=cloud,
+        browser=browser,
         tolerance=rep_tolerance(edge.reps),
         cloud_jpeg_avg_bytes=round(sum(tamanhos) / len(tamanhos)) if tamanhos else 0,
+    )
+
+
+def load_browser_result(caminho: Path) -> VideoResult:
+    """Lê o JSON que a superfície de dev do cliente exportou (T-040).
+
+    Aceita só o que veio do navegador: um relatório do próprio harness passado aqui por engano
+    faria a comparação medir Python contra Python e dizer "paridade perfeita" — o resultado
+    mais tranquilizador e mais inútil possível.
+    """
+    dados: dict[str, Any] = json.loads(caminho.read_text(encoding="utf-8"))
+
+    if dados.get("source") != "browser-edge":
+        raise ValueError(
+            f"{caminho} nao parece ter vindo do navegador (campo `source` = "
+            f"{dados.get('source')!r}). Exporte pelo botao 'baixar json' do painel de dev."
+        )
+
+    return VideoResult(
+        name=dados.get("name", caminho.stem),
+        exercise=dados.get("exercise", "jumping_jack"),
+        reps=int(dados["reps"]),
+        expected_reps=dados.get("expected_reps"),
+        frames=int(dados.get("frames", 0)),
+        duration_s=float(dados.get("duration_s", 0.0)),
+        cadence_rpm=float(dados.get("cadence_rpm", 0.0)),
+        rep_durations_ms=list(dados.get("rep_durations_ms", [])),
+        quality_signals=dict(dados.get("quality_signals", {})),
+        conditions={
+            "delegate": dados.get("delegate"),
+            "user_agent": dados.get("user_agent", ""),
+        },
     )
