@@ -19,7 +19,7 @@ describe('estado da conta', () => {
     const store = useAccountStore.getState()
     store.setFormError('E-mail ou senha inválidos.')
     store.setBusy(true)
-    store.setUser({ id: 1, email: 'a@b.com', name: 'Ana', date_joined: '2026-07-29T10:00:00Z' })
+    store.setUser({ id: 1, email: 'a@b.com', name: 'Ana', is_admin: false, date_joined: '2026-07-29T10:00:00Z' })
 
     const depois = useAccountStore.getState()
     expect(depois.status).toBe('authenticated')
@@ -31,7 +31,7 @@ describe('estado da conta', () => {
     const store = useAccountStore.getState()
     store.setTrial({ used: 3, limit: 3, remaining: 0 })
     store.blockByTrial()
-    store.setUser({ id: 1, email: 'a@b.com', name: '', date_joined: '2026-07-29T10:00:00Z' })
+    store.setUser({ id: 1, email: 'a@b.com', name: '', is_admin: false, date_joined: '2026-07-29T10:00:00Z' })
 
     expect(useAccountStore.getState().trial).toBeNull()
     expect(useAccountStore.getState().trialBlocked).toBe(false)
@@ -41,7 +41,7 @@ describe('estado da conta', () => {
     useAccountStore.getState().applyHistory([RELATORIO])
     useAccountStore
       .getState()
-      .setUser({ id: 2, email: 'c@d.com', name: '', date_joined: '2026-07-29T10:00:00Z' })
+      .setUser({ id: 2, email: 'c@d.com', name: '', is_admin: false, date_joined: '2026-07-29T10:00:00Z' })
 
     expect(useAccountStore.getState().history).toEqual([])
     // De volta a `idle` para a tela buscar de novo — em nome de quem entrou agora.
@@ -51,7 +51,7 @@ describe('estado da conta', () => {
   it('sair volta a ser visitante, não "não sei"', () => {
     useAccountStore
       .getState()
-      .setUser({ id: 1, email: 'a@b.com', name: 'Ana', date_joined: '2026-07-29T10:00:00Z' })
+      .setUser({ id: 1, email: 'a@b.com', name: 'Ana', is_admin: false, date_joined: '2026-07-29T10:00:00Z' })
     useAccountStore.getState().reset()
 
     const depois = useAccountStore.getState()

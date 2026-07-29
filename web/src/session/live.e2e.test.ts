@@ -368,7 +368,7 @@ describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
         expect(historico.map((s) => s.session_id)).toContain(ticket.session_id)
         // Conta nova: o histórico é exatamente esta sessão, e nada de mais ninguém.
         expect(historico).toHaveLength(1)
-        expect(historico[0].rep_count).toBe(relatorio!.rep_count)
+        expect(historico[0]?.rep_count).toBe(relatorio!.rep_count)
       } finally {
         uninstallStorage()
       }

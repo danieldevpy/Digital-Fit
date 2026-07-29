@@ -39,7 +39,8 @@
 | T-020 | report-builder: consolidação + `SessionResult` no Postgres + tela de relatório | 010 | done |
 | T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | done |
 | T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | done |
-| T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness | 012 | todo |
+| T-048 | Gate das ferramentas de dev: separadas da UI de produto, liberadas por conta (`is_admin`) para inspecionar produção | 012/011 | done |
+| T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness — **nasce dentro do gate da T-048**, nunca na UI de produto | 012 | todo |
 | T-041 | `evalctl replay --ws`: injetar keypoints gravados via gateway (integração + carga sintética) | 012 | todo |
 | T-047 | FSM inicia a fase pelo que observa, não assumindo `CLOSED` (perde a 1ª rep quando a captura começa com a pessoa aberta — ver Descobertas) | 007/004 | todo |
 
@@ -365,3 +366,26 @@
   treino. A dona ficou em `session_claim`, escrita pela API no `POST /api/sessions`, e o
   histórico é a junção das duas pelo `session_id`. Efeito colateral bom: apagar a conta não
   toca no corpus da T-021.
+- **[A/T-048] A superfície de dev estava no ar em produção desde a T-007.** O chip de
+  diagnóstico e o gravador de fixtures ficavam atrás de `{isReady && ...}` no `CameraView` —
+  só isso. Qualquer pessoa que abrisse o domínio público e ligasse a câmera via `pose gpu`,
+  `seq 412 · 14.9fps` e os botões de gravar fixture. O comentário no topo do
+  `FixtureControls.tsx` já dizia "não faz parte da UI de produto"; o código nunca fez valer.
+  Corrigido pelo gate (`web/src/dev/gate.ts`). A lição que fica: **comentário não é gate** —
+  quando um arquivo declara que não pertence à UI de produto, quem garante isso tem de ser
+  uma condição, e ela precisa de teste.
+- **[A/T-048] O `tsc --noEmit` não checava um único arquivo.** O `tsconfig.json` da raiz tem
+  `"files": []` + project references, e nessa configuração o `tsc` sem `-b` sai com 0 sem
+  verificar nada. Rodei esse comando como "gate" várias vezes, inclusive na T-022. Com o
+  `tsc -b --force` de verdade apareceram 10 erros, dois deles meus na T-022
+  (`accountSummary.ts`, `noUncheckedIndexedAccess` em `split()[0]`) e dois anteriores em
+  `reportSummary.test.ts`, da T-020 — ou seja, o `npm run build` estava quebrado havia tempo e
+  ninguém percebeu, porque o build de produção roda por Docker e a imagem `web` de dev usa o
+  Vite direto. Virou `npm run typecheck`, que a T-027 (CI) tem de incluir junto do lint.
+- **[A/T-048] Não há formatador configurado no `web/`.** O gate é só `eslint .`, que não
+  reformata; o estilo do projeto (sem ponto-e-vírgula, aspas simples) existe por convenção e
+  não por ferramenta. Rodar `npx prettier --write` num arquivo o converte para o estilo padrão
+  do Prettier e passa no lint do mesmo jeito — descobri isso do jeito ruim, reformatando seis
+  arquivos sem querer. Ou entra um `prettier.config` com as opções do projeto (e um
+  `format:check` no CI), ou o eslint ganha as regras de estilo. Enquanto não houver, **não
+  rodar formatador no `web/`**.

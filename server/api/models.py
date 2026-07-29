@@ -60,6 +60,11 @@ class User(AbstractBaseUser):
     #: funil da SPEC-011 é o produto.
     name = models.CharField(max_length=80, blank=True)
     is_active = models.BooleanField(default=True)
+    #: Vê as ferramentas de diagnóstico no cliente, inclusive em produção (T-048). Chamado
+    #: `is_admin` e não `is_staff` de propósito: `is_staff` é o campo que o admin do Django
+    #: consulta, e não há admin aqui — reusar o nome prometeria uma semântica que o projeto
+    #: não tem. Não dá acesso a dado de ninguém: as rotas continuam por dono da sessão.
+    is_admin = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager()
@@ -79,6 +84,7 @@ class User(AbstractBaseUser):
             "id": self.pk,
             "email": self.email,
             "name": self.name,
+            "is_admin": self.is_admin,
             "date_joined": self.date_joined.isoformat(),
         }
 

@@ -5,6 +5,58 @@
 
 ---
 
+## 2026-07-29 · T-048 — Gate das ferramentas de dev (e dois gates que não existiam)
+
+- Nasceu de uma pergunta do Daniel sobre a T-040: "quando você diz *eu*? porque um usuário
+  comum não deveria estar upando vídeos". Eu tinha descrito a fonte de vídeo da bancada como
+  se fosse fluxo de produto. Fui verificar como as superfícies de dev eram separadas hoje e a
+  resposta era: **não eram**.
+- **O chip de dev estava em produção desde a T-007.** `CameraView.tsx` renderizava o chip de
+  diagnóstico e o `FixtureControls` atrás de `{isReady && ...}` — nenhuma flag. Quem abrisse o
+  domínio público e ligasse a câmera via `pose gpu`, `seq 412 · 14.9fps` e botões de gravar
+  fixture. O `FixtureControls.tsx` até declara no topo "não faz parte da UI de produto"; o
+  código nunca fez valer. **Comentário não é gate.**
+- Entregue: `web/src/dev/gate.ts` como único lugar que decide, `User.is_admin` (+ migration
+  0003) exposto no `GET /api/me`, e `manage.py admin_tools` como única porta de concessão.
+- Decisões:
+  - **Duas fontes de direito: build de dev, ou conta com `is_admin`.** A segunda é o que o
+    Daniel pediu — inspecionar o servidor de produção com o que está de pé lá, sem precisar
+    de um build especial. Local continua sem login, porque exigir "crie conta e se promova"
+    seria atrito diário para resolver um problema que só existe em produção.
+  - **O `?dev=` modifica, nunca concede.** `?dev=0` desliga (o admin vê a tela como o usuário
+    comum a vê, sem deslogar); `?dev=1` sozinho não faz nada para quem não é admin. Se
+    concedesse, o gate seria decoração — tem teste para os dois lados.
+  - **`is_admin` não entra por nenhuma rota.** Só pelo comando, que exige shell na máquina.
+    Tem teste que manda `is_admin: true` no corpo do cadastro e exige `False` na resposta.
+  - **A flag é lida do banco a cada `/api/me`, não posta no JWT.** Revogar tem efeito
+    imediato, verificado ao vivo: promovi e revoguei com o MESMO access token na mão.
+  - **`is_admin` e não `is_staff`**: `is_staff` é o campo que o admin do Django consulta, e
+    não há admin aqui — reusar o nome prometeria semântica que o projeto não tem.
+  - Aproveitei para tirar `docker compose up` da mensagem de erro que o usuário final vê
+    quando o gateway cai. Instrução de subir a stack é diagnóstico, não produto.
+- **Achado grave no caminho: o `tsc --noEmit` não checava um único arquivo.** O `tsconfig.json`
+  da raiz tem `"files": []` + project references, e nessa forma o `tsc` sem `-b` sai 0 sem
+  verificar nada. Eu rodei esse comando como gate várias vezes, inclusive fechando a T-022.
+  Com `tsc -b --force` apareceram 10 erros reais — dois meus da T-022 (`accountSummary.ts`,
+  `noUncheckedIndexedAccess` em `split()[0]`) e dois de `reportSummary.test.ts` que vinham da
+  T-020. Ou seja, `npm run build` estava quebrado havia dias. Corrigidos todos e criado
+  `npm run typecheck`, que agora é o gate de verdade.
+- **Segundo erro meu, e o pior:** rodei `npx prettier --write` para formatar. O projeto **não
+  tem Prettier** — o npx baixou a versão 3.9.6 na hora e reformatou seis arquivos para o
+  estilo padrão dele (ponto-e-vírgula, aspas duplas), contra a convenção do repositório. O
+  `eslint` passou nos dois estados, porque não checa estilo. Revertido pelo git nos arquivos
+  versionados e reescrito à mão nos novos. Virou descoberta: enquanto não houver formatador
+  configurado, não rodar formatador no `web/`.
+- Gates: `pytest` 500 verde (era 492), `ruff` limpo, `npm run typecheck` limpo **de verdade**,
+  `npm run build` voltou a funcionar, `eslint` limpo, vitest 238 (era 229). Ciclo verificado
+  contra a stack real: cadastro tentando se promover pelo corpo → `is_admin: False`; comando
+  `--on` → `/api/me` responde `True` com o mesmo token; `--list`; `--off`.
+- Pendências geradas (3 em "Descobertas"): a superfície de dev exposta desde a T-007, o
+  typecheck vazio (a T-027 tem de incluir `npm run typecheck`), e a falta de formatador no
+  `web/`.
+
+---
+
 ## 2026-07-29 · T-022 — Auth JWT + trial anônimo + histórico do usuário
 
 - Entregue (servidor): `server/api/auth.py` (register/login/refresh/me com rate limit por IP),

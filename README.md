@@ -58,6 +58,27 @@ O treino em si **não** usa JWT: o WebSocket autentica pelo token HMAC de 45 s d
 (SPEC-009), então renovar o access nunca derruba uma sessão em andamento. Em produção,
 `JWT_SIGNING_KEY` é gerado pelo `./scripts/prod.sh secrets` — trocá-lo desloga todo mundo.
 
+## Ferramentas de diagnóstico
+
+A UI de produto não tem nada de dev. O chip de diagnóstico, o gravador de fixtures e a fonte
+de vídeo da bancada aparecem só para quem tem direito, decidido em `web/src/dev/gate.ts`:
+
+- **local** (`npm run dev`): sempre ligadas, sem login;
+- **produção**: para contas com `is_admin`, que é como se inspeciona o servidor que está no ar.
+
+A flag só se concede por shell — nenhuma rota da API a aceita:
+
+```bash
+./scripts/prod.sh exec api python manage.py admin_tools voce@exemplo.com --on
+./scripts/prod.sh exec api python manage.py admin_tools --list      # quem tem hoje
+./scripts/prod.sh exec api python manage.py admin_tools voce@exemplo.com --off
+```
+
+Ela vale no próximo carregamento da página (o cliente lê no `GET /api/me`) e revogar tem
+efeito imediato — não está no JWT. Não dá acesso a dado de ninguém: histórico e relatório
+continuam filtrados por dono da sessão. `?dev=0` na URL desliga as ferramentas sem deslogar,
+para conferir a tela como o usuário comum a vê; `?dev=1` não promove ninguém.
+
 ## Desenvolvimento Python (fora do Docker)
 
 ```bash

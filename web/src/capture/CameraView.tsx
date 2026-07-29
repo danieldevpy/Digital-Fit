@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { FixtureControls } from '../dev/FixtureControls'
+import { useDevTools } from '../dev/gate'
 import { Mode } from '../lib/events'
 import { useSessionStore } from '../store/session'
 import { useCamera } from './useCamera'
@@ -31,6 +32,8 @@ export function CameraView() {
   const error = useSessionStore((state) => state.error)
 
   const setCameraControls = useSessionStore((state) => state.setCameraControls)
+  // Ferramentas de diagnóstico: build de dev, ou conta com `is_admin` (T-048).
+  const devTools = useDevTools()
 
   const { start, stop } = useCamera(videoRef)
   useEdgePipeline(videoRef, canvasRef, cameraStatus === 'ready')
@@ -85,13 +88,18 @@ export function CameraView() {
       {isReady && (gatewayStatus === 'closed' || gatewayStatus === 'error') && (
         <p className="stage__banner stage__banner--offline">
           {/* A admissão (T-011) explica a falha quando sabe o motivo; o genérico cobre
-              queda de WS no meio da sessão, que não tem mensagem do servidor. */}
-          {error ?? (
-            <>
-              Sem conexão com o servidor — a contagem não vai avançar. Suba a stack
-              (<code>docker compose up</code>) ou aponte <code>VITE_API_URL</code> para a API.
-            </>
-          )}
+              queda de WS no meio da sessão, que não tem mensagem do servidor. A instrução de
+              subir a stack é diagnóstico, não produto: mandar quem só quer treinar rodar
+              `docker compose up` não ajuda ninguém (T-048). */}
+          {error ??
+            (devTools ? (
+              <>
+                Sem conexão com o servidor — a contagem não vai avançar. Suba a stack
+                (<code>docker compose up</code>) ou aponte <code>VITE_API_URL</code> para a API.
+              </>
+            ) : (
+              'Sem conexão com o servidor — a contagem não vai avançar. Verifique sua internet e tente de novo.'
+            ))}
         </p>
       )}
 
@@ -109,8 +117,9 @@ export function CameraView() {
         </p>
       )}
 
-      {/* Chip de dev — diagnóstico do pipeline, fora da SPEC-013. */}
-      {isReady && (
+      {/* Chip de dev — diagnóstico do pipeline, fora da SPEC-013. Não é UI de produto: o
+          usuário comum nunca vê isto (T-048). */}
+      {isReady && devTools && (
         <div className="stage__dev">
           <span>{poseStatus === 'ready' ? `pose ${poseDelegate}` : poseStatus}</span>
           {capability && (

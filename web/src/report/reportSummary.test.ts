@@ -46,13 +46,13 @@ describe('improvements', () => {
     )
 
     expect(itens).toHaveLength(1)
-    expect(itens[0].count).toBe(3)
+    expect(itens[0]?.count).toBe(3)
   })
 
   it('traduz o código para o mesmo texto que o HUD mostrou ao vivo', () => {
     const itens = improvements(relatorio({ feedback_counts: { [Code.OUT_OF_FRAME]: 1 } }))
 
-    expect(itens[0].text).toBe('Você saiu do quadro.')
+    expect(itens[0]?.text).toBe('Você saiu do quadro.')
   })
 
   it('devolve lista vazia quando não houve aviso nenhum', () => {

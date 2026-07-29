@@ -13,6 +13,8 @@ export interface AccountUser {
   id: number
   email: string
   name: string
+  /** Vê as ferramentas de diagnóstico, inclusive em produção (T-048). */
+  is_admin: boolean
   date_joined: string
 }
 

@@ -59,7 +59,10 @@ export function historyTotals(reports: SessionReport[]): HistoryTotals {
 /** Primeiro nome, para o cumprimento. Cai no e-mail quando a pessoa não deu nome. */
 export function displayName(user: { name: string; email: string } | null): string {
   if (!user) return ''
+  // `?? ''` não é decoração: com `noUncheckedIndexedAccess`, `split()[0]` é `string |
+  // undefined` para o compilador. Na prática `split` nunca devolve vazio, mas o tipo é o que
+  // o build verifica — e o build estava passando sem verificar nada (ver T-048).
   const nome = user.name.trim()
-  if (nome) return nome.split(/\s+/)[0]
-  return user.email.split('@')[0]
+  if (nome) return nome.split(/\s+/)[0] ?? ''
+  return user.email.split('@')[0] ?? ''
 }

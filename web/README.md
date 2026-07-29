@@ -22,7 +22,8 @@ npm run dev      # roda `npm run setup` antes (predev) e sobe em http://localhos
 
 `getUserMedia` só funciona em `localhost` ou HTTPS.
 
-Outros scripts: `npm run lint`, `npm run test` (vitest), `npm run build`.
+Outros scripts: `npm run lint`, `npm run typecheck` (`tsc -b` — o `tsc --noEmit` na raiz NÃO
+checa nada, ver T-048), `npm run test` (vitest), `npm run build`.
 
 ## Estrutura
 

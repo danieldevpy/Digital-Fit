@@ -9,7 +9,7 @@ Regras para qualquer sessão de desenvolvimento (humano ou agente).
 3. **Fase Inicial ≠ Fase Evolução**: nunca antecipar itens da Fase Evolução de uma spec dentro de uma task de Fase Inicial, mesmo que "seja rápido".
 4. **Executar gates** antes de encerrar:
    - `ruff check` + `pytest` (workers/api)
-   - `npm run lint` + `npm run test` (web), quando tocada
+   - `npm run lint` + `npm run typecheck` + `npm run test` (web), quando tocada
    - docker-compose sobe sem erro se infra foi tocada
 5. **Registrar no DEVLOG.md**: data, task, o que foi feito, decisões tomadas, pendências geradas.
 6. **Commit** com mensagem `T-XXX: descrição` (um commit lógico por task quando possível).
