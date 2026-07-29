@@ -71,6 +71,16 @@ export function CameraView() {
           >
             {cameraStatus === 'requesting' ? 'Aguardando…' : 'Ligar câmera'}
           </button>
+
+          {/* A fonte de arquivo precisa estar acessível ANTES da câmera (T-040): ela existe
+              justamente para medir o pipeline sem câmera — em máquina sem webcam, ou sem
+              gastar a permissão. Deixá-la só dentro do chip de diagnóstico, que exige
+              `isReady`, obrigaria a ligar a câmera para não usá-la. */}
+          {devTools && (
+            <div className="stage__dev stage__dev--cover">
+              <VideoSourceControl />
+            </div>
+          )}
         </div>
       )}
 

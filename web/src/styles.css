@@ -221,6 +221,13 @@ button {
   letter-spacing: 0.02em;
 }
 
+/* Dentro da capa (câmera desligada) o chip flui com o botão de ligar, em vez de flutuar
+   no rodapé da área de vídeo — ali ele cobriria o próprio botão. */
+.stage__dev--cover {
+  position: static;
+  margin-top: 14px;
+}
+
 .stage__dev-stop,
 .stage__dev-rec {
   color: var(--accent-2);
