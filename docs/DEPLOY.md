@@ -100,9 +100,50 @@ CPU por requisição) e `gzip on` comprime na hora quando não existe. Hoje não
 gerando os `.gz`, então vale o segundo caminho — que funciona, só custa CPU. Gerar os `.gz` no
 `npm run setup` é a otimização seguinte e não exige mexer no nginx de novo.
 
-Se você comprimir no **seu** nginx em vez do do container, lembre de `gzip_proxied any;`: por
-padrão o nginx não comprime resposta que veio de `proxy_pass`, e `gzip on` sozinho no server
-block não faz nada para conteúdo proxiado. É o erro mais comum aqui.
+### A armadilha: `gzip_http_version` × `proxy_pass`
+
+Duas linhas do `web-nginx.conf` existem só por causa do seu nginx na frente, e **sem elas a
+compressão simplesmente não acontece em produção**, mesmo com `gzip on` e o tipo certo em
+`gzip_types`:
+
+```nginx
+gzip_http_version 1.0;
+gzip_proxied any;
+```
+
+Por quê: `gzip_http_version` vale **1.1** por padrão, e `proxy_pass` conversa com o upstream em
+**HTTP/1.0** por padrão. O nginx do container então recusa comprimir tudo que chega pelo proxy —
+não só o `.wasm`, também o CSS e o JS. Medido, com o mesmo arquivo e a mesma config:
+
+| requisição ao container | resposta |
+|---|---|
+| HTTP/1.1 direto | `Content-Encoding: gzip`, 3,2 MB |
+| HTTP/1.0 (o que o proxy faz) | sem compressão, 11.532.084 bytes |
+
+Esse número é exatamente o que aparecia no waterfall do celular — foi assim que o problema foi
+encontrado. `gzip_proxied any` cobre o caso vizinho: com o padrão `off`, nginx não comprime
+requisição que traz o cabeçalho `Via`, que é o que surge quando um CDN entra na frente.
+
+Alternativa equivalente, do seu lado: `proxy_http_version 1.1;` no `location /`. Vale a pena de
+todo modo (habilita keepalive com o upstream), mas **não é necessária** — o conserto no container
+cobre qualquer proxy.
+
+Se preferir comprimir no **seu** nginx em vez do do container, aí lembre de `gzip_proxied any;`
+lá: por padrão o nginx não comprime resposta que veio de `proxy_pass`, e `gzip on` sozinho no
+server block não faz nada para conteúdo proxiado.
+
+### Por que a compressão também conserta o cache
+
+Sintoma relatado: recarregar a página baixava o WASM de novo. Não era header de cache — o
+servidor está certo, e a revalidação condicional devolve `304` com 0 bytes (verificado).
+
+A causa é o tamanho. O cache de disco do Chromium recusa entradas acima de uma fração do tamanho
+total do cache, e 11,5 MB passa desse limite. A prova está no próprio waterfall: com **as mesmas
+diretivas de cache** (é o mesmo bloco `location`) e na mesma visita, o modelo de 5,5 MB voltava
+de `disk cache` em 15 ms enquanto o WASM de 11,5 MB era baixado inteiro toda vez.
+
+Comprimido, o WASM vira 3,2 MB, cabe no limite e passa a ser guardado. É por isso que ligar o
+gzip não é só "primeiro acesso mais rápido": é o que faz existir um segundo acesso barato.
 
 Conferir em produção:
 

@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-07-30 (6) · T-070 — A compressao nao existia em producao: `gzip_http_version` x `proxy_pass`
+
+O Daniel testou depois do commit anterior: total ainda 16 MB, e recarregar a pagina baixava o
+WASM de novo. Perguntou se o nginx da VPS afetava algo. Afetava — era a causa.
+
+- **Causa raiz, reproduzida localmente em um comando**: `gzip_http_version` vale **1.1** por
+  default, e `proxy_pass` fala **HTTP/1.0** com o upstream por default. Atras do nginx da VPS, o
+  nginx do container RECUSAVA comprimir tudo — nao so o `.wasm`, tambem o CSS e o JS que a config
+  antiga achava que comprimia desde sempre. Medido com o mesmo arquivo e a mesma config:
+  HTTP/1.1 direto → `Content-Encoding: gzip`, 3,2 MB; HTTP/1.0 → 11.532.084 bytes, **o mesmo
+  numero do waterfall do celular**. Foi o `curl --http1.0` que fechou o caso.
+- **Licao sobre a minha verificacao anterior**: eu testei a config com `curl` HTTP/1.1 direto no
+  container e declarei "verificado na imagem real". Estava certo sobre a imagem e errado sobre o
+  CAMINHO — em producao ninguem fala HTTP/1.1 com aquele container. Verificar o componente nao e
+  verificar a integracao.
+- **Conserto**: `gzip_http_version 1.0` + `gzip_proxied any` (este cobre o vizinho: com `off`, o
+  default, nginx nao comprime requisicao com cabecalho `Via` — o que aparece no dia em que um CDN
+  entrar na frente) + `gzip_vary on` (com proxy no meio, resposta comprimida tem de se anunciar
+  como variante). Verificado por HTTP/1.0 e com `Via` presente: 3,2 MB nos dois.
+- **O cache tambem era o tamanho, nao o header.** O servidor esta correto: requisicao condicional
+  devolve `304` com 0 bytes (verificado no `.wasm` e no `.task`). O que acontecia e que o
+  navegador nunca GUARDAVA a entrada — o cache de disco do Chromium recusa entradas acima de uma
+  fracao do tamanho total, e 11,5 MB passa desse limite. A prova estava no proprio waterfall do
+  Daniel: com as MESMAS diretivas de cache (e o mesmo bloco `location`) e na mesma visita, o
+  modelo de 5,5 MB voltava de `disk cache` em 15 ms e o WASM de 11,5 MB era baixado inteiro. A
+  unica variavel era o tamanho. Comprimido (3,2 MB) ele cabe e passa a ser guardado — ligar o
+  gzip nao e so "primeiro acesso mais rapido", e o que faz existir um segundo acesso barato.
+- Nada a mudar no nginx da VPS: `proxy_http_version 1.1` no `location /` seria equivalente e vale
+  pelo keepalive, mas o conserto no container cobre qualquer proxy — inclusive um que o projeto
+  nao controla.
+
 ## 2026-07-30 (5) · T-070 — O mesmo WASM baixado duas vezes (regressão da T-069)
 
 Waterfall do primeiro acesso trazido pelo Daniel:
