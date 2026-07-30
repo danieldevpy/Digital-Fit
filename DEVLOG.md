@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-07-30 (8) · SPEC-018 + ADR-011 — Painel de administração e plano de configuração
+
+Sessão de projeto, sem código. O Daniel quer trazer configuração (recursos do Free, do pago
+etc.) para o admin do Django; o pedido virou spec completa.
+
+- **O admin não existia por decisão, não por esquecimento.** `api/models.py:64` e a descoberta
+  `[A/T-022]` registram o corte: `AbstractBaseUser` sem `PermissionsMixin`, `contrib.auth` só
+  pelos hashers, "não há admin nem permissões". A decisão estava certa para o projeto de então —
+  todo parâmetro era ou calibrado contra corpus (muda por commit e bancada) ou infra (muda por
+  env). A SPEC-016 cria a primeira categoria nova: capacidade de plano é decisão comercial. Daí
+  ADR-011 como *mudança de premissa*, não como correção de erro.
+- **A restrição que desenhou tudo**: workers não têm ORM (ADR-008) e a SPEC-010 promete relatório
+  derivável 100% por replay. Config lida do banco pelo worker faria o mesmo replay dar resultados
+  diferentes, em silêncio. Regra da spec: **resolve na API, carimba no `session.started`** — que
+  já é como `duration_s` e `countdown_s` funcionam. Para o que não é por sessão (textos de
+  feedback), o caminho é snapshot no Redis escrito pelo Django, e fica para a Fase Evolução.
+- **Fronteira explícita do que NÃO entra no painel**: limiares de FSM e de cena, normalização e
+  filtros — a bancada da SPEC-012 varre os defaults do código, e valor mudado por formulário não
+  tem fixture, muda contagem em silêncio e contamina o Parquet. Se um dia precisar variar, é
+  perfil versionado carimbado na sessão, não campo solto.
+- **Custo de ligar o admin levantado no código**, não estimado: 3 apps, 4 middlewares,
+  `context_processors` hoje vazio (`settings.py:70`, o admin recusa subir sem `auth`/`messages`),
+  `is_staff` novo no `User`, estáticos sem whitenoise nem rota no nginx, e `ROOT_URLCONF`
+  compartilhado com o gateway — sem gate, o painel apareceria no processo de WebSocket.
+- **`is_staff` novo em vez de reusar `is_admin`**: o docstring de `is_admin` promete que a flag
+  "não dá acesso a dado de ninguém". Contas já concedidas sob essa promessa não podem virar
+  acesso ao painel retroativamente.
+
+Pendências geradas: T-072 (ligar o admin), T-073 (`Plan` + resolvedor), T-074 (`Exercise` +
+`GET /api/config`), T-075 (`config_version` no evento e no relatório). T-063 e T-064 foram
+reescritas para ler do `Plan` em vez de nascerem com constante nova — se forem feitas antes da
+T-073, terão de ser reabertas.
+
+---
+
 ## 2026-07-30 (7) · T-071 — Porcentagem de volta e o HUD do treino sem colisao
 
 Dois ajustes pedidos pelo Daniel depois de o gzip entrar em producao, com foto do celular.

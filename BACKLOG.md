@@ -101,8 +101,12 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-063 | Modo Free: quota diária no servidor (`quota_exceeded`), sheet de limite, kcal só ao vivo | 016 | todo |
-| T-064 | Modo Assinatura: flag de plano, duração configurável, modos de exercício, acúmulo de kcal, Modo Efeito | 016 | todo |
+| T-072 | Admin do Django ligado no processo `api`: apps + middlewares + context processors, `is_staff` novo (separado do `is_admin` de diagnóstico), estáticos servidos, gate por `DJANGO_ENABLE_ADMIN` e ausência no gateway; `User` editável, `SessionClaim`/`SessionResult` em leitura | 018 | todo |
+| T-073 | `Plan` + `User.plan`/`plan_until` + `SiteConfig` + `capabilities_for()` com cache invalidado por `post_save` e defaults do código como piso; `POST /api/sessions` passa a resolver quota, duração, countdown e cloud por ele — sem mudar comportamento nenhum (migration de dados com os valores de hoje) | 018/016 | todo |
+| T-074 | `Exercise` (+ passos do guia) no admin com trava de slug contra `EXERCISES`, e `GET /api/config` servindo catálogo e capacidades ao cliente — fecha a divergência do `[A/T-051]` | 018/015 | todo |
+| T-075 | `config_version` no `session.started` (aditivo, default 0) e no `SessionResult`: o relatório diz sob qual versão de configuração a sessão foi produzida | 018/010/002 | todo |
+| T-063 | Modo Free: quota diária no servidor (`quota_exceeded`), sheet de limite, kcal só ao vivo — **lê do `Plan` da T-073**, não de constante nova | 016/018 | todo |
+| T-064 | Modo Assinatura: duração configurável, modos de exercício, acúmulo de kcal, Modo Efeito — capacidades vêm do `Plan` da T-073 (a flag de plano deixa de ser desta task) | 016/018 | todo |
 | T-065 | Perfil físico (peso/altura), kcal MET real, IMC, série temporal de peso, Progresso realista | 017 | todo |
 | T-066 | GIF/vídeo de demonstração por exercício (Escolha + Guia) | 015 | todo |
 

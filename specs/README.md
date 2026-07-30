@@ -26,6 +26,7 @@ Cada etapa do pipeline é uma **entidade** com duas fases:
 | [SPEC-015](SPEC-015-primeiro-acesso.md) | Primeiro Acesso Guiado (funil + tela de Guia) | Fase 4 |
 | [SPEC-016](SPEC-016-planos-free-assinatura.md) | Planos: Free × Assinatura (quotas, kcal, Modo Efeito) | futura |
 | [SPEC-017](SPEC-017-perfil-fisico-progresso.md) | Perfil Físico & Progresso Realista (peso/altura) | futura |
+| [SPEC-018](SPEC-018-painel-admin-e-configuracao.md) | Painel de Administração & Plano de Configuração (habilita a 016) | futura |
 
 ## Template
 
