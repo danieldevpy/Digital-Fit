@@ -84,3 +84,133 @@ export function IconUser({ className }: IconProps) {
     </svg>
   )
 }
+
+/* ---------- ícones da UI v2 (SPEC-014) ---------- */
+
+/** A figura neon da marca (braços para cima, como o hero). */
+export function IconLogo({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 28" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className={className} aria-hidden="true">
+      <circle cx="12" cy="4.5" r="3" />
+      <path d="M12 8v7 M5 3l4 6 M19 3l-4 6 M12 15l-5 10 M12 15l5 10" />
+    </svg>
+  )
+}
+
+export function IconSpark({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.4 2.4M15.6 15.6 18 18M18 6l-2.4 2.4M8.4 15.6 6 18" />
+    </svg>
+  )
+}
+
+export function IconTarget({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="4.5" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function IconCounter({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+      <path d="M8 10v4M12 9v6M16 11v2" />
+    </svg>
+  )
+}
+
+export function IconShieldCheck({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M12 3 5 5.6v5.2c0 4.6 3 7.7 7 9.6 4-1.9 7-5 7-9.6V5.6L12 3Z" />
+      <path d="m9 12 2.2 2.2L15.4 10" />
+    </svg>
+  )
+}
+
+export function IconHeart({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M12 20 4 12a5.4 5.4 0 0 1 8-7.2A5.4 5.4 0 0 1 20 12l-8 8Z" />
+    </svg>
+  )
+}
+
+export function IconMusic({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+    </svg>
+  )
+}
+
+export function IconPrev({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 14" className={className} aria-hidden="true">
+      <path d="M3 1v12" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+      <path d="M14 1 5 7l9 6Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+export function IconNext({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 16 14" className={className} aria-hidden="true">
+      <path d="M13 1v12" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+      <path d="M2 1l9 6-9 6Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+export function IconPlay({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" className={className} aria-hidden="true">
+      <path d="M6 3 17 10 6 17Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+export function IconStop({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" className={className} aria-hidden="true">
+      <rect x="4.5" y="4.5" width="11" height="11" rx="2" fill="currentColor" />
+    </svg>
+  )
+}
+
+export function IconMirror({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 14 18" fill="none" stroke="currentColor" strokeWidth={1.6} className={className} aria-hidden="true">
+      <rect x="1" y="1" width="12" height="16" rx="3" />
+      <path d="M5 14.5h4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function IconChevronRight({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="m9 5 7 7-7 7" />
+    </svg>
+  )
+}
+
+/** Mini-onda decorativa dos cards de exercício (traço único, não é dado). */
+export function IconWave({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 72 18" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M0 10 C7 10 8 4 14 4 S22 15 29 15 S38 5 45 7 S54 12 61 9 S68 6 72 8"
+        stroke="currentColor"
+        strokeWidth={1.8}
+      />
+    </svg>
+  )
+}

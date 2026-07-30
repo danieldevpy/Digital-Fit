@@ -73,6 +73,11 @@ export interface SessionState {
     startFile: (file: File) => void
   } | null
   /**
+   * Visão de espelho do palco (SPEC-014 §3, botão Espelhar). `true` é o default do produto:
+   * quem treina de frente para a câmera espera se ver como num espelho.
+   */
+  mirrored: boolean
+  /**
    * De onde vem a imagem (T-040). `file` faz o pipeline rebobinar o vídeo depois do probe,
    * para o começo do arquivo não ser comido pela medição — ver `dev/videoSource.ts`.
    */
@@ -133,6 +138,7 @@ export interface SessionState {
   setRecording: (recording: boolean) => void
   setRecordedFrames: (count: number) => void
   setCameraControls: (controls: SessionState['cameraControls']) => void
+  toggleMirrored: () => void
   setVideoSource: (source: 'camera' | 'file', fileName?: string | null) => void
   setGatewayStatus: (status: GatewayStatus) => void
   /**
@@ -196,6 +202,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   recording: false,
   recordedFrames: 0,
   cameraControls: null,
+  mirrored: true,
   videoSource: 'camera',
   videoFileName: null,
   gatewayStatus: 'idle',
@@ -216,6 +223,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setRecording: (recording) => set({ recording }),
   setRecordedFrames: (recordedFrames) => set({ recordedFrames }),
   setCameraControls: (cameraControls) => set({ cameraControls }),
+  toggleMirrored: () => set({ mirrored: !get().mirrored }),
   setVideoSource: (videoSource, videoFileName = null) => set({ videoSource, videoFileName }),
   setGatewayStatus: (gatewayStatus) => set({ gatewayStatus }),
 
