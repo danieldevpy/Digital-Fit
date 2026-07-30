@@ -23,6 +23,23 @@ export type CameraStatus = 'idle' | 'requesting' | 'ready' | 'denied' | 'error'
  * `session.calibrated` — o cliente nunca começa a sessão por conta própria.
  */
 export type SessionStatus = 'idle' | 'calibrating' | 'preparing' | 'running' | 'completed'
+
+/**
+ * A captura ainda deve subir frames neste estado? (T-077)
+ *
+ * `completed` é o estado em que a resposta é NÃO, e essa é toda a razão desta função existir.
+ * Quando o servidor encerra a sessão, a câmera aqui continua rodando — a tela do relatório
+ * ainda está subindo, o `sessionId` continua no store — e o loop de captura seguia mandando
+ * `pose.frame` por vários segundos. Medido em produção: 4,7 s de frames depois do fim, que o
+ * servidor lia como uma sessão nova com o MESMO id e usava para sobrescrever o relatório bom.
+ *
+ * O servidor passou a se defender disso sozinho (`ENDED_MEMORY_MS` no analysis-worker), e é lá
+ * que mora a garantia — o cliente é forjável. Aqui é economia: nem CPU de inferência, nem
+ * bateria, nem banda para frames que ninguém vai ler.
+ */
+export function streamsFrames(status: SessionStatus): boolean {
+  return status === 'calibrating' || status === 'preparing' || status === 'running'
+}
 export type PoseStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type ProbeStatus = 'idle' | 'running' | 'done' | 'error'
 /**

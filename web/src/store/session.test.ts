@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { CLIENT_PUSH_TYPES, EventType } from '../lib/events'
-import { useSessionStore } from './session'
+import { streamsFrames, useSessionStore } from './session'
 
 const TICKET = { sessionId: 'abc-123', exercise: 'jumping_jack', durationS: 30 }
 
@@ -120,5 +120,32 @@ describe('preparação antes de a contagem valer (T-049)', () => {
     useSessionStore.getState().applyCalibrated(9_000, 3_000)
 
     expect(useSessionStore.getState().countingFrom).toBe(4_000)
+  })
+})
+
+describe('quando a captura deve parar de transmitir (T-077)', () => {
+  it('a sessão encerrada não transmite mais — e o `sessionId` continua lá', () => {
+    const store = useSessionStore.getState()
+    store.applyTicket(TICKET as never)
+    store.applySessionCompleted({ reason: 'completed', rep_count: 26 } as never)
+
+    const { sessionId, sessionStatus } = useSessionStore.getState()
+
+    // O id sobrevive de propósito: a tela do relatório precisa dele. Por isso a condição de
+    // enviar frame NÃO pode ser "tem sessionId" — era assim, e frames posteriores ao fim
+    // faziam o servidor abrir uma sessão nova com o mesmo id, cujo relatório sobrescrevia o
+    // bom (26 reps viraram 4 em produção).
+    expect(sessionId).toBe(TICKET.sessionId)
+    expect(streamsFrames(sessionStatus)).toBe(false)
+  })
+
+  it('transmite durante a medição, a preparação e o exercício', () => {
+    expect(streamsFrames('calibrating')).toBe(true)
+    expect(streamsFrames('preparing')).toBe(true)
+    expect(streamsFrames('running')).toBe(true)
+  })
+
+  it('não transmite antes de haver sessão', () => {
+    expect(streamsFrames('idle')).toBe(false)
   })
 })

@@ -4,6 +4,8 @@ O barramento é o `InMemoryBus`: dá para testar o worker inteiro — consumo, F
 ack — sem Redis no ar.
 """
 
+import time
+
 import pytest
 
 from tests.synthetic_keypoints import (
@@ -14,7 +16,11 @@ from tests.synthetic_keypoints import (
     still_poses,
 )
 from workers.analysis_worker.main import BATCH, GROUP, Shutdown, run
-from workers.analysis_worker.router import DEFAULT_DURATION_S, AnalysisRouter
+from workers.analysis_worker.router import (
+    DEFAULT_DURATION_S,
+    ENDED_MEMORY_MS,
+    AnalysisRouter,
+)
 from workers.shared.bus import InMemoryBus
 from workers.shared.events import (
     Envelope,
@@ -77,6 +83,11 @@ def envelope_completed(
         seq=999,
         source=Source.SYSTEM,
     )
+
+
+def agora_ms() -> int:
+    """Relógio de parede em ms — o mesmo que o roteador usa quando ninguém lhe passa um."""
+    return int(time.time() * 1000)
 
 
 def rodar(*envelopes: Envelope) -> tuple[InMemoryBus, AnalysisRouter]:
@@ -239,14 +250,55 @@ def test_session_completed_de_sessao_desconhecida_e_ignorado() -> None:
     assert bus.published == []
 
 
-def test_frames_depois_do_fim_abrem_sessao_nova_do_zero() -> None:
-    """Sem isso, um frame atrasado somaria repetição a uma sessão já encerrada."""
+def test_frames_depois_do_fim_sao_descartados() -> None:
+    """Frame atrasado não soma repetição à sessão encerrada — e não abre uma nova (T-077).
+
+    Até a T-077 ele abria: a sessão "nova" nascia com o MESMO `session_id`, contava o que a
+    pessoa fizesse depois do fim, morria de `no_data` 10 s depois e emitia um segundo
+    `session.completed`. Como o report-builder faz upsert por `session_id` (SPEC-010), esse
+    segundo relatório sobrescrevia o bom. Medido em produção antes do conserto: uma sessão de
+    26 reps virou "4 reps · no_data" no banco.
+
+    Por isso o teste olha para as três coisas ao mesmo tempo: nenhuma sessão viva, nenhum
+    `session.completed` a mais, e nenhuma repetição contada depois do fim.
+    """
     frames = [envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(2)))]
 
-    bus, router = rodar(envelope_started(), *frames, envelope_completed(), frames[0])
+    bus, router = rodar(envelope_started(), *frames, envelope_completed(), *frames)
 
-    assert router.sessions[SESSAO].analyzer.summary()["reps"] == 0
+    assert router.sessions == {}
     assert len(bus.published_of(EventType.SESSION_COMPLETED)) == 1
+    assert router.ended[SESSAO].ignored == len(frames)
+
+
+def test_fim_por_prazo_tambem_fecha_a_porta() -> None:
+    """O caminho REAL do bug era o `tick`, não o `session.completed` de fora.
+
+    Em produção quem encerra é o timer autoritativo do servidor (os 30 s), e ele passa pelo
+    `tick`. Se só o `_on_session_completed` marcasse o fim, o conserto não valeria justamente
+    no caminho em que o problema aconteceu.
+    """
+    frames = [envelope_pose(f) for f in sequence(session_poses(jumping_jack_poses(2)))]
+    _, router = rodar(envelope_started(), *frames)
+
+    fim = router.tick(now_wall_ms=agora_ms() + 31_000)
+    assert len(fim) == 1
+    assert SessionCompleted.from_data(fim[0].data).reason is SessionEndReason.COMPLETED
+
+    depois = router.handle(frames[0])
+
+    assert depois == []
+    assert router.sessions == {}
+
+
+def test_a_lapide_e_esquecida_depois_da_janela() -> None:
+    """A memória do fim é limitada por tempo: worker de pé por semanas não pode vazar."""
+    _, router = rodar(envelope_started(), envelope_completed())
+    assert SESSAO in router.ended
+
+    router.tick(now_wall_ms=agora_ms() + ENDED_MEMORY_MS + 1)
+
+    assert router.ended == {}
 
 
 def test_session_capability_nao_produz_evento_de_analise() -> None:

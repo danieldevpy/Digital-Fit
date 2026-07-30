@@ -24,7 +24,7 @@ import { parseModeOverride } from '../probe/capability'
 import { runCapabilityProbe } from '../probe/runProbe'
 import { getFixtureRecorder } from '../dev/recorder'
 import { rewindAndPlay } from '../dev/videoSource'
-import { useSessionStore } from '../store/session'
+import { streamsFrames, useSessionStore } from '../store/session'
 import { createCloudSender } from './cloudFrames'
 import { CLOUD_TARGET_FPS, EDGE_TARGET_FPS, createFrameClock } from './frameClock'
 import { encodeFrame } from './jpegEncoder'
@@ -113,8 +113,10 @@ export function useEdgePipeline(
       // velho) é do cliente de gateway.
       const gateway = getGatewayClient()
       if (gateway && landmarks.length === LANDMARK_COUNT) {
-        const { sessionId, markFirstFrame } = useSessionStore.getState()
-        if (sessionId) {
+        const { sessionId, sessionStatus, markFirstFrame } = useSessionStore.getState()
+        // `streamsFrames` e não `sessionId !== null`: o id sobrevive ao fim da sessão (a tela
+        // do relatório precisa dele), e mandar frame depois do fim já custou um relatório.
+        if (sessionId && streamsFrames(sessionStatus)) {
           gateway.send(
             makeEnvelope({
               type: EventType.POSE_FRAME,
@@ -175,8 +177,9 @@ export function useEdgePipeline(
         encode: (alvo) => encodeFrame(alvo),
         send: (frame, tick) => {
           const gateway = getGatewayClient()
-          const { sessionId, markFirstFrame } = useSessionStore.getState()
-          if (!gateway || !sessionId) return
+          const { sessionId, sessionStatus, markFirstFrame } = useSessionStore.getState()
+          // Mesma regra do caminho edge, e aqui o desperdício é maior: cada frame é um JPEG.
+          if (!gateway || !sessionId || !streamsFrames(sessionStatus)) return
           gateway.send(
             makeEnvelope({
               type: EventType.FRAME_RAW,

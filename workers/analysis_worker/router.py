@@ -48,6 +48,18 @@ NO_DATA_TIMEOUT_MS = 10_000
 #: dados. A margem existe para que o token e o registro sobrevivam até o fim do exercício.
 TTL_MARGIN_MS = 15_000
 
+#: Por quanto tempo o worker lembra que uma sessão JÁ ACABOU (T-077).
+#:
+#: O cliente não para de mandar frames no instante em que o servidor encerra: o `session.completed`
+#: ainda vai atravessar Redis, gateway e WebSocket, e enquanto isso a câmera segue capturando. Sem
+#: esta memória, o primeiro frame atrasado abre uma sessão NOVA com o mesmo `session_id` — que
+#: conta as repetições que a pessoa fez depois do fim, morre de `no_data` 10 s depois e emite um
+#: segundo `session.completed`. Como o report-builder faz upsert por `session_id` (SPEC-010), esse
+#: segundo relatório SOBRESCREVE o bom. Foi exatamente isso, medido em produção: 26 reps viraram 4.
+#:
+#: 120 s é folga sobre o TTL do ticket (45 s): passado ele nem WebSocket novo se abre para o id.
+ENDED_MEMORY_MS = 120_000
+
 
 @dataclass(slots=True)
 class SessionState:
@@ -149,17 +161,36 @@ class SessionState:
         return None
 
 
+@dataclass(slots=True)
+class _Encerrada:
+    """Lápide de uma sessão que já acabou (T-077). Ver `ENDED_MEMORY_MS`."""
+
+    at_wall_ms: int
+    #: Frames atrasados descartados. Diagnóstico: um número alto aqui diz que o cliente
+    #: continua transmitindo muito depois do fim.
+    ignored: int = 0
+
+
 class AnalysisRouter:
     """Traduz eventos de entrada em eventos de análise, sem I/O."""
 
-    __slots__ = ("_now", "sessions", "slots")
+    __slots__ = ("_now", "ended", "sessions", "slots")
 
     def __init__(self, *, slots=None) -> None:
         self.sessions: dict[str, SessionState] = {}
+        #: Sessões encerradas há pouco. Existe para que frame atrasado não ressuscite sessão —
+        #: a memória é o que separa "chegou antes do `session.started`" (abre) de "chegou depois
+        #: do fim" (descarta), dois casos que o `session_id` sozinho não distingue.
+        self.ended: dict[str, _Encerrada] = {}
         self._now = 0
         #: Semáforo de vagas cloud (SPEC-009). `None` nos testes e em qualquer contexto sem
         #: Redis — a análise nunca depende dele para funcionar.
         self.slots = slots
+
+    def _marcar_encerrada(self, session_id: str) -> None:
+        """Anota o fim. Chamado em TODO caminho que remove a sessão — se um deles esquecer,
+        aquele caminho volta a ressuscitar sessão pelo frame seguinte."""
+        self.ended[session_id] = _Encerrada(at_wall_ms=self._now)
 
     def _liberar_vaga(self, session_id: str) -> None:
         """Devolve a vaga cloud da sessão encerrada.
@@ -225,8 +256,19 @@ class AnalysisRouter:
     def _on_pose_frame(self, envelope: Envelope) -> list[Envelope]:
         estado = self.sessions.get(envelope.session_id)
         if estado is None:
-            # Frame antes do `session.started` (ou depois do fim): abre com o padrão da SPEC-009
-            # em vez de descartar — perder repetições por corrida de eventos seria pior.
+            encerrada = self.ended.get(envelope.session_id)
+            if encerrada is not None:
+                # Frame DEPOIS do fim: descartado. Abrir sessão nova aqui era o comportamento
+                # anterior, e ele destruía o relatório da sessão boa — ver `ENDED_MEMORY_MS`.
+                encerrada.ignored += 1
+                if encerrada.ignored == 1:
+                    logger.info(
+                        "sessao %s ja encerrada: frames atrasados sendo descartados",
+                        envelope.session_id,
+                    )
+                return []
+            # Frame ANTES do `session.started`: abre com o padrão da SPEC-009 em vez de
+            # descartar — perder repetições por corrida de eventos seria pior.
             estado = SessionState(session_id=envelope.session_id, opened_wall_ms=self._now)
             self.sessions[envelope.session_id] = estado
             logger.info(
@@ -342,6 +384,7 @@ class AnalysisRouter:
         estado = self.sessions.pop(envelope.session_id, None)
         if estado is None:
             return []
+        self._marcar_encerrada(envelope.session_id)
         self._liberar_vaga(envelope.session_id)
         try:
             motivo = SessionCompleted.from_data(envelope.data).reason
@@ -371,12 +414,14 @@ class AnalysisRouter:
         """
         agora = now_wall_ms if now_wall_ms is not None else _wall_ms()
         self._now = agora
+        self._esquecer_encerradas(agora)
         saidas: list[Envelope] = []
         for session_id, estado in list(self.sessions.items()):
             motivo = estado.expiry_reason(agora)
             if motivo is None:
                 continue
             self.sessions.pop(session_id, None)
+            self._marcar_encerrada(session_id)
             self._liberar_vaga(session_id)
             reps = int(estado.analyzer.summary()["reps"])
             logger.info(
@@ -384,6 +429,24 @@ class AnalysisRouter:
             )
             saidas.append(self._wrap(estado, SessionCompleted(reason=motivo, rep_count=reps)))
         return saidas
+
+    def _esquecer_encerradas(self, agora_wall_ms: int) -> None:
+        """Poda as lápides vencidas — a memória é limitada por tempo, não por número.
+
+        Um worker de pé por semanas com um `dict` que só cresce vaza memória por uma linha
+        esquecida; e um limite por quantidade escolheria quem esquecer pela ordem errada
+        (a sessão mais antiga é justamente a que já não recebe frame nenhum).
+        """
+        for session_id, encerrada in list(self.ended.items()):
+            if agora_wall_ms - encerrada.at_wall_ms < ENDED_MEMORY_MS:
+                continue
+            if encerrada.ignored:
+                logger.debug(
+                    "sessao %s esquecida apos descartar %s frames atrasados",
+                    session_id,
+                    encerrada.ignored,
+                )
+            del self.ended[session_id]
 
     # -------------------------------------------------------------------- saída
 

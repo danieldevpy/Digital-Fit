@@ -110,8 +110,30 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-065 | Perfil físico (peso/altura), kcal MET real, IMC, série temporal de peso, Progresso realista | 017 | todo |
 | T-066 | GIF/vídeo de demonstração por exercício (Escolha + Guia) | 015 | todo |
 | T-076 | A suíte roda no Postgres do compose, não em SQLite: as variáveis da `conftest.py` não alcançam mais o settings (ver Descobertas `[A/T-072]`) — mover para `pytest-env` ou `core/settings_test.py`, e conferir o job Python da CI | — | todo |
+| T-077 | Frame atrasado ressuscitava a sessão encerrada e o relatório fantasma sobrescrevia o bom (26 reps viraram 4 em produção): lápide no analysis-worker + cliente para de transmitir ao fim | 009/010 | done |
+| T-078 | `duration_ms` do relatório mistura dois relógios (`session.started` é do servidor, `session.calibrated` e frames são do navegador) — ver Descobertas `[A/T-077]` | 010 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[A/T-077] O relatório errado tinha um teste defendendo a causa.** O
+  `test_frames_depois_do_fim_abrem_sessao_nova_do_zero` documentava, desde a T-009, que frame
+  atrasado ABRE sessão nova — com a justificativa correta ("não pode somar repetição a uma
+  sessão encerrada") e a conclusão errada. Ninguém percebeu que a sessão nova nascia com o
+  MESMO `session_id`, e que o `session.completed` dela sobrescreveria o relatório da sessão
+  boa, porque o report-builder faz upsert por `session_id` (SPEC-010, e faz certo — é o que
+  permite replay). A lição: **quando dois componentes se protegem sozinhos, ninguém está
+  protegendo a junção deles.** Descartar o frame satisfaz as duas regras; foi o que a T-077 fez.
+- **[A/T-077] `duration_ms` mistura dois relógios — e no limite derruba o report-builder.**
+  `buffer.started_ms` vem do `session.calibrated`, cujo `ts` é o do FRAME (relógio do navegador);
+  já o `session.started` publicado pela API carrega o relógio do SERVIDOR (`api/sessions.py`), e
+  `_fechar` faz `fim = max(envelope.ts, buffer.last_ts)` sobre o mesmo balde. Com os relógios
+  desalinhados a duração sai errada em silêncio; com mais de ~24,8 dias de diferença (2³¹ ms) ela
+  estoura o `PositiveIntegerField` e o processo morre com `DataError: integer out of range` —
+  visto de verdade nesta sessão, ao publicar eventos com dois relógios. O comentário do
+  `SessionState` já avisava que "o `ts` do cliente pode vir com o relógio do celular torto"; o
+  relatório não seguiu o próprio conselho. Conserto provável: derivar duração só de `ts` da mesma
+  origem (ou do relógio do servidor, carimbado no `session.completed`) e sanear o valor antes de
+  gravar. **Proposta: T-078.**
 
 - **[A/T-072] A suíte NÃO roda em SQLite em memória — roda no Postgres do compose.** A
   `tests/conftest.py` promete, no próprio docstring, ser "carregada antes de o pytest-django

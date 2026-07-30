@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-07-30 (10) · T-077 — O relatório errado: a sessão era ressuscitada por frames atrasados
+
+O Daniel fez 20 repetições e o banco gravou "4 reps · no_data". O relatório da sessão vinha
+errado havia tempo, e o log do worker contou a história inteira:
+
+```
+19:00:07  aberta (jumping_jack, edge, 30s)
+19:00:09  calibrada
+19:00:39  encerrada pelo servidor (completed) com 26 reps   ← a contagem estava CERTA
+19:00:39  aberta por pose.frame (sem session.started)       ← 71 ms depois, ressuscitou
+19:00:40  calibrada
+19:00:53  encerrada pelo servidor (no_data) com 4 reps      ← sobrescreveu o relatório bom
+```
+
+- **A causa é a junção de três decisões, cada uma correta sozinha.** (1) O worker abre sessão
+  ao receber `pose.frame` sem `session.started`, para que corrida de eventos não custe
+  repetição. (2) O cliente segue capturando depois do fim — o `session.completed` ainda tem de
+  atravessar Redis, gateway e WebSocket, e a câmera não para sozinha. (3) O report-builder faz
+  upsert por `session_id`, que é o que torna o relatório reproduzível por replay (SPEC-010).
+  Juntas: o frame atrasado abre uma sessão com o MESMO id, ela conta o que a pessoa fizer
+  depois do "pare", morre de `no_data` 10 s depois e o upsert troca o relatório bom pelo ruim.
+- **Havia um teste defendendo a causa.** O `test_frames_depois_do_fim_abrem_sessao_nova_do_zero`
+  existe desde a T-009 com a justificativa certa ("não pode somar repetição a uma sessão
+  encerrada") e a conclusão errada. Reescrito: agora exige que o frame seja DESCARTADO, e olha
+  para as três coisas ao mesmo tempo (nenhuma sessão viva, um único `session.completed`,
+  nenhuma repetição a mais).
+- **Conserto no servidor**: lápide de sessão encerrada (`ENDED_MEMORY_MS = 120 s`) marcada em
+  TODO caminho que remove a sessão — inclusive o `tick`, que é por onde o caso real passou (o
+  timer autoritativo dos 30 s). A memória é podada por tempo, não por quantidade: por número, o
+  esquecido seria justamente o mais antigo, que é quem já não recebe frame.
+- **Conserto no cliente** (economia, não garantia): `streamsFrames(status)` — a condição de
+  enviar deixa de ser "tem `sessionId`" e passa a ser o estado da sessão. O id sobrevive de
+  propósito ao fim (a tela do relatório precisa dele), e era esse detalhe que mantinha o loop
+  transmitindo. Vale para os dois caminhos, edge e cloud (neste, cada frame é um JPEG).
+- **Verificado no stack de pé**, e não só na suíte: 20 reps sintéticas + 67 frames atrasados →
+  `descartando frames atrasados` no log, **um** relatório no Postgres, `20 reps · completed ·
+  20400 ms`. As linhas de teste foram apagadas depois.
+
+Descoberta grande no caminho, registrada e não consertada aqui: `duration_ms` mistura o relógio
+do servidor (`session.started`) com o do navegador (`session.calibrated`, frames) — sai errado
+em silêncio e, com relógios muito distantes, mata o report-builder com `DataError: integer out
+of range`. Foi assim que apareceu: publiquei o repro com dois relógios e derrubei o processo.
+**T-078.**
+
+Gates: `ruff check` + `pytest` (593) e `npm run lint`/`typecheck`/`test` (329) verdes.
+
+---
+
 ## 2026-07-30 (9) · T-072 — O painel existe (e o gateway não o serve)
 
 Primeira task da SPEC-018: ligar o admin do Django e mais nada. Nenhum modelo de configuração
