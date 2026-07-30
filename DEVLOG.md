@@ -47,6 +47,24 @@ Dois ajustes pedidos pelo Daniel depois de o gzip entrar em producao, com foto d
   esqueleto na tela dele.
 - Gates: `tsc -b`, `eslint`, `vitest` 326/326 (3 novos em `assetWarmup`), build.
 
+### Fechamento da sessão
+
+Documentação varrida no fim: `docs/DEPLOY.md` ganhou a política de cache por caminho (a pergunta
+"por quanto tempo o cache vale" tem resposta em quatro camadas, e `max-age=3600` NÃO significa
+rebaixar em 1h — significa revalidar com `304` de 0 bytes); `web/README.md` foi corrigido, porque
+dizia que `npm run dev` sobe o app em `localhost:5173` e desde a T-067 a raiz é o SITE (o app está
+em `/app/`), além de ter a árvore de `src/` atualizada e o aviso morto sobre `hud/placeholders.ts`
+substituído pela regra que vale hoje; o README da raiz aponta os dois bundles.
+
+Gates finais de toda a stack: web (`tsc -b`, `eslint`, 326/326, build) e Python (`ruff` limpo,
+`pytest` 577 passando) — o núcleo Python não foi tocado nesta sessão e continua verde.
+
+Estado para a próxima sessão: T-067…T-071 done. Pendências no BACKLOG §Descobertas, em ordem de
+valor: pré-carregar WASM/modelo antes da câmera (a maior melhoria de percepção que sobrou no
+funil), gerar os `.gz` no build para o `gzip_static` pagar, capa da câmera desligada repetindo
+escolhas no `#/treino`, caminho do WASM sem versão impedindo `immutable`, e `pose-assets.json` sem
+política de cache. Nada bloqueia treinar.
+
 ## 2026-07-30 (6) · T-070 — A compressao nao existia em producao: `gzip_http_version` x `proxy_pass`
 
 O Daniel testou depois do commit anterior: total ainda 16 MB, e recarregar a pagina baixava o

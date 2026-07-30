@@ -109,16 +109,27 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
 - **[T-069] Pré-carregar WASM e modelo antes da câmera**: o portão de partida tirou o `no_data`
-  do caminho, mas a espera continua — no primeiro acesso são ~17 MB (7,9 MB se o gzip do
-  `.wasm` for ligado no nginx) baixados só DEPOIS de a câmera abrir, porque o probe precisa de
-  frames reais. Dá para começar o download na Escolha ou na Pré-configuração (`link
-  rel=prefetch` ou fetch em idle) e ter o modelo em cache quando a câmera abrir. Não entra na
-  T-069 porque muda o carregamento de outras telas, não a partida da sessão.
+  do caminho, mas a espera continua — no primeiro acesso são **8,7 MB na rede** (3,2 de wasm
+  gzipado + 5,5 do modelo, que fica sem comprimir) baixados só DEPOIS de a câmera abrir, porque o
+  probe precisa de frames reais. Dá para começar o download na Escolha ou na Pré-configuração
+  (`link rel=prefetch` ou fetch em idle) e ter tudo em cache quando a câmera abrir. Não entrou na
+  T-069 porque muda o carregamento de outras telas, não a partida da sessão. É a maior melhoria
+  de percepção que sobrou no funil.
 - **[T-070] Gerar os `.gz` no build para o `gzip_static` pagar**: o `web-nginx.conf` já tem
   `gzip_static on` (serve `arquivo.gz` pronto, zero CPU) com `gzip on` como rede de segurança.
   Hoje só o segundo caminho atua: comprime 11 MB a cada requisição numa VPS de 4 vCPU que também
   roda dois pose-workers. Um `gzip -9 -k` no `scripts/setup-mediapipe.mjs` resolve, sem tocar no
   nginx de novo.
+- **[T-071] Caminho do WASM sem versão impede cache `immutable`**: `/wasm/` e `/models/` levam
+  `max-age=3600` porque os nomes de arquivo não têm hash de conteúdo — marcar `immutable` por um
+  ano deixaria aparelhos presos a um binário velho por um ano depois de atualizar o
+  `@mediapipe/tasks-vision`, sem forma de invalidar. Versionar o caminho (`/wasm/0.10.14/`, vindo
+  do `package.json` no `setup-mediapipe.mjs` + `WASM_BASE_PATH`) permitiria `immutable` e mataria
+  a revalidação horária. Ganho pequeno (uma requisição de 0 bytes por hora), custo pequeno.
+- **[T-071] `pose-assets.json` sem política de cache explícita**: o manifesto de tamanhos (180
+  bytes) cai no `location /` sem `expires`, então vale a heurística do navegador. Num deploy que
+  mude os tamanhos, um manifesto velho faria a barra de progresso mostrar porcentagem levemente
+  errada — cosmético, e um `no-cache` resolve em uma linha.
 - **[T-068] Capa da câmera desligada repete escolhas na tela de treino**: com a câmera
   fechada, `.stage__cover` mostra "Ligar câmera" + ExercisePicker + CountdownSetting também
   em `#/treino`, onde essas escolhas já foram feitas na pré-configuração. Não é o bug do

@@ -152,7 +152,9 @@ workers/               # Python puro, sem Django
 dataset/               # o corpus gravado (fora do git; sai da máquina por rsync)
 eval/                  # evalctl: bancada de avaliação (SPEC-012)
 tests/                 # testes e fixtures de keypoints
-web/                   # cliente React + Vite
+web/                   # cliente React + Vite — DOIS bundles (ADR-010)
+  index.html           #   SITE: landing e Sobre, servido em /
+  app/index.html       #   APP: funil de treino, servido em /app/ (ou app.dominio.com)
 ```
 
 ## Como o trabalho acontece

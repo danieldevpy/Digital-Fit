@@ -132,6 +132,31 @@ Se preferir comprimir no **seu** nginx em vez do do container, aí lembre de `gz
 lá: por padrão o nginx não comprime resposta que veio de `proxy_pass`, e `gzip on` sozinho no
 server block não faz nada para conteúdo proxiado.
 
+### Por quanto tempo o cache vale
+
+Quatro políticas diferentes, medidas nos cabeçalhos que o container devolve:
+
+| caminho | `Cache-Control` | duração |
+|---|---|---|
+| `/wasm/`, `/models/` | `max-age=3600, public` | 1 hora |
+| `/assets/` (JS/CSS do bundle) | `max-age=31536000, public, immutable` | 1 ano, sem revalidar |
+| `index.html`, `/app/index.html` | `no-cache` | revalida sempre |
+| `/pose-assets.json` | nenhum | heurística do navegador |
+
+**"1 hora" não significa "baixa de novo em 1 hora".** Passado o prazo, o navegador manda uma
+requisição condicional com o `ETag` e recebe `304` com **0 bytes** (verificado, com gzip ligado):
+o arquivo no aparelho continua valendo e o custo é um round trip. Na prática os 16,5 MB são
+baixados **uma vez por aparelho**.
+
+O que faz baixar tudo de novo, de verdade: aba anônima (não persiste, por design), despejo do
+cache de disco (LRU, sob pressão), limpar dados de navegação ou `Ctrl+Shift+R`, e um deploy que
+troque o arquivo — este último sendo o comportamento correto, não desperdício.
+
+**Por que 1 hora e não 1 ano:** o `.wasm` e o `.task` não têm hash de conteúdo no nome. Com
+`immutable` de um ano, atualizar o `@mediapipe/tasks-vision` deixaria aparelhos com o binário
+velho por um ano, sem forma de invalidar. O `/assets/` pode ser `immutable` justamente porque o
+Vite põe o hash no nome do arquivo, e build novo gera nome novo.
+
 ### Por que a compressão também conserta o cache
 
 Sintoma relatado: recarregar a página baixava o WASM de novo. Não era header de cache — o

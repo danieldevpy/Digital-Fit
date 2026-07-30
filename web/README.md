@@ -15,10 +15,19 @@ npm install
 npm run dev      # roda `npm run setup` antes (predev) e sobe em http://localhost:5173
 ```
 
+**São DOIS entry points** (T-067, ADR-010) — abrir a raiz não abre o app de treino:
+
+| URL | bundle | o que é |
+|---|---|---|
+| `http://localhost:5173/` | site | landing e Sobre |
+| `http://localhost:5173/app/` | app | escolha, guia, pré-config, treino, progresso, conta |
+
 `npm run setup` prepara os assets do MediaPipe fora do bundle e **fora do git**:
 
 - `public/wasm/` — runtime WASM copiado de `node_modules/@mediapipe/tasks-vision`
 - `public/models/pose_landmarker_lite.task` — baixado uma vez (~5,5 MB)
+- `public/pose-assets.json` — tamanhos descomprimidos dos dois acima, para a barra de progresso
+  do primeiro acesso ter denominador (sob gzip o servidor não manda `Content-Length` — T-071)
 
 `getUserMedia` só funciona em `localhost` ou HTTPS.
 
@@ -29,22 +38,40 @@ checa nada, ver T-048), `npm run test` (vitest), `npm run build`.
 
 ```
 web/
-├── scripts/setup-mediapipe.mjs   # WASM + modelo → public/ (não versionados)
+├── index.html                    # SITE  → src/entries/site.tsx
+├── app/index.html                # APP   → src/entries/app.tsx
+├── scripts/setup-mediapipe.mjs   # WASM + modelo + manifesto → public/ (não versionados)
 └── src/
-    ├── capture/                  # câmera (SPEC-001) e overlay do esqueleto
-    ├── pose/                     # MediaPipe edge + geometria do esqueleto (SPEC-005)
-    ├── hud/                      # casca visual do HUD (T-043) — dados placeholder
-    ├── shell/                    # navegação (tab bar)
+    ├── entries/                  # os dois pontos de entrada e nada mais
+    ├── site/                     # bundle do site: landing, Sobre, roteador e barra próprios
+    ├── app/                      # casca do app (AppShell): rotas do funil de treino
+    ├── screens/                  # telas do app + cards de exercício (compartilhado com o site)
+    ├── shell/                    # navegação do app (hash), tab bar, links entre as fronteiras
+    ├── capture/                  # câmera (SPEC-001), pipeline de frames e overlay do esqueleto
+    ├── pose/                     # MediaPipe edge, aquecimento de assets, geometria (SPEC-005)
+    ├── probe/                    # capability probe (SPEC-001)
+    ├── session/                  # admissão, eventos, preferências, portão de partida
+    ├── hud/                      # peças do HUD (anéis, GetReady, chips)
+    ├── report/                   # relatório da sessão e último treino no aparelho
+    ├── auth/                     # conta e trial anônimo (SPEC-011)
+    ├── dev/                      # ferramentas de diagnóstico atrás do gate da T-048
+    ├── lib/                      # contrato de eventos, gateway WS, utilidades
     ├── ui/                       # ícones SVG inline
     └── store/                    # estado da sessão (zustand)
 ```
 
+A fronteira site↔app é de verdade: nenhum arquivo de `site/` importa `capture/`, `pose/` ou
+`session/`, e é isso que mantém o bundle do site em ~9 kB contra ~240 kB do app. Link que
+atravessa a fronteira é `<a href>` de `shell/origins.ts`, nunca `navigate()` — o outro lado pode
+estar em outro host (`site.dominio.com` | `app.dominio.com`).
+
 A geometria do esqueleto (`src/pose/skeleton.ts`) é função pura e testada sem câmera;
 só `drawSkeleton` toca o canvas. Mesma regra da análise no lado Python.
 
-⚠️ **`src/hud/placeholders.ts` é o único lugar com números inventados.** A T-043 entregou
-o layout, não o comportamento: contador, timer, ângulo e kcal são estáticos até a T-012
-ligá-los aos eventos do contrato. Não espalhe valor de fachada por outros arquivos.
+⚠️ **Nenhum número na tela é inventado.** O `placeholders.ts` da T-043 morreu quando a T-012
+ligou o HUD aos eventos; o que não existe aparece como `--` (kcal, FC) ou não aparece (FC saiu
+das duas telas na revisão de 2026-07-30). Ver §Desvios da SPEC-014 antes de desenhar métrica
+nova: mostrar valor de fachada quebra a confiança de quem treina.
 
 ## Mock do gateway
 
