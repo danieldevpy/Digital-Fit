@@ -214,3 +214,79 @@ export function IconWave({ className }: IconProps) {
     </svg>
   )
 }
+
+/* ---------- figuras de exercício (T-082) ----------
+ *
+ * Uma pose por exercício, num vocabulário só: mesma malha `0 0 24 28`, mesmo traço 2, mesma
+ * ponta redonda. Quem monta a figura de um exercício novo copia uma destas e move os pontos —
+ * não inventa outro estilo de desenho. O registro que liga slug → figura, e o teste que cobra
+ * a figura de todo exercício do catálogo, ficam em `exerciseFigures.ts`.
+ *
+ * SEPARADAS do `IconLogo` de propósito, apesar de a do polichinelo nascer idêntica a ele. O
+ * `IconLogo` é a assinatura da marca (T-081) e é fixo por decisão de produto; foi justamente
+ * reaproveitá-lo como ícone de exercício que fez o agachamento aparecer de braços pro alto.
+ * Coladas, a primeira mudança no logotipo mudaria a pose do polichinelo — ou, pior, o medo de
+ * mexer numa travaria a outra.
+ *
+ * O que faz a figura funcionar a 22×26px NÃO é o detalhe, é a silhueta: a 22px ninguém enxerga
+ * um traço, enxerga o contorno. Por isso cada pose precisa ter proporção própria — o
+ * polichinelo é um X alto, o agachamento é baixo e largo. Duas poses que ocupem a mesma
+ * caixa com o mesmo formato geral são indistinguíveis no card, por mais corretas que sejam.
+ */
+const figura = {
+  viewBox: '0 0 24 28',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 2,
+  strokeLinecap: 'round' as const,
+}
+
+/** Polichinelo, no alto do salto: braços em V acima da cabeça, pernas abertas. */
+export function IconExJumpingJack({ className }: IconProps) {
+  return (
+    <svg {...figura} className={className} aria-hidden="true">
+      <circle cx="12" cy="4.5" r="3" />
+      <path d="M12 8v7 M5 3l4 6 M19 3l-4 6 M12 15l-5 10 M12 15l5 10" />
+    </svg>
+  )
+}
+
+/**
+ * Agachamento, no fundo do movimento: joelhos dobrados para fora, cabeça 2,5 unidades mais
+ * baixa que a das outras figuras.
+ *
+ * A cabeça baixa e o afastamento dos pés não são gosto — são o que separa esta silhueta da do
+ * polichinelo. Medido: 17×22 contra 14×23,5, razão largura/altura 0,77 contra 0,60. O primeiro
+ * desenho desta task tinha os joelhos dobrados certos e razão 0,65, perto demais do
+ * polichinelo: correto no traço e ambíguo no card, que é onde a figura vive.
+ *
+ * Os braços horizontais são os braços à frente em escorço — a mesma posição que o
+ * `guide_steps` do agachamento descreve em texto ("braços à frente para equilibrar"). De
+ * frente, braço apontado para a câmera não tem comprimento na tela; desenhá-lo "correto"
+ * daria dois cotocos sobre o peito, ilegíveis. O traço lateral é a convenção que lê.
+ */
+export function IconExSquat({ className }: IconProps) {
+  return (
+    <svg {...figura} className={className} aria-hidden="true">
+      <circle cx="12" cy="7" r="3" />
+      <path d="M12 10.5v4.5 M3.5 13.5H9 M20.5 13.5H15 M12 15l-6 4.5 1.5 6.5 M12 15l6 4.5-1.5 6.5" />
+    </svg>
+  )
+}
+
+/**
+ * Em pé, neutra — a figura de quem ainda não tem figura.
+ *
+ * Existe para o fallback do registro não poder ser o polichinelo: um exercício novo sem pose
+ * própria mostraria "um polichinelo" no card, que é uma afirmação errada sobre o que a pessoa
+ * vai fazer. Esta não afirma nada além de "uma pessoa" — e, sendo visivelmente sem graça,
+ * denuncia a figura faltando em vez de esconder.
+ */
+export function IconExStanding({ className }: IconProps) {
+  return (
+    <svg {...figura} className={className} aria-hidden="true">
+      <circle cx="12" cy="4.5" r="3" />
+      <path d="M12 8v7 M9 9l-1 8 M15 9l1 8 M12 15l-3 10 M12 15l3 10" />
+    </svg>
+  )
+}

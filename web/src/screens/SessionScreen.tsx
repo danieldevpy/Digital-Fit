@@ -28,14 +28,8 @@ import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
-import {
-  IconAngle,
-  IconFlame,
-  IconLogo,
-  IconMirror,
-  IconPlay,
-  IconStop,
-} from '../ui/icons'
+import { ExerciseIcon } from '../ui/exerciseIcon'
+import { IconAngle, IconFlame, IconMirror, IconPlay, IconStop } from '../ui/icons'
 
 /** Silhueta-guia ciano do protótipo — sobre a câmera na pré-configuração. */
 function SilhouetteGuide() {
@@ -235,7 +229,9 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
               onClick={() => navigate({ screen: 'exercicios' })}
             >
               <p className="v2-label">Exercício</p>
-              <IconLogo className="prep-cell__ex-icon" />
+              {/* A figura segue o exercício selecionado (T-082). Mesma classe de antes: o
+                  tamanho, o ciano e o glow continuam vindo do CSS, muda só a pose. */}
+              <ExerciseIcon exercise={exerciseKey} className="prep-cell__ex-icon" />
               <p className="prep-cell__ex-name">{exercise.display_name}</p>
             </button>
 

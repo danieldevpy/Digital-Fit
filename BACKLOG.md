@@ -115,8 +115,23 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-079 | Perfil: histórico vira lista rolável de altura limitada (não come a tela) e o "Sair" deixa de disputar hierarquia com o "Fechar" — primário é fechar, sair é discreto e pede confirmação | 011/014 | done |
 | T-080 | Pré-configuração de borda a borda: a câmera passa a ocupar a tela inteira, com a janela nítida na largura de hoje e o entorno em desfoque escuro sob os cards, que não saem do lugar | 014 | done |
 | T-081 | Assinatura "Digital Fit" discreta em todas as telas do app (escolha, guia, pré-config, treino, progresso, analytics, perfil, relatório) | 014 | done |
+| T-082 | Figura de exercício por slug no card da pré-config (o agachamento herdava o boneco de braços pro alto do polichinelo), com registro `EXERCISE_FIGURES` e teste que cobra a figura de todo exercício novo | 014/015 | done |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-082] A silhueta-guia da câmera continua em pose de polichinelo para todo exercício.** O
+  `SilhouetteGuide` (`screens/SessionScreen.tsx`) desenha braços em V acima da cabeça com
+  coordenadas fixas, e fica na tela durante a pré-configuração inteira — é onde o descasamento
+  mais incomoda, porque a guia é uma instrução ("fique assim"), não decoração. Ficou fora da
+  T-082 por escopo: a task era o card. O caminho já está aberto — o registro
+  `EXERCISE_FIGURES` resolve o "qual exercício", falta a guia ter pose própria na malha dela
+  (`0 0 200 300`, com os 8 pontos de junta). **Proposta: T-083.**
+- **[T-082] Toda figura nova precisa passar pelo teste da proporção, não só pelo olho.** O
+  primeiro desenho do agachamento tinha os joelhos dobrados corretos e razão largura/altura
+  0,65 contra 0,60 do polichinelo — a 22px as duas silhuetas eram a mesma mancha. Só a medição
+  (`getBBox` no browser) mostrou isso; a inspeção visual ampliada não mostra, porque ampliada
+  a diferença de traço é óbvia. Vale virar asserção no `exerciseIcon.test.ts` quando houver
+  uma terceira figura: nenhuma dupla de figuras com razão a menos de ~0,10 uma da outra.
 
 - **[A/T-077] O relatório errado tinha um teste defendendo a causa.** O
   `test_frames_depois_do_fim_abrem_sessao_nova_do_zero` documentava, desde a T-009, que frame

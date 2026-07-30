@@ -5,6 +5,52 @@
 
 ---
 
+## 2026-07-30 (12) · T-082 — Figura de exercício por slug (e a trava para exercício novo)
+
+O Daniel gostou do bonequinho neon e reparou que só havia o de polichinelo: o Agachamento
+mostrava, no card Exercício da pré-configuração, um boneco de braços pro alto. Pedido em duas
+partes — trocar a figura do card **e** deixar o mecanismo pronto para exercícios futuros.
+
+- **A causa não era o desenho, era o reaproveitamento.** O card usava `IconLogo`, que é a
+  assinatura da marca da T-081. Um componente servindo a dois donos (marca fixa por decisão de
+  produto; figura que deve variar por exercício) só podia obedecer a um. Agora são famílias
+  separadas: `IconLogo` continua sendo a marca, e a seção "figuras de exercício" do
+  `ui/icons.tsx` traz `IconExJumpingJack`, `IconExSquat` e `IconExStanding`. A do polichinelo
+  nasce com os mesmos pontos do logotipo — duplicação aceita de propósito, para a próxima
+  mudança no logotipo não mexer numa pose de exercício.
+- **`ui/exerciseFigures.ts` é o registro, e é o único lugar onde se adiciona.** Slug → figura,
+  mais `FIGURA_PADRAO` (a neutra em pé). O componente `ui/exerciseIcon.tsx` só faz a ponte com
+  o JSX; a separação em dois arquivos veio do aviso de fast refresh do ESLint (módulo que
+  exporta componente E constante) e saiu melhor: o registro sendo dado puro é o que deixa o
+  teste lê-lo sem renderizar nada — a suíte roda em `environment: node`, sem DOM.
+- **A parte que o Daniel pediu de verdade: exercício novo ser "reconhecido".** É o
+  `ui/exerciseIcon.test.ts`, que cruza `EXERCISE_KEYS` com `EXERCISE_FIGURES` nas duas direções
+  (exercício sem figura, figura órfã) e falha nomeando o slug. Conferido injetando um `flexao`
+  falso no catálogo: `exercícios sem figura em EXERCISE_FIGURES: flexao`. O bug consertado aqui
+  é de processo — o agachamento entrou no catálogo em T-051 e nada no repositório lembrava que
+  faltava desenhar a pose dele. Ponteiro para o registro também no cabeçalho do `catalog.ts`,
+  que é onde a pessoa chega primeiro.
+- **A medição derrubou o meu próprio desenho.** O primeiro agachamento tinha joelhos dobrados
+  para fora, corretos, e razão largura/altura 0,65 contra 0,60 do polichinelo — a 22px as duas
+  silhuetas eram a mesma mancha. O que distingue figura pequena é a proporção, não o traço.
+  Cabeça foi de `cy=4.5` para `cy=7`, pés e braços abriram: **17×22 contra 14×23,5, razão 0,77
+  contra 0,60**, topo começando 2,5 unidades mais abaixo. A regra que fica está no comentário
+  da `IconExSquat`.
+- **Verificação no caminho real** (`/app/#/preparar`, trocando `digitalfit.exercise` no
+  localStorage), não só no componente: com `squat` o card renderiza `cy=7` e silhueta de razão
+  0,77; com `jumping_jack`, `cy=4.5` e o `d` do X. Nos dois, 22×26px, `rgb(77,210,255)` e o
+  mesmo `drop-shadow` — nenhuma linha de CSS foi tocada, a classe `.prep-cell__ex-icon`
+  continua mandando. `computer screenshot` travou de novo (quirk já conhecido); a evidência é
+  `getBBox`/`getComputedStyle`.
+- **Gates**: `npm run lint`, `npm run typecheck` e `npm run test` (32 arquivos, 331 testes)
+  verdes. Nada de Python foi tocado.
+- **Pendências geradas**: a silhueta-guia da câmera continua em pose de polichinelo para todo
+  exercício — é uma instrução na tela, não decoração, e incomoda mais que o card; proposta
+  T-083. E a asserção de proporção mínima entre figuras, quando houver uma terceira. Ambas em
+  Descobertas do BACKLOG.
+
+---
+
 ## 2026-07-30 (11) · T-079/T-080/T-081 — Melhorias de UI pedidas pelo Daniel
 
 Três pedidos depois de usar o app: o histórico do Perfil comendo a tela, o "Sair" parecendo o

@@ -68,6 +68,10 @@ export const DEFAULT_EXERCISE = 'jumping_jack'
  * `workers/analysis_worker/exercises/`), que rejeita slug desconhecido no `POST /sessions`
  * dizendo quais aceita. Este catálogo é a face visível dela — quem adicionar exercício aqui
  * sem adicionar lá vai receber a recusa da admissão, que é alta e explica o motivo.
+ *
+ * Exercício novo pede também a FIGURA da pose, em `ui/exerciseFigures.ts` (T-082). Essa não
+ * grita em produção — cai numa figura neutra em pé —, então quem cobra é
+ * `ui/exerciseIcon.test.ts`, que falha nomeando o slug sem figura.
  */
 export const EXERCISE_KEYS = Object.keys(EXERCISE_CATALOG)
 
