@@ -30,7 +30,6 @@ import { useSessionStore } from '../store/session'
 import {
   IconAngle,
   IconFlame,
-  IconHeart,
   IconLogo,
   IconMirror,
   IconMusic,
@@ -39,22 +38,6 @@ import {
   IconPrev,
   IconStop,
 } from '../ui/icons'
-
-/** Onda de ECG decorativa dos cards de FC (a referência a mostra; dado real não há). */
-function EcgWave({ color }: { color: string }) {
-  return (
-    <svg width="72" height="16" viewBox="0 0 76 16" aria-hidden="true">
-      <path
-        d="M0 9 C8 9 9 3 16 3 S26 14 34 14 S45 4 52 6 S62 12 70 8 76 7 76 8"
-        fill="none"
-        stroke={color}
-        strokeWidth="1.8"
-        strokeDasharray="6 4"
-        className="hud-wave-path"
-      />
-    </svg>
-  )
-}
 
 /** Silhueta-guia ciano do protótipo — sobre a câmera na pré-configuração. */
 function SilhouetteGuide() {
@@ -89,22 +72,26 @@ function SilhouetteGuide() {
   )
 }
 
-/** Anel de progresso de repetições do HUD (azul, 56px, como no protótipo). */
+/**
+ * Anel de progresso de repetições do HUD. Maior que o do protótipo (76px, número 1.5rem):
+ * quem treina está a ~2 metros da tela, e a repetição é O número da sessão — tem de ser
+ * legível de longe (ajuste pós-teste real de 2026-07-30).
+ */
 function RepsRing({ count, goal }: { count: number; goal: number }) {
-  const R = 25
+  const R = 34
   const C = 2 * Math.PI * R
   const progress = goal > 0 ? Math.min(count / goal, 1) : 0
   return (
     <div className="hud-ring">
-      <svg width="56" height="56" viewBox="0 0 56 56" style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx="28" cy="28" r={R} fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="4" />
+      <svg width="76" height="76" viewBox="0 0 76 76" style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx="38" cy="38" r={R} fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="5" />
         <circle
-          cx="28"
-          cy="28"
+          cx="38"
+          cy="38"
           r={R}
           fill="none"
           stroke="#4d8cff"
-          strokeWidth="4"
+          strokeWidth="5"
           strokeLinecap="round"
           strokeDasharray={`${(C * progress).toFixed(1)} ${C.toFixed(1)}`}
           style={{
@@ -114,7 +101,7 @@ function RepsRing({ count, goal }: { count: number; goal: number }) {
         />
       </svg>
       <div className="hud-ring__content">
-        <p className="hud-card__big tabular">
+        <p className="hud-card__big hud-card__big--xl tabular">
           {count}
           <small>/{goal}</small>
         </p>
@@ -271,14 +258,8 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
               </span>
             </button>
 
-            <div className="prep-cell">
-              <p className="v2-label">Frequência cardíaca</p>
-              <p className="prep-cell__value prep-cell__value--sm">
-                <IconHeart className="prep-cell__hud-icon prep-cell__hud-icon--blue" /> --
-              </p>
-              <p className="prep-cell__unit">BPM</p>
-              <EcgWave color="#8b5cf6" />
-            </div>
+            {/* Frequência cardíaca saiu das duas telas (decisão pós-teste de 2026-07-30):
+                sem sensor o card era só ruído — volta quando houver dado (SPEC-014 §Desvios). */}
 
             <div className="prep-cell">
               <p className="v2-label">Ângulo</p>
@@ -337,13 +318,10 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
             <RepsRing count={repCount} goal={repsGoal} />
           </div>
 
-          <div className="hud-card hud-card--fc">
-            <p className="v2-label">Frequência cardíaca</p>
-            <p className="hud-card__big">
-              <IconHeart className="hud-card__icon hud-card__icon--blue" /> --
-            </p>
-            <p className="prep-cell__unit">BPM</p>
-            <EcgWave color="#4d8cff" />
+          {/* Timer no topo-direito (onde a referência punha a FC): a 2 metros da tela, reps
+              e tempo são os dois números que importam — ficam os dois na linha dos olhos. */}
+          <div className="hud-card hud-card--timer">
+            <TimerRing secondsLeft={secondsLeft} secondsTotal={durationS} />
           </div>
 
           <div className="hud-card hud-card--angle">
@@ -369,22 +347,13 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
             </div>
           )}
 
-          <div className="live__serie">
-            <p className="v2-label">Série</p>
-            <p className="hud-card__big tabular" style={{ fontSize: '0.9375rem' }}>
-              1/{series}
-            </p>
-          </div>
-
+          {/* O card SÉRIE flutuante saiu: a informação já vive no subtítulo do topo, e no
+              rodapé ele colidia com o pill do exercício (bug visual do teste real). */}
           <div className="live__ex-pill">
             <div className="live__ex-pill-box">
               <p className="live__ex-name">{exercise.display_name}</p>
               <p className="live__ex-sub">{exerciseSubtitle(exercise)}</p>
             </div>
-          </div>
-
-          <div className="live__timer">
-            <TimerRing secondsLeft={secondsLeft} secondsTotal={durationS} />
           </div>
 
           <div className="live__player">

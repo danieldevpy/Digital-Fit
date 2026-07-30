@@ -44,6 +44,19 @@
   duração configurável depende da SPEC-009 evolução; testar blur do HUD em aparelho real
   (degradar para fundo sólido se houver jank — SPEC-014 §Materiais).
 
+**Mesma data, segunda rodada — ajustes do teste em aparelho real (SPEC-014 §Revisão):**
+
+- Demo dos cards de exercício inteira (`contain` sobre `--bg`), sem corte.
+- FC removida das duas telas (sem sensor = ruído); anel de reps maior (76px) e TEMPO
+  RESTANTE promovido ao topo-direito — reps e tempo legíveis a ~2 metros.
+- Card SÉRIE flutuante removido (info já está no subtítulo; colidia com o pill) e rodapé
+  reespaçado com `env(safe-area-inset-bottom)` — o player ficava sob a barra do navegador.
+- **Relatório sobrevive ao F5**: `report/lastReport.ts` persiste o último relatório
+  (`digitalfit.last_report`); o store rehidrata no boot e reabre a folha se estava aberta;
+  "Fechar" persiste fechado sem apagar os dados. Verificado no browser: reload com folha
+  aberta reabre com os mesmos números; reload após fechar não reabre e mantém o dado.
+- Gates: `tsc` + `eslint` limpos, `vitest` 288/288.
+
 ---
 
 ## 2026-07-29 · T-032 — Exercício 2: o agachamento

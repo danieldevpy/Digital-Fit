@@ -137,6 +137,17 @@ FC real, kcal ao vivo (SPEC-016), pause real, música, duração configurável n
 5. Navegação por hash: back do navegador volta uma tela; refresh mantém a tela.
 6. Gates verdes: lint, typecheck, testes (os testes de `hud/` e `session/` existentes continuam passando ou são atualizados junto).
 
+## Revisão 2026-07-30 — pós-teste em aparelho real
+
+Ajustes decididos pelo Daniel depois do primeiro treino de verdade na interface nova:
+
+1. **Cards de frequência cardíaca removidos das duas telas** (pré-config e treino): sem sensor, o `--` era só ruído. Voltam quando existir dado real.
+2. **Treino legível a ~2 metros**: anel de repetições maior (76px, número 1.5rem) no topo-esquerdo e o anel de TEMPO RESTANTE promovido ao topo-direito (onde a referência punha a FC) — os dois números que importam ficam na linha dos olhos.
+3. **Card SÉRIE flutuante removido** do rodapé do treino: a informação já vive no subtítulo do topo ("Polichinelo • Série 1/1") e o card colidia com o pill do exercício.
+4. **Rodapé sem colisões + safe area**: pill, toast e player espaçados e com `env(safe-area-inset-bottom)` — o botão do player ficava sob a barra do navegador do celular.
+5. **Demo dos cards de exercício aparece inteira** (`object-fit: contain` sobre `--bg`), sem corte.
+6. **Último relatório persiste no aparelho** (`digitalfit.last_report`): F5 depois do treino reabre a folha se estava aberta; fechar mantém os dados guardados sem reabrir. A autoridade continua no servidor (SPEC-010) — isto é carbono local.
+
 ## Desvios da referência (honestidade > fidelidade)
 
 | Referência mostra | Produto faz | Por quê |

@@ -1,5 +1,6 @@
 // Estado da sessão em um único store (convenções §Código).
 import { create } from 'zustand'
+import { loadLastReport, markLastReportClosed, saveLastReport } from '../report/lastReport'
 import type {
   Mode,
   Phase,
@@ -168,6 +169,20 @@ export interface SessionState {
   resetPipeline: () => void
 }
 
+/**
+ * Rehidrata o último relatório do aparelho (F5 depois do treino não pode apagar o
+ * resultado). Se a folha estava aberta quando a página morreu, reabre.
+ */
+function hydrateReport() {
+  const stored = loadLastReport()
+  if (!stored) return {}
+  return {
+    report: stored.report,
+    reportStatus: 'ready' as ReportStatus,
+    reportOpen: stored.open,
+  }
+}
+
 const SESSION_DEFAULTS = {
   sessionId: null,
   exerciseKey: null,
@@ -207,6 +222,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   videoFileName: null,
   gatewayStatus: 'idle',
   ...SESSION_DEFAULTS,
+  ...hydrateReport(),
   error: null,
 
   setCameraStatus: (cameraStatus) => set({ cameraStatus }),
@@ -297,9 +313,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (get().reportStatus !== 'idle') return
     set({ reportStatus: 'loading', reportOpen: true })
   },
-  applyReport: (report) => set({ report, reportStatus: 'ready' }),
+  applyReport: (report) => {
+    // Persistido com a folha aberta: quem der F5 com o relatório na tela o reencontra.
+    saveLastReport(report, get().reportOpen)
+    set({ report, reportStatus: 'ready' })
+  },
   failReport: () => set({ reportStatus: 'error' }),
-  closeReport: () => set({ reportOpen: false }),
+  closeReport: () => {
+    markLastReportClosed()
+    set({ reportOpen: false })
+  },
 
   resetSession: () => set({ ...SESSION_DEFAULTS }),
   setError: (error) => set({ error }),
