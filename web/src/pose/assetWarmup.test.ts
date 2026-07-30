@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { warmAssets, warmupLabel, type AssetProgress } from './assetWarmup'
 
-/** `fetch` de mentira: HEAD devolve o tamanho, GET devolve o corpo em pedaços. */
+/**
+ * `fetch` de mentira: HEAD devolve o tamanho, GET devolve o corpo em pedaços. `manifesto` é o
+ * conteúdo de `/pose-assets.json`; `null` simula a ausência do arquivo.
+ */
 function fakeFetch(
   arquivos: Record<string, { tamanho: number | null; pedacos: number[]; encoding?: string }>,
   registro: string[] = [],
+  manifesto: Record<string, number> | null = null,
 ): typeof fetch {
   return ((url: string, init?: RequestInit) => {
+    if (url === '/pose-assets.json') {
+      return Promise.resolve(
+        manifesto
+          ? ({ ok: true, json: () => Promise.resolve(manifesto), headers: new Headers() } as unknown as Response)
+          : ({ ok: false, headers: new Headers() } as Response),
+      )
+    }
     const arquivo = arquivos[url]
     if (!arquivo) return Promise.resolve({ ok: false, body: null, headers: new Headers() } as Response)
 
@@ -71,7 +82,45 @@ describe('warmAssets', () => {
     expect(vistos.every((p) => p.total === null)).toBe(true)
   })
 
-  it('resposta comprimida zera o total: Content-Length é da rede, os bytes lidos são do stream', async () => {
+  it('com manifesto, a porcentagem sobrevive ao gzip — é o caso de produção', async () => {
+    const vistos: AssetProgress[] = []
+    const fetchImpl = fakeFetch(
+      { '/wasm/a.wasm': { tamanho: null, pedacos: [400, 600], encoding: 'gzip' } },
+      [],
+      { 'a.wasm': 1000 },
+    )
+    await warmAssets(['/wasm/a.wasm'], (p) => vistos.push(p), fetchImpl)
+    // Total vem do disco (1000), não da rede — e os bytes lidos são descomprimidos, então batem.
+    expect(vistos).toEqual([
+      { recebidos: 0, total: 1000 },
+      { recebidos: 400, total: 1000 },
+      { recebidos: 1000, total: 1000 },
+    ])
+  })
+
+  it('manifesto casa por nome de arquivo, não pela URL inteira', async () => {
+    const vistos: AssetProgress[] = []
+    const fetchImpl = fakeFetch(
+      { 'https://cdn.exemplo.com/v2/wasm/a.wasm?x=1': { tamanho: null, pedacos: [50] } },
+      [],
+      { 'a.wasm': 50 },
+    )
+    await warmAssets(['https://cdn.exemplo.com/v2/wasm/a.wasm?x=1'], (p) => vistos.push(p), fetchImpl)
+    expect(vistos.at(-1)).toEqual({ recebidos: 50, total: 50 })
+  })
+
+  it('arquivo fora do manifesto cai no HEAD em vez de somar total errado', async () => {
+    const vistos: AssetProgress[] = []
+    const fetchImpl = fakeFetch(
+      { '/wasm/a.wasm': { tamanho: 300, pedacos: [300] } },
+      [],
+      { 'outro.wasm': 999 },
+    )
+    await warmAssets(['/wasm/a.wasm'], (p) => vistos.push(p), fetchImpl)
+    expect(vistos.at(-1)).toEqual({ recebidos: 300, total: 300 })
+  })
+
+  it('sem manifesto, resposta comprimida zera o total: Content-Length é da rede', async () => {
     const vistos: AssetProgress[] = []
     const fetchImpl = fakeFetch({
       '/wasm/a.wasm': { tamanho: 300, pedacos: [1000], encoding: 'gzip' },

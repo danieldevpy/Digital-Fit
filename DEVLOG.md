@@ -5,6 +5,48 @@
 
 ---
 
+## 2026-07-30 (7) · T-071 — Porcentagem de volta e o HUD do treino sem colisao
+
+Dois ajustes pedidos pelo Daniel depois de o gzip entrar em producao, com foto do celular.
+
+- **A porcentagem sumiu porque o gzip funcionou.** Meu guarda da T-070 zera o total quando a
+  resposta vem comprimida (`Content-Length` e tamanho de rede; os bytes contados saem do stream
+  descomprimido). Com gzip ligado, isso passou a valer sempre — e sobrava "3,4 MB baixados", sem
+  denominador. Verificado que nao ha saida pelo servidor: sob gzip o nginx responde SEM
+  `Content-Length` nem no GET nem no HEAD, e o `fetch` do browser proibe pedir `identity`
+  (`Accept-Encoding` e cabecalho proibido).
+- **Conserto**: o tamanho passa a vir de quem conhece os arquivos — o build.
+  `scripts/setup-mediapipe.mjs` escreve `public/pose-assets.json` (nome → bytes DESCOMPRIMIDOS),
+  e o cliente casa por basename, nao pela URL inteira, porque o caminho do wasm sai do
+  FilesetResolver e pode vir absoluto ou com query. O `Content-Length` por HEAD fica como
+  fallback para o caso sem manifesto e sem compressao. Total real medido: **16,5 MB** — o mesmo
+  numero que o Daniel viu no waterfall.
+- **O HUD embaralhado tinha uma causa de unidade.** A pilha do rodape e em px a partir de baixo,
+  mas os cards de angulo/calorias estavam em `top: 46%`. Em tela alta os 46% caiam exatamente
+  sobre a faixa dos avisos: na foto, o texto do modo cloud sai por baixo dos dois cards,
+  ilegivel. Agora os quatro cards ficam em px fixos (64 e 188), o que torna a distancia entre os
+  grupos independente da altura do aparelho — e agrupa os numeros no terco de cima, que serve ao
+  objetivo de ler a 2 metros e deixa o meio da imagem livre.
+- **Instrucao modal passou a mandar na tela.** `stage__prepare` ganhou `z-index` (os avisos do
+  palco vinham depois no DOM e pintavam por cima da frase "Bracos ao lado do corpo…") e, durante
+  a medicao, o cromo flutuante sai: cards, pill e aro somem. Todos mostravam `0`, `--` e o tempo
+  cheio — nada contava ainda, e juntos eram o que tornava a tela ilegivel. Ficam o cabecalho, o
+  toast do coach (que explica POR QUE a medicao nao fecha — na foto, "voce saiu do quadro") e a
+  barra com o stop.
+- **Aviso de cloud encurtado**: a versao longa explicava probe, extracao no servidor e ausencia
+  de esqueleto em tres linhas. O "por que" e diagnostico e ja vive no chip de dev (o `*` de
+  `forced`); no produto ficou uma linha com o que muda para quem treina. Tambem sai de cena
+  durante a medicao.
+- Medido no browser com todos os elementos presentes ao mesmo tempo, nos dois estados: medindo
+  (cards/pill/aro ocultos, nada por cima da instrucao) e em andamento (folgas de 12 a 350px,
+  nada por cima do aviso de cloud). Manifesto verificado no dev server, no `dist` e servido pelo
+  nginx (200, `application/json`).
+- A foto tambem confirmou, de passagem, o que a T-069 levantou como hipotese: **o aparelho do
+  Daniel esta caindo em modo CLOUD** ("a analise roda no servidor") e recebendo `OUT_OF_FRAME`
+  por estar perto demais da camera. Nao e bug — e o probe decidindo — mas explica a ausencia de
+  esqueleto na tela dele.
+- Gates: `tsc -b`, `eslint`, `vitest` 326/326 (3 novos em `assetWarmup`), build.
+
 ## 2026-07-30 (6) · T-070 — A compressao nao existia em producao: `gzip_http_version` x `proxy_pass`
 
 O Daniel testou depois do commit anterior: total ainda 16 MB, e recarregar a pagina baixava o

@@ -94,7 +94,8 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-067 | Fronteira SITE \| APP: dois entry points do Vite, links cruzados por `VITE_SITE_URL`/`VITE_APP_URL`, pontes `#/ex/:slug` e `#/entrar`, nginx e `prod.sh` prontos para subdomínio (ADR-010) | 014 | done |
 | T-068 | Tab bar Início · Progresso · Analytics · Perfil, play/stop como FAB no treino, telas Progresso e Analytics, rodapé do treino reempilhado e medido | 014 | done |
 | T-069 | Portão de partida: sessão só é pedida quando o pipeline pode emitir frame; prazo de 12s no landmarker com queda GPU→CPU; estado de aquecimento visível na tela | 001/009 | done |
-| T-070 | Assets de pose baixados UMA vez (fim do download duplicado que o prazo da T-069 causava), fileset reaproveitado entre tentativas, progresso do download na tela | 001 | done |
+| T-070 | Assets de pose baixados UMA vez (fim do download duplicado que o prazo da T-069 causava), fileset reaproveitado entre tentativas, progresso do download na tela; gzip do `.wasm` no nginx (incluindo `gzip_http_version 1.0`, sem o qual nada comprime atrás do proxy) | 001 | done |
+| T-071 | Porcentagem do download sobrevive ao gzip (manifesto de tamanhos no build) + HUD do treino sem colisão: cards em px, instrução de medição manda na tela, aviso de cloud curto | 001/014 | done |
 
 ### Futuras (specs prontas, implementar depois)
 
@@ -123,10 +124,9 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
   em `#/treino`, onde essas escolhas já foram feitas na pré-configuração. Não é o bug do
   rodapé (aquele saiu) — é ruído herdado da SPEC-013. Provável correção: passar
   `compactCover` também no treino, ou uma capa própria com "voltar à pré-configuração".
-- **[T-068] Chip de diagnóstico pode encostar nos cards de ângulo/calorias** em telas mais
-  baixas que ~740px, porque os cards do meio ficam em `top: 46%` e a pilha do rodapé é em px.
-  Só afeta dev/admin (T-048). Correção natural quando alguém tocar no HUD: posições
-  determinísticas em px para os cards do meio.
+- ~~**[T-068] Chip de diagnóstico pode encostar nos cards de ângulo/calorias**~~ — resolvido na
+  T-071: os cards do meio saíram de `top: 46%` e foram para px fixos, então a distância entre o
+  grupo de cima e a pilha do rodapé não depende mais da altura do aparelho.
 
 - **[A/T-001] Serviço `web` fora do compose**: a T-001 entregou apenas `redis`, `postgres` e
   `api`; `web/` ficou como pasta com README (território do Agente B). Quem criar o Vite

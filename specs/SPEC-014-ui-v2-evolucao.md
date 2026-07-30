@@ -115,14 +115,15 @@ Câmera em tela cheia com esqueleto branco-glow (canvas existente); gradientes d
 - Aro orbital decorativo (`dfSpin`) atrás do esqueleto.
 - Card REPETIÇÕES (topo-esq): anel azul com progresso `reps/meta` real (`rep.detected`); sem meta, anel cheio e contador simples.
 - Card FREQUÊNCIA CARDÍACA (topo-dir): `--` BPM + onda (placeholder honesto até existir sensor).
-- Card ÂNGULO (meio-esq): ângulo ao vivo (T-044).
-- Card CALORIAS (meio-dir): `--` na Fase Inicial; kcal ao vivo na SPEC-016.
+- Card ÂNGULO e card CALORIAS: logo abaixo dos dois de cima, em posição FIXA em px (T-071 — a referência os punha a meia altura, e `top: 46%` colidia com a faixa dos avisos em telas altas; misturar % com a pilha do rodapé em px é o que embaralhou a tela no teste real). Ângulo ao vivo (T-044); calorias `--` na Fase Inicial, ao vivo na SPEC-016.
 - Card SÉRIE (baixo-esq): `1/1` na Fase Inicial.
 - Pill central: nome do exercício em caps 800 + "CARDIO • CORPO INTEIRO".
 - Anel TEMPO RESTANTE (baixo-dir): countdown real da sessão (TimerRing, roxo, autoridade no servidor).
 - Rodapé (revisto na T-068): a **tab bar do app com o botão da sessão no meio** — 66px roxo radial com `dfPulse`, ícone de stop enquanto a sessão roda (pause real não existe no servidor; fingir pause é mentir) e de play antes dela. O player flutuante de 4 botões da referência saiu: ⏮/⏭/música eram placeholders desabilitados, e era o posicionamento absoluto deles que produzia as colisões do rodapé. Trocar de exercício continua sendo papel da pré-configuração. Música é Evolução (SPEC-009).
 
 Warnings de cena e dica do treinador (SPEC-008): entram como toast/pill glass acima do player, mesma regra de prioridade da SPEC-013 §4.
+
+**Instrução modal manda na tela (T-071, vinculante).** Enquanto o servidor mede o corpo (SPEC-004, "Fique em pé, parado"), o cromo flutuante sai: cards, pill do exercício e aro orbital somem, e avisos de status não-acionáveis (como o de modo cloud) também. Todos mostram `0`, `--` ou o tempo cheio naquele instante — nada conta ainda, e juntos tornam a instrução ilegível. Ficam o cabeçalho, o toast do coach (que é o que explica por que a medição não fecha) e a barra com o stop.
 
 ### 5. Sobre / Footer (tela 5)
 

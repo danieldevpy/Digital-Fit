@@ -141,6 +141,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   const armAngleDeg = useSessionStore((state) => state.armAngleDeg)
   const exerciseKeyLive = useSessionStore((state) => state.exerciseKey)
   const toggleMirrored = useSessionStore((state) => state.toggleMirrored)
+  const sessionStatus = useSessionStore((state) => state.sessionStatus)
   const sceneEntry = useSessionStore((state) => state.sceneEntry)
   const feedbackEntry = useSessionStore((state) => state.feedbackEntry)
   const { secondsLeft, durationS } = useCountdown()
@@ -289,7 +290,8 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
           </div>
         </>
       ) : (
-        <div className="live__chrome">
+        // Medindo o corpo (SPEC-004): a instrução central manda, e o HUD sai da frente.
+        <div className={`live__chrome ${sessionStatus === 'calibrating' ? 'live__chrome--medindo' : ''}`}>
           <div className="live__fade-top" />
           <div className="live__fade-bottom" />
 

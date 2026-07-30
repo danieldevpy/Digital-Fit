@@ -62,19 +62,34 @@ export async function warmAssets(
   }
 }
 
+/** Manifesto escrito por `scripts/setup-mediapipe.mjs`: nome do arquivo → bytes descomprimidos. */
+const MANIFEST_URL = '/pose-assets.json'
+
 /**
- * Soma o `Content-Length` dos assets, por HEAD. `null` se qualquer um não responder o tamanho:
- * porcentagem calculada sobre total parcial mostraria "137%", que é pior que não mostrar nada.
+ * Quanto esperar no total.
  *
- * Também devolve `null` quando a resposta vem comprimida: `Content-Length` é o tamanho NA REDE
- * e os bytes que contamos saem do stream já descomprimido. Comparar os dois daria "340%" no dia
- * em que o gzip do `.wasm` for ligado no nginx — 11,0 MB lidos contra 3,2 MB anunciados.
+ * Duas fontes, nesta ordem, e a ordem importa:
+ *
+ * 1. **o manifesto do build** — a única que funciona com gzip ligado. Sob compressão o nginx
+ *    responde SEM `Content-Length` (verificado: nem no GET, nem no HEAD), e o `fetch` não deixa
+ *    pedir `identity` porque `Accept-Encoding` é cabeçalho proibido no browser. Como contamos
+ *    bytes do stream já descomprimido, o número certo é o do arquivo em disco — que é
+ *    exatamente o que o manifesto guarda.
+ * 2. **`Content-Length` por HEAD** — vale quando não há manifesto e a resposta vem crua.
+ *
+ * `null` significa "não sei", e a tela mostra só o que já veio. Porcentagem sobre total chutado
+ * seria pior que porcentagem nenhuma.
  */
 async function totalBytes(urls: readonly string[], fetchImpl: typeof fetch): Promise<number | null> {
+  const doManifesto = await totalFromManifest(urls, fetchImpl)
+  if (doManifesto !== null) return doManifesto
+
   let soma = 0
   for (const url of urls) {
     try {
       const resposta = await fetchImpl(url, { method: 'HEAD' })
+      // Resposta comprimida: `Content-Length` é tamanho de rede, e comparar com bytes
+      // descomprimidos daria "340%" — 11,0 MB lidos contra 3,2 MB anunciados.
       if (resposta.headers.get('content-encoding')) return null
       const tamanho = Number(resposta.headers.get('content-length'))
       if (!Number.isFinite(tamanho) || tamanho <= 0) return null
@@ -84,6 +99,30 @@ async function totalBytes(urls: readonly string[], fetchImpl: typeof fetch): Pro
     }
   }
   return soma
+}
+
+async function totalFromManifest(
+  urls: readonly string[],
+  fetchImpl: typeof fetch,
+): Promise<number | null> {
+  try {
+    const resposta = await fetchImpl(MANIFEST_URL)
+    if (!resposta.ok) return null
+    const sizes = (await resposta.json()) as Record<string, unknown>
+
+    let soma = 0
+    for (const url of urls) {
+      // Por nome de arquivo, não pela URL inteira: o caminho do wasm sai do FilesetResolver e
+      // pode vir absoluto, com base diferente ou com query — o basename é o que é estável.
+      const nome = url.split('?')[0]?.split('/').pop() ?? ''
+      const tamanho = sizes[nome]
+      if (typeof tamanho !== 'number' || !Number.isFinite(tamanho) || tamanho <= 0) return null
+      soma += tamanho
+    }
+    return soma
+  } catch {
+    return null
+  }
 }
 
 /**

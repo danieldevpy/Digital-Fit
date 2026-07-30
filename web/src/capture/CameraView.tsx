@@ -170,13 +170,20 @@ export function CameraView({ compactCover = false }: CameraViewProps) {
         <p className="stage__banner">Conectando ao servidor…</p>
       )}
 
-      {isReady && isCloud && (
+      {/* Sem esqueleto por design: no cloud os landmarks nascem no pose-worker, e `pose.frame`
+          não volta ao cliente (CLIENT_PUSH_TYPES). A contagem aparece normalmente — vem de
+          `rep.detected`.
+
+          Texto curto (T-071): a versão longa explicava probe, extração no servidor e ausência de
+          esqueleto em três linhas, e em aparelho real ela vazava por baixo dos cards do HUD —
+          ilegível justamente por querer explicar demais. O "por que" do modo é diagnóstico e
+          mora no chip de dev; aqui fica só o que muda para quem treina.
+
+          Escondida durante a medição: naquele instante a instrução "fique em pé, parado" é a
+          tela, e um aviso de status não pode disputar espaço com ela. */}
+      {isReady && isCloud && sessionStatus !== 'calibrating' && (
         <p className="stage__banner stage__banner--cloud">
-          {/* Sem esqueleto por design: no cloud os landmarks nascem no pose-worker, e
-              `pose.frame` não volta ao cliente (CLIENT_PUSH_TYPES). A contagem aparece
-              normalmente — ela vem de `rep.detected`. */}
-          Modo cloud {capability?.forced ? '(forçado por ?mode=)' : 'escolhido pelo probe'} — a pose
-          é extraída no servidor, então não há esqueleto sobre a imagem.
+          Modo cloud · a análise roda no servidor, sem esqueleto sobre a imagem.
         </p>
       )}
 

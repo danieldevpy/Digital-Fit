@@ -205,10 +205,15 @@ a {
 }
 
 /* Preparação (SPEC-004): fica no CENTRO, não na faixa de baixo dos avisos. É instrução
-   para agir agora — "fique parado" precisa ser visto antes de a pessoa começar a pular. */
+   para agir agora — "fique parado" precisa ser visto antes de a pessoa começar a pular.
+
+   `z-index` porque em aparelho real os avisos do palco (que vêm depois no DOM) pintavam POR CIMA
+   desta instrução: a frase "Braços ao lado do corpo…" aparecia atravessada pelo texto do modo
+   cloud. Instrução modal não divide espaço — ou é a tela, ou não serve (T-071). */
 .stage__prepare {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2085,6 +2090,16 @@ a {
   pointer-events: none;
 }
 
+/* Enquanto o servidor mede o corpo, a instrução é a tela (T-071).
+   Os cards que somem mostram `0`, `--` e o tempo cheio — nada ainda conta, e todos juntos eram o
+   que deixava a tela ilegível no teste real. Ficam: o cabeçalho (onde se está), o toast do coach
+   (que explica POR QUE a medição não fecha — "você saiu do quadro") e a barra com o stop. */
+.live__chrome--medindo .hud-card,
+.live__chrome--medindo .live__ex-pill,
+.live__chrome--medindo .live__orbit {
+  display: none;
+}
+
 .live__head {
   position: absolute;
   top: 14px;
@@ -2145,10 +2160,20 @@ a {
   text-align: center;
 }
 
+/* Os quatro cards ficam no terço de cima, em posições FIXAS em px.
+
+   Ângulo e calorias estavam em `top: 46%`, e foi essa mistura de unidades que produziu a tela
+   embaralhada do teste real: a pilha do rodapé é medida em px a partir de baixo, então em telas
+   altas os 46% caíam exatamente sobre a faixa dos avisos — o texto do modo cloud saía por baixo
+   dos cards. Com px dos dois lados, a distância entre os dois grupos não depende mais da altura
+   do aparelho (T-071).
+
+   De quebra é melhor para o objetivo de ler a 2 metros: os números agrupados em cima, na linha
+   dos olhos, e o meio da imagem livre para ver o próprio corpo. */
 .hud-card--reps { top: 64px; left: 12px; width: 112px; border-color: rgba(77, 140, 255, 0.35); }
 .hud-card--timer { top: 64px; right: 12px; border-color: rgba(139, 92, 246, 0.35); }
-.hud-card--angle { top: 46%; left: 12px; width: 88px; border-color: rgba(139, 92, 246, 0.3); }
-.hud-card--kcal { top: 46%; right: 12px; width: 88px; border-color: rgba(245, 168, 61, 0.3); }
+.hud-card--angle { top: 188px; left: 12px; width: 88px; border-color: rgba(139, 92, 246, 0.3); }
+.hud-card--kcal { top: 188px; right: 12px; width: 88px; border-color: rgba(245, 168, 61, 0.3); }
 
 .hud-card__big {
   margin: 0;
