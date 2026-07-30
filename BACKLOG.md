@@ -113,10 +113,11 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
   frames reais. Dá para começar o download na Escolha ou na Pré-configuração (`link
   rel=prefetch` ou fetch em idle) e ter o modelo em cache quando a câmera abrir. Não entra na
   T-069 porque muda o carregamento de outras telas, não a partida da sessão.
-- **[T-069] `.wasm` não é comprimido pelo nginx**: `docker/web-nginx.conf` deixa `.wasm` fora do
-  `gzip_types` com a justificativa de que já é binário comprimido — medido, é falso: 11,0 MB
-  → 3,2 MB. O `.task` de fato ganha pouco (5,5 → 4,7 MB). Ligar só o `.wasm` derruba o primeiro
-  acesso de 17,3 para 7,9 MB. Deixado fora da T-069 a pedido do Daniel (ele aplica no nginx).
+- **[T-070] Gerar os `.gz` no build para o `gzip_static` pagar**: o `web-nginx.conf` já tem
+  `gzip_static on` (serve `arquivo.gz` pronto, zero CPU) com `gzip on` como rede de segurança.
+  Hoje só o segundo caminho atua: comprime 11 MB a cada requisição numa VPS de 4 vCPU que também
+  roda dois pose-workers. Um `gzip -9 -k` no `scripts/setup-mediapipe.mjs` resolve, sem tocar no
+  nginx de novo.
 - **[T-068] Capa da câmera desligada repete escolhas na tela de treino**: com a câmera
   fechada, `.stage__cover` mostra "Ligar câmera" + ExercisePicker + CountdownSetting também
   em `#/treino`, onde essas escolhas já foram feitas na pré-configuração. Não é o bug do

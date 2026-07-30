@@ -84,6 +84,36 @@ Cole, ajuste, recarregue, rode o certbot. O trecho que **não** pode ser simplif
 `/ws/`: sem os headers de `Upgrade`/`Connection`, o WebSocket vira um GET comum, o handshake
 falha, e o cliente mostra só "sem conexão" sem nenhuma pista.
 
+## Compressão dos assets de pose
+
+O primeiro acesso baixa o runtime de visão computacional, e ele é grande. O `web-nginx.conf`
+comprime o `.wasm` (T-070) — medido na própria imagem `nginx:1.27-alpine`:
+
+| asset | sem gzip | com gzip |
+|---|---|---|
+| `vision_wasm_internal.wasm` | 11,0 MB | **3,2 MB** |
+| `pose_landmarker_lite.task` | 5,5 MB | fica fora (5,5 → 4,7 não paga a CPU) |
+| **total do primeiro acesso** | 17,3 MB | **8,7 MB** |
+
+Duas diretivas, nesta ordem: `gzip_static on` serve `arquivo.gz` pronto quando ele existe (zero
+CPU por requisição) e `gzip on` comprime na hora quando não existe. Hoje não há passo de build
+gerando os `.gz`, então vale o segundo caminho — que funciona, só custa CPU. Gerar os `.gz` no
+`npm run setup` é a otimização seguinte e não exige mexer no nginx de novo.
+
+Se você comprimir no **seu** nginx em vez do do container, lembre de `gzip_proxied any;`: por
+padrão o nginx não comprime resposta que veio de `proxy_pass`, e `gzip on` sozinho no server
+block não faz nada para conteúdo proxiado. É o erro mais comum aqui.
+
+Conferir em produção:
+
+```bash
+curl -s -H 'Accept-Encoding: gzip' -o /dev/null -D - \
+  https://SEU-DOMINIO/wasm/vision_wasm_internal.wasm | grep -i 'content-encoding\|content-length'
+```
+
+Esperado: `content-encoding: gzip`. Se não aparecer, a imagem do `web` não foi reconstruída —
+a config entra no container em build time, então precisa de `./scripts/prod.sh up`, não restart.
+
 ## SITE e APP: um artefato, duas fronteiras
 
 Desde a T-067 o cliente são **dois** SPAs no mesmo build:

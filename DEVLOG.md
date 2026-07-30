@@ -40,7 +40,16 @@ vision_wasm_internal.wasm   11.532 kB   40,07 s
   ponto de falha no caminho de treinar.
 - Gates: `tsc -b`, `eslint`, `vitest` 323/323 (9 novos em `assetWarmup`), build.
 - Confirmado no waterfall do Daniel: a compressão do `.wasm` **não** estava ativa (11.532 kB
-  transferidos = tamanho cru). Segue como pendência dele, com os números no BACKLOG.
+  transferidos = tamanho cru).
+- **Compressão aplicada em seguida, a pedido dele**, no `docker/web-nginx.conf`: `gzip_static on`
+  (serve `.gz` pronto quando existir) + `application/wasm` no `gzip_types` (rede de segurança que
+  comprime na hora). Verificado NA IMAGEM `nginx:1.27-alpine`, não no papel: `nginx -V` tem
+  `--with-http_gzip_static_module` (sem isso a diretiva derrubaria o container), `nginx -t` passa
+  sem avisos, o `dist` real servido devolve `Content-Encoding: gzip` com **3,2 MB** contra 11,0,
+  o descomprimido é byte a byte idêntico ao original, o `.task` continua sem comprimir e o
+  fallback de rota do `/app/` segue respondendo 200. O bloco `types` próprio saiu: o mime.types
+  do nginx 1.27 já traz `application/wasm` (linha 55), e declarar de novo só geraria aviso de
+  extensão duplicada.
 
 ## 2026-07-30 (4) · T-069 — "Paramos de te ver na câmera" não era a câmera
 
