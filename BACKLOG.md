@@ -78,6 +78,29 @@
 | T-045 | Meta de reps (`target_reps`, fim por `target_reached`) + séries/circuitos com descanso | 013/009 | todo |
 | T-046 | KCAL estimada (MET × peso do perfil) + acumulado do dia + telas Exercícios/Progresso/Perfil | 013/010/011 | todo |
 
+## Fase 4 — UI v2 (Evolução da interface — SPEC-014/015; plano em `docs/PLANO-UI-V2.md`)
+
+Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-completo-mobile.png` + `referencias/index.png`. Só o Index é responsivo pc/mobile; o app de exercício mantém aspecto mobile.
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-056 | Tokens v2 (Manrope/Space Grotesk, paleta azul/roxo/ciano, animações df*) + roteador por hash + shell/tab bar nova | 014 | done |
+| T-057 | Index responsivo (landing mobile + desktop com mini-HUD decorativo e footer) com hero Kairogen | 014 | done |
+| T-058 | Tela Escolha de exercício (cards com demo, badge 30s, dot de grupo) + campos novos no catálogo | 014 | done |
+| T-059 | Tela Guia passo a passo (primeiro acesso por exercício, imagens Kairogen, "visto" no localStorage) | 015 | done |
+| T-060 | Pré-configuração funcional: steppers série/reps/duração, espelhar, câmera com grade+scan+silhueta, FC/kcal `--` | 014 | done |
+| T-061 | Treino ao Vivo imersivo: HUD flutuante (anéis reais de reps/tempo, ângulo), player (stop honesto), toasts de cena/coach | 014 | done |
+| T-062 | Tela Sobre / footer mobile | 014 | done |
+
+### Futuras (specs prontas, implementar depois)
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-063 | Modo Free: quota diária no servidor (`quota_exceeded`), sheet de limite, kcal só ao vivo | 016 | todo |
+| T-064 | Modo Assinatura: flag de plano, duração configurável, modos de exercício, acúmulo de kcal, Modo Efeito | 016 | todo |
+| T-065 | Perfil físico (peso/altura), kcal MET real, IMC, série temporal de peso, Progresso realista | 017 | todo |
+| T-066 | GIF/vídeo de demonstração por exercício (Escolha + Guia) | 015 | todo |
+
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
 - **[A/T-001] Serviço `web` fora do compose**: a T-001 entregou apenas `redis`, `postgres` e

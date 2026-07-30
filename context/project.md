@@ -37,7 +37,11 @@ React + Vite (web) · Django + DRF + Channels (api/gateway) · Python puro/numpy
 | 010 | Relatório, Persistência & Dataset | worker |
 | 011 | API SaaS (auth, quotas, planos) | api |
 | 012 | Fontes de Entrada & Bancada de Avaliação (`evalctl`, corpus de vídeos rotulados) | cli/client |
-| 013 | Interface Mobile — vinculante p/ UI; referência visual em `referencias/ui-sessao-mobile-v1.png` | client |
+| 013 | Interface Mobile — contratos de dados da UI (a camada visual foi substituída pela 014) | client |
+| 014 | Interface v2 — vinculante p/ UI; referências em `referencias/app-completo-mobile.png`, `referencias/index.png` e protótipo Claude Design "Evolução UI v2" | client |
+| 015 | Primeiro Acesso Guiado (Index → Escolha → Guia → Treino) | client |
+| 016 | Planos Free × Assinatura (quotas no servidor; UI reflete) | api/client |
+| 017 | Perfil Físico & Progresso Realista (peso/altura, kcal MET) | api/client |
 
 ## Documentos
 

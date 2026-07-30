@@ -22,6 +22,10 @@ Cada etapa do pipeline é uma **entidade** com duas fases:
 | [SPEC-011](SPEC-011-api-saas.md) | API SaaS | Fase 1 (auth) / 2 |
 | [SPEC-012](SPEC-012-entrada-e-avaliacao.md) | Fontes de Entrada & Bancada de Avaliação | Fase 0 (harness CLI) |
 | [SPEC-013](SPEC-013-interface-mobile.md) | Interface Mobile (tela de sessão & app shell) | Fase 0 |
+| [SPEC-014](SPEC-014-ui-v2-evolucao.md) | Interface v2 — réplica do protótipo (vinculante p/ UI da Fase 4) | Fase 4 |
+| [SPEC-015](SPEC-015-primeiro-acesso.md) | Primeiro Acesso Guiado (funil + tela de Guia) | Fase 4 |
+| [SPEC-016](SPEC-016-planos-free-assinatura.md) | Planos: Free × Assinatura (quotas, kcal, Modo Efeito) | futura |
+| [SPEC-017](SPEC-017-perfil-fisico-progresso.md) | Perfil Físico & Progresso Realista (peso/altura) | futura |
 
 ## Template
 
