@@ -5,6 +5,48 @@
 
 ---
 
+## 2026-07-30 (4) · T-069 — "Paramos de te ver na câmera" não era a câmera
+
+O Daniel trouxe o teste que fechou o diagnóstico: **em aba anônima nunca conseguia treinar; em
+aba normal funcionava, na mesma posição e no mesmo aparelho.** Trocar de aba consertava.
+
+- **O que a aba anônima elimina**: pose-worker morto ou modo cloud quebrado derrubariam as duas
+  abas (mesmo servidor). Trial/conta daria erro explícito e abriria a folha de conta.
+  Enquadramento não se conserta trocando de aba. Sobra cold start — e aba anônima é cold start
+  permanente: cache HTTP vazio **e** sem cache de shader da GPU em disco.
+- **Causa raiz**: a sessão era pedida em `cameraStatus === 'ready'`, o MESMO sinal que dispara o
+  carregamento do pipeline. O servidor conta os 10s de `no_data` desde a admissão (SPEC-009),
+  e entre a câmera abrir e o primeiro `pose.frame` sair o cliente ainda precisa baixar 11,5 MB
+  de WASM + 5,8 MB de modelo, compilar, inicializar a GPU e gastar 2s no probe. Com cache
+  frio o prazo estourava antes do primeiro frame — e a mensagem culpava a câmera por não ver
+  ninguém que estava ali, parado, no lugar certo.
+- **Conserto (o estrutural)**: `session/pipelineGate.ts` — `podeAlimentarSessao()` exige
+  landmarker de pé e probe decidido, e é ele que liga o `useSession`. Quem pede a sessão declara
+  que pode alimentá-la; registrado como contrato na SPEC-009 §critério 4 e na SPEC-001.
+- **Segundo buraco, achado no caminho**: `createEdgePoseLandmarker` caía para CPU só quando a
+  GPU **rejeitava**. Inicialização de GPU que trava não rejeita — ficava pendente para sempre,
+  sem fallback e sem erro. Agora toda criação tem prazo de 12s (`lib/deadline.ts`), e o valor
+  que chega tarde é fechado (dois contextos de GPU vivos seria pior que nenhum). Prazo
+  deliberadamente generoso: depois do portão, lentidão não é mais fatal — o prazo existe para
+  pegar "travado", não "devagar". Cortar em 4s empurraria para CPU um aparelho que ia funcionar,
+  e CPU costuma medir < 12fps no probe, o que jogaria a sessão para CLOUD sem necessidade.
+- **Terceiro**: a tela ficava MUDA durante o aquecimento — justamente a janela de vários
+  segundos do primeiro acesso. Agora diz "Preparando a análise neste aparelho…" com a nota de
+  que o modelo é baixado uma vez, "Calibrando o dispositivo…" no probe, e a falha aparece em vez
+  de virar espera infinita.
+- Medições que sustentam o diagnóstico (não estimativas): 11.532.084 bytes de WASM +
+  5.777.746 do modelo = **17,3 MB** no primeiro acesso, sem gzip em produção. O `.wasm`
+  comprime para **3,2 MB** (o `.task`, 5,5 → 4,7 MB) — o comentário do `web-nginx.conf` que diz
+  que os dois já são comprimidos é falso para o `.wasm`. O gzip ficou fora desta task a pedido
+  do Daniel (ele aplica no nginx); anotado no BACKLOG com os números.
+- **Honestidade sobre uma medição minha**: tentei cronometrar a criação do landmarker pelo
+  browser e vi passar de 40s. Era artefato da ferramenta de automação, não do app — o console
+  mostrou o grafo subindo e fechando normalmente. O diagnóstico se sustenta pelos bytes medidos
+  e pela ordem no código, não por aquele número.
+- Gates: `tsc -b`, `eslint`, `vitest` 314/314 (12 novos: `pipelineGate`, `deadline`).
+- Pendências geradas: pré-carregar WASM/modelo antes de a câmera abrir (o portão tirou a falha,
+  não a espera) e o gzip do `.wasm`.
+
 ## 2026-07-30 (3) · T-067/T-068 — Fronteira SITE|APP, tab bar nova e o rodapé do treino (de verdade)
 
 Segundo teste do Daniel em aparelho real. O relato: "na parte de baixo onde tem o botão ainda

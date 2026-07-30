@@ -6,6 +6,7 @@ import { CountdownSetting } from '../hud/CountdownSetting'
 import { ExercisePicker } from '../hud/ExercisePicker'
 import { GetReady } from '../hud/GetReady'
 import { Mode } from '../lib/events'
+import { pipelinePhase } from '../session/pipelineGate'
 import { useSessionStore } from '../store/session'
 import { useCamera } from './useCamera'
 import { useEdgePipeline } from './useEdgePipeline'
@@ -65,6 +66,7 @@ export function CameraView({ compactCover = false }: CameraViewProps) {
 
   const isReady = cameraStatus === 'ready'
   const isCloud = capability?.mode === Mode.CLOUD
+  const fase = pipelinePhase({ poseStatus, probeStatus })
 
   return (
     <div className={`stage ${mirrored ? '' : 'stage--unmirrored'}`}>
@@ -103,9 +105,27 @@ export function CameraView({ compactCover = false }: CameraViewProps) {
         </div>
       )}
 
-      {isReady && probeStatus === 'running' && (
-        <p className="stage__banner">Calibrando o dispositivo…</p>
+      {/* Aquecimento do pipeline (T-069). Antes disto a tela ficava MUDA entre a câmera abrir e
+          o primeiro frame sair — que é justamente a janela onde o primeiro acesso passa vários
+          segundos baixando ~17 MB de WASM e modelo. Quem esperava não tinha como saber se
+          estava carregando, travado, ou se o app não o via. */}
+      {isReady && fase === 'carregando' && (
+        <p className="stage__banner">
+          Preparando a análise neste aparelho…
+          {/* Dito só na primeira vez que importa: com o modelo em cache isto passa rápido. */}
+          <span className="stage__banner-sub">
+            No primeiro acesso o modelo de pose é baixado; depois fica no aparelho.
+          </span>
+        </p>
       )}
+
+      {isReady && fase === 'falhou' && (
+        <p className="stage__banner stage__banner--offline">
+          {error ?? 'Não foi possível preparar a análise de pose neste aparelho.'}
+        </p>
+      )}
+
+      {isReady && fase === 'medindo' && <p className="stage__banner">Calibrando o dispositivo…</p>}
 
       {/* "3, 2, 1" entre o corpo medido e a contagem valer (T-049). Quem segura a contagem
           é o worker; isto aqui só desenha o mesmo prazo. */}

@@ -188,6 +188,16 @@ a {
   transform: scaleX(-1);
 }
 
+/* Segunda linha do aviso, mais discreta: o "por que está demorando" não pode competir com o
+   "o que está acontecendo" (T-069). */
+.stage__banner-sub {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+  line-height: 1.3;
+}
+
 .stage__banner--cloud {
   border-color: rgba(124, 92, 255, 0.45);
   color: var(--accent-2);

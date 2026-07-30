@@ -11,18 +11,25 @@ import { chooseExercise } from '../screens/funnel'
 import { GuideScreen } from '../screens/GuideScreen'
 import { ProgressScreen } from '../screens/ProgressScreen'
 import { SessionScreen } from '../screens/SessionScreen'
+import { podeAlimentarSessao } from '../session/pipelineGate'
 import { useSession } from '../session/useSession'
 import { navigate, useRoute } from '../shell/nav'
 import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
 
 export function AppShell() {
-  const cameraStatus = useSessionStore((state) => state.cameraStatus)
+  const poseStatus = useSessionStore((state) => state.poseStatus)
+  const probeStatus = useSessionStore((state) => state.probeStatus)
   const route = useRoute()
 
-  // A sessão só conversa com o gateway na tela de treino com a câmera de pé — a
-  // pré-configuração mostra a câmera como espelho, sem abrir sessão (SPEC-014 §3).
-  useSession(cameraStatus === 'ready' && route.screen === 'treino')
+  // A sessão só conversa com o gateway na tela de treino — a pré-configuração mostra a câmera
+  // como espelho, sem abrir sessão (SPEC-014 §3).
+  //
+  // E não basta a câmera estar de pé (era o gatilho até a T-069): o servidor começa a contar
+  // os 10s de `no_data` na admissão, então pedir a sessão antes de o pipeline poder emitir
+  // frame é gastar o prazo dele baixando modelo. Quem manda aqui é o pipeline.
+  const pronto = podeAlimentarSessao({ poseStatus, probeStatus })
+  useSession(pronto && route.screen === 'treino')
 
   // Quem já tinha entrado continua entrado ao reabrir o app: o refresh está no
   // `localStorage`, e o `authedFetch` o usa para renovar o access sozinho. Falhar aqui é

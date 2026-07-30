@@ -27,6 +27,8 @@ Fila de espera, quotas por usuário/plano, retomada de sessão, limite edge.
 3. Cliente com token expirado/errado não conecta ao WS.
 4. Sessão sem nenhum frame por 10s → `aborted {reason: "no_data"}`.
 
+O prazo do critério 4 conta desde a ADMISSÃO, e isso é um contrato com o cliente: **quem pede a sessão declara que já pode alimentá-la**. Não é o servidor que espera o cliente aquecer — é o cliente que só pede quando estiver pronto (SPEC-001, portão de partida). Pedir antes gasta o prazo carregando modelo, e o sintoma é um `no_data` que acusa a câmera de não ver ninguém quando o problema era a partida do pipeline (T-069).
+
 ## Fase Evolução
 
 - **Fila de espera cloud** com posição visível e estimativa (30s/slot); promoção automática ao vagar.

@@ -93,6 +93,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-062 | Tela Sobre / footer mobile | 014 | done |
 | T-067 | Fronteira SITE \| APP: dois entry points do Vite, links cruzados por `VITE_SITE_URL`/`VITE_APP_URL`, pontes `#/ex/:slug` e `#/entrar`, nginx e `prod.sh` prontos para subdomínio (ADR-010) | 014 | done |
 | T-068 | Tab bar Início · Progresso · Analytics · Perfil, play/stop como FAB no treino, telas Progresso e Analytics, rodapé do treino reempilhado e medido | 014 | done |
+| T-069 | Portão de partida: sessão só é pedida quando o pipeline pode emitir frame; prazo de 12s no landmarker com queda GPU→CPU; estado de aquecimento visível na tela | 001/009 | done |
 
 ### Futuras (specs prontas, implementar depois)
 
@@ -105,6 +106,16 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
+- **[T-069] Pré-carregar WASM e modelo antes da câmera**: o portão de partida tirou o `no_data`
+  do caminho, mas a espera continua — no primeiro acesso são ~17 MB (7,9 MB se o gzip do
+  `.wasm` for ligado no nginx) baixados só DEPOIS de a câmera abrir, porque o probe precisa de
+  frames reais. Dá para começar o download na Escolha ou na Pré-configuração (`link
+  rel=prefetch` ou fetch em idle) e ter o modelo em cache quando a câmera abrir. Não entra na
+  T-069 porque muda o carregamento de outras telas, não a partida da sessão.
+- **[T-069] `.wasm` não é comprimido pelo nginx**: `docker/web-nginx.conf` deixa `.wasm` fora do
+  `gzip_types` com a justificativa de que já é binário comprimido — medido, é falso: 11,0 MB
+  → 3,2 MB. O `.task` de fato ganha pouco (5,5 → 4,7 MB). Ligar só o `.wasm` derruba o primeiro
+  acesso de 17,3 para 7,9 MB. Deixado fora da T-069 a pedido do Daniel (ele aplica no nginx).
 - **[T-068] Capa da câmera desligada repete escolhas na tela de treino**: com a câmera
   fechada, `.stage__cover` mostra "Ligar câmera" + ExercisePicker + CountdownSetting também
   em `#/treino`, onde essas escolhas já foram feitas na pré-configuração. Não é o bug do
