@@ -138,6 +138,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   const toggleMirrored = useSessionStore((state) => state.toggleMirrored)
   const sessionStatus = useSessionStore((state) => state.sessionStatus)
   const sceneEntry = useSessionStore((state) => state.sceneEntry)
+  const sceneAdvice = useSessionStore((state) => state.sceneAdvice)
   const feedbackEntry = useSessionStore((state) => state.feedbackEntry)
   const { secondsLeft, durationS } = useCountdown()
 
@@ -184,7 +185,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   return (
     <div className="sess">
       <div className={`sess__cam ${mode === 'preparar' ? 'sess__cam--prep' : 'sess__cam--live'}`}>
-        <CameraView compactCover={mode === 'preparar'} />
+        <CameraView compactCover={mode === 'preparar'} checkScene={mode === 'preparar'} />
 
         {mode === 'preparar' && (
           <div className="prep__overlay">
@@ -201,11 +202,18 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
               <div className="prep__grid-bg" />
               <div className="prep__scanline v2-scan" />
               <SilhouetteGuide />
-              <div className="prep__hint-pill">
+              {/* Um canal só de estado da cena (T-085), e não um aviso novo empilhado: o
+                  conselho de luz/nitidez toma o lugar da dica de enquadramento enquanto vale.
+                  Enquadramento a silhueta-guia já ensina sozinha; lente suja e luz fraca são
+                  invisíveis para quem está do outro lado do celular — por isso ganham a vez.
+                  Orienta e não bloqueia: o CTA de iniciar continua o mesmo. */}
+              <div className={`prep__hint-pill ${sceneAdvice ? 'prep__hint-pill--aviso' : ''}`}>
                 <span>
-                  {cameraReady
-                    ? 'Você já está visível · alinhe-se à guia'
-                    : 'A câmera abre aqui — alinhe-se à guia'}
+                  {sceneAdvice
+                    ? sceneAdvice.text
+                    : cameraReady
+                      ? 'Você já está visível · alinhe-se à guia'
+                      : 'A câmera abre aqui — alinhe-se à guia'}
                 </span>
               </div>
             </div>

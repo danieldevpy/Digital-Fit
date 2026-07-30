@@ -118,10 +118,23 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-082 | Figura de exercício por slug no card da pré-config (o agachamento herdava o boneco de braços pro alto do polichinelo), com registro `EXERCISE_FIGURES` e teste que cobra a figura de todo exercício novo | 014/015 | done |
 | T-083 | O anel serrilhado do HUD para de girar quando o exercício começa | 014 | done |
 | T-084 | Probe honesto: capacidade medida por LATÊNCIA de inferência (mediana, aquecimento descartado, janela elástica 2–3s, rVFC + watchdog) em vez de frames/segundo de parede; fps da câmera vira sinal de cena separado; motivo da decisão exposto; contexto WebGL devolvido | 001 | done |
-| T-085 | Aviso de cena na pré-configuração (luz fraca, contraluz, falta de nitidez/lente suja): orienta, não bloqueia, e só nesta tela — reaproveita o pill da janela da câmera | 003/014 | todo |
+| T-085 | Aviso de cena na pré-configuração (luz fraca, contraluz, falta de nitidez/lente suja): orienta, não bloqueia, e só nesta tela — reaproveita o pill da janela da câmera | 003/014 | done |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
+- **[T-085] Os limiares de cena não têm corpus para calibrar — e o `evalctl` não os mede.**
+  Os três valores (`LUZ_MINIMA`, `ESTOURO_MAXIMO`+`LUZ_CENTRO_MINIMA`, `DETALHE_MINIMO`) foram
+  ancorados nos 3 vídeos do `eval/corpus` — todos de boa luz — mais variantes SINTÉTICAS
+  (escurecidas ×0,25, borradas com boxblur 6) geradas por ffmpeg num script de scratchpad. Isso
+  dá a direção e a ordem de grandeza, não a fronteira. Falta (a) gravações de cena ruim de
+  verdade, com `conditions: {luz: ...}` no manifest, e (b) as métricas de cena dentro do
+  `evalctl` (`eval/metrics.py`), para o limiar ser calibrado pela bancada e não por um script
+  solto. **Proposta: task de calibração de cena.**
+- **[T-085] O aviso de cena não é anexado ao relatório, e a SPEC-003 pede que seja.** A Fase
+  Inicial diz "warnings orientam e são anexados ao relatório"; este nasce e morre na tela de
+  Início, porque não há evento para ele (seria `scene.warning` com códigos novos, ou o
+  `scene.status {score}` da Evolução). Enquanto não subir, a distribuição real de cena dos
+  usuários é invisível — que é o mesmo buraco de telemetria do probe, logo abaixo.
 - **[T-084] O `session.capability` só tem campo para UM fps — e agora existem dois números.**
   O contrato leva `probe_fps`, que passou a ser o fps sustentável do modelo (a decisão). O fps
   da câmera, que é o sinal de cena, não sobe para lugar nenhum: levá-lo exige campo novo em

@@ -25,11 +25,32 @@ Análise de luz, ângulo/tilt da câmera, fundo, oclusões, bloqueio de início 
 
 ## Fase Evolução
 
-- **Luz**: histograma de luminância do frame (só cloud, ou amostrado 1×/s no edge via canvas): média < 60 → `LOW_LIGHT`; estouro > 15% de pixels saturados → `BACKLIT`. Sugestões acionáveis ("acenda a luz / vire de frente para a janela").
+- **Luz**: histograma de luminância do frame (só cloud, ou amostrado 1×/s no edge via canvas): média < 60 → `LOW_LIGHT`; estouro > 15% de pixels saturados → `BACKLIT`. Sugestões acionáveis ("acenda a luz / vire de frente para a janela"). **Entregue na T-085 — ver §Aviso de cena na pré-configuração.**
+- **Nitidez / lente suja** (item novo, T-085): energia de alta frequência do frame (variância do laplaciano) abaixo do limiar com luz boa → `SEM_NITIDEZ`. Não afirma a causa: lente suja, foco errado e pouca luz produzem o mesmo sintoma, e a mensagem pede a ação que resolve os três.
 - **Ângulo da câmera**: inclinação da linha ombro-ombro e quadril-quadril vs. horizontal + razão torso aparente → detecta câmera muito baixa/alta ou pessoa não-frontal → `CAMERA_TILT`, `NOT_FACING`.
 - **Distância ótima por exercício**: cada `ExerciseAnalyzer` declara faixa ideal (polichinelo: corpo a 60–85% do frame).
 - **Gate de início**: sessão só inicia com cena `OK` por 1s contínuo (integra com SPEC-004); durante a sessão, cena ruim por > 3s pausa a contagem (não conta rep com dado ruim).
 - **Score de qualidade da cena** (0–100) anexado à sessão — vira filtro de qualidade do dataset (SPEC-010).
+
+## Aviso de cena na pré-configuração (T-085 — implementado)
+
+Primeiro pedaço da Fase Evolução a entrar, e com escopo deliberadamente estreito. Decisões do Daniel, vinculantes:
+
+1. **Orienta, nunca bloqueia.** Nenhum aviso impede treinar, nem desabilita o CTA. Travar por um limiar não calibrado é o caminho curto para o app parecer quebrado numa sala que funcionava.
+2. **Só na tela de Início** (pré-configuração), que é onde a câmera abre para teste e onde ainda dá para limpar a lente e acender a luz. No treino a instrução de medição manda na tela (SPEC-014, T-071) e um aviso a mais disputaria espaço com o que importa.
+3. **Um canal só**: o pill que já existe dentro da janela da câmera. O conselho toma o lugar da dica de enquadramento enquanto vale — enquadramento a silhueta-guia já ensina sozinha, luz e lente suja são invisíveis para quem está do outro lado do celular.
+4. **Não afirma a causa** de imagem sem detalhe (lente suja × foco × luz): pede a ação que resolve os três.
+5. **Roda no cliente, e só pode rodar lá**: no modo edge nenhum pixel sobe (keypoint-first). Amostra de 160×120 a 1×/s num canvas fora do DOM; a imagem não sai do aparelho.
+6. **Debounce de 2 amostras** para acender **e** para apagar: alguém passando na frente da luz não dispara nada, e uma amostra boa solta não apaga um aviso que continua valendo.
+
+Códigos: `LUZ_FRACA` · `CONTRALUZ` · `SEM_NITIDEZ`. Prioridade nessa ordem, e **nitidez só é julgada com luz boa** — no escuro o detalhe cai por outro motivo e o aviso mentiria a causa.
+
+**Limiares são provisórios e vieram de medição, não de gosto.** Não existe corpus de cena ruim (o `eval/corpus` tem 3 vídeos, todos de boa luz). Foram medidos esses três como estão e em variantes sintéticas — escurecidos (×0,25) e borrados (boxblur 6) — com as mesmas contas do cliente. Duas conclusões mudaram o desenho:
+
+- **Normalizar o laplaciano pelo contraste não serve para comparar cenas.** A razão `varLap/contraste²` é imune à luz e inútil entre cenas: o vídeo 03 **nítido** dá 0,15 e o vídeo 01 **borrado** dá 0,16 — um limiar sobre ela reprovaria a cena boa. Por isso a nitidez usa o laplaciano cru, com a luz como pré-condição.
+- **Estouro alto não é contraluz.** O vídeo 01 tem 92,8% de pixels saturados e é cena boa (fundo claro, pessoa bem iluminada, centro em 244). Contraluz é fundo claro com sujeito **escuro** — a regra olha o centro do quadro, onde a silhueta-guia põe o corpo.
+
+Recalibrar quando existir corpus de cena ruim (cozinha à noite, contraluz de janela, lente com digital); enquanto não existir, os limiares erram para o lado de **não** avisar. O custo de um falso positivo é uma frase a mais na tela — nunca um treino impedido.
 
 ## Eventos
 

@@ -13,6 +13,7 @@ import type { GatewayStatus } from '../lib/gateway'
 import type { AssetProgress } from '../pose/assetWarmup'
 import type { PoseDelegate } from '../pose/poseLandmarker'
 import type { ProbeOutcome } from '../probe/runProbe'
+import type { SceneAdvice } from '../scene/sceneQuality'
 import type { SessionReport } from '../report/sessionReport'
 import type { CoachEntry } from '../session/coachCard'
 
@@ -81,6 +82,14 @@ export interface SessionState {
    */
   landmarkVisibility: { min: number; max: number } | null
   frameStats: FrameStats | null
+  /**
+   * Conselho de cena da pré-configuração (T-085): luz fraca, contraluz, falta de nitidez.
+   *
+   * Não confundir com `sceneEntry`, que é o `scene.warning` do SERVIDOR sobre enquadramento
+   * (SPEC-003 Fase Inicial). Este aqui nasce no cliente, olhando pixels que nunca sobem, e só
+   * existe na tela de Início — durante o treino a instrução de medição manda na tela (T-071).
+   */
+  sceneAdvice: SceneAdvice | null
   /** Ângulo articular ao vivo, calculado no cliente (T-044) — cosmético. */
   armAngleDeg: number | null
   /** Gravador de fixtures (T-007) — ferramenta de dev, não faz parte da sessão real. */
@@ -159,6 +168,7 @@ export interface SessionState {
   setLandmarksDetected: (count: number) => void
   setLandmarkVisibility: (range: { min: number; max: number } | null) => void
   setFrameStats: (stats: FrameStats | null) => void
+  setSceneAdvice: (advice: SceneAdvice | null) => void
   setArmAngleDeg: (angle: number | null) => void
   setRecording: (recording: boolean) => void
   setRecordedFrames: (count: number) => void
@@ -240,6 +250,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   landmarksDetected: 0,
   landmarkVisibility: null,
   frameStats: null,
+  sceneAdvice: null,
   armAngleDeg: null,
   recording: false,
   recordedFrames: 0,
@@ -263,6 +274,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setLandmarksDetected: (landmarksDetected) => set({ landmarksDetected }),
   setLandmarkVisibility: (landmarkVisibility) => set({ landmarkVisibility }),
   setFrameStats: (frameStats) => set({ frameStats }),
+  setSceneAdvice: (sceneAdvice) => set({ sceneAdvice }),
   setArmAngleDeg: (armAngleDeg) => set({ armAngleDeg }),
   setRecording: (recording) => set({ recording }),
   setRecordedFrames: (recordedFrames) => set({ recordedFrames }),
@@ -375,6 +387,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       capability: null,
       landmarksDetected: 0,
       frameStats: null,
+      sceneAdvice: null,
       armAngleDeg: null,
       recording: false,
       recordedFrames: 0,

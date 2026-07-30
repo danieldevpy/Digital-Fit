@@ -7,6 +7,7 @@ import { ExercisePicker } from '../hud/ExercisePicker'
 import { GetReady } from '../hud/GetReady'
 import { Mode } from '../lib/events'
 import { warmupLabel } from '../pose/assetWarmup'
+import { useSceneCheck } from '../scene/useSceneCheck'
 import { pipelinePhase } from '../session/pipelineGate'
 import { useSessionStore } from '../store/session'
 import { useCamera } from './useCamera'
@@ -27,9 +28,15 @@ interface CameraViewProps {
    * ruído dentro de uma janela de 180px.
    */
   compactCover?: boolean
+  /**
+   * Avaliar luz/nitidez da cena (T-085). Ligado só na pré-configuração: é lá que dá para
+   * limpar a lente e acender a luz antes de começar. Durante o treino a instrução de medição
+   * manda na tela (T-071) e um aviso a mais disputaria espaço com o que importa.
+   */
+  checkScene?: boolean
 }
 
-export function CameraView({ compactCover = false }: CameraViewProps) {
+export function CameraView({ compactCover = false, checkScene = false }: CameraViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -54,6 +61,7 @@ export function CameraView({ compactCover = false }: CameraViewProps) {
 
   const { start, stop, startFile } = useCamera(videoRef)
   useEdgePipeline(videoRef, canvasRef, cameraStatus === 'ready')
+  useSceneCheck(videoRef, checkScene && cameraStatus === 'ready')
 
   // O FAB da bottom nav aciona a câmera sem conhecer o pipeline.
   useEffect(() => {

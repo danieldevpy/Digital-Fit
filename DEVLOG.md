@@ -5,6 +5,65 @@
 
 ---
 
+## 2026-07-30 (14) · T-085 — Aviso de cena: o que a pessoa não vê do outro lado do celular
+
+Pedido do Daniel na mesma conversa do probe: "celular a gente sempre suja a câmera, deixa
+iluminação baixa e tal" — um aviso que orienta, **não impede**, e só na tela de Início, onde a
+câmera já abre para teste antes de ir treinar.
+
+- **Escopo travado antes de codar**: orienta e nunca bloqueia (o CTA não muda); só na
+  pré-configuração; um canal só — o pill que já existe dentro da janela da câmera, que passa a
+  mostrar o conselho no lugar da dica de enquadramento enquanto ele valer. Enquadramento a
+  silhueta-guia já ensina sozinha; luz e lente suja são o que ninguém enxerga de onde está.
+- **Roda no cliente porque SÓ pode rodar lá**: no modo edge nenhum pixel sobe (keypoint-first),
+  então o servidor não tem o que olhar. Amostra de 160×120, 1×/s, num canvas fora do DOM —
+  ~19k pixels contra as 15 inferências de pose por segundo que rodam no mesmo vídeo.
+- **Os limiares saíram de medição, e a medição mudou o desenho duas vezes.** Sem corpus de cena
+  ruim (o Daniel não quer gravar agora), o que deu para fazer foi medir os 3 vídeos do
+  `eval/corpus` como estão e em variantes sintéticas (escurecidas ×0,25, borradas com boxblur 6)
+  via ffmpeg, com exatamente as contas do cliente:
+
+  ```
+  vídeo            luz    estourado  varLaplaciano
+  01 como está    244,6      92,8%          1792
+  01 escurecido    60,9       0,0%           119
+  01 borrado      244,7      89,2%           173
+  02 como está    136,7       0,0%          2627
+  02 borrado      136,7       0,0%           373
+  03 como está    124,4       0,6%          2003
+  03 borrado      124,2       0,6%           559
+  ```
+
+  - **Normalizar o laplaciano pelo contraste não serve para comparar cenas.** Era o meu plano
+    inicial, porque a razão `varLap/contraste²` é imune à luz (o vídeo 01 vai de 1,32 a 1,40 ao
+    ser escurecido). Só que entre cenas ela é inútil: o vídeo 03 **nítido** dá 0,15 e o vídeo 01
+    **borrado** dá 0,16 — o limiar reprovaria a cena boa. A nitidez passou a usar o laplaciano
+    cru, com **luz boa como pré-condição** — que é o que impede confundir escuro com borrado,
+    já que escurecer também derruba o laplaciano (1792 → 119).
+  - **Estouro alto não é contraluz.** O vídeo 01 tem 92,8% de pixels saturados e é cena BOA:
+    fundo claro com a pessoa bem iluminada (o centro mede 244 também). Contraluz é fundo claro
+    com sujeito ESCURO — a regra passou a olhar o centro do quadro, onde a silhueta-guia põe o
+    corpo. Sem isso, o primeiro vídeo do corpus levaria um aviso errado.
+- **Debounce de 2 amostras para acender E para apagar** (SPEC-003 pede 1s para ligar; nós
+  amostramos 1×/s): alguém passando na frente da luz não dispara nada, e uma amostra boa solta
+  não apaga um aviso que continua valendo.
+- **A mensagem não afirma a causa.** Imagem sem detalhe pode ser lente suja, foco errado ou
+  pouca luz; "Imagem sem nitidez · limpe a lente" pede a ação que resolve os três e custa 5
+  segundos. Frases do tamanho da que já vive no pill (38 caracteres) — ele mora dentro da janela
+  de 202px, e um parágrafo ali viraria outro problema.
+- **Testes**: 15 novos em `sceneQuality.test.ts`, com os dois casos do corpus virando teste —
+  "estouro alto com centro claro NÃO é contraluz" e "no escuro a queixa é a luz, nunca a
+  nitidez". Mais parede lisa não virando acusação de lente suja.
+- **Gates**: lint, typecheck e 360 testes verdes.
+- **Não verificado**: a aparência do aviso em aparelho real. A extensão do browser caiu no meio
+  da sessão, então a checagem visual (e o disparo com câmera de verdade) fica para o teste no
+  celular. O risco de layout foi tratado na origem, encurtando as frases.
+- **Pendências** (em Descobertas): faltam corpus de cena ruim e as métricas dentro do `evalctl`
+  para o limiar sair da bancada e não de um script solto; e o aviso não é anexado ao relatório,
+  que é o que a SPEC-003 pede para todo warning — sem isso a cena real dos usuários é invisível.
+
+---
+
 ## 2026-07-30 (13) · T-084 — O probe media a câmera e culpava o aparelho
 
 Relato do Daniel: iPhone bom, câmera boa, e o app escolhendo CLOUD quase sempre. A causa
