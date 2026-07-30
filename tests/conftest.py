@@ -16,6 +16,11 @@ os.environ.setdefault("DJANGO_DB_SQLITE", "1")
 # exercitado de verdade — só não atravessa a rede.
 os.environ.setdefault("DJANGO_CACHE_LOCMEM", "1")
 
+# O painel (SPEC-018) NÃO é ligado por variável aqui de propósito: `DJANGO_ENABLE_ADMIN` é lida
+# na importação do settings, e esta conftest não roda antes dela (ver Descobertas do BACKLOG,
+# `[A/T-072]`). Os testes que precisam do painel montam a URLconf por
+# `@pytest.mark.urls("tests.urls_painel")`, que é explícito e não depende de ordem de import.
+
 import pytest
 
 

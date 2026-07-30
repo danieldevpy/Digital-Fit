@@ -11,6 +11,15 @@ class Migration(migrations.Migration):
         ('api', '0001_initial'),
     ]
 
+    # O `LogEntry` do painel (SPEC-018) tem FK para o AUTH_USER_MODEL, e a `swappable_dependency`
+    # dele aponta para a PRIMEIRA migration do app — que aqui é a 0001, criada quando ainda não
+    # havia usuário nenhum (a conta nasceu na SPEC-011, nesta 0002). Sem esta linha o Django
+    # tenta aplicar `admin.0001` antes de existir `api.user` e falha com "Related model
+    # 'api.user' cannot be resolved". Só ordena; não muda operação nenhuma.
+    run_before = [
+        ('admin', '0001_initial'),
+    ]
+
     operations = [
         migrations.CreateModel(
             name='User',

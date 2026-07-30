@@ -281,6 +281,50 @@ quebrada.
 Atualizar depois de um `git pull`: `./scripts/prod.sh up` de novo. Ele sempre reconstrói,
 porque `VITE_API_URL` é gravada no bundle em build time e não dá para trocar por environment.
 
+## Painel de operação (SPEC-018)
+
+**Vem desligado.** Ligar é uma variável no `.env.prod`:
+
+```bash
+DJANGO_ENABLE_ADMIN=1
+DJANGO_ADMIN_PATH=um-caminho-so-seu/      # troque: /admin e /painel são os dois primeiros
+CSRF_TRUSTED_ORIGINS=https://treino.seudominio.com
+```
+
+Depois, a primeira conta de operador — não há painel onde criá-la:
+
+```bash
+./scripts/prod.sh exec api python manage.py createsuperuser
+```
+
+Ela nasce com as duas flags: painel (`is_staff`) e ferramentas de diagnóstico do cliente
+(`is_admin`). Para as próximas contas, o painel concede a segunda, mas **não** a primeira:
+
+```bash
+./scripts/prod.sh exec api python manage.py admin_tools alguem@exemplo.com --panel-on
+```
+
+Conceder acesso ao painel é a única escalada que o painel não faz sozinho — quem entra por lá
+lê conta e sessão de todo mundo, e um operador comprometido não deve conseguir criar outro.
+
+Três coisas que valem saber:
+
+- **O gateway (`:8001`) nunca serve o painel**, mesmo que a variável vaze para ele: a trava é
+  no processo (`server/core/admin_gate.py`), não na configuração.
+- **O CSS sai do próprio container** (whitenoise + `collectstatic` no build). Não é preciso
+  mexer no seu nginx para o painel ficar apresentável.
+- **Exponha-o com cuidado.** Restringir por IP no seu nginx é barato e vale a pena:
+
+  ```nginx
+  location /um-caminho-so-seu/ {
+      allow 203.0.113.10;   # seu IP
+      deny all;
+      proxy_pass http://127.0.0.1:8000;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+  }
+  ```
+
 ## Limites conhecidos desta configuração
 
 - **`analysis-worker` não escala.** A FSM guarda estado por sessão em memória, e o consumer

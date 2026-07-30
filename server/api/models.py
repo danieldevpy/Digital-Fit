@@ -38,19 +38,17 @@ class UserManager(BaseUserManager):
         return usuario
 
     def create_superuser(self, email: str, password: str, **extra) -> User:
-        """Conta com as ferramentas de diagnóstico ligadas (`manage.py createsuperuser`).
+        """Conta de operador: painel + ferramentas de diagnóstico (`manage.py createsuperuser`).
 
-        Não existia até a T-048, e a ausência era defensável enquanto "admin" não significava
-        nada aqui — não há `django.contrib.admin` neste projeto. Com o `is_admin` da T-048 o
-        conceito passou a existir, e `createsuperuser` é o primeiro comando que qualquer um
-        tenta: deixá-lo estourando `AttributeError` seria esconder a porta certa atrás de um
-        erro de programação.
+        É a porta de bootstrap do painel da SPEC-018 — a primeira conta com `is_staff` tem de
+        nascer de um shell na máquina, porque não há painel para criá-la ainda.
 
-        **Não** é superusuário no sentido do Django: não há painel, permissões nem grupos. O
-        que esta conta ganha é a superfície de dev do cliente. As rotas continuam filtrando
-        por dono da sessão — ela não lê o histórico de mais ninguém.
+        Continua **não** sendo superusuário no sentido do Django: não há `PermissionsMixin`,
+        grupos nem permissão por modelo (ver `has_perm` abaixo). E o acesso ao painel não é
+        acesso ao treino de ninguém: as rotas da API continuam filtrando por dono da sessão.
         """
         extra.setdefault("is_admin", True)
+        extra.setdefault("is_staff", True)
         return self.create_user(email, password, **extra)
 
 
@@ -77,6 +75,12 @@ class User(AbstractBaseUser):
     #: consulta, e não há admin aqui — reusar o nome prometeria uma semântica que o projeto
     #: não tem. Não dá acesso a dado de ninguém: as rotas continuam por dono da sessão.
     is_admin = models.BooleanField(default=False)
+    #: Entra no painel de operação (SPEC-018). Campo NOVO, e não um apelido do `is_admin` acima,
+    #: porque aquele foi concedido a contas existentes sob a promessa escrita de que "não dá
+    #: acesso a dado de ninguém" — transformá-lo em acesso ao painel quebraria a promessa para
+    #: trás, sem ninguém revisar quem já a tem. Como o `is_admin`, só é concedido por shell
+    #: (`manage.py createsuperuser` ou `admin_tools --panel-on`): nenhuma rota da API o aceita.
+    is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager()
@@ -89,6 +93,19 @@ class User(AbstractBaseUser):
 
     def __str__(self) -> str:
         return self.email
+
+    # Os dois métodos abaixo são o contrato mínimo que o painel exige de um usuário, e são a
+    # razão de `PermissionsMixin` continuar fora (SPEC-018): respondendo aqui, o `ModelBackend`
+    # nunca é consultado, e `auth_permission`/`auth_group` seguem como as tabelas vazias que a
+    # descoberta `[A/T-022]` registrou. Quem entra no painel enxerga tudo que está registrado;
+    # granularidade por modelo entra junto com o mixin, no dia em que houver mais de um perfil
+    # de operador — e não antes, porque permissão que ninguém diferencia é só cerimônia.
+
+    def has_perm(self, perm: str, obj: object | None = None) -> bool:
+        return self.is_active and self.is_staff
+
+    def has_module_perms(self, app_label: str) -> bool:
+        return self.is_active and self.is_staff
 
     def to_dict(self) -> dict[str, object]:
         """Corpo do `GET /api/me` e do bloco `user` das respostas de auth."""

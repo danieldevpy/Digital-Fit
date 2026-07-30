@@ -23,6 +23,12 @@ COPY workers/ ./workers/
 ENV PYTHONPATH=/app
 
 WORKDIR /app/server
+
+# Estaticos do painel (SPEC-018). No build, e nao na subida: e conteudo da imagem, igual para
+# todas as replicas, e um `collectstatic` no entrypoint atrasaria todo servico que sobe desta
+# mesma imagem — inclusive os workers, que nao servem HTTP nenhum.
+RUN python manage.py collectstatic --noinput --clear
+
 EXPOSE 8000
 
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

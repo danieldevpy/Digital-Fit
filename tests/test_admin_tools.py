@@ -120,14 +120,50 @@ def test_createsuperuser_cria_conta_com_as_ferramentas(db) -> None:
 
     usuario = User.objects.get(email="chefe@exemplo.com")
     assert usuario.is_admin is True
+    # É a porta de bootstrap do painel (T-072): a primeira conta de operador não tem painel
+    # onde ser criada.
+    assert usuario.is_staff is True
 
 
 @pytest.mark.django_db
 def test_superuser_daqui_nao_e_superusuario_do_django(db) -> None:
-    """Ele ganha a superfície de dev, não acesso ao dado dos outros."""
+    """Ele opera o painel; não ganha a árvore de permissões do Django."""
     usuario = User.objects.create_superuser(email="chefe@exemplo.com", password=SENHA)
 
     assert usuario.is_admin is True
-    # Sem `PermissionsMixin` no modelo: não há painel, grupo nem permissão para conceder.
+    assert usuario.is_staff is True
+    # Sem `PermissionsMixin` no modelo: não há `is_superuser`, grupo nem permissão por modelo.
+    # `has_perm` responde pela conta inteira (`api/models.py`), e é o que o painel consulta.
     assert not hasattr(usuario, "is_superuser")
-    assert not hasattr(usuario, "is_staff")
+    assert not hasattr(usuario, "groups")
+    assert usuario.has_perm("api.change_user") is True
+
+
+@pytest.mark.django_db
+def test_comando_liga_e_desliga_o_painel(usuario) -> None:
+    executar(EMAIL, "--panel-on")
+    usuario.refresh_from_db()
+    assert usuario.is_staff is True
+    # Os dois acessos são independentes: painel não acende as ferramentas do cliente.
+    assert usuario.is_admin is False
+
+    executar(EMAIL, "--panel-off")
+    usuario.refresh_from_db()
+    assert usuario.is_staff is False
+
+
+@pytest.mark.django_db
+def test_comando_concede_os_dois_de_uma_vez(usuario) -> None:
+    """Promover alguém é uma operação só; rodar o comando duas vezes seria cerimônia."""
+    executar(EMAIL, "--on", "--panel-on")
+
+    usuario.refresh_from_db()
+    assert (usuario.is_admin, usuario.is_staff) == (True, True)
+
+
+@pytest.mark.django_db
+def test_estado_mostra_os_dois_acessos(usuario) -> None:
+    saida = executar(EMAIL)
+
+    assert "ferramentas desligadas" in saida
+    assert "painel bloqueado" in saida

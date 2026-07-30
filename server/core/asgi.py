@@ -14,11 +14,16 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django_asgi_app = get_asgi_application()
 
 from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
+from django.conf import settings  # noqa: E402
 from gateway.routing import websocket_urlpatterns  # noqa: E402
+
+from core.admin_gate import block_admin  # noqa: E402
 
 application = ProtocolTypeRouter(
     {
-        "http": django_asgi_app,
+        # O painel da SPEC-018 não responde por aqui, nem com `DJANGO_ENABLE_ADMIN=1`: este
+        # processo é o do gateway, e as rotas são as mesmas dos dois (ver `core/admin_gate.py`).
+        "http": block_admin(django_asgi_app, settings.ADMIN_PATH),
         "websocket": URLRouter(websocket_urlpatterns),
     }
 )

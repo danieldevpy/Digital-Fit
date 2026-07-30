@@ -54,6 +54,10 @@ services:
       # Contas (SPEC-011). Sem JWT_SIGNING_KEY o settings assina com o DJANGO_SECRET_KEY.
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       AUTH_THROTTLE_RATE: ${AUTH_THROTTLE_RATE:-10/min}
+      # Painel de operação (SPEC-018). Ligado em desenvolvimento e SÓ neste serviço: o gateway
+      # não recebe a variável, e mesmo se recebesse tem a trava de `core/admin_gate.py`.
+      DJANGO_ENABLE_ADMIN: ${DJANGO_ENABLE_ADMIN:-1}
+      DJANGO_ADMIN_PATH: ${DJANGO_ADMIN_PATH:-painel/}
       GATEWAY_WS_URL: ${GATEWAY_WS_URL:-ws://localhost:8001}
       POSTGRES_HOST: postgres
       POSTGRES_DB: ${POSTGRES_DB:-digitalfit}

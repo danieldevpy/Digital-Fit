@@ -101,7 +101,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-072 | Admin do Django ligado no processo `api`: apps + middlewares + context processors, `is_staff` novo (separado do `is_admin` de diagnóstico), estáticos servidos, gate por `DJANGO_ENABLE_ADMIN` e ausência no gateway; `User` editável, `SessionClaim`/`SessionResult` em leitura | 018 | todo |
+| T-072 | Admin do Django ligado no processo `api`: apps + middlewares + context processors, `is_staff` novo (separado do `is_admin` de diagnóstico), estáticos servidos, gate por `DJANGO_ENABLE_ADMIN` e ausência no gateway; `User` editável, `SessionClaim`/`SessionResult` em leitura | 018 | done |
 | T-073 | `Plan` + `User.plan`/`plan_until` + `SiteConfig` + `capabilities_for()` com cache invalidado por `post_save` e defaults do código como piso; `POST /api/sessions` passa a resolver quota, duração, countdown e cloud por ele — sem mudar comportamento nenhum (migration de dados com os valores de hoje) | 018/016 | todo |
 | T-074 | `Exercise` (+ passos do guia) no admin com trava de slug contra `EXERCISES`, e `GET /api/config` servindo catálogo e capacidades ao cliente — fecha a divergência do `[A/T-051]` | 018/015 | todo |
 | T-075 | `config_version` no `session.started` (aditivo, default 0) e no `SessionResult`: o relatório diz sob qual versão de configuração a sessão foi produzida | 018/010/002 | todo |
@@ -109,9 +109,36 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-064 | Modo Assinatura: duração configurável, modos de exercício, acúmulo de kcal, Modo Efeito — capacidades vêm do `Plan` da T-073 (a flag de plano deixa de ser desta task) | 016/018 | todo |
 | T-065 | Perfil físico (peso/altura), kcal MET real, IMC, série temporal de peso, Progresso realista | 017 | todo |
 | T-066 | GIF/vídeo de demonstração por exercício (Escolha + Guia) | 015 | todo |
+| T-076 | A suíte roda no Postgres do compose, não em SQLite: as variáveis da `conftest.py` não alcançam mais o settings (ver Descobertas `[A/T-072]`) — mover para `pytest-env` ou `core/settings_test.py`, e conferir o job Python da CI | — | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
+- **[A/T-072] A suíte NÃO roda em SQLite em memória — roda no Postgres do compose.** A
+  `tests/conftest.py` promete, no próprio docstring, ser "carregada antes de o pytest-django
+  chamar `django.setup()`". Não é mais: o `pytest_load_initial_conftests` do pytest-django 4.12
+  força a leitura do settings (`dj_settings.DATABASES`) **antes** dos conftests, então
+  `DJANGO_DB_SQLITE`, `DJANGO_CACHE_LOCMEM` e qualquer variável posta ali não têm efeito nenhum.
+  Medido: dentro de um teste, `settings.DATABASES["default"]["ENGINE"]` é `postgresql`, e com
+  `POSTGRES_PORT=59999` a suíte inteira que toca banco quebra. Passou despercebido porque a
+  máquina de desenvolvimento tem o `docker compose up` de pé, e o teste conecta no container.
+  Duas consequências: (a) **o job Python da CI, que não sobe Postgres, não pode estar passando**
+  — vale abrir o Actions antes de mais nada; (b) o cache do rate limit também não é LocMem, ou
+  seja, os testes de auth compartilham contador com o Redis real. A correção não cabia na T-072
+  (que precisa da suíte como está para não confundir causa e efeito): ou as variáveis migram
+  para o `[tool.pytest.ini_options]` via `pytest-env`, ou nasce um `core/settings_test.py`
+  apontado por `DJANGO_SETTINGS_MODULE` no `pyproject.toml`. **Proposta: T-076.**
+- **[A/T-072] Teste de formulário não cobre tela de admin.** O `ContaCreateForm` instanciado à
+  mão validava e salvava perfeitamente enquanto `GET /painel/api/user/add/` respondia **500**:
+  os `add_fieldsets` pedem `usable_password`, campo que só existe em `AdminUserCreationForm`
+  (Django 5.1+), e não em `UserCreationForm`. O erro só aparece quando o `modelform_factory`
+  monta o formulário a partir dos fieldsets — ou seja, na requisição. Regra que fica: **toda
+  tela do painel precisa de um teste que a peça por HTTP**, não do teste da classe que ela usa.
+  Descoberto abrindo o painel de verdade no compose, não pela suíte.
+- **[A/T-072] `django.contrib.auth` registra "Grupos" no painel sozinho.** Sem
+  `PermissionsMixin` no `User`, grupo aqui não muda permissão de ninguém — seria um controle
+  que não controla, na primeira tela que o operador vê. Desregistrado em `api/admin.py`. Quando
+  a T-073 trouxer mais modelos, vale reler o índice do painel com o mesmo olho: o que aparece
+  ali é o que alguém vai clicar.
 - **[T-069] Pré-carregar WASM e modelo antes da câmera**: o portão de partida tirou o `no_data`
   do caminho, mas a espera continua — no primeiro acesso são **8,7 MB na rede** (3,2 de wasm
   gzipado + 5,5 do modelo, que fica sem comprimir) baixados só DEPOIS de a câmera abrir, porque o

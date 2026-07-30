@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-07-30 (9) · T-072 — O painel existe (e o gateway não o serve)
+
+Primeira task da SPEC-018: ligar o admin do Django e mais nada. Nenhum modelo de configuração
+entra aqui — `Plan` e `Exercise` são T-073/T-074.
+
+- **O que ligar custou, medido e não estimado**: 3 apps (`admin`, `sessions`, `messages`), 5
+  middlewares, e os `context_processors` que estavam **vazios** (`settings.py`) — sem
+  `auth`/`messages` ali o Django recusa subir (`admin.E402`/`E403`). Os apps entram
+  incondicionalmente, e só a ROTA é condicional: apps atrás de `DJANGO_ENABLE_ADMIN` dariam
+  estado de migration diferente por processo, e o sintoma seria um `django_session` que não
+  existe justamente na máquina onde alguém acabou de ligar o painel.
+- **`is_staff` é campo novo, não apelido de `is_admin`.** As contas que já têm `is_admin` foram
+  concedidas sob a promessa escrita, no próprio modelo, de que a flag "não dá acesso a dado de
+  ninguém". Unir as duas promoveria em silêncio quem já a tinha. Tem teste dizendo isso.
+- **`has_perm`/`has_module_perms` no `User` em vez de `PermissionsMixin`**: respondendo pela
+  conta inteira, o `ModelBackend` nunca é consultado e `auth_permission`/`auth_group` continuam
+  sendo as tabelas vazias de `[A/T-022]`. Consequência aceita: quem entra no painel vê tudo que
+  está registrado — granularidade entra junto com o mixin, se houver um segundo perfil.
+- **Migration antiga precisou de `run_before`.** O `LogEntry` do admin tem FK para o
+  `AUTH_USER_MODEL`, e a `swappable_dependency` aponta para a PRIMEIRA migration do app — que
+  aqui é a `0001`, de quando ainda não havia usuário (a conta nasceu na `0002`). Sem ordenar,
+  `admin.0001` roda antes de existir `api.user` e o `migrate` morre com "Related model
+  'api.user' cannot be resolved".
+- **A trava do gateway é do processo, não da variável** (`core/admin_gate.py`): o `ROOT_URLCONF`
+  é o mesmo para os dois, e separar só por env cairia no dia em que alguém movesse
+  `DJANGO_ENABLE_ADMIN` para o bloco compartilhado do compose. Verificado no compose de pé:
+  `:8001/painel/` → 404, `:8001/healthz` → 200.
+- **`is_staff` é somente leitura dentro do painel.** Conceder painel é a única escalada que o
+  painel não faz sozinho; sai por `admin_tools --panel-on`, que exige shell. `is_admin`, esse
+  sim, o painel concede.
+- **`SessionResult`/`SessionClaim`/`LogEntry` entram somente leitura.** Editar um relatório à
+  mão criaria uma linha que nenhum replay reproduz — a SPEC-010 promete o contrário.
+- **Estáticos por whitenoise + `collectstatic` no build da imagem**, e não pelo nginx: o nginx
+  da frente é o do Daniel e não é versionado aqui. Verificado no ar: `/static/admin/css/base.css`
+  responde 200 com 22 kB.
+- **Verificado no caminho real**, com o compose de pé: login por cookie + CSRF, índice do painel,
+  troca de senha, `add` de conta, `sessionresult/add/` → 403, `/admin/` → 404. A conta de teste
+  foi apagada ao fim.
+
+Duas descobertas grandes, ambas no BACKLOG: a suíte **não** roda em SQLite (roda no Postgres do
+compose, e a CI provavelmente está vermelha — T-076), e teste de formulário não cobre tela de
+admin (o `add` de conta respondia 500 com o formulário passando nos testes).
+
+Gates: `ruff check` + `ruff format --check` + `pytest` (591 testes) verdes; imagem do server
+buildando com `collectstatic`.
+
+---
+
 ## 2026-07-30 (8) · SPEC-018 + ADR-011 — Painel de administração e plano de configuração
 
 Sessão de projeto, sem código. O Daniel quer trazer configuração (recursos do Free, do pago

@@ -87,6 +87,16 @@ services:
       # O relay pertence ao gateway. Se subisse aqui tambem, cada evento de analise seria
       # empurrado duas vezes ao cliente.
       GATEWAY_RELAY: "0"
+      # Painel de operacao (SPEC-018): DESLIGADO por padrao, e quando ligado e SO aqui — por
+      # isso mora no bloco do `api` e nao no `*django-env` compartilhado. O gateway tem ainda
+      # a trava de processo (`core/admin_gate.py`), que nao depende desta variavel.
+      DJANGO_ENABLE_ADMIN: ${DJANGO_ENABLE_ADMIN:-0}
+      # Caminho do painel. Trocar por algo so seu: `/admin` e a primeira URL que um scanner
+      # tenta, e `painel/` e a segunda.
+      DJANGO_ADMIN_PATH: ${DJANGO_ADMIN_PATH:-painel/}
+      # Origem do painel com esquema (`https://treino.dominio`) — sem ela o POST do login
+      # falha no CSRF atras do proxy que termina TLS.
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
     ports:
       - "${BIND_ADDR:-127.0.0.1}:${API_PORT:-8000}:8000"
     depends_on:

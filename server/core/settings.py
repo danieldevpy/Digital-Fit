@@ -26,14 +26,31 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-key-nao-usar-em-p
 DEBUG = _env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,api,[::1]")
 
+#: Painel de operação (SPEC-018 / ADR-011). **Desligado por padrão**: a única coisa que a
+#: variável decide é se a rota existe neste processo — os apps e as tabelas entram sempre (ver
+#: nota logo abaixo). Ligar só no serviço `api`; o gateway tem uma trava própria em
+#: `core/admin_gate.py` que vale mesmo se alguém ligar a variável para ele.
+ADMIN_ENABLED = _env_bool("DJANGO_ENABLE_ADMIN", False)
+
+#: Onde o painel responde. Fora de `/admin` de propósito: é a primeira URL que qualquer
+#: scanner tenta. O default já não é `admin/`, e em produção vale trocar por algo só seu.
+ADMIN_PATH = os.environ.get("DJANGO_ADMIN_PATH", "painel/").strip("/") + "/"
+
 INSTALLED_APPS = [
     # Sem `daphne`: o gateway sobe com uvicorn (`core.asgi:application`) e o `api` segue em
     # WSGI. Instalar daphne só para trocar o runserver não paga o peso.
     "django.contrib.contenttypes",
     # Entra na SPEC-011 pelos hashers de senha, pelo `ModelBackend` e pelas validações de
-    # senha. NÃO entra `django.contrib.sessions`: a autenticação é JWT, e sessão de cookie
-    # seria um segundo mecanismo de login para manter seguro sem ninguém usar.
+    # senha.
     "django.contrib.auth",
+    # Os três do painel (SPEC-018). Entram INCONDICIONALMENTE, e não atrás de `ADMIN_ENABLED`:
+    # apps condicionais dariam estado de migration diferente por processo e por ambiente, e o
+    # sintoma seria um `django_session` que não existe justamente na máquina onde alguém acabou
+    # de ligar o painel. Com a rota desmontada, esta máquina toda fica inerte — o cookie de
+    # sessão não tem quem o emita, e a autenticação do produto continua sendo só JWT.
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.admin",
     "django.contrib.staticfiles",
     "channels",
     "rest_framework",
@@ -45,7 +62,19 @@ MIDDLEWARE = [
     # CORS antes de tudo: o preflight tem de ser respondido mesmo que a view recuse depois.
     "core.cors.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # Serve o CSS do painel sem depender do nginx da frente, que nesta arquitetura é o do
+    # Daniel e não é versionado aqui (docs/DEPLOY.md). Sem isto o painel sobe sem estilo
+    # nenhum em produção — e um admin sem CSS parece quebrado, não austero.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # Só afeta o painel: as views do DRF são `csrf_exempt` e a autenticação da API é JWT
+    # (`settings.REST_FRAMEWORK`), então nada que o cliente faz passa por aqui.
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    # O projeto passou a servir HTML com formulário; clickjacking deixou de ser hipotético.
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 #: Origens do cliente web fora de DEBUG (em DEBUG qualquer origem passa — ver core/cors.py).
@@ -67,7 +96,18 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [],
         "APP_DIRS": True,
-        "OPTIONS": {"context_processors": []},
+        # Os dois processadores são exigência do painel (checks `admin.E402`/`admin.E403`):
+        # sem eles o Django recusa subir, e a lista ficou vazia até a SPEC-018 porque não havia
+        # template nenhum sendo renderizado.
+        "OPTIONS": {
+            "context_processors": [
+                # `request` não é exigência de check, é o que liga a barra lateral de navegação
+                # do painel (`admin.W411`) — sem ela o operador navega por URL.
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ]
+        },
     },
 ]
 
@@ -118,6 +158,27 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Estáticos do painel: o `collectstatic` roda no build da imagem (docker/server.Dockerfile) e o
+# whitenoise serve o resultado. Sem `Manifest...Storage` de propósito — ele estoura em qualquer
+# ambiente onde o `collectstatic` não tenha rodado, e isso inclui a suíte de testes.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
+# Em desenvolvimento o `collectstatic` não roda; o whitenoise então procura os arquivos pelos
+# mesmos finders do runserver, em vez de servir de um `staticfiles/` que não existe.
+WHITENOISE_USE_FINDERS = DEBUG
+
+# Cookie de sessão — existe só para o login do painel (SPEC-018). Fora de DEBUG ele é `Secure`
+# porque o painel só é acessível por HTTPS; `Lax` porque nada legítimo posta nele de outro site.
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+#: Origem do painel, com esquema (`https://painel.dominio`). Necessária para o POST do login
+#: passar no CSRF quando o Django está atrás do proxy que termina TLS.
+CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS", "")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

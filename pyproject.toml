@@ -26,6 +26,10 @@ server = [
     "djangorestframework-simplejwt>=5.3",
     "psycopg[binary]>=3.2",
     "uvicorn[standard]>=0.34",
+    # Estáticos do painel (SPEC-018). O nginx da frente é o do operador e não é versionado
+    # aqui (docs/DEPLOY.md), então servir CSS pelo processo é o que torna o painel utilizável
+    # sem pedir uma mudança na máquina de quem faz deploy.
+    "whitenoise>=6.8",
     # Servidor WSGI do `api` em producao. O gateway continua em uvicorn (ASGI): a divisao
     # WSGI/ASGI da ARCHITECTURE vale em producao tambem, nao so no compose de dev.
     "gunicorn>=23.0",
@@ -109,3 +113,9 @@ DJANGO_SETTINGS_MODULE = "core.settings"
 testpaths = ["tests"]
 addopts = "-q"
 asyncio_mode = "auto"
+filterwarnings = [
+    # O whitenoise avisa que `STATIC_ROOT` nao existe — verdade, e sem consequencia: quem roda
+    # `collectstatic` e o build da imagem (docker/server.Dockerfile), e nenhum teste serve CSS.
+    # Filtrado pelo texto exato para nao esconder outro aviso do mesmo tipo.
+    "ignore:No directory at:UserWarning",
+]
