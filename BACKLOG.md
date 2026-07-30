@@ -94,6 +94,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-067 | Fronteira SITE \| APP: dois entry points do Vite, links cruzados por `VITE_SITE_URL`/`VITE_APP_URL`, pontes `#/ex/:slug` e `#/entrar`, nginx e `prod.sh` prontos para subdomínio (ADR-010) | 014 | done |
 | T-068 | Tab bar Início · Progresso · Analytics · Perfil, play/stop como FAB no treino, telas Progresso e Analytics, rodapé do treino reempilhado e medido | 014 | done |
 | T-069 | Portão de partida: sessão só é pedida quando o pipeline pode emitir frame; prazo de 12s no landmarker com queda GPU→CPU; estado de aquecimento visível na tela | 001/009 | done |
+| T-070 | Assets de pose baixados UMA vez (fim do download duplicado que o prazo da T-069 causava), fileset reaproveitado entre tentativas, progresso do download na tela | 001 | done |
 
 ### Futuras (specs prontas, implementar depois)
 

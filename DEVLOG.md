@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-07-30 (5) · T-070 — O mesmo WASM baixado duas vezes (regressão da T-069)
+
+Waterfall do primeiro acesso trazido pelo Daniel:
+
+```
+vision_wasm_internal.wasm   11.532 kB   33,25 s
+vision_wasm_internal.wasm   11.532 kB   40,07 s
+```
+
+- **Regressão minha, na T-069.** O MediaPipe baixa o WASM DENTRO de `createFromOptions`. Como
+  `createEdgePoseLandmarker` tenta GPU e depois CPU, e o prazo de 12s corta a primeira tentativa
+  enquanto o download dela ainda está no ar, a segunda tentativa começava um SEGUNDO download do
+  mesmo arquivo de 11,5 MB. Os dois dividiam a banda — daí 33s e 40s — e um deles ia para o lixo
+  (`aoChegarTarde` fecha o landmarker que chega tarde, mas os bytes já foram gastos).
+- **Conserto**: `pose/assetWarmup.ts` tira o download de dentro da tentativa. Baixa uma vez, em
+  sequência, para o cache HTTP; só então as tentativas de delegate acontecem — e passam a custar
+  compilação, não rede. O `fileset` é resolvido UMA vez e reaproveitado nas duas tentativas: é
+  dele que sai `wasmBinaryPath`, o caminho exato do binário, sem adivinhar qual dos três `.wasm`
+  do diretório o navegador vai querer (confirmado na `vision.d.ts` do pacote).
+- **O prazo continua**, e agora é seguro: com os bytes em cache, tentar CPU depois da GPU não
+  custa outro download. Era o aquecimento que faltava para o prazo da T-069 não ter efeito
+  colateral.
+- **Progresso na tela**: com o download nas nossas mãos, a tela passou a dizer quanto falta
+  ("43% · 7,4 de 17,3 MB"). São 17 MB no primeiro acesso; a diferença entre isso e uma tela muda
+  é a diferença entre esperar e achar que travou.
+- Cuidado que evitou um bug futuro: `Content-Length` é o tamanho NA REDE e os bytes contados
+  saem do stream já descomprimido. No dia em que o gzip do `.wasm` for ligado, comparar os dois
+  daria "340%" — 11,0 MB lidos contra 3,2 MB anunciados. `totalBytes` devolve `null` quando vê
+  `Content-Encoding`, e `warmupLabel` mostra só os MB recebidos quando o total não descreve o
+  que está sendo lido.
+- Falha de aquecimento nunca sobe: se a rede oscilar ou o `fetch` for bloqueado, o MediaPipe
+  baixa por conta própria como sempre fez. Este módulo é otimização e informação, não um novo
+  ponto de falha no caminho de treinar.
+- Gates: `tsc -b`, `eslint`, `vitest` 323/323 (9 novos em `assetWarmup`), build.
+- Confirmado no waterfall do Daniel: a compressão do `.wasm` **não** estava ativa (11.532 kB
+  transferidos = tamanho cru). Segue como pendência dele, com os números no BACKLOG.
+
 ## 2026-07-30 (4) · T-069 — "Paramos de te ver na câmera" não era a câmera
 
 O Daniel trouxe o teste que fechou o diagnóstico: **em aba anônima nunca conseguia treinar; em

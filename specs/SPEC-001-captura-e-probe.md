@@ -18,6 +18,7 @@ Gerencia câmera, relógio de frames e a decisão EDGE vs CLOUD. É a porta de e
 - UI de estado da câmera: sem permissão / carregando / pronta.
 - **Partida do pipeline é um portão, não um sinal (T-069, vinculante)**: a sessão só é pedida ao servidor quando o cliente já tem como emitir frame — landmarker de pé E probe decidido (`session/pipelineGate.ts`). Câmera pronta **não** é essa condição.
 - **Toda criação de landmarker tem prazo** (12s), com queda de GPU para CPU. A queda não pode depender de rejeição: inicialização de GPU que trava fica pendente para sempre, e sem prazo não há fallback nem erro.
+- **Os assets são baixados FORA da tentativa de delegate (T-070)**, uma vez, para o cache HTTP. O MediaPipe baixa o WASM dentro de `createFromOptions`, então duas tentativas de delegate significavam dois downloads de 11,5 MB em paralelo — medido em produção: 33,25s e 40,07s para o mesmo arquivo. O `fileset` é resolvido uma vez e reaproveitado: é dele que sai o caminho exato do binário a aquecer.
 - **Estado de aquecimento é visível**: entre a câmera abrir e o primeiro frame sair a tela diz o que está acontecendo (carregando modelo / calibrando dispositivo / falhou). Essa janela chega a vários segundos no primeiro acesso (~17 MB de WASM + modelo) e ficar muda nela é indistinguível de estar travado.
 
 ### Fora de escopo (vai para Evolução)

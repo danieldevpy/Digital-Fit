@@ -202,13 +202,18 @@ export function useEdgePipeline(
 
     const startPipeline = async () => {
       store.setPoseStatus('loading')
-      const { landmarker, delegate } = await createEdgePoseLandmarker()
+      // O progresso do download (T-070) vai para o store porque é informação de PRODUTO: são
+      // ~17 MB no primeiro acesso, e quem espera precisa saber que está baixando, não travado.
+      const { landmarker, delegate } = await createEdgePoseLandmarker((progresso) => {
+        if (!disposed) useSessionStore.getState().setPoseDownload(progresso)
+      })
       if (disposed) {
         landmarker.close()
         return
       }
       landmarkerRef.current = landmarker
       store.setPoseDelegate(delegate)
+      store.setPoseDownload(null)
       store.setPoseStatus('ready')
 
       store.setProbeStatus('running')

@@ -6,6 +6,7 @@ import { CountdownSetting } from '../hud/CountdownSetting'
 import { ExercisePicker } from '../hud/ExercisePicker'
 import { GetReady } from '../hud/GetReady'
 import { Mode } from '../lib/events'
+import { warmupLabel } from '../pose/assetWarmup'
 import { pipelinePhase } from '../session/pipelineGate'
 import { useSessionStore } from '../store/session'
 import { useCamera } from './useCamera'
@@ -36,6 +37,7 @@ export function CameraView({ compactCover = false }: CameraViewProps) {
   const sessionStatus = useSessionStore((state) => state.sessionStatus)
   const poseStatus = useSessionStore((state) => state.poseStatus)
   const poseDelegate = useSessionStore((state) => state.poseDelegate)
+  const poseDownload = useSessionStore((state) => state.poseDownload)
   const probeStatus = useSessionStore((state) => state.probeStatus)
   const capability = useSessionStore((state) => state.capability)
   const videoResolution = useSessionStore((state) => state.videoResolution)
@@ -112,9 +114,12 @@ export function CameraView({ compactCover = false }: CameraViewProps) {
       {isReady && fase === 'carregando' && (
         <p className="stage__banner">
           Preparando a análise neste aparelho…
-          {/* Dito só na primeira vez que importa: com o modelo em cache isto passa rápido. */}
           <span className="stage__banner-sub">
-            No primeiro acesso o modelo de pose é baixado; depois fica no aparelho.
+            {poseDownload
+              ? // Com números reais: são ~17 MB no primeiro acesso, e "43% · 7,4 de 17,3 MB"
+                // responde a única pergunta que quem espera tem — "está andando?".
+                `Baixando o modelo de pose · ${warmupLabel(poseDownload)} (só na primeira vez)`
+              : 'No primeiro acesso o modelo de pose é baixado; depois fica no aparelho.'}
           </span>
         </p>
       )}

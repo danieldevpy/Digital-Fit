@@ -2,6 +2,7 @@
 // WASM+SIMD servido localmente, delegate GPU quando disponível.
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision'
 import { comPrazo } from '../lib/deadline'
+import { warmAssets, type AssetProgress } from './assetWarmup'
 import type { Landmark } from './skeleton'
 
 /** Assets preparados por `npm run setup` (scripts/setup-mediapipe.mjs). */
@@ -20,6 +21,12 @@ const MODEL_PATH = '/models/pose_landmarker_lite.task'
  */
 export const INIT_TIMEOUT_MS = 12_000
 
+/**
+ * O `WasmFileset` do MediaPipe não é exportado no pacote — derivar do retorno é o que evita
+ * redeclarar a forma dele aqui e vê-la divergir na próxima atualização.
+ */
+type WasmFileset = Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>
+
 export type PoseDelegate = 'GPU' | 'CPU'
 
 export interface EdgePoseLandmarker {
@@ -27,8 +34,7 @@ export interface EdgePoseLandmarker {
   delegate: PoseDelegate
 }
 
-async function createWith(delegate: PoseDelegate): Promise<PoseLandmarker> {
-  const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_PATH)
+function createWith(fileset: WasmFileset, delegate: PoseDelegate): Promise<PoseLandmarker> {
   return PoseLandmarker.createFromOptions(fileset, {
     baseOptions: { modelAssetPath: MODEL_PATH, delegate },
     runningMode: 'VIDEO',
@@ -37,8 +43,8 @@ async function createWith(delegate: PoseDelegate): Promise<PoseLandmarker> {
 }
 
 /** Cria com prazo, fechando o que chegar depois — dois contextos vivos seria pior que nenhum. */
-function createComPrazo(delegate: PoseDelegate): Promise<PoseLandmarker> {
-  return comPrazo(createWith(delegate), INIT_TIMEOUT_MS, {
+function createComPrazo(fileset: WasmFileset, delegate: PoseDelegate): Promise<PoseLandmarker> {
+  return comPrazo(createWith(fileset, delegate), INIT_TIMEOUT_MS, {
     oQue: `delegate ${delegate}`,
     aoChegarTarde: (landmarker) => landmarker.close(),
   })
@@ -51,15 +57,28 @@ function createComPrazo(delegate: PoseDelegate): Promise<PoseLandmarker> {
  * O prazo (T-069) fecha um buraco real: a queda para CPU só acontecia quando a GPU REJEITAVA,
  * e uma inicialização de GPU que trava não rejeita — ficava pendente para sempre. O app parava
  * em "preparando", sem erro, sem fallback, e a sessão morria de `no_data` do outro lado.
+ *
+ * O aquecimento antes das tentativas (T-070) é o que torna o prazo seguro: com os bytes já no
+ * cache, tentar CPU depois da GPU custa compilação, não outro download de 11,5 MB. Sem ele o
+ * prazo criava o problema que se vê no waterfall — o MESMO wasm baixado duas vezes em paralelo.
+ *
+ * `fileset` é resolvido UMA vez e reaproveitado nas duas tentativas: ele decide SIMD × nosimd e
+ * é dele que sai o caminho exato do binário — que é justamente o que precisamos aquecer, sem
+ * adivinhar qual dos três `.wasm` do diretório o navegador vai querer.
  */
-export async function createEdgePoseLandmarker(): Promise<EdgePoseLandmarker> {
+export async function createEdgePoseLandmarker(
+  aoProgredir: (progresso: AssetProgress) => void = () => {},
+): Promise<EdgePoseLandmarker> {
+  const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_PATH)
+  await warmAssets([fileset.wasmBinaryPath, MODEL_PATH], aoProgredir)
+
   try {
-    return { landmarker: await createComPrazo('GPU'), delegate: 'GPU' }
+    return { landmarker: await createComPrazo(fileset, 'GPU'), delegate: 'GPU' }
   } catch (error) {
     console.warn('[pose] delegate GPU indisponível ou travado, caindo para CPU', error)
     // A CPU também ganha prazo: se ela travar, o `catch` de quem chamou mostra o erro na tela
     // em vez de deixar a tela esperando um evento que não vem.
-    return { landmarker: await createComPrazo('CPU'), delegate: 'CPU' }
+    return { landmarker: await createComPrazo(fileset, 'CPU'), delegate: 'CPU' }
   }
 }
 

@@ -10,6 +10,7 @@ import type {
   SessionStartedData,
 } from '../lib/events'
 import type { GatewayStatus } from '../lib/gateway'
+import type { AssetProgress } from '../pose/assetWarmup'
 import type { PoseDelegate } from '../pose/poseLandmarker'
 import type { ProbeOutcome } from '../probe/runProbe'
 import type { SessionReport } from '../report/sessionReport'
@@ -44,6 +45,11 @@ export interface SessionState {
   cameraStatus: CameraStatus
   poseStatus: PoseStatus
   poseDelegate: PoseDelegate | null
+  /**
+   * Quanto dos assets de pose já baixou (T-070). `null` quando não há download em curso —
+   * inclusive na segunda visita, em que tudo vem do cache e ninguém precisa ver barra alguma.
+   */
+  poseDownload: AssetProgress | null
   probeStatus: ProbeStatus
   capability: ProbeOutcome | null
   /** `?mode=` da URL; `null` quando o probe decide sozinho. */
@@ -128,6 +134,7 @@ export interface SessionState {
   setCameraStatus: (status: CameraStatus) => void
   setPoseStatus: (status: PoseStatus) => void
   setPoseDelegate: (delegate: PoseDelegate) => void
+  setPoseDownload: (progresso: AssetProgress | null) => void
   setProbeStatus: (status: ProbeStatus) => void
   setCapability: (capability: ProbeOutcome | null) => void
   setModeOverride: (mode: Mode | null) => void
@@ -207,6 +214,7 @@ const SESSION_DEFAULTS = {
 export const useSessionStore = create<SessionState>((set, get) => ({
   cameraStatus: 'idle',
   poseStatus: 'idle',
+  poseDownload: null,
   poseDelegate: null,
   probeStatus: 'idle',
   capability: null,
@@ -230,6 +238,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setCameraStatus: (cameraStatus) => set({ cameraStatus }),
   setPoseStatus: (poseStatus) => set({ poseStatus }),
   setPoseDelegate: (poseDelegate) => set({ poseDelegate }),
+  setPoseDownload: (poseDownload) => set({ poseDownload }),
   setProbeStatus: (probeStatus) => set({ probeStatus }),
   setCapability: (capability) => set({ capability }),
   setModeOverride: (modeOverride) => set({ modeOverride }),
@@ -344,6 +353,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({
       poseStatus: 'idle',
       poseDelegate: null,
+      poseDownload: null,
       probeStatus: 'idle',
       capability: null,
       landmarksDetected: 0,
