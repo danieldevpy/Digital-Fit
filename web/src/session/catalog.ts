@@ -20,6 +20,12 @@ export interface ExerciseInfo {
    * esqueleto sobre a imagem existe para evitar (SPEC-013).
    */
   main_angle: 'arm_abduction' | 'none'
+  /** Imagem de demonstração (SPEC-015: "todo exercício tem demo visual"). */
+  demo_img: string
+  /** Cor do dot de grupo no card da Escolha (SPEC-014 §2). */
+  dot_color: string
+  /** Passos do exemplo guiado (SPEC-015). Vazio não quebra: o Guia mostra demo + cena. */
+  guide_steps: { img: string; text: string }[]
 }
 
 export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
@@ -29,6 +35,13 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
     muscle_group: 'Corpo inteiro',
     default_tip: 'Mantenha o core contraído e movimentos controlados.',
     main_angle: 'arm_abduction',
+    demo_img: '/img/guia/polichinelo-2.jpg',
+    dot_color: '#34d399',
+    guide_steps: [
+      { img: '/img/guia/polichinelo-1.jpg', text: 'Fique em pé, de frente para a câmera, corpo inteiro visível, braços ao lado do corpo.' },
+      { img: '/img/guia/polichinelo-2.jpg', text: 'Salte abrindo as pernas e levando os braços acima da cabeça, ao mesmo tempo.' },
+      { img: '/img/guia/polichinelo-1.jpg', text: 'Volte à posição inicial no salto seguinte — cada ida e volta conta uma repetição.' },
+    ],
   },
   squat: {
     display_name: 'Agachamento',
@@ -36,6 +49,13 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
     muscle_group: 'Pernas e glúteos',
     default_tip: 'Desça com o peso nos calcanhares e o peito aberto.',
     main_angle: 'none',
+    demo_img: '/img/guia/agachamento-2.jpg',
+    dot_color: '#4d8cff',
+    guide_steps: [
+      { img: '/img/guia/agachamento-1.jpg', text: 'Pés na largura dos ombros, pontas levemente para fora, braços à frente para equilibrar.' },
+      { img: '/img/guia/agachamento-2.jpg', text: 'Desça empurrando o quadril para trás, peso nos calcanhares, até as coxas ficarem paralelas ao chão.' },
+      { img: '/img/guia/agachamento-1.jpg', text: 'Suba estendendo as pernas sem tirar os pés do chão — subida completa conta a repetição.' },
+    ],
   },
 }
 

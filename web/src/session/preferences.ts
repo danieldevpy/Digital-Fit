@@ -84,3 +84,27 @@ export function setExercisePreference(chave: string): string {
   }
   return valor
 }
+
+/**
+ * Guia visto POR EXERCÍCIO (SPEC-015): quem sabe polichinelo ainda não viu agachamento.
+ * "Pular" também marca — pular é uma resposta, não uma falha do funil.
+ */
+const GUIDE_SEEN_PREFIX = 'digitalfit.guide_seen.'
+
+export function guideSeen(exercise: string): boolean {
+  try {
+    return window.localStorage.getItem(GUIDE_SEEN_PREFIX + exercise) === '1'
+  } catch {
+    // Sem armazenamento, tratar como visto: repetir o guia a cada toque num aparelho sem
+    // storage puniria justamente quem só quer treinar.
+    return true
+  }
+}
+
+export function setGuideSeen(exercise: string): void {
+  try {
+    window.localStorage.setItem(GUIDE_SEEN_PREFIX + exercise, '1')
+  } catch {
+    // Sem armazenamento: paciência — o guia volta na próxima visita.
+  }
+}
