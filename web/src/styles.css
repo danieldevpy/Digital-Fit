@@ -2304,6 +2304,12 @@ a {
   display: none;
 }
 
+/* O anel serrilhado é pista de "aguardando" (medindo/preparando); rodar sem parar depois
+   que o exercício valeu era só ruído girando atrás dos cards (relato do Daniel em produção). */
+.live__chrome--valendo .live__orbit {
+  display: none;
+}
+
 .live__head {
   position: absolute;
   top: 14px;

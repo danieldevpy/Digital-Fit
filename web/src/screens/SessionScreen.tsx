@@ -301,7 +301,11 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
         </>
       ) : (
         // Medindo o corpo (SPEC-004): a instrução central manda, e o HUD sai da frente.
-        <div className={`live__chrome ${sessionStatus === 'calibrating' ? 'live__chrome--medindo' : ''}`}>
+        <div
+          className={`live__chrome ${sessionStatus === 'calibrating' ? 'live__chrome--medindo' : ''} ${
+            sessionStatus === 'running' || sessionStatus === 'completed' ? 'live__chrome--valendo' : ''
+          }`}
+        >
           <div className="live__fade-top" />
           <div className="live__fade-bottom" />
 
