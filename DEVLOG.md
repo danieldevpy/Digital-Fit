@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-07-30 · SPEC-014…017 + T-056…T-062 — Plano de evolução e UI v2 completa
+
+- **Planejamento documentado primeiro** (pedido do Daniel): SPEC-014 (Interface v2 —
+  vinculante, réplica do protótipo Claude Design "Evolução UI v2" + `app-completo-mobile.png`
+  + `index.png`), SPEC-015 (Primeiro Acesso Guiado: Index → Escolha → Guia → Treino),
+  SPEC-016 (Free × Assinatura — *futura*), SPEC-017 (Perfil físico & progresso realista —
+  *futura*). Plano-mestre em `docs/PLANO-UI-V2.md`; Fase 4 no BACKLOG (T-056…T-066).
+- **Imagens geradas no Kairogen** (seedream-v4, 8 créditos; ~35 restantes): hero do index e
+  passos do guia (polichinelo ×2, agachamento ×2), personagem consistente via reference
+  image, comprimidas para ~80KB em `web/public/img/`.
+- **UI v2 implementada** (T-056…T-062): tokens novos (Manrope/Space Grotesk, #05070d,
+  azul/roxo/ciano, animações `df*`), roteador por hash (`shell/nav.ts`, sem dependência),
+  tab bar flutuante de 4 itens (sem FAB), Index responsivo (mobile = tela 1; ≥900px =
+  `index.png` com mini-HUD estático e footer), Escolha (cards com demo/badge/dot), Guia
+  (SPEC-015, "visto" por exercício no localStorage), Pré-configuração (steppers funcionais de
+  série/reps persistidos; duração TRAVADA nos 30s — autoridade do servidor; espelhar; grade +
+  scan + silhueta ciano sobre a câmera ao vivo), Treino ao Vivo (HUD flutuante com anel de
+  reps real, ângulo T-044, TimerRing, pill do exercício, player) e Sobre.
+- Decisões:
+  - **Pré-config e treino são UM componente** (`SessionScreen`) com a CameraView num slot
+    estável (`.sess__cam`) e cromo absoluto por cima — trocar de tela não pode desmontar a
+    câmera. A sessão só abre no `#/treino` (`useSession(camera && rota)`); a pré-config é
+    espelho puro.
+  - **Honestidade > fidelidade** (tabela de desvios na SPEC-014): FC e kcal mostram `--`
+    (sem sensor/sem MET), player mostra **stop** e não pause (sessão de 30s é atômica),
+    música desabilitada. Série/reps são metas cosméticas do HUD até a T-045.
+  - Design system "Nocturne" do Claude Design **não** adotado (estética diverge do
+    protótipo); os tokens vêm do próprio protótipo v2.
+  - Google Fonts no `index.html`: offline degrada para system-ui — anotado na spec.
+- Bug pego na verificação em browser: dois toques rápidos no stepper perdiam um incremento
+  (closure velha) — corrigido com updater funcional + persistência em `useEffect`.
+- Removidos os rascunhos `Index.tsx`, `ExecuteExercicies.tsx` e `hud/CardSelector.tsx`
+  (substituídos pelas telas de `screens/`).
+- Gates: `tsc` limpo, `eslint` limpo, `vitest` 288/288. Funil inteiro verificado no browser
+  (mobile 375px e desktop 1280px), inclusive back do navegador e persistência do guia.
+- Pendências: T-063…T-066 (Free/Assinatura, perfil físico, GIFs) ficam como specs futuras;
+  duração configurável depende da SPEC-009 evolução; testar blur do HUD em aparelho real
+  (degradar para fundo sólido se houver jank — SPEC-014 §Materiais).
+
+---
+
 ## 2026-07-29 · T-032 — Exercício 2: o agachamento
 
 - Entregue: `exercises/squat.py` + 33 testes, `Code.SQUAT_TOO_SHALLOW` no contrato, mensagem

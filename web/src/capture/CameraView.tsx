@@ -18,7 +18,16 @@ const CAMERA_LABEL: Record<string, string> = {
   error: 'Erro na câmera',
 }
 
-export function CameraView() {
+interface CameraViewProps {
+  /**
+   * Capa compacta (SPEC-014 §3): dentro da moldura da pré-configuração as escolhas de
+   * exercício/preparação já têm casa própria nas colunas — repetir os chips aqui viraria
+   * ruído dentro de uma janela de 180px.
+   */
+  compactCover?: boolean
+}
+
+export function CameraView({ compactCover = false }: CameraViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -34,6 +43,7 @@ export function CameraView() {
   const frameStats = useSessionStore((state) => state.frameStats)
   const gatewayStatus = useSessionStore((state) => state.gatewayStatus)
   const error = useSessionStore((state) => state.error)
+  const mirrored = useSessionStore((state) => state.mirrored)
 
   const setCameraControls = useSessionStore((state) => state.setCameraControls)
   // Ferramentas de diagnóstico: build de dev, ou conta com `is_admin` (T-048).
@@ -57,7 +67,7 @@ export function CameraView() {
   const isCloud = capability?.mode === Mode.CLOUD
 
   return (
-    <div className="stage">
+    <div className={`stage ${mirrored ? '' : 'stage--unmirrored'}`}>
       {/* video e canvas espelhados juntos: o desenho usa coordenadas cruas. */}
       <video ref={videoRef} className="stage__video" playsInline muted autoPlay />
       <canvas ref={canvasRef} className="stage__canvas" />
@@ -76,16 +86,16 @@ export function CameraView() {
           </button>
 
           {/* As escolhas só importam aqui, logo antes de treinar: o que fazer (T-051) e
-              quanto tempo para se preparar (T-049). O seletor de exercício não desenha nada
-              enquanto o catálogo tiver um item só. */}
-          <ExercisePicker />
-          <CountdownSetting />
+              quanto tempo para se preparar (T-049). Na capa compacta da pré-config (SPEC-014)
+              elas saem: exercício e ajustes moram nas colunas ao redor da moldura. */}
+          {!compactCover && <ExercisePicker />}
+          {!compactCover && <CountdownSetting />}
 
           {/* A fonte de arquivo precisa estar acessível ANTES da câmera (T-040): ela existe
               justamente para medir o pipeline sem câmera — em máquina sem webcam, ou sem
               gastar a permissão. Deixá-la só dentro do chip de diagnóstico, que exige
               `isReady`, obrigaria a ligar a câmera para não usá-la. */}
-          {devTools && (
+          {devTools && !compactCover && (
             <div className="stage__dev stage__dev--cover">
               <VideoSourceControl />
             </div>
