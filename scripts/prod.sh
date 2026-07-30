@@ -124,6 +124,42 @@ carrega_ambiente() {
   export GATEWAY_WS_URL="wss://${DOMAIN}"
   export DJANGO_ALLOWED_HOSTS="${DOMAIN}"
   export CORS_ALLOWED_ORIGINS="https://${DOMAIN}"
+
+  # Fronteira SITE|APP (T-067). Por padrao os dois vivem no MESMO dominio, em caminhos
+  # diferentes (`/` e `/app/`) — e ai nao ha nada a derivar: o cliente usa os proprios
+  # defaults e as variaveis ficam vazias.
+  #
+  # Definir SITE_DOMAIN e/ou APP_DOMAIN no .env.prod (ex.: site.exemplo.com / app.exemplo.com)
+  # liga o modo subdominio: as origens completas entram no bundle e os dois hosts entram no
+  # ALLOWED_HOSTS e no CORS. Sem isso, o app num host novo bateria numa API que recusa o
+  # `Host` — falha que aparece como "sem conexao" no celular, sem pista do motivo.
+  export VITE_SITE_URL="" VITE_APP_URL=""
+
+  if [[ -n "${SITE_DOMAIN:-}" || -n "${APP_DOMAIN:-}" ]]; then
+    local site_host="${SITE_DOMAIN:-$DOMAIN}"
+    local app_host="${APP_DOMAIN:-$DOMAIN}"
+
+    for par in "SITE_DOMAIN:$site_host" "APP_DOMAIN:$app_host"; do
+      local nome="${par%%:*}" host="${par#*:}"
+      [[ "$host" == *"://"* ]] && morre "$nome vai sem esquema: use 'app.exemplo.com'"
+      [[ "$host" == */* ]] && morre "$nome vai sem barra nem caminho: use apenas o host"
+    done
+
+    export VITE_SITE_URL="https://${site_host}/"
+    # No modo subdominio o app e a RAIZ do proprio host — quem mapeia essa raiz para
+    # /app/index.html e o nginx da VPS (`./scripts/prod.sh nginx` imprime o bloco).
+    export VITE_APP_URL="https://${app_host}/"
+
+    local hosts="${DOMAIN}" origens="https://${DOMAIN}"
+    for host in "$site_host" "$app_host"; do
+      [[ "$host" == "$DOMAIN" ]] && continue
+      [[ ",$hosts," == *",$host,"* ]] && continue
+      hosts="${hosts},${host}"
+      origens="${origens},https://${host}"
+    done
+    export DJANGO_ALLOWED_HOSTS="$hosts"
+    export CORS_ALLOWED_ORIGINS="$origens"
+  fi
 }
 
 # --------------------------------------------------------------------------------------
@@ -323,6 +359,72 @@ server {
 server {
     listen 80;
     server_name ${DOMAIN};
+    return 301 https://\$host\$request_uri;
+}
+NGINX
+
+  if [[ -z "${SITE_DOMAIN:-}${APP_DOMAIN:-}" ]]; then
+    cat <<'NGINX'
+
+# SITE e APP no mesmo dominio: nada a acrescentar. O site responde em / e o app em /app/ —
+# quem separa e o nginx DE DENTRO do container (docker/web-nginx.conf).
+#
+# Para separar por subdominio, preencha SITE_DOMAIN/APP_DOMAIN no .env.prod, rode
+# `./scripts/prod.sh up` (o bundle precisa ser reconstruido) e rode este comando de novo.
+NGINX
+    return
+  fi
+
+  cat <<NGINX
+
+# ---------------------------------------------------------------------------
+# SITE | APP em subdominios (T-067)
+# ---------------------------------------------------------------------------
+# Um artefato so, dois hosts. O detalhe que quebra: o HTML do app referencia /assets/... em
+# caminho ABSOLUTO. Mapear o host inteiro para /app/ (proxy_pass .../app/) faria o navegador
+# pedir /app/assets/... e tomar 404. Por isso so a RAIZ e reescrita; o resto passa igual, e
+# assets, /models, /wasm e /img continuam sendo os mesmos arquivos para os dois hosts.
+
+server {
+    listen 443 ssl http2;
+    server_name ${APP_DOMAIN:-app.${DOMAIN}};
+
+    # ssl_certificate     /etc/letsencrypt/live/${APP_DOMAIN:-app.${DOMAIN}}/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/${APP_DOMAIN:-app.${DOMAIN}}/privkey.pem;
+
+    # A API e o WS continuam no host principal (${DOMAIN}), que e o que esta gravado no
+    # bundle como VITE_API_URL — nao duplique /api e /ws aqui.
+
+    location = / {
+        proxy_pass http://127.0.0.1:${WEB_PORT:-8080}/app/index.html;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:${WEB_PORT:-8080};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ${SITE_DOMAIN:-site.${DOMAIN}};
+
+    # ssl_certificate     /etc/letsencrypt/live/${SITE_DOMAIN:-site.${DOMAIN}}/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/${SITE_DOMAIN:-site.${DOMAIN}}/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:${WEB_PORT:-8080};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name ${SITE_DOMAIN:-site.${DOMAIN}} ${APP_DOMAIN:-app.${DOMAIN}};
     return 301 https://\$host\$request_uri;
 }
 NGINX

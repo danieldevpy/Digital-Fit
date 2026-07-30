@@ -32,10 +32,7 @@ import {
   IconFlame,
   IconLogo,
   IconMirror,
-  IconMusic,
-  IconNext,
   IconPlay,
-  IconPrev,
   IconStop,
 } from '../ui/icons'
 
@@ -356,30 +353,28 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
             </div>
           </div>
 
-          <div className="live__player">
-            <button type="button" className="player-btn" disabled title="Trocar exercício: volte à pré-configuração">
-              <IconPrev className="player-btn__icon" />
-            </button>
-            {/* Stop e não pause: a sessão de 30s é atômica no servidor (SPEC-009). O botão
-                encerra e volta à pré-configuração; pause de verdade é evolução. */}
-            <button
-              type="button"
-              className="player-btn player-btn--main"
-              onClick={cameraReady ? encerrar : iniciar}
-              aria-label={cameraReady ? 'Encerrar treino' : 'Iniciar treino'}
-            >
-              {cameraReady ? (
-                <IconStop className="player-btn__icon--main" />
-              ) : (
-                <IconPlay className="player-btn__icon--main" />
-              )}
-            </button>
-            <button type="button" className="player-btn" disabled title="Trocar exercício: volte à pré-configuração">
-              <IconNext className="player-btn__icon" />
-            </button>
-            <button type="button" className="player-btn player-btn--music" disabled title="Música: em breve">
-              <IconMusic className="player-btn__icon" />
-            </button>
+          {/* Rodapé único (T-068): a bottom nav do app com o play/stop no meio. O player
+              flutuante de 4 botões saiu — ⏮/⏭/música eram placeholders desabilitados e eram
+              eles que empurravam o botão principal para baixo dos avisos da câmera e da barra
+              do navegador. Trocar de exercício continua sendo papel da pré-configuração.
+              Stop e não pause: a sessão de 30s é atômica no servidor (SPEC-009). */}
+          <div className="live__bottom">
+            <TabBar
+              center={
+                <button
+                  type="button"
+                  className="player-btn player-btn--main"
+                  onClick={cameraReady ? encerrar : iniciar}
+                  aria-label={cameraReady ? 'Encerrar treino' : 'Iniciar treino'}
+                >
+                  {cameraReady ? (
+                    <IconStop className="player-btn__icon--main" />
+                  ) : (
+                    <IconPlay className="player-btn__icon--main" />
+                  )}
+                </button>
+              }
+            />
           </div>
         </div>
       )}

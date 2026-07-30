@@ -221,9 +221,12 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
       args:
-        # Gravada no bundle em build time — trocar de dominio exige rebuild, e o
+        # Gravadas no bundle em build time — trocar de dominio exige rebuild, e o
         # `scripts/prod.sh up` sempre reconstroi por isso.
         VITE_API_URL: ${VITE_API_URL:?derivado do DOMAIN — use ./scripts/prod.sh em vez de docker compose direto}
+        # Fronteira SITE|APP (T-067). Vazias num dominio so: o cliente usa `/` e `/app/`.
+        VITE_SITE_URL: ${VITE_SITE_URL:-}
+        VITE_APP_URL: ${VITE_APP_URL:-}
     ports:
       - "${BIND_ADDR:-127.0.0.1}:${WEB_PORT:-8080}:80"
     restart: unless-stopped

@@ -91,6 +91,8 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-060 | Pré-configuração funcional: steppers série/reps/duração, espelhar, câmera com grade+scan+silhueta, FC/kcal `--` | 014 | done |
 | T-061 | Treino ao Vivo imersivo: HUD flutuante (anéis reais de reps/tempo, ângulo), player (stop honesto), toasts de cena/coach | 014 | done |
 | T-062 | Tela Sobre / footer mobile | 014 | done |
+| T-067 | Fronteira SITE \| APP: dois entry points do Vite, links cruzados por `VITE_SITE_URL`/`VITE_APP_URL`, pontes `#/ex/:slug` e `#/entrar`, nginx e `prod.sh` prontos para subdomínio (ADR-010) | 014 | done |
+| T-068 | Tab bar Início · Progresso · Analytics · Perfil, play/stop como FAB no treino, telas Progresso e Analytics, rodapé do treino reempilhado e medido | 014 | done |
 
 ### Futuras (specs prontas, implementar depois)
 
@@ -102,6 +104,16 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-066 | GIF/vídeo de demonstração por exercício (Escolha + Guia) | 015 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-068] Capa da câmera desligada repete escolhas na tela de treino**: com a câmera
+  fechada, `.stage__cover` mostra "Ligar câmera" + ExercisePicker + CountdownSetting também
+  em `#/treino`, onde essas escolhas já foram feitas na pré-configuração. Não é o bug do
+  rodapé (aquele saiu) — é ruído herdado da SPEC-013. Provável correção: passar
+  `compactCover` também no treino, ou uma capa própria com "voltar à pré-configuração".
+- **[T-068] Chip de diagnóstico pode encostar nos cards de ângulo/calorias** em telas mais
+  baixas que ~740px, porque os cards do meio ficam em `top: 46%` e a pilha do rodapé é em px.
+  Só afeta dev/admin (T-048). Correção natural quando alguém tocar no HUD: posições
+  determinísticas em px para os cards do meio.
 
 - **[A/T-001] Serviço `web` fora do compose**: a T-001 entregou apenas `redis`, `postgres` e
   `api`; `web/` ficou como pasta com README (território do Agente B). Quem criar o Vite

@@ -84,6 +84,41 @@ Cole, ajuste, recarregue, rode o certbot. O trecho que **não** pode ser simplif
 `/ws/`: sem os headers de `Upgrade`/`Connection`, o WebSocket vira um GET comum, o handshake
 falha, e o cliente mostra só "sem conexão" sem nenhuma pista.
 
+## SITE e APP: um artefato, duas fronteiras
+
+Desde a T-067 o cliente são **dois** SPAs no mesmo build:
+
+| bundle | conteúdo | onde responde |
+|---|---|---|
+| site | landing e Sobre | `/` |
+| app | escolha, guia, pré-config, treino, progresso, analytics, conta | `/app/` |
+
+No deploy padrão isso já funciona sem configurar nada: quem separa é o nginx **de dentro** do
+container (`docker/web-nginx.conf`), e os links de um lado para o outro usam caminho relativo.
+
+Para separar por subdomínio (`site.dominio` | `app.dominio`), preencha no `.env.prod`:
+
+```bash
+SITE_DOMAIN=site.seudominio.com.br
+APP_DOMAIN=app.seudominio.com.br
+```
+
+e rode `./scripts/prod.sh up` (o bundle **precisa** ser reconstruído: as origens são `VITE_*`,
+gravadas em build time) seguido de `./scripts/prod.sh nginx`, que passa a imprimir os dois
+server blocks novos. Três coisas que essa mudança arrasta, e que o script resolve por você:
+
+1. **`ALLOWED_HOSTS` e CORS** ganham os dois hosts. Sem isso o app num host novo bate numa API
+   que recusa o `Host` — e o sintoma no celular é só "sem conexão".
+2. **A raiz do host do app** é mapeada para `/app/index.html`, e só ela. Mapear o host inteiro
+   para `/app/` faria o navegador pedir `/app/assets/…` (o HTML referencia `/assets/…` em
+   caminho absoluto) e tomar 404.
+3. **API e WebSocket continuam no host principal** — é o que está gravado no bundle como
+   `VITE_API_URL`. Não duplique `/api` e `/ws` no server block do app.
+
+A conta fica no app, não no site: o token vive no `localStorage`, que é por origem, então
+"Entrar" no site é um link para `app.dominio/#/entrar`. Um login no host errado não valeria
+no outro — e um "Entrar" que às vezes funciona é pior que um que só encaminha.
+
 ### Se alguma porta já estiver ocupada
 
 Comum numa VPS que já roda outras coisas — `8000` costuma estar tomada. O `up` detecta isso

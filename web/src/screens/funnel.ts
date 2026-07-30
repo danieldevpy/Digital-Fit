@@ -4,7 +4,11 @@
 import { guideSeen, setExercisePreference } from '../session/preferences'
 import { navigate } from '../shell/nav'
 
-export function chooseExercise(key: string): void {
+/**
+ * `replace` serve à ponte `#/ex/<slug>` do site (T-067): ali a escolha não foi um toque
+ * nesta tela, e a ponte não deve sobrar no histórico.
+ */
+export function chooseExercise(key: string, { replace = false }: { replace?: boolean } = {}): void {
   setExercisePreference(key)
-  navigate(guideSeen(key) ? { screen: 'preparar' } : { screen: 'guia', exercise: key })
+  navigate(guideSeen(key) ? { screen: 'preparar' } : { screen: 'guia', exercise: key }, { replace })
 }

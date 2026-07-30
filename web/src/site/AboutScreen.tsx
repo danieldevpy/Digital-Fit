@@ -1,8 +1,11 @@
 // Tela Sobre / footer mobile (SPEC-014 §5, tela 5 da referência).
-import { exercisePreference } from '../session/preferences'
-import { navigate } from '../shell/nav'
-import { TabBar } from '../shell/TabBar'
+//
+// Desde a T-067 é tela do SITE: conteúdo institucional não pertence ao app de treino, e os
+// dois links que levam a treinar atravessam para o app por `href`.
+import { DEFAULT_EXERCISE } from '../session/catalog'
+import { appHref } from '../shell/origins'
 import { IconChevronRight, IconLogo, IconShieldCheck, IconSpark, IconTarget } from '../ui/icons'
+import { SiteBar } from './SiteBar'
 
 const VALUES = [
   {
@@ -24,10 +27,10 @@ const VALUES = [
 
 export function AboutScreen() {
   const recursos = [
-    { label: 'Como funciona', go: () => navigate({ screen: 'guia', exercise: exercisePreference() }) },
-    { label: 'Exercícios', go: () => navigate({ screen: 'exercicios' }) },
-    { label: 'Benefícios', go: null },
-    { label: 'Planos', go: null },
+    { label: 'Como funciona', href: appHref(`#/guia/${DEFAULT_EXERCISE}`) },
+    { label: 'Exercícios', href: appHref('#/exercicios') },
+    { label: 'Benefícios', href: null },
+    { label: 'Planos', href: null },
   ]
 
   return (
@@ -55,25 +58,24 @@ export function AboutScreen() {
 
         <div className="about__links">
           <p className="about__links-title">Recursos</p>
-          {recursos.map(({ label, go }) => (
-            <button
-              key={label}
-              type="button"
-              className="about__link"
-              onClick={go ?? undefined}
-              aria-disabled={go ? undefined : true}
-              title={go ? undefined : 'Em breve'}
-              style={go ? undefined : { opacity: 0.5, cursor: 'default' }}
-            >
-              {label}
-              <IconChevronRight className="about__link-icon" />
-            </button>
-          ))}
+          {recursos.map(({ label, href }) =>
+            href ? (
+              <a key={label} className="about__link" href={href}>
+                {label}
+                <IconChevronRight className="about__link-icon" />
+              </a>
+            ) : (
+              <span key={label} className="about__link about__link--soon" title="Em breve">
+                {label}
+                <IconChevronRight className="about__link-icon" />
+              </span>
+            ),
+          )}
         </div>
 
         <p className="about__copyright">© 2025 Digital Fit. Todos os direitos reservados.</p>
       </div>
-      <TabBar />
+      <SiteBar active="sobre" />
     </>
   )
 }

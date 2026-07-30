@@ -2,10 +2,11 @@
 // de `app-completo-mobile.png`; ≥ 900px segue `index.png` (nav, hero em 2 colunas com
 // mini-HUD decorativo, seção de exercícios e footer). O mini-HUD é markup estático — a
 // SPEC-014 proíbe montar câmera/sessão fora do fluxo de treino.
-import { exercisePreference } from '../session/preferences'
-import { navigate } from '../shell/nav'
-import { TabBar } from '../shell/TabBar'
-import { useAccountStore } from '../store/account'
+//
+// Desde a T-067 esta tela é o SITE: todo botão que leva a treinar é um `<a href>` para o
+// app, não um `navigate()`. O app pode estar em outro host, e ali `#/preparar` não existe.
+import { DEFAULT_EXERCISE } from '../session/catalog'
+import { appHref } from '../shell/origins'
 import {
   IconAngle,
   IconCounter,
@@ -19,7 +20,8 @@ import {
   IconSpark,
   IconTarget,
 } from '../ui/icons'
-import { ExerciseCards } from './ExerciseCards'
+import { ExerciseCards } from '../screens/ExerciseCards'
+import { SiteBar } from './SiteBar'
 
 function Brand({ mobile = false }: { mobile?: boolean }) {
   return (
@@ -54,16 +56,16 @@ const FEATURES = [
 ]
 
 export function IndexScreen() {
-  const openAccount = useAccountStore((state) => state.openSheet)
-
   return (
     <div className="landing">
       <div className="landing__scroll">
         <nav className="landing__nav">
           <Brand />
-          <button type="button" className="landing__enter" onClick={() => openAccount(true)}>
+          {/* "Entrar" leva ao app porque é lá que a conta mora: o token fica no localStorage,
+              que é por origem — entrar aqui não deixaria ninguém logado no app. */}
+          <a className="landing__enter" href={appHref('#/entrar')}>
             Entrar
-          </button>
+          </a>
         </nav>
 
         <Brand mobile />
@@ -102,24 +104,19 @@ export function IndexScreen() {
             </div>
 
             <div className="landing__cta">
-              <button
-                type="button"
-                className="v2-cta"
-                onClick={() => navigate({ screen: 'exercicios' })}
-              >
+              <a className="v2-cta" href={appHref('#/exercicios')}>
                 Começar Treino
                 <span className="v2-cta__play">
                   <IconPlay className="v2-cta__play-icon" />
                 </span>
-              </button>
+              </a>
             </div>
-            <button
-              type="button"
-              className="landing__how"
-              onClick={() => navigate({ screen: 'guia', exercise: exercisePreference() })}
-            >
+            {/* Exercício padrão, e não a preferência: preferência é do aparelho na origem do
+                APP, e o site não a conhece. Prometer "o seu último exercício" aqui seria
+                chutar. */}
+            <a className="landing__how" href={appHref(`#/guia/${DEFAULT_EXERCISE}`)}>
               <IconPlay className="landing__how-icon" /> Ver como funciona
-            </button>
+            </a>
           </div>
 
           {/* Mini-HUD decorativo do index.png — números de amostra, marcados como tal. */}
@@ -161,7 +158,9 @@ export function IndexScreen() {
               Treinos rápidos, <em>resultados reais</em>
             </p>
           </div>
-          <ExerciseCards grid />
+          {/* `openInApp`: no site cada card é um link para o app, que decide Guia ou
+              Pré-config (SPEC-015) — a decisão depende do localStorage de lá. */}
+          <ExerciseCards grid openInApp />
         </div>
 
         <footer className="landing__footer">
@@ -171,8 +170,8 @@ export function IndexScreen() {
           </div>
           <div className="landing__footer-col">
             <h3>Recursos</h3>
-            <a href="#/guia/jumping_jack">Como funciona</a>
-            <a href="#/exercicios">Exercícios</a>
+            <a href={appHref(`#/guia/${DEFAULT_EXERCISE}`)}>Como funciona</a>
+            <a href={appHref('#/exercicios')}>Exercícios</a>
             <a href="#/sobre">Benefícios</a>
             <a href="#/sobre">Planos</a>
           </div>
@@ -194,8 +193,11 @@ export function IndexScreen() {
         </footer>
       </div>
 
+      {/* A tab bar do app (Início/Progresso/Analytics/Perfil) não cabe aqui: são as telas de
+          treino, que vivem no outro bundle. O site tem barra própria, e o item que importa
+          nela é a porta do app. */}
       <div className="landing__tabbar">
-        <TabBar />
+        <SiteBar active="index" />
       </div>
     </div>
   )

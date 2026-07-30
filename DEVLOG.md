@@ -5,6 +5,64 @@
 
 ---
 
+## 2026-07-30 (3) · T-067/T-068 — Fronteira SITE|APP, tab bar nova e o rodapé do treino (de verdade)
+
+Segundo teste do Daniel em aparelho real. O relato: "na parte de baixo onde tem o botão ainda
+está ficando algo por cima". A queixa de detecção do mesmo relato era conexão de internet —
+confirmado por ele, nada a corrigir no pipeline.
+
+- **O rodapé tinha DUAS causas, e a primeira revisão só pegou uma.**
+  1. *Posição*: os avisos da CameraView (`.stage__banner`, `bottom: 46px`) e o chip de
+     diagnóstico (`bottom: 12px`) moram no palco da câmera — que no treino é a tela inteira.
+     "Conectando ao servidor…" pousava exatamente sobre o botão de play. O CSS culpado não
+     está na tela de treino, e foi por isso que sobreviveu ao conserto anterior.
+  2. *Ordem de pintura*: `.live__fade-bottom` — o gradiente de legibilidade, quase opaco —
+     tinha `z-index: 2` dentro de `.live__chrome` e pintava **por cima** do player e da barra.
+     É a explicação do "parece ter se misturado com outro componente": o botão estava lá,
+     coberto por preto a 96%. Corrigido tirando o `z-index` (os gradientes são os primeiros no
+     DOM, logo ficam atrás por ordem natural).
+- **Rodapé virou uma pilha única, medida no browser** com todos os elementos presentes ao
+  mesmo tempo e no pior caso de texto (aviso de duas linhas + dica de três): barra+FAB (0) ·
+  pill (100px) · toast (176px) · avisos (260px) · chip de dev (348px), folgas de 12 a 17px.
+  Verificado também que o toque no centro do FAB chega ao botão (`elementFromPoint`).
+- **T-068 — tab bar nova**: Início · Progresso · Analytics · Perfil, com "Início" = a
+  pré-configuração. No treino a MESMA barra ganha o play/stop no meio (FAB), e o player
+  flutuante de 4 botões saiu: ⏮/⏭/música eram placeholders desabilitados, e era o
+  posicionamento absoluto deles que gerava a colisão. Progresso e Analytics ganharam tela em
+  vez de toast "em breve" — Progresso mostra o último treino persistido (validado no browser
+  com o relatório real da sessão anterior: 26 reps, 52 rep/min, 30s), Analytics reabre a
+  análise da sessão (`reopenReport`) e declara o que falta.
+- **T-067 — SITE e APP são dois bundles** (ADR-010): `web/index.html` (landing + Sobre) e
+  `web/app/index.html` (funil de treino), um build só. Medido: site 8,8 kB × app 239 kB — quem
+  abre a landing parou de baixar MediaPipe e a máquina de sessão para ler um texto.
+- Decisões da fronteira:
+  - **`localStorage` é por origem, e isso manda no desenho.** Conta, preferência de exercício
+    e `guide_seen` pertencem ao APP. Então o site não decide nada: aponta a intenção por duas
+    pontes — `#/ex/:slug` (o app aplica a regra da SPEC-015 e escolhe Guia ou Pré-config) e
+    `#/entrar` (o app abre a AccountSheet) — e as duas trocam a rota com `replace`, para o
+    histórico não guardar um passo que só sabe redirecionar. "Entrar" no site é um link para o
+    app, não um formulário: login no host errado não valeria no outro.
+  - **Links que atravessam a fronteira são `<a href>`**, montados por `shell/origins.ts` a
+    partir de `VITE_SITE_URL`/`VITE_APP_URL` (default `/` e `/app/`). São `VITE_*` porque a
+    decisão é de build: o bundle do site não tem como descobrir em runtime onde o app foi
+    servido.
+  - **Deploy pronto para subdomínio sem exigi-lo hoje**: `SITE_DOMAIN`/`APP_DOMAIN` no
+    `.env.prod` ligam o modo `site.dominio` | `app.dominio` — o `prod.sh` grava as origens no
+    bundle, põe os dois hosts no `ALLOWED_HOSTS`/CORS (senão a API recusa o `Host` e o celular
+    só mostra "sem conexão") e imprime os server blocks. No nginx só a **raiz** do host do app
+    é reescrita para `/app/index.html`: mapear o host inteiro faria o navegador pedir
+    `/app/assets/…` e tomar 404, porque o HTML referencia `/assets/…` absoluto.
+  - Roteadores separados de propósito (`shell/nav.ts` × `site/nav.ts`): compartilhar o union
+    de rotas obrigaria cada bundle a conhecer as telas do outro, e a fronteira vazaria pelo tipo.
+- Verificado no browser: pilha do rodapé medida, funil site→app ponta a ponta
+  (card do site → `#/ex/squat` → preferência gravada → `#/preparar`, e o back volta ao site em
+  um passo), `#/entrar` abrindo a folha de conta, e as quatro telas do app.
+- Gates: `tsc -b`, `eslint`, `vitest` 302/302 (14 novos: `shell/nav`, `shell/origins`,
+  `site/nav`), `npm run build` com os dois entry points.
+- Pendências geradas (no BACKLOG): a capa da câmera desligada repete ExercisePicker/
+  CountdownSetting dentro do `#/treino` (ruído herdado da SPEC-013), e o chip de dev pode
+  encostar nos cards do meio em telas mais baixas que ~740px.
+
 ## 2026-07-30 · SPEC-014…017 + T-056…T-062 — Plano de evolução e UI v2 completa
 
 - **Planejamento documentado primeiro** (pedido do Daniel): SPEC-014 (Interface v2 —

@@ -1,5 +1,6 @@
 <!doctype html>
-<!-- SITE (T-067): a landing institucional. O app de treino é o `app/index.html`. -->
+<!-- APP (T-067): o funil de treino. A landing institucional é o `index.html` da raiz.
+     Servido em `/app/` hoje; em `app.dominio.com` quando o DNS quiser. -->
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
@@ -8,13 +9,10 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
     />
     <meta name="theme-color" content="#05070d" />
-    <title>Digital Fit — Treine melhor. Evolua sempre.</title>
-    <meta
-      name="description"
-      content="O Digital Fit usa visão computacional para analisar seus movimentos em tempo real, contar repetições e corrigir sua execução."
-    />
-    <!-- Fontes da SPEC-014 (Manrope UI / Space Grotesk números). Sem rede (compose offline)
-         o fallback system-ui assume — degradação aceita e anotada na spec. -->
+    <title>Digital Fit — Treino</title>
+    <!-- `noindex`: o app é uma ferramenta, não conteúdo. Quem chega pela busca deve cair no
+         site, que explica o produto antes de pedir a câmera. -->
+    <meta name="robots" content="noindex" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -24,6 +22,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/entries/site.tsx"></script>
+    <script type="module" src="/src/entries/app.tsx"></script>
   </body>
 </html>

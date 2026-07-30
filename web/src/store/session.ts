@@ -164,6 +164,8 @@ export interface SessionState {
   applyReport: (report: SessionReport) => void
   failReport: () => void
   closeReport: () => void
+  /** Reabre a folha do último relatório (aba Analytics, T-068). */
+  reopenReport: () => void
   resetSession: () => void
   setError: (message: string | null) => void
   resetPipeline: () => void
@@ -322,6 +324,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   closeReport: () => {
     markLastReportClosed()
     set({ reportOpen: false })
+  },
+  /**
+   * A aba Analytics reabre a análise da última sessão. Escreve `open: true` no aparelho pelo
+   * mesmo motivo que `applyReport`: um F5 com a folha na tela tem de reencontrá-la aberta.
+   * Sem relatório não faz nada — abrir folha vazia seria pior que não abrir.
+   */
+  reopenReport: () => {
+    const { report } = get()
+    if (!report) return
+    saveLastReport(report, true)
+    set({ reportOpen: true, reportStatus: 'ready' })
   },
 
   resetSession: () => set({ ...SESSION_DEFAULTS }),

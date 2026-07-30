@@ -49,24 +49,39 @@ CTA primário ("Iniciar Exercício", "Começar Treino"): pill 999px, fundo `line
 
 ## Mapa de navegação
 
+Desde a T-067 há **duas fronteiras**, não uma árvore só (ADR-010): o SITE é um bundle (`/`) e o APP é outro (`/app/`, ou `app.dominio.com`). Links que atravessam a fronteira são `<a href>` montados por `shell/origins.ts`, nunca `navigate()`.
+
 ```
-Index (/)  ── "Começar Treino" ──▶  Escolha (#/exercicios)
-                                        │ card do exercício
-                                        ▼
-                          [1º acesso àquele exercício?]
-                            sim ▼               não ▼
-                    Guia (#/guia/:ex)  ─▶  Pré-config (#/preparar)
-                                                │ "Iniciar Exercício"
-                                                ▼
-                                        Treino ao Vivo (#/treino)
-                                                │ fim da sessão
-                                                ▼
-                                        Relatório (sheet existente)
-Sobre (#/sobre) — acessível pelo footer do Index e pela tela 5.
-Tab bar (app): Início · Exercícios · Progresso · Perfil (Perfil abre AccountSheet).
+╔═ SITE (bundle web/index.html) ═════════════════════════════════════════════╗
+║  Index (#/)   ── "Começar Treino" ──▶  APP #/exercicios                    ║
+║    │             ── "Entrar" ──────▶  APP #/entrar                         ║
+║    │             ── card do exercício ▶ APP #/ex/:slug                     ║
+║    └─ Sobre (#/sobre) — footer do Index e barra do site                    ║
+║  Barra do site: Início · Sobre · Abrir o app                               ║
+╚════════════════════════════════════════════════════════════════════════════╝
+                                     │
+╔═ APP (bundle web/app/index.html) ══▼═══════════════════════════════════════╗
+║  #/ex/:slug (ponte, sem tela)                                              ║
+║      [1º acesso àquele exercício?]                                         ║
+║        sim ▼                  não ▼                                        ║
+║  Guia (#/guia/:ex) ─────▶  Pré-config (#/preparar)  ◀── abrir o app        ║
+║                                    │ "Iniciar Exercício"                   ║
+║                                    ▼                                       ║
+║                            Treino ao Vivo (#/treino)                       ║
+║                                    │ fim da sessão                         ║
+║                                    ▼                                       ║
+║                            Relatório (sheet existente)                     ║
+║  Escolha (#/exercicios) · Progresso (#/progresso) · Analytics (#/analytics) ║
+║  #/entrar (ponte, sem tela) → abre a AccountSheet                          ║
+║  Tab bar: Início · Progresso · Analytics · Perfil                          ║
+║           (Início = Pré-config; Perfil abre AccountSheet;                  ║
+║            no Treino a barra ganha o play/stop no meio)                     ║
+╚════════════════════════════════════════════════════════════════════════════╝
 ```
 
-Roteamento por `location.hash` (sem dependência nova): back do navegador/Android funciona, refresh cai na tela certa. Telas do app renderizam dentro da coluna `.phone` (≤ 430px); só o Index escapa dela em ≥ 900px.
+As duas **pontes** (`#/ex/:slug` e `#/entrar`) existem porque `localStorage` é por origem: `guide_seen` e o token de conta moram no app, então o site aponta a intenção e o app decide. Elas trocam a rota com `replace` — no histórico não fica um passo que só sabe redirecionar.
+
+Roteamento por `location.hash` (sem dependência nova): back do navegador/Android funciona, refresh cai na tela certa. Telas do app renderizam dentro da coluna `.app__phone` (≤ 430px); só o Index escapa dela em ≥ 900px. Abrir o app sem rota cai em `#/preparar` — abrir o app é abrir para treinar.
 
 ## Anatomia das telas
 
@@ -105,7 +120,7 @@ Câmera em tela cheia com esqueleto branco-glow (canvas existente); gradientes d
 - Card SÉRIE (baixo-esq): `1/1` na Fase Inicial.
 - Pill central: nome do exercício em caps 800 + "CARDIO • CORPO INTEIRO".
 - Anel TEMPO RESTANTE (baixo-dir): countdown real da sessão (TimerRing, roxo, autoridade no servidor).
-- Player (base): ⏮ · botão central 66px roxo radial com `dfPulse` · ⏭ · botão música. **Fase Inicial**: botão central = encerrar sessão (pause real não existe no servidor — mostrar ícone de stop, não de pause; fingir pause é mentir); ⏮/⏭ trocam exercício apenas ANTES de a sessão abrir, desabilitados durante; música desabilitada ("em breve"). Pause de verdade e música são Evolução (SPEC-009).
+- Rodapé (revisto na T-068): a **tab bar do app com o botão da sessão no meio** — 66px roxo radial com `dfPulse`, ícone de stop enquanto a sessão roda (pause real não existe no servidor; fingir pause é mentir) e de play antes dela. O player flutuante de 4 botões da referência saiu: ⏮/⏭/música eram placeholders desabilitados, e era o posicionamento absoluto deles que produzia as colisões do rodapé. Trocar de exercício continua sendo papel da pré-configuração. Música é Evolução (SPEC-009).
 
 Warnings de cena e dica do treinador (SPEC-008): entram como toast/pill glass acima do player, mesma regra de prioridade da SPEC-013 §4.
 
@@ -148,6 +163,17 @@ Ajustes decididos pelo Daniel depois do primeiro treino de verdade na interface 
 5. **Demo dos cards de exercício aparece inteira** (`object-fit: contain` sobre `--bg`), sem corte.
 6. **Último relatório persiste no aparelho** (`digitalfit.last_report`): F5 depois do treino reabre a folha se estava aberta; fechar mantém os dados guardados sem reabrir. A autoridade continua no servidor (SPEC-010) — isto é carbono local.
 
+## Revisão 2026-07-30 (2) — fronteira SITE|APP e rodapé único (T-067/T-068)
+
+Segundo teste em aparelho real: o rodapé do treino continuava com "algo por cima do botão". A primeira revisão tratou só metade da causa.
+
+1. **Duas causas, não uma.** (a) *Posição*: os avisos da CameraView (`.stage__banner`, `bottom: 46px`) e o chip de diagnóstico (`bottom: 12px`) vivem no palco da câmera, que no treino é a tela inteira — o "Conectando ao servidor…" pousava sobre o botão de play, e o CSS culpado não estava na tela de treino. (b) *Ordem de pintura*: `.live__fade-bottom`, o gradiente quase opaco de legibilidade, tinha `z-index: 2` dentro de `.live__chrome` e pintava POR CIMA do player e da barra — o botão aparecia apagado, "misturado com outro componente". A segunda causa é a que sobreviveu ao primeiro conserto.
+2. **Rodapé virou uma pilha medida no browser**, com todos os elementos presentes ao mesmo tempo e no pior caso de texto: barra+FAB (0) · pill do exercício (100px) · toast (176px) · avisos (260px) · chip de dev (348px). Folgas de 12 a 17px.
+3. **Player flutuante → FAB na tab bar.** Um rodapé só, empilhado pelo fluxo. ⏮/⏭/música saíram (placeholders desabilitados).
+4. **Tab bar do app: Início · Progresso · Analytics · Perfil.** "Início" é a **pré-configuração** — a landing saiu do app. "Exercícios" deixou a barra: a porta é o card EXERCÍCIO da pré-config, que já existia e é melhor.
+5. **Progresso e Analytics ganharam tela** (`#/progresso`, `#/analytics`) em vez do toast "em breve". Progresso mostra o último treino persistido; Analytics reabre a análise da sessão e declara o que falta (comparação entre sessões, SPEC-016/017). Nenhum número inventado.
+6. **SITE e APP viraram bundles separados** (ADR-010): landing e Sobre em `/`, funil de treino em `/app/`, prontos para `site.dominio.com` | `app.dominio.com`. Conta e preferências ficam no app, porque `localStorage` é por origem — ver §Mapa de navegação (pontes `#/ex/:slug` e `#/entrar`) e `docs/DEPLOY.md`.
+
 ## Desvios da referência (honestidade > fidelidade)
 
 | Referência mostra | Produto faz | Por quê |
@@ -155,9 +181,10 @@ Ajustes decididos pelo Daniel depois do primeiro treino de verdade na interface 
 | FC 124 BPM | `--` BPM | não há sensor; número inventado quebra confiança |
 | Calorias 87 kcal | `--` kcal | MET exige peso (SPEC-017) e acúmulo (SPEC-016) |
 | Pause no player | Stop (encerrar) | sessão de 30s é atômica no servidor (SPEC-009) |
-| Botão música | desabilitado "em breve" | sem player de áudio na Fase Inicial |
+| Botão música e ⏮/⏭ | removidos do rodapé | eram placeholders desabilitados, e o posicionamento absoluto deles colidia com pill e barra do navegador em aparelho real (T-068) |
+| Player flutuante | FAB no meio da tab bar | um rodapé só; empilhamento pelo fluxo não colide por construção |
 | Status bar iOS (10:32, 5G) | nada | é browser, não app nativo |
-| Tab "Analytics" | "Progresso" | idioma consistente do produto |
+| Tab bar: Início · Exercícios · Progresso · Perfil | Início · Progresso · Analytics · Perfil | decisão do Daniel no teste de 2026-07-30: "Início" é a pré-configuração (a landing virou site, T-067) e a escolha de exercício já tem porta melhor no card EXERCÍCIO. Progresso e Analytics são abas distintas — evolução ao longo do tempo × leitura fina do treino |
 
 ## Eventos (consome / produz)
 

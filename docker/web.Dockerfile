@@ -23,6 +23,14 @@ COPY web/ ./
 ARG VITE_API_URL=""
 ENV VITE_API_URL=${VITE_API_URL}
 
+# Fronteira SITE|APP (T-067). Vazias = deploy num dominio so, e o cliente usa os defaults de
+# caminho (`/` e `/app/`). Com subdominio, o `scripts/prod.sh` passa as origens completas
+# aqui — e como sao `VITE_*`, ficam gravadas no bundle: trocar de host exige rebuild.
+ARG VITE_SITE_URL=""
+ARG VITE_APP_URL=""
+ENV VITE_SITE_URL=${VITE_SITE_URL}
+ENV VITE_APP_URL=${VITE_APP_URL}
+
 RUN npm run build
 
 
