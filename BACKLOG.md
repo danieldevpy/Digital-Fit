@@ -116,8 +116,30 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-080 | Pré-configuração de borda a borda: a câmera passa a ocupar a tela inteira, com a janela nítida na largura de hoje e o entorno em desfoque escuro sob os cards, que não saem do lugar | 014 | done |
 | T-081 | Assinatura "Digital Fit" discreta em todas as telas do app (escolha, guia, pré-config, treino, progresso, analytics, perfil, relatório) | 014 | done |
 | T-082 | Figura de exercício por slug no card da pré-config (o agachamento herdava o boneco de braços pro alto do polichinelo), com registro `EXERCISE_FIGURES` e teste que cobra a figura de todo exercício novo | 014/015 | done |
+| T-083 | O anel serrilhado do HUD para de girar quando o exercício começa | 014 | done |
+| T-084 | Probe honesto: capacidade medida por LATÊNCIA de inferência (mediana, aquecimento descartado, janela elástica 2–3s, rVFC + watchdog) em vez de frames/segundo de parede; fps da câmera vira sinal de cena separado; motivo da decisão exposto; contexto WebGL devolvido | 001 | done |
+| T-085 | Aviso de cena na pré-configuração (luz fraca, contraluz, falta de nitidez/lente suja): orienta, não bloqueia, e só nesta tela — reaproveita o pill da janela da câmera | 003/014 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-084] O `session.capability` só tem campo para UM fps — e agora existem dois números.**
+  O contrato leva `probe_fps`, que passou a ser o fps sustentável do modelo (a decisão). O fps
+  da câmera, que é o sinal de cena, não sobe para lugar nenhum: levá-lo exige campo novo em
+  `workers/shared/events.py` (aditivo, default 0) e uma passada nos consumidores. Enquanto não
+  subir, a única forma de ver esse número é o chip de diagnóstico no próprio aparelho — ou
+  seja, **não há telemetria para calibrar o limiar de 12fps com dado real**, que é justamente o
+  que a Fase Evolução da SPEC-001 pede. **Proposta: task de telemetria do probe.**
+- **[T-084] O limiar de 12fps nunca foi medido; foi herdado.** Ele vem da spec original e
+  sobreviveu à troca de régua sem revisão — mudamos O QUE se mede, não contra o que se compara.
+  Com a régua velha ele era um número sobre "frames que apareceram"; com a nova, é sobre
+  "inferências que o aparelho aguenta", e o alvo do loop real é 15fps. Mexer nele antes de ter
+  distribuição real de `modelFps` por aparelho seria calibrar com o instrumento novo e zero
+  amostras. Fica registrado que a revisão é devida quando houver telemetria.
+- **[T-084] `presentedFrames` não existe sem rVFC, e aí o fps de câmera vira um piso.** No
+  caminho de fallback (`requestAnimationFrame`) o que se conta são os frames que NÓS
+  processamos — se o modelo for o gargalo, o número mede o gargalo, não a câmera. Hoje isso só
+  afeta o diagnóstico; quando o aviso de cena (T-085) passar a ler esse número, ele precisa
+  saber distinguir "medido de verdade" de "piso", ou vai acusar luz fraca em aparelho lento.
 
 - **[T-082] A silhueta-guia da câmera continua em pose de polichinelo para todo exercício.** O
   `SilhouetteGuide` (`screens/SessionScreen.tsx`) desenha braços em V acima da cabeça com

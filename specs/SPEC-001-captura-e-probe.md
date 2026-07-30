@@ -11,9 +11,15 @@ Gerencia câmera, relógio de frames e a decisão EDGE vs CLOUD. É a porta de e
 
 - `getUserMedia` com resolução preferida 640×480 @30fps; fallback para o que o device der.
 - **Frame clock próprio**: loop via `requestVideoFrameCallback` (fallback `requestAnimationFrame`), decimando para o alvo de processamento: 15 fps (edge) / 10 fps (cloud). Cada frame ganha `ts` (epoch ms) e `seq` monotônico.
-- **Capability Probe**: ao preparar a sessão, roda o modelo de pose local por 2s em frames reais e mede fps efetivo.
-  - fps ≥ 12 → modo `edge`
-  - fps < 12, sem WebGL/WASM-SIMD, ou exceção → solicita modo `cloud` à API
+- **Capability Probe**: ao preparar a sessão, roda o modelo de pose local em frames reais e mede quanto CADA inferência custa.
+  - **A medida é latência, não frames por segundo de parede (T-084, vinculante).** Contar frames mede `min(fps da câmera, throughput do modelo)`, e o primeiro termo não tem nada a ver com capacidade: iPhone com pouca luz alonga a exposição e entrega 12–15fps, o que fazia o probe reprovar o aparelho por causa da iluminação da sala. O número da decisão é `1000 / mediana(ms por inferência)`.
+  - **Mediana, aquecimento descartado, janela elástica**: as 3 primeiras inferências (compilação de shader, primeira alocação) não entram; janela nominal de 2s, esticando até 3s enquanto não houver 8 amostras válidas; mediana e não média, para um GC não decidir a sessão.
+  - **Duas medidas, dois significados**: a cadência da câmera continua sendo medida (frames apresentados por segundo, via metadados do `requestVideoFrameCallback`), mas é sinal de **cena** (SPEC-003) e não entra na decisão de modo. Cena ruim nunca é argumento para ir a cloud — lá a imagem é pior (JPEG 320px a 10fps).
+  - fps sustentável ≥ 12 → modo `edge`
+  - fps sustentável < 12, sem WebGL/WASM-SIMD, ou exceção → solicita modo `cloud` à API
+  - **Ausência de medida → `edge` (T-084)**, não cloud: sem frame de câmera não há o que mandar ao servidor tampouco, então cloud não remedia o caso, e as 3 vagas do semáforo (SPEC-009) não podem ser gastas por falta de evidência. Falha COM exceção continua indo para cloud — ali quem quebrou foi o pipeline local, e o servidor é alternativa real.
+  - **Cada decisão carrega o motivo** (`probe_ok`, `probe_lento`, `sem_webgl`, `sem_simd`, `probe_falhou`, `sem_medida`), visível no diagnóstico. Sem isso, "este aparelho vai para cloud" não tem diagnóstico possível em campo.
+  - O detector de WebGL **devolve o contexto** (`WEBGL_lose_context`): ele roda a cada montagem do pipeline, e contexto vazado em Safari de iPhone derruba o delegate GPU do MediaPipe mais adiante — queda para CPU, medida baixa, cloud, tudo por um canvas de descarte.
 - Modo **forçável** via configuração/query param (`?mode=edge|cloud`) para debug.
 - UI de estado da câmera: sem permissão / carregando / pronta.
 - **Partida do pipeline é um portão, não um sinal (T-069, vinculante)**: a sessão só é pedida ao servidor quando o cliente já tem como emitir frame — landmarker de pé E probe decidido (`session/pipelineGate.ts`). Câmera pronta **não** é essa condição.
@@ -47,4 +53,6 @@ Produz: `session.capability` `{mode, probe_fps, webgl, ua}` · encaminha frames 
 ## Notas técnicas
 
 - O probe usa o MESMO modelo/config da sessão real (senão a medida mente).
+- O probe usa o MESMO laço de frames do pipeline (`createVideoFrameLoop`, rVFC). Laço próprio em `requestAnimationFrame` media o modelo *através do compositor* — e a tela onde o probe roda é a pré-configuração, com grade, varredura e painéis de desfoque animando sobre vídeo ao vivo.
+- Quem usa rVFC precisa de **watchdog**: sem frame de câmera o callback nunca dispara, e sem o `setTimeout` a medição nunca terminaria — o app ficaria preso em "calibrando o dispositivo".
 - Decimação por tempo, não por contagem (garante fps alvo estável com câmeras de 24–60fps).

@@ -192,10 +192,19 @@ export function CameraView({ compactCover = false }: CameraViewProps) {
       {isReady && devTools && (
         <div className="stage__dev">
           <span>{poseStatus === 'ready' ? `pose ${poseDelegate}` : poseStatus}</span>
+          {/* As DUAS medidas do probe, separadas (T-084): `modelo` é capacidade do aparelho
+              (mediana da latência) e decide o modo; `câmera` é cadência da fonte e é sinal de
+              cena. Confundir as duas foi o que mandava iPhone bom para cloud. O motivo da
+              decisão vem junto porque sem ele "foi para cloud" não tem diagnóstico. */}
           {capability && (
             <span>
               {capability.mode}
-              {capability.forced ? '*' : ''} · probe {capability.probeFps?.toFixed(1) ?? '—'}fps
+              {capability.forced ? '*' : ''} · {capability.reason} · modelo{' '}
+              {capability.modelFps?.toFixed(1) ?? '—'}fps
+              {capability.inferenceMsP50 !== null &&
+                ` (${capability.inferenceMsP50.toFixed(0)}ms)`}{' '}
+              · câmera {capability.cameraFpsSource === 'processados' ? '≥' : ''}
+              {capability.cameraFps?.toFixed(1) ?? '—'}fps
             </span>
           )}
           {frameStats && (

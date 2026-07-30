@@ -26,11 +26,15 @@ function fetchFake(body: unknown, init: { ok?: boolean; status?: number } = {}) 
 }
 
 const probe: ProbeOutcome = {
-  probeFps: 21.4,
-  frames: 43,
+  modelFps: 21.4,
+  inferenceMsP50: 46.7,
+  cameraFps: 29.9,
+  cameraFpsSource: 'apresentados',
+  samples: 43,
   durationMs: 2000,
   failed: false,
   mode: Mode.EDGE,
+  reason: 'probe_ok',
   webgl: true,
   wasmSimd: true,
   forced: false,

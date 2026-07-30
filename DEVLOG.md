@@ -5,6 +5,65 @@
 
 ---
 
+## 2026-07-30 (13) · T-084 — O probe media a câmera e culpava o aparelho
+
+Relato do Daniel: iPhone bom, câmera boa, e o app escolhendo CLOUD quase sempre. A causa
+estava numa linha do `measureProbeFps`:
+
+```ts
+if (video.currentTime !== lastVideoTime) { detectPose(...); frames += 1 }
+probeFps = frames * 1000 / elapsed
+```
+
+- **O número só sobe quando chega frame novo.** Ou seja, `probeFps = min(fps da câmera,
+  throughput do modelo)` — e no iPhone quem ganha essa disputa costuma ser a câmera: com pouca
+  luz o iOS alonga a exposição e entrega 12–15fps. O probe lia 12, comparava com o limiar de 12
+  e reprovava o APARELHO por causa da iluminação da SALA. `frameRate: {ideal: 30}` é dica, não
+  garantia.
+- **E o remédio era pior que a doença.** Cloud analisa JPEG de 320px a 10fps: cena escura fica
+  PIOR lá, não melhor. Fora que são 3 vagas no semáforo (SPEC-009) — telefone capaz ocupando
+  slot é slot faltando para quem precisa. Fica a regra: **cena ruim nunca é argumento para
+  trocar de modo; é argumento para consertar a cena.**
+- **A régua nova é latência**: mediana de ms por `detectForVideo`, que não depende da cadência
+  da fonte. `fpsSustentavel = 1000 / mediana`. As 3 primeiras inferências saem da conta
+  (compilação de shader chega a centenas de ms cada) e a janela estica de 2s para até 3s
+  enquanto não houver 8 amostras — antes de estimar capacidade com quatro amostras, esperar
+  mais 1s é barato.
+- **Duas medidas, dois nomes.** A cadência da câmera continua medida, agora via
+  `presentedFrames` do rVFC — contador do COMPOSITOR, que continua andando quando pulamos
+  frames. Contar as nossas chamadas mediria o nosso gargalo e chamaria isso de "câmera lenta".
+  Onde não há rVFC o número vira um piso, e o `cameraFpsSource` diz isso na cara: o aviso de
+  cena da T-085 não pode acusar luz fraca em aparelho devagar.
+- **O laço passou a ser o mesmo do pipeline** (`createVideoFrameLoop`, rVFC — como a SPEC-001
+  já pedia). O probe tinha um `requestAnimationFrame` próprio, que é cadência de REPAINT: ele
+  media o modelo através do compositor, e a tela onde o probe roda é a pré-configuração, com
+  grade, varredura e — desde a T-080 — quatro painéis de desfoque sobre vídeo ao vivo.
+- **Watchdog obrigatório junto do rVFC**: sem frame de câmera o callback nunca dispara e a
+  promessa nunca resolveria — o app ficaria preso em "calibrando o dispositivo", sem erro e sem
+  saída. Tem teste.
+- **`sem_medida` agora vale EDGE, não CLOUD.** Ausência de evidência não é evidência contra: sem
+  frame de câmera não há o que mandar ao servidor tampouco, então cloud não remedia esse caso.
+  Falha COM exceção continua indo para cloud, onde o servidor é alternativa real. Mudança de
+  regra registrada na SPEC-001.
+- **Motivo da decisão exposto** (`probe_ok`, `probe_lento`, `sem_webgl`, `sem_simd`,
+  `probe_falhou`, `sem_medida`) e visível no chip de diagnóstico junto dos dois fps. Sem isso,
+  "meu aparelho vai para cloud" não tinha diagnóstico possível em campo.
+- **Bug pequeno, efeito grande no iOS**: `detectWebgl()` criava um canvas, pegava contexto WebGL
+  e nunca o devolvia. Roda a cada montagem do pipeline (parar/iniciar câmera, entrar e sair do
+  treino), e o Safari de iPhone tem orçamento apertado de contextos vivos — contexto vazado aqui
+  derruba o delegate GPU do MediaPipe mais adiante, que cai para CPU, que mede baixo, que vai
+  para cloud. Agora chama `WEBGL_lose_context`.
+- **Testes**: `runProbe.test.ts` novo, com câmera falsa. O caso central é "câmera a 10fps +
+  modelo a 5ms" — a régua antiga reprovaria, a nova aprova e ainda reporta a câmera lenta em
+  separado. Mais: modelo lento acusa modelo lento; frames apresentados contam mesmo quando não
+  processados; sem frame nenhum resolve com `samples: 0`; exceção marca `failed`.
+- **Gates**: lint, typecheck e 345 testes verdes.
+- **Pendências** (em Descobertas do BACKLOG): o contrato tem campo para UM fps, então o fps de
+  câmera não sobe — sem telemetria não há como calibrar o limiar de 12fps com dado real; e o
+  próprio limiar sobreviveu à troca de régua sem revisão, o que é dívida consciente.
+
+---
+
 ## 2026-07-30 (12) · T-082 — Figura de exercício por slug (e a trava para exercício novo)
 
 O Daniel gostou do bonequinho neon e reparou que só havia o de polichinelo: o Agachamento
