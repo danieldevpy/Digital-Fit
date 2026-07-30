@@ -4,6 +4,7 @@ import { exerciseSubtitle, getExercise } from '../session/catalog'
 import { setGuideSeen } from '../session/preferences'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
+import { BrandMark } from '../ui/BrandMark'
 import { IconPlay } from '../ui/icons'
 
 export function GuideScreen({ exercise }: { exercise: string }) {
@@ -18,6 +19,7 @@ export function GuideScreen({ exercise }: { exercise: string }) {
   return (
     <>
       <div className="guide">
+        <BrandMark center />
         <p className="guide__kicker">Exemplo guiado</p>
         <h1 className="guide__title">{info.display_name}</h1>
         <p className="guide__sub">{exerciseSubtitle(info)}</p>

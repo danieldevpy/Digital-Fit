@@ -5,6 +5,51 @@
 
 ---
 
+## 2026-07-30 (11) · T-079/T-080/T-081 — Melhorias de UI pedidas pelo Daniel
+
+Três pedidos depois de usar o app: o histórico do Perfil comendo a tela, o "Sair" parecendo o
+botão certo de tocar, a câmera da pré-configuração pequena demais e o app sem marca.
+
+- **T-080 · A câmera passou a ser a tela inteira e a moldura virou um recorte.** O vídeo vai a
+  `inset: 0` e quatro painéis com `backdrop-filter: blur(16px) brightness(.42)` desfocam tudo
+  que está fora da janela nítida. Os cards não se mexeram um pixel — passaram a flutuar sobre a
+  área desfocada, que é justamente o que lhes dá contraste. Medido no browser: janela nítida
+  202×719 no mesmo lugar de antes, painéis cobrindo 64px em cima, 150 embaixo e 112/116 nas
+  laterais, colunas intactas em 92/96.
+  - **Quatro retângulos e não um painel com máscara**: máscara sobre `backdrop-filter` ainda é
+    terreno instável no Safari de iOS e o custo de desfoque é o mesmo (a área somada é a mesma
+    tela). O preço é a janela ter cantos quase retos (8px em vez de `--radius-cam`): com raio
+    grande, os cantos vazariam imagem nítida por fora da borda. Está em §Desvios da SPEC-014.
+  - **`-webkit-backdrop-filter` explícito** nestes painéis (o resto do arquivo usa só a forma
+    sem prefixo): o Safari só dispensou o prefixo na versão 18, e o produto é usado no celular.
+    Sem ele o painel vira vidro chapado — legível, mas sem câmera atrás.
+  - **A armadilha da T-071 voltou de outra porta**: com o palco valendo a tela toda, os avisos
+    da CameraView (`bottom: 46px`) pousariam sobre a tab bar — o mesmo bug que já custou dois
+    consertos no treino. Ficaram presos à janela nítida (`.sess__cam--prep .stage__banner`).
+  - **`isolation: isolate` no `.sess__cam`** por duas razões: os overlays internos têm
+    `z-index` entre si e não podem passar por cima dos cards (irmãos DEPOIS no DOM), e o
+    contexto vira o backdrop root — o que os painéis desfocam é a câmera, e só ela.
+- **T-079 · Perfil.** Histórico virou janela de 182px com rolagem própria (~4 linhas e meia; a
+  meia linha é o que diz "tem mais aqui embaixo") e contagem de sessões no título da seção.
+  E a hierarquia dos botões foi invertida: **Fechar** é o primário preenchido, **Sair da conta**
+  é texto discreto em `--hot`, atrás de uma linha separadora e de uma confirmação de dois
+  toques. A regra que fica: num painel, o botão preenchido é a ação que a pessoa veio fazer —
+  ação destrutiva não usa a forma do primário.
+- **T-081 · Assinatura da marca** (`ui/BrandMark.tsx`) em Escolha, Guia, Pré-config, Treino,
+  Progresso, Analytics, Perfil e Relatório. Discreta por construção (caps de 8px, opacidade
+  .34) e sem espaço próprio no layout: nas telas de conteúdo ocupa a linha que já era margem do
+  título; sobre a câmera flutua no topo-esquerdo, na faixa que o cabeçalho centralizado deixa
+  livre — medido, a marca acaba em x=86 e o cabeçalho começa em x=158. `aria-hidden`: é
+  decoração, não navegação, e o nome do app já está no `<title>`.
+- **Gates**: `npm run lint`, `npm run typecheck` e `npm run test` (31 arquivos, 329 testes)
+  verdes. Geometria conferida por medição no browser (`getBoundingClientRect`), não por
+  screenshot.
+- **Pendência**: o desfoque só se julga com câmera de verdade — a validação de aparência fica
+  para o teste no celular. Se o custo do `backdrop-filter` sobre vídeo ao vivo pesar em aparelho
+  fraco, o caminho barato é baixar o raio de 16px para ~10px antes de trocar de técnica.
+
+---
+
 ## 2026-07-30 (10) · T-077 — O relatório errado: a sessão era ressuscitada por frames atrasados
 
 O Daniel fez 20 repetições e o banco gravou "4 reps · no_data". O relatório da sessão vinha

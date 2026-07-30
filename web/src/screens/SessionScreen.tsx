@@ -27,6 +27,7 @@ import { useNow } from '../session/useNow'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
 import { useSessionStore } from '../store/session'
+import { BrandMark } from '../ui/BrandMark'
 import {
   IconAngle,
   IconFlame,
@@ -193,19 +194,32 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
 
         {mode === 'preparar' && (
           <div className="prep__overlay">
-            <div className="prep__grid-bg" />
-            <div className="prep__scanline v2-scan" />
-            <SilhouetteGuide />
-            <div className="prep__hint-pill">
-              <span>
-                {cameraReady
-                  ? 'Você já está visível · alinhe-se à guia'
-                  : 'A câmera abre aqui — alinhe-se à guia'}
-              </span>
+            {/* A câmera é a tela inteira (T-080); estes quatro painéis é que devolvem a
+                moldura, desfocando e escurecendo tudo que está FORA da janela nítida —
+                exatamente a área onde os cards flutuam. A janela ficou na largura de sempre:
+                quem se enquadrou antes continua enquadrado. */}
+            <div className="prep__blur prep__blur--top" />
+            <div className="prep__blur prep__blur--bottom" />
+            <div className="prep__blur prep__blur--left" />
+            <div className="prep__blur prep__blur--right" />
+
+            <div className="prep__window">
+              <div className="prep__grid-bg" />
+              <div className="prep__scanline v2-scan" />
+              <SilhouetteGuide />
+              <div className="prep__hint-pill">
+                <span>
+                  {cameraReady
+                    ? 'Você já está visível · alinhe-se à guia'
+                    : 'A câmera abre aqui — alinhe-se à guia'}
+                </span>
+              </div>
             </div>
           </div>
         )}
       </div>
+
+      <BrandMark floating />
 
       {mode === 'preparar' ? (
         <>

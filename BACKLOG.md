@@ -112,6 +112,9 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-076 | A suíte roda no Postgres do compose, não em SQLite: as variáveis da `conftest.py` não alcançam mais o settings (ver Descobertas `[A/T-072]`) — mover para `pytest-env` ou `core/settings_test.py`, e conferir o job Python da CI | — | todo |
 | T-077 | Frame atrasado ressuscitava a sessão encerrada e o relatório fantasma sobrescrevia o bom (26 reps viraram 4 em produção): lápide no analysis-worker + cliente para de transmitir ao fim | 009/010 | done |
 | T-078 | `duration_ms` do relatório mistura dois relógios (`session.started` é do servidor, `session.calibrated` e frames são do navegador) — ver Descobertas `[A/T-077]` | 010 | todo |
+| T-079 | Perfil: histórico vira lista rolável de altura limitada (não come a tela) e o "Sair" deixa de disputar hierarquia com o "Fechar" — primário é fechar, sair é discreto e pede confirmação | 011/014 | done |
+| T-080 | Pré-configuração de borda a borda: a câmera passa a ocupar a tela inteira, com a janela nítida na largura de hoje e o entorno em desfoque escuro sob os cards, que não saem do lugar | 014 | done |
+| T-081 | Assinatura "Digital Fit" discreta em todas as telas do app (escolha, guia, pré-config, treino, progresso, analytics, perfil, relatório) | 014 | done |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 

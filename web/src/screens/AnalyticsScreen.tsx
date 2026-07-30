@@ -8,6 +8,7 @@
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
 import { useSessionStore } from '../store/session'
+import { BrandMark } from '../ui/BrandMark'
 import { IconAngle, IconChevronRight, IconPulse, IconTarget } from '../ui/icons'
 
 const PROXIMOS = [
@@ -36,6 +37,7 @@ export function AnalyticsScreen() {
     <>
       <div className="panel">
         <header className="panel__head">
+          <BrandMark center />
           <p className="guide__kicker">Analytics</p>
           <h1 className="panel__title">Análise do treino</h1>
         </header>

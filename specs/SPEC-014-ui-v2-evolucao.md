@@ -100,7 +100,7 @@ Título central "Escolha seu exercício"; subtítulo "Treinos rápidos, / **resu
 Header: "Pré-configuração" + "Vamos preparar seu treino". Corpo em 3 colunas sobre a câmera:
 
 - Coluna esquerda (92px): card EXERCÍCIO (ícone ciano + nome; toque troca/volta à Escolha), card SÉRIE (valor + steppers − / + , 1–9), card REPETIÇÕES (5–30), card DURAÇÃO (mm:ss, passos de 10s, 10–300s). Steppers funcionais; valores persistem em `session/preferences`.
-- Centro: câmera ao vivo (CameraView) em moldura `--radius-cam` com borda azulada e glow; overlay de grade 28px, varredura `dfScan`, silhueta-guia ciano tracejada (`dfGlow`), pill inferior "Você já está visível · alinhe-se à guia".
+- Centro: câmera ao vivo (CameraView) em moldura com borda azulada e glow; overlay de grade 28px, varredura `dfScan`, silhueta-guia ciano tracejada (`dfGlow`), pill inferior "Você já está visível · alinhe-se à guia". **Desde a T-080 a câmera ocupa a tela inteira** e essa moldura é o recorte nítido dela — ver Revisão (3).
 - Coluna direita (96px): botão Espelhar (liga/desliga o espelhamento do palco), card FREQUÊNCIA CARDÍACA (`--` BPM + onda `dfWave` — sem sensor, placeholder honesto), card ÂNGULO (ao vivo, T-044), card CALORIAS ESTIMADAS (`--` kcal, anel pontilhado).
 
 CTA "Iniciar Exercício ▶" (pill glow) → inicia câmera+sessão (GetReady 3-2-1 existente) e navega para Treino ao Vivo. Tab bar embaixo.
@@ -175,6 +175,38 @@ Segundo teste em aparelho real: o rodapé do treino continuava com "algo por cim
 5. **Progresso e Analytics ganharam tela** (`#/progresso`, `#/analytics`) em vez do toast "em breve". Progresso mostra o último treino persistido; Analytics reabre a análise da sessão e declara o que falta (comparação entre sessões, SPEC-016/017). Nenhum número inventado.
 6. **SITE e APP viraram bundles separados** (ADR-010): landing e Sobre em `/`, funil de treino em `/app/`, prontos para `site.dominio.com` | `app.dominio.com`. Conta e preferências ficam no app, porque `localStorage` é por origem — ver §Mapa de navegação (pontes `#/ex/:slug` e `#/entrar`) e `docs/DEPLOY.md`.
 
+## Revisão 2026-07-30 (3) — câmera de borda a borda, marca em toda tela, Perfil sem armadilha (T-079/T-080/T-081)
+
+Terceira rodada de ajustes pedidos pelo Daniel depois de usar o app.
+
+1. **A câmera da pré-configuração ocupa a tela inteira.** A janela de vídeo deixou de ser o
+   tamanho do palco e passou a ser um RECORTE dele: o vídeo vive em `inset: 0` e quatro
+   painéis com `backdrop-filter: blur(16px) brightness(.42)` desfocam e escurecem tudo que
+   está fora da janela nítida. Os cards das colunas, o cabeçalho e o rodapé **não saem do
+   lugar** — passam a flutuar sobre a área desfocada, que é o que lhes dá contraste. A janela
+   nítida mantém as medidas de sempre (topo 64, base 150, colunas 112/116), agora num só
+   lugar: as variáveis `--prep-win-*` em `.sess`.
+   - Vem de graça: quem sai do enquadramento continua se vendo (desfocado) em vez de sumir da
+     tela, e o palco maior reduz o zoom do `object-fit: cover` — cabe mais corpo dentro da
+     mesma janela.
+   - Vem junto a armadilha da T-071 de novo: com o palco valendo a tela toda, os avisos da
+     CameraView (`.stage__banner`, `bottom: 46px`) pousariam sobre a tab bar. Ficam presos à
+     janela nítida (`.sess__cam--prep .stage__banner`).
+2. **Assinatura "Digital Fit" em toda tela do app** (`ui/BrandMark.tsx`): caps pequeno, baixo
+   contraste, sem espaço próprio no layout — nas telas de conteúdo ocupa a linha que já era
+   margem do título; sobre a câmera flutua no topo-esquerdo, na faixa livre ao lado do
+   cabeçalho centralizado (medido: a marca acaba em x=86 e o cabeçalho começa em x=158 num
+   viewport de 430). É `aria-hidden`: decoração, não navegação.
+3. **Perfil: o histórico virou lista de altura fixa** (182px, ~4 linhas e meia, rolagem
+   própria com `overscroll-behavior: contain`) com a contagem de sessões no título da seção.
+   Antes ele crescia com o histórico e empurrava as ações para fora da tela.
+4. **Perfil: "Sair" não disputa mais hierarquia com "Fechar".** Era o inverso do certo — sair
+   era o botão roxo preenchido, no lugar onde o polegar cai, e fechar era o texto apagado
+   embaixo. Agora o primário é **Fechar** e sair é um texto discreto em `--hot`, atrás de uma
+   linha separadora e de uma confirmação de dois toques ("Sair da conta neste aparelho?").
+   A regra que fica: **num painel, o botão preenchido é a ação que a pessoa veio fazer; ação
+   destrutiva não usa a forma do primário.**
+
 ## Desvios da referência (honestidade > fidelidade)
 
 | Referência mostra | Produto faz | Por quê |
@@ -185,6 +217,7 @@ Segundo teste em aparelho real: o rodapé do treino continuava com "algo por cim
 | Botão música e ⏮/⏭ | removidos do rodapé | eram placeholders desabilitados, e o posicionamento absoluto deles colidia com pill e barra do navegador em aparelho real (T-068) |
 | Player flutuante | FAB no meio da tab bar | um rodapé só; empilhamento pelo fluxo não colide por construção |
 | Status bar iOS (10:32, 5G) | nada | é browser, não app nativo |
+| Moldura da câmera com `--radius-cam` (18px) | janela nítida com 8px | desde a T-080 a moldura é um RECORTE por subtração (quatro painéis desfocados ao redor): com raio grande, os cantos vazariam imagem nítida por fora da borda. Máscara sobre `backdrop-filter` resolveria, mas ainda é terreno instável no Safari de iOS — e o produto é usado em celular |
 | Tab bar: Início · Exercícios · Progresso · Perfil | Início · Progresso · Analytics · Perfil | decisão do Daniel no teste de 2026-07-30: "Início" é a pré-configuração (a landing virou site, T-067) e a escolha de exercício já tem porta melhor no card EXERCÍCIO. Progresso e Analytics são abas distintas — evolução ao longo do tempo × leitura fina do treino |
 
 ## Eventos (consome / produz)

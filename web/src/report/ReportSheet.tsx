@@ -4,6 +4,7 @@
 // mesmo assim (glass, accent, tabular-nums), porque um relatório com outra linguagem visual
 // pareceria outro aplicativo.
 import { useSessionStore } from '../store/session'
+import { BrandMark } from '../ui/BrandMark'
 import { cadenceBars, improvements, reasonText, windowLabel } from './reportSummary'
 import { formatDuration } from './sessionReport'
 
@@ -22,6 +23,8 @@ export function ReportSheet() {
   return (
     <div className="report" role="dialog" aria-label="Relatório da sessão">
       <div className="report__card">
+        <BrandMark center />
+
         {status === 'loading' && (
           <>
             <p className="report__title">Consolidando o treino…</p>

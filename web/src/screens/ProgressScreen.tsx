@@ -9,6 +9,7 @@ import { getExercise } from '../session/catalog'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
 import { useSessionStore } from '../store/session'
+import { BrandMark } from '../ui/BrandMark'
 import { IconChart, IconCounter, IconPlay, IconPulse } from '../ui/icons'
 
 function segundos(ms: number): string {
@@ -24,6 +25,7 @@ export function ProgressScreen() {
     <>
       <div className="panel">
         <header className="panel__head">
+          <BrandMark center />
           <p className="guide__kicker">Progresso</p>
           <h1 className="panel__title">Seu último treino</h1>
         </header>

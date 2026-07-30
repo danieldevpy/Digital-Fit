@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react'
 import { formatDuration } from '../report/sessionReport'
 import { useAccountStore } from '../store/account'
+import { BrandMark } from '../ui/BrandMark'
 import { displayName, historyDate, historyTotals, trialMessage } from './accountSummary'
 import { fetchHistory, login, logout, register } from './api'
 
@@ -19,6 +20,7 @@ export function AccountSheet() {
   return (
     <div className="account" role="dialog" aria-label="Sua conta">
       <div className="account__card">
+        <BrandMark center />
         {status === 'authenticated' ? <Conta /> : <Entrada />}
       </div>
     </div>
@@ -136,6 +138,11 @@ function Conta() {
   const historyStatus = useAccountStore((state) => state.historyStatus)
   const { openSheet, reset, startHistory, applyHistory, failHistory } = useAccountStore.getState()
 
+  // Sair é a única ação destrutiva do app (leva embora o acesso e o histórico da tela). Ela
+  // pede um segundo toque — não por burocracia, mas porque o toque errado aqui custa uma
+  // sessão de login para desfazer (T-079).
+  const [confirmandoSaida, setConfirmandoSaida] = useState(false)
+
   useEffect(() => {
     if (historyStatus !== 'idle') return
     startHistory()
@@ -166,7 +173,12 @@ function Conta() {
         </div>
       </div>
 
-      <p className="account__section-title">Histórico</p>
+      <p className="account__section-title">
+        Histórico
+        {history.length > 0 && (
+          <span className="account__section-count tabular">{history.length}</span>
+        )}
+      </p>
 
       {historyStatus === 'loading' && <p className="account__hint">Carregando…</p>}
       {historyStatus === 'error' && (
@@ -178,33 +190,69 @@ function Conta() {
         </p>
       )}
 
+      {/* Rola dentro de si (T-079). Antes a lista crescia com o histórico e empurrava as
+          ações para fora da tela: com 20 sessões, "Fechar" só existia depois de rolar a folha
+          inteira. Agora a lista é uma janela de altura fixa — o resumo em cima e as ações
+          embaixo ficam sempre visíveis, e é o histórico que rola. */}
       {history.length > 0 && (
-        <ul className="account__list">
-          {history.map((sessao) => (
-            <li key={sessao.session_id} className="account__item">
-              <span className="account__item-date">{historyDate(sessao.created_at)}</span>
-              <span className="account__item-reps tabular">{sessao.rep_count} reps</span>
-              <span className="account__item-time tabular">
-                {formatDuration(sessao.duration_ms)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="account__history">
+          <ul className="account__list">
+            {history.map((sessao) => (
+              <li key={sessao.session_id} className="account__item">
+                <span className="account__item-date">{historyDate(sessao.created_at)}</span>
+                <span className="account__item-reps tabular">{sessao.rep_count} reps</span>
+                <span className="account__item-time tabular">
+                  {formatDuration(sessao.duration_ms)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      <button
-        type="button"
-        className="account__submit"
-        onClick={() => {
-          logout()
-          reset()
-        }}
-      >
-        Sair
-      </button>
-      <button type="button" className="account__close" onClick={() => openSheet(false)}>
+      {/* Hierarquia invertida em relação ao que existia (T-079): "Sair" era o botão roxo
+          preenchido e "Fechar" o texto apagado logo abaixo — a ação destrutiva com a cara da
+          principal, no lugar onde o polegar cai. Quem só queria voltar ao treino saía da
+          conta. Agora o primário é fechar (o que 99% dos toques querem) e sair é discreto,
+          separado por uma linha e com confirmação. */}
+      <button type="button" className="account__submit" onClick={() => openSheet(false)}>
         Fechar
       </button>
+
+      <div className="account__danger">
+        {confirmandoSaida ? (
+          <>
+            <p className="account__danger-ask">Sair da conta neste aparelho?</p>
+            <div className="account__danger-row">
+              <button
+                type="button"
+                className="account__danger-cancel"
+                onClick={() => setConfirmandoSaida(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="account__danger-confirm"
+                onClick={() => {
+                  logout()
+                  reset()
+                }}
+              >
+                Sair da conta
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="account__leave"
+            onClick={() => setConfirmandoSaida(true)}
+          >
+            Sair da conta
+          </button>
+        )}
+      </div>
     </>
   )
 }

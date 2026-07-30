@@ -886,6 +886,10 @@ a {
 }
 
 .account__section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin: 20px 0 8px;
   color: var(--text-dim);
   font-size: 0.72rem;
@@ -895,11 +899,36 @@ a {
   text-transform: uppercase;
 }
 
+/* Quantas sessões existem — a lista agora tem altura fixa e não responde mais essa pergunta
+   sozinha (T-079). */
+.account__section-count {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+}
+
 .account__hint {
   margin: 0;
   color: var(--text-dim);
   font-size: 0.85rem;
   line-height: 1.4;
+}
+
+/* Janela do histórico (T-079): ~4 linhas e meia — a meia linha é de propósito, é ela que diz
+   "tem mais aqui embaixo" sem precisar de legenda. `overscroll-behavior: contain` para o
+   embalo do dedo não passar para a folha inteira e fechar a conta sem querer. */
+.account__history {
+  max-height: 182px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.02);
+  scrollbar-width: thin;
 }
 
 .account__list {
@@ -913,9 +942,9 @@ a {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 11px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--surface-border);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
 }
 
 .account__item:last-child {
@@ -933,6 +962,56 @@ a {
 .account__item-time {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+}
+
+/* Zona de saída (T-079): separada do resto por uma linha, longe do botão primário e com a
+   cor de alerta do produto. Nada aqui parece a ação que a pessoa veio fazer. */
+.account__danger {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.account__leave {
+  width: 100%;
+  padding: 8px;
+  color: rgba(245, 168, 61, 0.75);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.account__leave:hover {
+  color: var(--hot);
+}
+
+.account__danger-ask {
+  margin: 0 0 8px;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.account__danger-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.account__danger-cancel,
+.account__danger-confirm {
+  padding: 11px 8px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.account__danger-cancel {
+  border: 1px solid var(--surface-border);
+  color: var(--text);
+}
+
+.account__danger-confirm {
+  border: 1px solid rgba(245, 168, 61, 0.55);
+  color: var(--hot);
 }
 
 /* ---------- preparação "3, 2, 1" antes de a contagem valer (T-049) ---------- */
@@ -1258,6 +1337,52 @@ a {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+/* ---------- assinatura da marca (T-081) ----------
+
+   Presente em toda tela do app e discreta por construção: caps pequeno, peso do texto abaixo
+   do de qualquer título da tela e opacidade que a deixa atrás do conteúdo na ordem de leitura.
+   Não ganha espaço próprio no layout — nas telas de conteúdo ocupa a linha que já era margem
+   do título; sobre a câmera, flutua na faixa livre ao lado do cabeçalho centralizado. */
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  color: rgba(255, 255, 255, 0.34);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.brand-mark em {
+  font-style: normal;
+  color: rgba(167, 139, 250, 0.7);
+}
+
+.brand-mark__icon {
+  width: 10px;
+  height: 12px;
+  color: rgba(167, 139, 250, 0.55);
+}
+
+.brand-mark--center {
+  justify-content: center;
+}
+
+/* Sobre a câmera: mesmo canto na pré-config e no treino, na altura do cabeçalho central e à
+   esquerda dele. Nunca captura toque — é assinatura, não botão. */
+.brand-mark--float {
+  position: absolute;
+  top: 18px;
+  left: 14px;
+  z-index: 4;
+  margin: 0;
+  pointer-events: none;
+  text-shadow: 0 1px 6px rgba(5, 7, 13, 0.9);
 }
 
 /* ---------- landing / index (SPEC-014 §1) ---------- */
@@ -1853,26 +1978,35 @@ a {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+
+  /* Geometria da janela nítida da pré-configuração — as mesmas medidas de sempre (colunas de
+     12+92+8 à esquerda e 12+96+8 à direita), agora num lugar só: o recorte, a moldura e os
+     quatro painéis desfocados leem daqui. Mexer na largura das colunas é mexer aqui. */
+  --prep-win-top: 64px;
+  --prep-win-bottom: 150px;
+  --prep-win-left: 112px;
+  --prep-win-right: 116px;
 }
 
+/* Contexto de empilhamento próprio (T-080). Duas coisas dependem disto agora que a câmera
+   ocupa a tela inteira também na pré-config: (1) os overlays internos (grade, scan, painéis)
+   têm `z-index` entre si e não podem passar por cima dos cards, que são irmãos DEPOIS no DOM;
+   (2) ele vira o backdrop root do `backdrop-filter` dos painéis — o que eles desfocam é a
+   câmera, e só ela. */
 .sess__cam {
   position: absolute;
-}
-
-/* Janela da câmera entre as colunas (esq 12+92+8 / dir 12+96+8). */
-.sess__cam--prep {
-  top: 64px;
-  bottom: 150px;
-  left: 112px;
-  right: 116px;
-  border-radius: var(--radius-cam);
-  overflow: hidden;
-  border: 1px solid rgba(107, 140, 255, 0.32);
-  box-shadow: 0 0 36px rgba(77, 140, 255, 0.12), inset 0 0 50px rgba(5, 7, 13, 0.5);
-}
-
-.sess__cam--live {
   inset: 0;
+  isolation: isolate;
+  z-index: 0;
+}
+
+/* O cromo da pré-config flutua SOBRE a câmera de borda a borda (T-080). `z-index: 1` é
+   explícito e não herdado da ordem do DOM: cabeçalho, colunas e rodapé têm de estar acima do
+   palco em qualquer reordenação futura do JSX. */
+.prep__head,
+.prep__side,
+.prep__bottom {
+  z-index: 1;
 }
 
 .prep__head {
@@ -1899,8 +2033,8 @@ a {
 
 .prep__side {
   position: absolute;
-  top: 64px;
-  bottom: 150px;
+  top: var(--prep-win-top);
+  bottom: var(--prep-win-bottom);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1910,12 +2044,12 @@ a {
 
 .prep__side--left {
   left: 12px;
-  width: 92px;
+  width: calc(var(--prep-win-left) - 20px);
 }
 
 .prep__side--right {
   right: 12px;
-  width: 96px;
+  width: calc(var(--prep-win-right) - 20px);
 }
 
 .prep__bottom {
@@ -1999,6 +2133,76 @@ a {
   inset: 0;
   pointer-events: none;
   z-index: 2;
+}
+
+/* ---- moldura por subtração (T-080) ----
+
+   A câmera passou a ocupar a tela inteira: a moldura não é mais o tamanho do vídeo, é o que
+   sobra entre estes quatro painéis. Eles desfocam e escurecem a imagem por baixo — é sobre
+   eles que os cards flutuam, e é isso que dá contraste para o texto sem tapar a câmera.
+
+   Quatro retângulos e não um painel com máscara: máscara sobre `backdrop-filter` ainda é
+   terreno instável em Safari de iOS, e o custo do desfoque é o mesmo (a área somada é a
+   mesma tela). O preço é a janela ter cantos praticamente retos (8px) — com raio grande, os
+   cantos vazariam imagem nítida por fora da borda.
+
+   `-webkit-` explícito: o Safari só dispensou o prefixo na 18, e o produto é usado em
+   celular. Sem ele o painel viraria um vidro fosco chapado — ainda legível, mas sem a
+   câmera atrás. */
+.prep__blur {
+  position: absolute;
+  -webkit-backdrop-filter: blur(16px) brightness(0.42) saturate(0.85);
+  backdrop-filter: blur(16px) brightness(0.42) saturate(0.85);
+  background: rgba(5, 7, 13, 0.34);
+}
+
+@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+  .prep__blur {
+    background: rgba(5, 7, 13, 0.9);
+  }
+}
+
+.prep__blur--top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--prep-win-top);
+}
+
+.prep__blur--bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--prep-win-bottom);
+}
+
+.prep__blur--left {
+  top: var(--prep-win-top);
+  bottom: var(--prep-win-bottom);
+  left: 0;
+  width: var(--prep-win-left);
+}
+
+.prep__blur--right {
+  top: var(--prep-win-top);
+  bottom: var(--prep-win-bottom);
+  right: 0;
+  width: var(--prep-win-right);
+}
+
+/* A janela nítida: mesma medida da moldura antiga, e os overlays de enquadramento (grade,
+   varredura, silhueta, pill) vivem DENTRO dela — soltos na tela cheia, a silhueta-guia
+   apontaria para um enquadramento que a análise não usa. */
+.prep__window {
+  position: absolute;
+  top: var(--prep-win-top);
+  bottom: var(--prep-win-bottom);
+  left: var(--prep-win-left);
+  right: var(--prep-win-right);
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgba(107, 140, 255, 0.32);
+  box-shadow: 0 0 36px rgba(77, 140, 255, 0.14), inset 0 0 50px rgba(5, 7, 13, 0.45);
 }
 
 .prep__grid-bg {
@@ -2230,8 +2434,9 @@ a {
    Fica assim de propósito: ele só existe para dev/admin (T-048), e ceder espaço de produto
    para diagnóstico seria a troca errada.
 
-   Os deslocamentos dos dois últimos ficam escopados em `.sess__cam--live` porque na
-   pré-configuração o palco é uma janela de 180px: ali o rodapé original está certo. */
+   Os deslocamentos dos dois últimos ficam escopados por modo: desde a T-080 o palco é a tela
+   inteira nos DOIS, mas o que precisa ser evitado é diferente (aqui, a pilha do rodapé do
+   treino; lá, a tab bar e o CTA da pré-config). O par da pré-config está no fim do arquivo. */
 
 .live__bottom {
   position: absolute;
@@ -2332,6 +2537,23 @@ a {
 
 .sess__cam--live .stage__dev {
   bottom: calc(348px + env(safe-area-inset-bottom));
+}
+
+/* Mesma armadilha na pré-configuração desde a T-080: o palco também é a tela inteira aqui, e
+   um aviso em `bottom: 46px` pousaria em cima da tab bar. Os avisos ficam presos à JANELA
+   nítida — que é onde a pessoa está olhando — logo acima do pill de enquadramento. Estreito?
+   É a mesma largura que eles já tinham quando a moldura era o palco; alargá-los sobre os
+   painéis desfocados os colocaria ATRÁS das colunas de cards, que pintam por cima. */
+.sess__cam--prep .stage__banner {
+  left: calc(var(--prep-win-left) + 8px);
+  right: calc(var(--prep-win-right) + 8px);
+  bottom: calc(var(--prep-win-bottom) + 44px);
+}
+
+.sess__cam--prep .stage__dev {
+  left: calc(var(--prep-win-left) + 8px);
+  right: calc(var(--prep-win-right) + 8px);
+  bottom: calc(var(--prep-win-bottom) + 12px);
 }
 
 .live__toast-title {
