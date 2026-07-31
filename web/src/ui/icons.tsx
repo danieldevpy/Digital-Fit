@@ -194,6 +194,16 @@ export function IconMirror({ className }: IconProps) {
   )
 }
 
+export function IconZoom({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <circle cx="10" cy="10" r="6.5" />
+      <path d="M20 20 15.5 15.5" />
+      <path d="M7.5 10h5" />
+    </svg>
+  )
+}
+
 export function IconChevronRight({ className }: IconProps) {
   return (
     <svg {...base} className={className} aria-hidden="true">
