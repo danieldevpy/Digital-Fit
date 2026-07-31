@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { CameraView } from '../capture/CameraView'
 import { CountdownSetting } from '../hud/CountdownSetting'
 import { TimerRing } from '../hud/TimerRing'
+import { ZoomControl } from '../hud/ZoomControl'
 import { exerciseSubtitle, getExercise } from '../session/catalog'
 import { resolveCoachCard } from '../session/coachCard'
 import {
@@ -284,6 +285,10 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                 <span>Espelhar</span>
               </span>
             </button>
+
+            {/* Só com a câmera ligada: antes disso não há track (zoom nativo) nem vídeo
+                (fallback por CSS) para ajustar — a escolha ficaria vazia. */}
+            {cameraReady && <ZoomControl />}
 
             {/* Frequência cardíaca saiu das duas telas (decisão pós-teste de 2026-07-30):
                 sem sensor o card era só ruído — volta quando houver dado (SPEC-014 §Desvios). */}

@@ -2151,6 +2151,46 @@ a {
   cursor: default;
 }
 
+/* Slider do zoom (nativo ou recorte por CSS — hud/ZoomControl.tsx). */
+.zoom-slider {
+  width: 100%;
+  height: 4px;
+  margin: 2px 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  outline: none;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(124, 92, 255, 0.6);
+  cursor: pointer;
+}
+
+.zoom-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(124, 92, 255, 0.6);
+  cursor: pointer;
+}
+
+.prep-cell__hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.5625rem;
+  line-height: 1.3;
+}
+
 /* Overlays da moldura da câmera (grade, scan, silhueta, pill). */
 .prep__overlay {
   position: absolute;

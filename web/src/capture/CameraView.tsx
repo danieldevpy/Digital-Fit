@@ -59,7 +59,7 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
   // Ferramentas de diagnóstico: build de dev, ou conta com `is_admin` (T-048).
   const devTools = useDevTools()
 
-  const { start, stop, startFile } = useCamera(videoRef)
+  const { start, stop, startFile, setZoom } = useCamera(videoRef)
   useEdgePipeline(videoRef, canvasRef, cameraStatus === 'ready')
   useSceneCheck(videoRef, checkScene && cameraStatus === 'ready')
 
@@ -70,9 +70,10 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
       stop,
       // Só o painel de dev chama (T-040); o FAB da nav nem sabe que existe.
       startFile: (file: File) => void startFile(file),
+      setZoom,
     })
     return () => setCameraControls(null)
-  }, [setCameraControls, start, startFile, stop])
+  }, [setCameraControls, setZoom, start, startFile, stop])
 
   const isReady = cameraStatus === 'ready'
   const isCloud = capability?.mode === Mode.CLOUD
@@ -80,7 +81,9 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
 
   return (
     <div className={`stage ${mirrored ? '' : 'stage--unmirrored'}`}>
-      {/* video e canvas espelhados juntos: o desenho usa coordenadas cruas. */}
+      {/* video e canvas espelhados juntos: o desenho usa coordenadas cruas. Zoom (quando o
+          aparelho suporta) é aplicado no TRACK via `applyConstraints` (useCamera.ts) — o
+          frame que chega aqui já vem ampliado/reduzido pelo hardware, sem transform de CSS. */}
       <video ref={videoRef} className="stage__video" playsInline muted autoPlay />
       <canvas ref={canvasRef} className="stage__canvas" />
 

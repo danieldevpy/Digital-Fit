@@ -18,6 +18,17 @@ import type { SessionReport } from '../report/sessionReport'
 import type { CoachEntry } from '../session/coachCard'
 
 export type CameraStatus = 'idle' | 'requesting' | 'ready' | 'denied' | 'error'
+
+/**
+ * Faixa de zoom NATIVO que o track da câmera expõe (`MediaTrackCapabilities.zoom`, PTZ da
+ * Media Capture and Streams). `null` quando o aparelho/navegador não suporta — nesse caso o
+ * zoom vira recorte por CSS (`cssZoomValue`), só cosmético.
+ */
+export interface ZoomCapabilities {
+  min: number
+  max: number
+  step: number
+}
 /**
  * `calibrating` é a preparação (SPEC-004): a câmera já roda e os frames já sobem, mas o
  * exercício ainda não vale. Quem decide a passagem para `running` é o servidor, via
@@ -104,12 +115,26 @@ export interface SessionState {
     stop: () => void
     /** Fonte de arquivo (T-040) — só chamada pela superfície de dev. */
     startFile: (file: File) => void
+    /**
+     * Zoom NATIVO do track (só existe função quando `zoomCapabilities` não é `null`).
+     * Aplica via `applyConstraints` — muda o frame de verdade que a pose lê, não só a tela.
+     */
+    setZoom: (value: number) => void
   } | null
   /**
    * Visão de espelho do palco (SPEC-014 §3, botão Espelhar). `true` é o default do produto:
    * quem treina de frente para a câmera espera se ver como num espelho.
    */
   mirrored: boolean
+  /**
+   * Faixa de zoom nativo do track atual — `null` sem câmera ligada ou sem o aparelho expor
+   * `min < 1` (zoom "para menos", o único com utilidade aqui). Um aparelho que só amplia
+   * (`min >= 1`) cai no mesmo `null`: o controle correspondente fica escondido, porque ampliar
+   * não ajuda quem precisa caber o corpo inteiro mais perto da câmera — só atrapalha.
+   */
+  zoomCapabilities: ZoomCapabilities | null
+  /** Zoom nativo aplicado agora (só significa algo quando `zoomCapabilities` não é `null`). */
+  zoomValue: number
   /**
    * De onde vem a imagem (T-040). `file` faz o pipeline rebobinar o vídeo depois do probe,
    * para o começo do arquivo não ser comido pela medição — ver `dev/videoSource.ts`.
@@ -174,6 +199,8 @@ export interface SessionState {
   setRecordedFrames: (count: number) => void
   setCameraControls: (controls: SessionState['cameraControls']) => void
   toggleMirrored: () => void
+  setZoomCapabilities: (capabilities: ZoomCapabilities | null) => void
+  setZoomValue: (value: number) => void
   setVideoSource: (source: 'camera' | 'file', fileName?: string | null) => void
   setGatewayStatus: (status: GatewayStatus) => void
   /**
@@ -256,6 +283,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   recordedFrames: 0,
   cameraControls: null,
   mirrored: true,
+  zoomCapabilities: null,
+  zoomValue: 1,
   videoSource: 'camera',
   videoFileName: null,
   gatewayStatus: 'idle',
@@ -280,6 +309,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setRecordedFrames: (recordedFrames) => set({ recordedFrames }),
   setCameraControls: (cameraControls) => set({ cameraControls }),
   toggleMirrored: () => set({ mirrored: !get().mirrored }),
+  setZoomCapabilities: (zoomCapabilities) => set({ zoomCapabilities }),
+  setZoomValue: (zoomValue) => set({ zoomValue }),
   setVideoSource: (videoSource, videoFileName = null) => set({ videoSource, videoFileName }),
   setGatewayStatus: (gatewayStatus) => set({ gatewayStatus }),
 
