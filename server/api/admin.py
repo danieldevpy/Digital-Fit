@@ -27,7 +27,15 @@ from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
 from django.contrib.auth.models import Group
 from django.http import HttpRequest
 
-from api.models import Plan, SessionClaim, SessionResult, SiteConfig, User
+from api.models import (
+    Exercise,
+    ExerciseGuideStep,
+    Plan,
+    SessionClaim,
+    SessionResult,
+    SiteConfig,
+    User,
+)
 
 admin.site.site_header = "Digital Fit — operação"
 admin.site.site_title = "Digital Fit"
@@ -205,6 +213,63 @@ class PlanAdmin(admin.ModelAdmin):
         Plano que não se usa mais se desativa por ordem e por limite, não por DELETE.
         """
         return False
+
+
+class GuideStepInline(admin.TabularInline):
+    """Passos do Guia (SPEC-015), inline e não tela própria: passo não existe sem exercício."""
+
+    model = ExerciseGuideStep
+    extra = 1
+    fields = ("ordem", "img", "texto")
+
+
+@admin.register(Exercise)
+class ExerciseAdmin(admin.ModelAdmin):
+    """Catálogo — a apresentação que virou dado (SPEC-018 §B).
+
+    Desligar um exercício quebrado aqui tira ele da tela **e** faz a admissão recusá-lo, sem
+    deploy. A FSM continua em código: esta tela não tem nem terá limiar (P3).
+    """
+
+    inlines = (GuideStepInline,)
+    list_display = ("display_name", "slug", "category", "maturity", "met", "enabled", "ordem")
+    list_filter = ("enabled", "category", "maturity")
+    list_editable = ("enabled", "ordem")
+    search_fields = ("slug", "display_name")
+    ordering = ("ordem", "slug")
+
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("slug", "display_name", "category", "muscle_group", "ordem", "enabled"),
+                "description": (
+                    "O <b>slug</b> precisa existir no registro do servidor "
+                    "(<code>EXERCISES</code>). Um exercício nasce em código — FSM e fixtures — e "
+                    "só então ganha esta ficha; o formulário recusa o que a admissão recusaria."
+                ),
+            },
+        ),
+        ("Apresentação", {"fields": ("default_tip", "main_angle", "demo_img", "dot_color")}),
+        (
+            "Catálogo (SPEC-020)",
+            {
+                "fields": ("met", "maturity", "min_plan"),
+                "description": (
+                    "<b>MET</b> alimenta o kcal. <b>Maturidade</b> é o selo de qualidade: a "
+                    "regra de quem vê o quê entra na T-090 — hoje o campo só viaja até o "
+                    "cliente. <b>Plano mínimo</b> vazio = todo mundo vê."
+                ),
+            },
+        ),
+    )
+
+    #: O slug é a chave que amarra ficha, registro de código e admissão. Renomear depois de
+    #: criado deixaria a ficha órfã (a admissão recusaria) sem nenhum erro na tela — o
+    #: `clean()` do modelo pegaria um slug inexistente, mas não pega um slug VÁLIDO trocado
+    #: por outro slug VÁLIDO, que é como se perde a ficha de um exercício.
+    def get_readonly_fields(self, request: HttpRequest, obj: Any = None) -> tuple[str, ...]:
+        return ("slug",) if obj else ()
 
 
 @admin.register(SiteConfig)

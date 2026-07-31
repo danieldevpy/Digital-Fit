@@ -103,7 +103,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 |---|---|---|---|
 | T-072 | Admin do Django ligado no processo `api`: apps + middlewares + context processors, `is_staff` novo (separado do `is_admin` de diagnóstico), estáticos servidos, gate por `DJANGO_ENABLE_ADMIN` e ausência no gateway; `User` editável, `SessionClaim`/`SessionResult` em leitura | 018 | done |
 | T-073 | `Plan` (incluindo as 3 capacidades que a Fase 5 consome: `streak_protections_month`, `min_maturity`, `daily_workout`) + `User.plan`/`plan_until` + `SiteConfig` + `capabilities_for()` com cache invalidado por `post_save` e defaults do código como piso; `POST /api/sessions` passa a resolver quota, duração, countdown e cloud por ele — sem mudar comportamento nenhum (migration de dados com os valores de hoje, colunas novas no valor neutro) | 018/016/019/020/022 | done |
-| T-074 | `Exercise` (+ passos do guia, + `met`/`maturity`/`category` como choices do vocabulário em código) no admin com trava de slug contra `EXERCISES`; resolvedor único `exercises_for()` servindo o `GET /api/config` **e a admissão** (eixos `enabled` + `min_plan`; hoje `POST /sessions` não trava nada); `Cache-Control: private` + ETag por (versão, plano, `is_admin`) — fecha a divergência do `[A/T-051]` | 018/015/020 | todo |
+| T-074 | `Exercise` (+ passos do guia, + `met`/`maturity`/`category` como choices do vocabulário em código) no admin com trava de slug contra `EXERCISES`; resolvedor único `exercises_for()` servindo o `GET /api/config` **e a admissão** (eixos `enabled` + `min_plan`; hoje `POST /sessions` não trava nada); `Cache-Control: private` + ETag por (versão, plano, `is_admin`) — fecha a divergência do `[A/T-051]` | 018/015/020 | done |
 | T-075 | `config_version` no `session.started` (aditivo, default 0) e no `SessionResult`: o relatório diz sob qual versão de configuração a sessão foi produzida | 018/010/002 | todo |
 | T-063 | Modo Free: quota diária no servidor (`quota_exceeded`), sheet de limite, kcal só ao vivo — **lê do `Plan` da T-073**, não de constante nova | 016/018 | todo |
 | T-064 | Modo Assinatura: duração configurável, modos de exercício, acúmulo de kcal, Modo Efeito — capacidades vêm do `Plan` da T-073 (a flag de plano deixa de ser desta task) | 016/018 | todo |
@@ -189,6 +189,22 @@ O que mudou e vale saber antes de pegar qualquer task daqui:
 | T-103 | Card Treino do Dia na Início (assinante completo; Free vê categorias com CTA; anônimo CTA de conta), navegação item→pré-config, conquista `treino-do-dia-7` — gate por `Plan.daily_workout` (coluna de T-073), **sem** bônus de XP e sem bump de `XP_FORMULA_V` | 022/016/019 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-074] O `EXERCISE_FIGURES` não cobre exercício que só existe no servidor.** Com o catálogo
+  vindo do `GET /api/config`, o painel pode publicar um exercício (slug já registrado em
+  `EXERCISES`) cuja figura de pose não existe no bundle do cliente — e figura nova exige deploy.
+  Hoje isso cai na figura neutra em pé, que é o fallback certo e não quebra nada; o teste
+  `ui/exerciseIcon.test.ts` continua cobrando apenas o catálogo **embutido**, que é o que ele
+  consegue cobrar. Vale decidir se a pré-config deve dizer algo quando a figura é a genérica, ou
+  se o `manage.py exercise_health` (T-104) deveria avisar o operador. Nada a fazer enquanto o
+  catálogo servido for igual ao embutido.
+- **[T-074] O `main_angle` tem um contrato aberto no servidor e fechado no cliente.** No banco é
+  `CharField` com `choices`; no TypeScript é `'arm_abduction' | 'none'`. Um valor novo (o
+  `knee_angle` que um exercício de Tier C vai querer) chega ao cliente e é rebaixado para `none`
+  em silêncio — o que é o comportamento seguro, porque mostrar ângulo que o cliente não sabe ler
+  daria número errado na barra de métricas, mas ninguém fica sabendo que a métrica sumiu. Quando
+  o segundo ângulo existir, o par (choices do servidor × união do cliente) precisa de um teste
+  que falhe quando divergirem — hoje não existe.
 
 - **[T-073] O dublê da admissão descarta os argumentos que a view passa — e passaria verde com
   a ligação quebrada.** `admissao_falsa` (`tests/test_sessions.py`) troca `create_session` por

@@ -16,9 +16,12 @@ class ApiConfig(AppConfig):
         from django.db.models.signals import post_delete, post_save
 
         from api.config import invalidate_snapshot
-        from api.models import Plan, SiteConfig
+        from api.models import Exercise, ExerciseGuideStep, Plan, SiteConfig
 
-        for modelo in (Plan, SiteConfig):
+        # `ExerciseGuideStep` entra na lista porque os passos viajam **dentro** do exercício no
+        # `GET /api/config`: editar um passo sem invalidar deixaria o Guia servindo o texto
+        # antigo, e ninguém ligaria uma coisa à outra ao procurar o motivo.
+        for modelo in (Plan, SiteConfig, Exercise, ExerciseGuideStep):
             post_save.connect(
                 invalidate_snapshot, sender=modelo, dispatch_uid=f"df-config-save-{modelo.__name__}"
             )

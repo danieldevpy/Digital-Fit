@@ -14,7 +14,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from api import trial
-from api.config import capabilities_for
+from api.config import capabilities_for, config_etag, config_payload, exercises_for
 from api.models import SessionClaim, SessionResult
 from api.sessions import DENIED_CLOUD, SessionRequest, bus, create_session
 
@@ -62,6 +62,35 @@ def readyz(_request: Request) -> Response:
     return Response({"status": "ready" if ready else "degraded", "checks": checks})
 
 
+@api_view(["GET"])
+def config(request: Request) -> Response:
+    """`GET /api/config` — catálogo e capacidades num payload só (SPEC-018).
+
+    **A resposta é privada.** Ela varia por plano (capacidades, mensagem de quota) e, com a
+    SPEC-020, varia no próprio conteúdo do catálogo — o assinante enxerga o que o Free não
+    enxerga. Sem `Cache-Control: private`, um proxy no caminho serviria a resposta do assinante
+    para o próximo Free que revalidasse, furando a trava de plano sem ninguém ver. Pelo mesmo
+    motivo o ETag não é só a versão da configuração (ver `config_etag`).
+
+    O cliente mantém os defaults dele em código para o primeiro paint e para o caso offline: a
+    tela não espera por esta rota para desenhar, e o servidor vence quando chega.
+    """
+    usuario = _usuario(request)
+    etag = config_etag(usuario)
+
+    if request.headers.get("If-None-Match") == etag:
+        resposta = Response(status=304)
+    else:
+        resposta = Response(config_payload(usuario))
+
+    resposta["ETag"] = etag
+    resposta["Cache-Control"] = "private, must-revalidate"
+    # Sem isto um cache que respeitasse `private` ainda poderia servir a mesma entrada para
+    # dois usuários da mesma origem.
+    resposta["Vary"] = "Authorization"
+    return resposta
+
+
 @api_view(["GET", "POST"])
 def sessions(request: Request) -> Response:
     """`POST /api/sessions` admite; `GET /api/sessions?mine` lista o historico (SPEC-011).
@@ -93,6 +122,23 @@ def _admitir(request: Request) -> Response:
     # resolvido viaja daqui para baixo. `capabilities_for` nunca levanta — banco ou cache fora
     # devolvem o piso do código, que é o comportamento anterior a esta spec (P2).
     caps = capabilities_for(usuario)
+
+    # A UI nunca é a única trava (SPEC-018 §B / SPEC-016). Até aqui a admissão só perguntava se
+    # o slug existia no registro de código — desligar um exercício no painel o tirava da tela e
+    # deixava a porta aberta para quem chamasse a API direto. Mesmo resolvedor do
+    # `GET /api/config`, de propósito: card na tela e sessão admitida vêm da mesma lista.
+    permitidos = exercises_for(usuario)
+    if pedido.exercise not in permitidos:
+        return Response(
+            {
+                "detail": "este exercicio nao esta disponivel para voce agora",
+                "code": "exercise_unavailable",
+                "exercise": pedido.exercise,
+            },
+            # 403 e não 404: o exercício existe, o acesso é que não. E não 400, porque o corpo
+            # da requisição está correto — mudou a permissão, não a sintaxe.
+            status=403,
+        )
 
     try:
         cliente = bus().client

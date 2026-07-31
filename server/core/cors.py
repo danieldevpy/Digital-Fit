@@ -22,7 +22,15 @@ ALLOWED_METHODS = "GET, POST, OPTIONS"
 #: `Authorization` (JWT) e `X-Device-Id` (trial anônimo) entram na SPEC-011. Sem eles no
 #: preflight, o navegador não deixa a requisição sair — e o erro aparece como "sem conta" ou
 #: "trial zerado", não como CORS.
-ALLOWED_HEADERS = "Content-Type, Authorization, X-Device-Id"
+#: `If-None-Match` entra na T-074: sem ele no preflight, a revalidação do `GET /api/config`
+#: nem sai do navegador.
+ALLOWED_HEADERS = "Content-Type, Authorization, X-Device-Id, If-None-Match"
+#: Cabeçalhos de resposta que o JavaScript consegue **ler**. Sem esta lista o navegador entrega
+#: a resposta e esconde o `ETag`: `resposta.headers.get('ETag')` devolve `null` cross-origin, e
+#: o cliente nunca guarda o que precisaria para revalidar. O sintoma não é erro nenhum — é o
+#: `GET /api/config` baixando o payload inteiro para sempre em vez de custar 304. Não aparece no
+#: `curl` (que ignora CORS) nem em teste com `fetch` dublado; só no navegador de verdade.
+EXPOSED_HEADERS = "ETag"
 MAX_AGE = "600"
 
 
@@ -58,6 +66,7 @@ class CorsMiddleware:
             resposta["Access-Control-Allow-Origin"] = origem
             resposta["Access-Control-Allow-Methods"] = ALLOWED_METHODS
             resposta["Access-Control-Allow-Headers"] = ALLOWED_HEADERS
+            resposta["Access-Control-Expose-Headers"] = EXPOSED_HEADERS
             resposta["Access-Control-Max-Age"] = MAX_AGE
             # A resposta muda conforme a origem: sem isso, cache/CDN serve a origem errada.
             resposta["Vary"] = (

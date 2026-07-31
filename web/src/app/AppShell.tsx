@@ -12,6 +12,7 @@ import { GuideScreen } from '../screens/GuideScreen'
 import { ProgressScreen } from '../screens/ProgressScreen'
 import { SessionScreen } from '../screens/SessionScreen'
 import { podeAlimentarSessao } from '../session/pipelineGate'
+import { fetchServerConfig } from '../session/serverConfig'
 import { useSession } from '../session/useSession'
 import { navigate, useRoute } from '../shell/nav'
 import { useAccountStore } from '../store/account'
@@ -37,6 +38,20 @@ export function AppShell() {
   useEffect(() => {
     void fetchMe().then((user) => useAccountStore.getState().setUser(user))
   }, [])
+
+  // Catálogo e capacidades do servidor (SPEC-018 / T-074). Sem `await` e sem tela de espera: o
+  // app já desenhou com o catálogo embutido, e esta chamada só **corrige** o que o painel mudou.
+  // Falhar é silencioso pelo mesmo motivo do `fetchMe` acima — configuração indisponível é um
+  // treino a menos de personalização, nunca um erro na cara de quem ia treinar.
+  //
+  // Depende de QUEM é a conta, não do status dela: a resposta é por plano, e entrar ou sair
+  // troca o que se pode ver. O `status` também serviria, mas ele muda de `unknown` para
+  // `anonymous` no boot sem o plano mudar — e isso custava um payload inteiro a mais em toda
+  // abertura do app, medido no navegador.
+  const contaId = useAccountStore((state) => state.user?.id ?? null)
+  useEffect(() => {
+    void fetchServerConfig()
+  }, [contaId])
 
   // Ponte `#/ex/<slug>` vinda do site: só o app sabe se o guia daquele exercício já foi visto
   // (SPEC-015), porque `guide_seen` mora no localStorage DESTA origem. A rota é trocada por

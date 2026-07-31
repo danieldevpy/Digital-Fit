@@ -1,10 +1,24 @@
-// Catálogo de exercícios do cliente (SPEC-013 §Notas técnicas).
+// Catálogo de exercícios (SPEC-013 §Notas técnicas + SPEC-018 §B).
 //
-// Vive no cliente porque é conteúdo de apresentação: nome exibido, categoria,
-// grupo muscular, dica padrão e qual ângulo mostrar. A chave (`jumping_jack`) é
-// a mesma que o contrato usa em `session.started.exercise`.
+// **O cliente deixou de ser a fonte da verdade sobre o que existe (T-074).** Quem manda é o
+// `GET /api/config`, resolvido pelo mesmo `exercises_for()` que a admissão usa — era essa
+// divergência que o `[A/T-051]` registrava: "o catálogo do cliente e o registro do servidor
+// podem divergir sem ninguém ver".
+//
+// O que sobra aqui é o **default embutido**: primeiro paint sem rede e fallback offline. Ele
+// não some quando o servidor chega, e não é apagado quando o servidor falha — a tela nunca
+// espera por rede para desenhar, e nunca fica vazia porque a rede caiu.
+//
+// Regra de leitura, portanto: `getExercise` e companhia leem o catálogo **mesclado**
+// (servidor por cima do embutido); `EXERCISE_CATALOG` e `EXERCISE_KEYS` continuam sendo o
+// embutido puro, e é isso que o teste da figura (T-082) deve cobrar — figura nova exige
+// deploy, então cobrar figura de exercício que só existe no servidor seria cobrar o impossível.
+import { useMemo } from 'react'
+import { useConfigStore, type ServerExercise } from '../store/config'
+
 export interface ExerciseInfo {
   display_name: string
+  /** Slug do vocabulário de contrato (`cardio`, `forca`, `core`, `mobilidade`), não rótulo. */
   category: string
   muscle_group: string
   /** Estado vazio do card do treinador — ele nunca fica sem texto. */
@@ -26,12 +40,35 @@ export interface ExerciseInfo {
   dot_color: string
   /** Passos do exemplo guiado (SPEC-015). Vazio não quebra: o Guia mostra demo + cena. */
   guide_steps: { img: string; text: string }[]
+  /** Insumo do kcal (SPEC-016/017). `undefined` no embutido: o servidor é quem sabe. */
+  met?: number
+  /** Selo de qualidade (SPEC-020). Quem o usa na tela é a T-090/T-091, não esta task. */
+  maturity?: string
+}
+
+/**
+ * Rótulo de exibição de uma categoria.
+ *
+ * O catálogo guarda o **slug** desde a T-074 porque categoria virou contrato — conquistas
+ * (SPEC-019) e o mix por objetivo (SPEC-022) consomem os slugs, e o cliente guardava a string
+ * de exibição (`'Cardio'`, `'Força'`). Slug desconhecido devolve ele mesmo em vez de vazio:
+ * uma categoria nova no servidor aparece feia, e não some da tela.
+ */
+const CATEGORY_LABELS: Record<string, string> = {
+  cardio: 'Cardio',
+  forca: 'Força',
+  core: 'Core',
+  mobilidade: 'Mobilidade',
+}
+
+export function categoryLabel(slug: string): string {
+  return CATEGORY_LABELS[slug] ?? slug
 }
 
 export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   jumping_jack: {
     display_name: 'Polichinelo',
-    category: 'Cardio',
+    category: 'cardio',
     muscle_group: 'Corpo inteiro',
     default_tip: 'Mantenha o core contraído e movimentos controlados.',
     main_angle: 'arm_abduction',
@@ -45,7 +82,7 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   },
   squat: {
     display_name: 'Agachamento',
-    category: 'Força',
+    category: 'forca',
     muscle_group: 'Pernas e glúteos',
     default_tip: 'Desça com o peso nos calcanhares e o peito aberto.',
     main_angle: 'none',
@@ -62,12 +99,7 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
 export const DEFAULT_EXERCISE = 'jumping_jack'
 
 /**
- * Os exercícios oferecidos, em ordem de exibição.
- *
- * A autoridade sobre o que existe é o servidor (`EXERCISES` em
- * `workers/analysis_worker/exercises/`), que rejeita slug desconhecido no `POST /sessions`
- * dizendo quais aceita. Este catálogo é a face visível dela — quem adicionar exercício aqui
- * sem adicionar lá vai receber a recusa da admissão, que é alta e explica o motivo.
+ * Os exercícios **embutidos**, em ordem de exibição.
  *
  * Exercício novo pede também a FIGURA da pose, em `ui/exerciseFigures.ts` (T-082). Essa não
  * grita em produção — cai numa figura neutra em pé —, então quem cobra é
@@ -75,11 +107,53 @@ export const DEFAULT_EXERCISE = 'jumping_jack'
  */
 export const EXERCISE_KEYS = Object.keys(EXERCISE_CATALOG)
 
+function daServidor(ex: ServerExercise): ExerciseInfo {
+  return {
+    display_name: ex.display_name,
+    category: ex.category,
+    muscle_group: ex.muscle_group,
+    default_tip: ex.default_tip,
+    // O contrato do campo é fechado no cliente (`arm_abduction | none`) e aberto no servidor
+    // (CharField). Valor desconhecido cai em `none`, que é o único default honesto: mostrar um
+    // ângulo que este cliente não sabe ler daria número errado na barra de métricas.
+    main_angle: ex.main_angle === 'arm_abduction' ? 'arm_abduction' : 'none',
+    demo_img: ex.demo_img,
+    dot_color: ex.dot_color,
+    guide_steps: ex.guide_steps,
+    met: ex.met,
+    maturity: ex.maturity,
+  }
+}
+
+/**
+ * O catálogo em vigor: servidor por cima do embutido, ou só o embutido enquanto ele não chega.
+ *
+ * **Substituição, não mesclagem campo a campo.** Quando o servidor fala, ele fala sobre *o que
+ * existe* — um exercício que ele não listou está desligado ou fora do plano, e mantê-lo por
+ * herança do embutido recriaria o card que a admissão recusa, que é o `[A/T-051]` de volta.
+ */
+export function currentCatalog(): Record<string, ExerciseInfo> {
+  const doServidor = useConfigStore.getState().exercises
+  if (!doServidor) return EXERCISE_CATALOG
+  return Object.fromEntries(doServidor.map((ex) => [ex.slug, daServidor(ex)]))
+}
+
+/** Versão reativa de `currentCatalog` — as telas que listam exercícios usam esta. */
+export function useCatalog(): { keys: string[]; catalog: Record<string, ExerciseInfo> } {
+  const doServidor = useConfigStore((state) => state.exercises)
+  return useMemo(() => {
+    const catalog = doServidor
+      ? Object.fromEntries(doServidor.map((ex) => [ex.slug, daServidor(ex)]))
+      : EXERCISE_CATALOG
+    return { keys: Object.keys(catalog), catalog }
+  }, [doServidor])
+}
+
 export function isExerciseKey(key: unknown): key is string {
   // `Object.hasOwn` e não `in`: `in` percorre o protótipo, e `'toString' in EXERCISE_CATALOG`
   // é `true`. Um `toString` guardado no aparelho passaria por exercício válido, iria parar no
   // `POST /sessions` e faria `getExercise` devolver uma função no lugar do card.
-  return typeof key === 'string' && Object.hasOwn(EXERCISE_CATALOG, key)
+  return typeof key === 'string' && Object.hasOwn(currentCatalog(), key)
 }
 
 /**
@@ -89,17 +163,22 @@ export function isExerciseKey(key: unknown): key is string {
  * escolha existe desde já, a superfície aparece quando houver o que escolher.
  */
 export function offersChoice(): boolean {
-  return EXERCISE_KEYS.length > 1
+  return Object.keys(currentCatalog()).length > 1
 }
 
 export function getExercise(key: string | null): ExerciseInfo {
-  // Passa por `isExerciseKey` em vez de indexar direto: com chave herdada (`toString`) o
-  // acesso devolveria uma função, o `??` não dispararia, e quem chamasse `.display_name`
-  // receberia `undefined` no meio da tela.
-  return isExerciseKey(key) ? EXERCISE_CATALOG[key]! : EXERCISE_CATALOG[DEFAULT_EXERCISE]!
+  const catalogo = currentCatalog()
+  // `Object.hasOwn` e não indexação direta, pela mesma razão do `isExerciseKey`: com chave
+  // herdada (`toString`) o acesso devolveria uma função, o `??` não dispararia, e quem
+  // chamasse `.display_name` receberia `undefined` no meio da tela.
+  if (typeof key === 'string' && Object.hasOwn(catalogo, key)) return catalogo[key]!
+  // O default pode não estar no catálogo do servidor (exercício desligado no painel). Cair no
+  // primeiro que existe é melhor que devolver `undefined` — e melhor que voltar ao embutido,
+  // que traria de volta um card que a admissão recusa.
+  return catalogo[DEFAULT_EXERCISE] ?? Object.values(catalogo)[0] ?? EXERCISE_CATALOG[DEFAULT_EXERCISE]!
 }
 
 /** "CARDIO • CORPO INTEIRO" da referência. */
 export function exerciseSubtitle(exercise: ExerciseInfo): string {
-  return `${exercise.category} • ${exercise.muscle_group}`
+  return `${categoryLabel(exercise.category)} • ${exercise.muscle_group}`
 }

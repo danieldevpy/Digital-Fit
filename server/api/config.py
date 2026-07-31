@@ -30,6 +30,7 @@ compartilhado entre processos, então a edição no painel (processo `api`) alca
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -48,6 +49,9 @@ __all__ = [
     "SNAPSHOT_TTL_S",
     "Capabilities",
     "capabilities_for",
+    "config_etag",
+    "config_payload",
+    "exercises_for",
     "invalidate_snapshot",
 ]
 
@@ -206,11 +210,12 @@ def _floor(slug: str) -> dict[str, Any]:
 
 
 def _read_snapshot_from_db() -> dict[str, Any]:
-    """Snapshot cru do Postgres: todos os planos + o singleton de site."""
-    from api.models import Plan, SiteConfig
+    """Snapshot cru do Postgres: planos + catálogo + o singleton de site."""
+    from api.models import Exercise, Plan, SiteConfig
 
     planos: dict[str, dict[str, Any]] = {}
     default_slug = PLAN_FREE
+    ordem_do_plano: dict[str, int] = {}
     for plano in Plan.objects.all():
         planos[plano.slug] = {
             "plan_slug": plano.slug,
@@ -218,13 +223,39 @@ def _read_snapshot_from_db() -> dict[str, Any]:
             "flags": plano.flags or {},
             **{campo: getattr(plano, campo) for campo in _PLAN_FIELDS},
         }
+        ordem_do_plano[plano.slug] = plano.ordem
         if plano.is_default:
             default_slug = plano.slug
+
+    exercicios: list[dict[str, Any]] = []
+    consulta = Exercise.objects.select_related("min_plan").prefetch_related("guide_steps")
+    for ex in consulta:
+        exercicios.append(
+            {
+                "slug": ex.slug,
+                "display_name": ex.display_name,
+                "category": ex.category,
+                "muscle_group": ex.muscle_group,
+                "default_tip": ex.default_tip,
+                "main_angle": ex.main_angle,
+                "demo_img": ex.demo_img,
+                "dot_color": ex.dot_color,
+                "met": float(ex.met),
+                "maturity": ex.maturity,
+                "enabled": ex.enabled,
+                "min_plan": ex.min_plan.slug if ex.min_plan else None,
+                "guide_steps": [
+                    {"img": passo.img, "text": passo.texto} for passo in ex.guide_steps.all()
+                ],
+            }
+        )
 
     site = SiteConfig.objects.filter(pk=1).values(*_FLOOR_SITE.keys()).first()
     return {
         "plans": planos,
+        "plan_order": ordem_do_plano,
         "default_slug": default_slug,
+        "exercises": exercicios,
         "site": dict(site) if site else dict(_FLOOR_SITE),
     }
 
@@ -302,6 +333,122 @@ def capabilities_for(user=None, *, now: datetime | None = None) -> Capabilities:
         **{campo: plano[campo] for campo in ("plan_slug", "flags", *_PLAN_FIELDS)},
         **site,
     )
+
+
+def exercises_for(user=None, *, now: datetime | None = None) -> dict[str, dict[str, Any]]:
+    """Os exercícios que este solicitante pode ver **e abrir**, por slug.
+
+    **Um resolvedor só para as duas perguntas.** O `GET /api/config` é este dicionário
+    serializado; a admissão é `slug in exercises_for(...)`. Duas listas construídas por dois
+    códigos diferentes divergiriam, e divergiriam do pior jeito possível: um card na tela que o
+    `POST /sessions` recusa — que é literalmente o `[A/T-051]` que esta task veio fechar.
+
+    Eixos desta task: `enabled` e `min_plan`. O eixo **maturidade** entra aqui dentro na T-090,
+    nesta mesma função e não ao lado dela.
+
+    Degradação (P2) com uma nuance: sem catálogo no banco, devolve o registro de código
+    (`EXERCISES`) — que é o comportamento de ontem, quando a admissão só checava o registro.
+    Mas a exclusividade por plano falha **fechada**: se há `min_plan` e a ordem dos planos não
+    resolve, o exercício some. Fechar o resto também deixaria a tela Escolha vazia num soluço de
+    banco; deixar a exclusividade aberta entregaria conteúdo pago de graça. Os dois lados falham
+    para o lado certo de cada um.
+    """
+    from workers.analysis_worker.exercises import EXERCISES
+
+    dados, _ = _snapshot()
+    catalogo = dados.get("exercises") or []
+    if not catalogo:
+        return {slug: {"slug": slug} for slug in EXERCISES}
+
+    ordens = dados.get("plan_order") or {}
+    meu_plano = capabilities_for(user, now=now).plan_slug
+    minha_ordem = ordens.get(meu_plano)
+
+    visiveis: dict[str, dict[str, Any]] = {}
+    for ex in catalogo:
+        if not ex.get("enabled"):
+            continue
+        # Slug que saiu do registro (exercício removido do código, linha esquecida na tabela)
+        # não pode aparecer: a admissão o recusaria, e o card seria um botão quebrado.
+        if ex["slug"] not in EXERCISES:
+            continue
+        exigido = ex.get("min_plan")
+        if exigido:
+            ordem_exigida = ordens.get(exigido)
+            if minha_ordem is None or ordem_exigida is None or minha_ordem < ordem_exigida:
+                continue
+        visiveis[ex["slug"]] = ex
+    return visiveis
+
+
+def config_payload(user=None, *, now: datetime | None = None) -> dict[str, Any]:
+    """Corpo do `GET /api/config` — catálogo e capacidades num payload só (SPEC-018)."""
+    caps = capabilities_for(user, now=now)
+    catalogo = exercises_for(user, now=now)
+
+    return {
+        "config_version": caps.config_version,
+        "plan": {
+            "slug": caps.plan_slug,
+            "name": caps.plan_name,
+            "daily_sessions": caps.daily_sessions,
+            "quota_message": caps.quota_message,
+            "allow_cloud": caps.allow_cloud,
+            "history_limit": caps.history_limit,
+            "kcal_accumulation": caps.kcal_accumulation,
+            "effects_enabled": caps.effects_enabled,
+            "flags": caps.flags,
+        },
+        "session": {
+            "duration_s": caps.duration_s(),
+            "min_s": caps.session_min_s,
+            "max_s": caps.session_max_s,
+            "countdown_default_s": caps.default_countdown_s,
+            "countdown_max_s": caps.countdown_max_s,
+        },
+        "steppers": {
+            "series_min": caps.series_min,
+            "series_max": caps.series_max,
+            "series_default": caps.series_default,
+            "reps_min": caps.reps_min,
+            "reps_max": caps.reps_max,
+            "reps_default": caps.reps_default,
+        },
+        # Lista e não dicionário: a ordem de exibição é dado, e objeto JSON não promete ordem.
+        "exercises": _catalogo_serializado(catalogo),
+    }
+
+
+#: Campos que ficam no servidor. `enabled` e `min_plan` são a *regra*: quem chegou ao payload já
+#: passou por ela, e mandá-la junto contaria ao Free o que existe atrás do cadeado. O cadeado com
+#: motivo é a T-091, e mesmo lá o motivo é texto, não a regra.
+_INTERNO = frozenset({"enabled", "min_plan"})
+
+
+def _catalogo_serializado(catalogo: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Serializa o catálogo resolvido para o cliente.
+
+    Devolve **lista vazia** quando o que há é só o piso do registro (slugs sem apresentação,
+    banco fora): vazio quer dizer "não sei, use o seu", e é assim que o cliente lê. Mandar
+    `{"slug": "squat"}` sem nome faria a tela Escolha desenhar um card em branco — pior que não
+    mandar nada, porque parece dado.
+    """
+    completos = [ex for ex in catalogo.values() if "display_name" in ex]
+    return [{k: v for k, v in ex.items() if k not in _INTERNO} for ex in completos]
+
+
+def config_etag(user=None, *, now: datetime | None = None) -> str:
+    """ETag por (versão, plano, `is_admin`) — as três dimensões que mudam o corpo.
+
+    Um ETag só sobre `config_version` seria um vazamento: o payload varia por plano (capacidades
+    e, com a SPEC-020, o próprio conteúdo do catálogo), então um proxy no caminho serviria a
+    resposta do assinante para o próximo Free que revalidasse. Junto com `Cache-Control: private`
+    na view, é o que impede a trava de plano de ser furada por cache.
+    """
+    caps = capabilities_for(user, now=now)
+    is_admin = bool(getattr(user, "is_admin", False))
+    cru = f"{caps.config_version}|{caps.plan_slug}|{int(is_admin)}"
+    return '"' + hashlib.sha256(cru.encode()).hexdigest()[:16] + '"'
 
 
 def invalidate_snapshot(**_kwargs) -> None:

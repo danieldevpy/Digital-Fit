@@ -28,6 +28,10 @@ from django.db import models
 
 __all__ = [
     "MATURITY_RANK",
+    "Category",
+    "Exercise",
+    "ExerciseGuideStep",
+    "MainAngle",
     "Maturity",
     "Plan",
     "SessionClaim",
@@ -62,6 +66,38 @@ MATURITY_RANK: dict[str, int] = {
     Maturity.CALIBRADO.value: 1,
     Maturity.VALIDADO.value: 2,
 }
+
+
+class Category(models.TextChoices):
+    """Eixo de navegação do catálogo (SPEC-020 §Categorias).
+
+    **Vocabulário em código, e isto contradiz a SPEC-018 §B de propósito** — ela listava
+    `category` entre os campos de apresentação editáveis no painel. Não é apresentação: as
+    conquistas da SPEC-019 e o mix por objetivo da SPEC-022 consomem estes *slugs*. Uma
+    categoria criada por formulário quebraria os dois consumidores em silêncio, e o sintoma
+    seria uma conquista que nunca dispara.
+
+    O que continua editável é o que é mesmo apresentação: o nome de exibição do exercício, a
+    cor do dot, a ordem. Categoria nova é commit, com os consumidores revisados junto.
+    """
+
+    CARDIO = "cardio", "Cardio"
+    FORCA = "forca", "Força"
+    CORE = "core", "Core"
+    MOBILIDADE = "mobilidade", "Mobilidade"
+
+
+class MainAngle(models.TextChoices):
+    """Qual ângulo a barra de métricas mostra ao vivo (T-044).
+
+    `none` não é ausência de dado: é a afirmação de que, para este exercício, **nenhum ângulo
+    lido no plano da imagem diz a verdade**. No agachamento o joelho viaja para a frente e a
+    câmera frontal lê ~133° onde o corpo faz 80° (medido na T-052) — mostrar esse número seria
+    pior que mostrar `--`.
+    """
+
+    ARM_ABDUCTION = "arm_abduction", "Abdução de braço"
+    NONE = "none", "Nenhum (mostra --)"
 
 
 class Plan(models.Model):
@@ -150,6 +186,100 @@ class Plan(models.Model):
             erros["countdown_max_s"] = "preparação acima de 60 s seguraria vaga sem treinar."
         if erros:
             raise ValidationError(erros)
+
+
+class Exercise(models.Model):
+    """A **apresentação** de um exercício (SPEC-018 §B). A lógica continua em código.
+
+    O catálogo estava partido em dois: o registro autoritativo (`EXERCISES`, slug → classe da
+    FSM, em `workers/analysis_worker/exercises/base.py`) e a apresentação
+    (`web/src/session/catalog.ts`). O BACKLOG registrou o efeito em `[A/T-051]`: *"o catálogo do
+    cliente e o registro do servidor podem divergir sem ninguém ver"*. Esta tabela é a metade
+    que vira dado — nome, dica, imagem, ordem, quem pode ver — e o `GET /api/config` é onde o
+    cliente para de ser fonte da verdade sobre o que existe.
+
+    A FSM **não** entra aqui: é lógica, tem fixture e teste, e um limiar mudado por formulário
+    não tem nem um nem outro (SPEC-018 P3).
+    """
+
+    slug = models.SlugField(max_length=40, unique=True)
+    display_name = models.CharField(max_length=60)
+    category = models.CharField(max_length=16, choices=Category.choices, default=Category.CARDIO)
+    muscle_group = models.CharField(max_length=60, blank=True)
+    default_tip = models.TextField(
+        blank=True, help_text="Estado vazio do card do treinador — ele nunca fica sem texto."
+    )
+    main_angle = models.CharField(
+        max_length=16, choices=MainAngle.choices, default=MainAngle.NONE
+    )
+    demo_img = models.CharField(max_length=200, blank=True)
+    dot_color = models.CharField(max_length=9, default="#34d399")
+    ordem = models.PositiveSmallIntegerField(default=0)
+    enabled = models.BooleanField(
+        default=True, help_text="Desligado some do catálogo E a admissão passa a recusar."
+    )
+    min_plan = models.ForeignKey(
+        "api.Plan",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="exclusive_exercises",
+        help_text="Vazio = todo mundo vê. Preenchido = exclusivo deste plano em diante (ordem).",
+    )
+
+    #: Insumo do kcal (SPEC-016/017): valor de tabela (Compendium), uma casa decimal, sem
+    #: promessa de precisão individual.
+    met = models.DecimalField(max_digits=4, decimal_places=1, default=0)
+    #: Quão provado está (SPEC-020). Coluna aqui, **regra de visibilidade na T-090**: esta task
+    #: só a carrega até o cliente. Nasce junto para não fazer duas migrations no mesmo modelo.
+    maturity = models.CharField(
+        max_length=12, choices=Maturity.choices, default=Maturity.BETA
+    )
+
+    class Meta:
+        db_table = "exercise"
+        ordering = ["ordem", "slug"]
+
+    def __str__(self) -> str:
+        return f"{self.display_name} ({self.slug})"
+
+    def clean(self) -> None:
+        """Trava obrigatória da SPEC-018 §B: `slug` só salva se existir em `EXERCISES`.
+
+        Sem isto o painel passa a poder cadastrar um exercício que a admissão rejeita — um botão
+        na tela que não funciona, criado por quem achava que estava cadastrando um exercício. O
+        import é local porque `workers` não é dependência de importação do módulo de modelos, e
+        um import no topo faria o `models.py` puxar o analisador inteiro.
+        """
+        from workers.analysis_worker.exercises import EXERCISES
+
+        if self.slug and self.slug not in EXERCISES:
+            disponiveis = ", ".join(sorted(EXERCISES)) or "nenhum"
+            raise ValidationError(
+                {
+                    "slug": (
+                        f"{self.slug!r} nao existe no registro do servidor. "
+                        f"Um exercicio nasce em codigo (FSM + fixtures) e so entao aparece aqui. "
+                        f"Disponiveis: {disponiveis}."
+                    )
+                }
+            )
+
+
+class ExerciseGuideStep(models.Model):
+    """Passos do exemplo guiado (SPEC-015). Inline no painel, nunca tela própria."""
+
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name="guide_steps")
+    ordem = models.PositiveSmallIntegerField(default=0)
+    img = models.CharField(max_length=200, blank=True)
+    texto = models.TextField()
+
+    class Meta:
+        db_table = "exercise_guide_step"
+        ordering = ["ordem", "pk"]
+
+    def __str__(self) -> str:
+        return f"{self.exercise.slug} #{self.ordem}"
 
 
 class SiteConfig(models.Model):

@@ -1,7 +1,7 @@
 // Cards de exercício da SPEC-014 §2 — usados na tela Escolha (app) e na seção
 // "Escolha seu exercício" do Index (site). Toque no card entra no funil da SPEC-015:
 // primeiro acesso àquele exercício passa pelo Guia; repetente vai direto à pré-config.
-import { EXERCISE_CATALOG, EXERCISE_KEYS } from '../session/catalog'
+import { categoryLabel, useCatalog } from '../session/catalog'
 import { exercisePreference } from '../session/preferences'
 import { appHref } from '../shell/origins'
 import { IconChevronRight, IconWave } from '../ui/icons'
@@ -19,16 +19,20 @@ interface ExerciseCardsProps {
 
 export function ExerciseCards({ grid = false, openInApp = false }: ExerciseCardsProps) {
   const selected = openInApp ? null : exercisePreference()
+  // Reativo de propósito: o catálogo do servidor chega DEPOIS do primeiro paint (T-074), e a
+  // Escolha é a tela onde a diferença aparece — um exercício desligado no painel tem que sumir
+  // daqui sozinho, sem recarregar.
+  const { keys, catalog } = useCatalog()
 
   return (
     <div className={`choose__list ${grid ? 'choose__list--grid' : ''}`}>
-      {EXERCISE_KEYS.map((key) => {
-        const info = EXERCISE_CATALOG[key]
+      {keys.map((key) => {
+        const info = catalog[key]
         if (!info) return null
 
         const conteudo = (
           <>
-            <p className="ex-card__cat">{info.category}</p>
+            <p className="ex-card__cat">{categoryLabel(info.category)}</p>
             <h3 className="ex-card__name">{info.display_name}</h3>
             <span className="ex-card__badge">30s</span>
             <IconWave className="ex-card__wave" />

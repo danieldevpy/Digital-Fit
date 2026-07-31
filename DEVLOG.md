@@ -5,6 +5,82 @@
 
 ---
 
+## 2026-07-31 (19) · T-074 — o catálogo passa a ter dono, e a admissão passa a travar
+
+`Exercise` + `ExerciseGuideStep` no painel com a trava de slug, `exercises_for()` como
+resolvedor único, `GET /api/config` servindo catálogo e capacidades, e o cliente consumindo. É
+o fim do `[A/T-051]`: "o catálogo do cliente e o registro do servidor podem divergir sem
+ninguém ver".
+
+**A descoberta mais incômoda veio antes de codar**: `POST /api/sessions` não travava **nada**
+além de `exercise in EXERCISES`. Desligar um exercício no painel o tiraria da tela e deixaria a
+porta aberta para quem chamasse a API direto. A T-074 original nem mencionava admissão — foi a
+revisão da Fase 0 que a colocou no escopo, e ela era mesmo o buraco.
+
+**Decisões, e o que foi rejeitado:**
+
+- **Um resolvedor, duas perguntas.** `exercises_for()` serve o catálogo *e* a admissão. Duas
+  listas montadas por dois códigos divergiriam do pior jeito: um card na tela que o
+  `POST /sessions` recusa. O teste central percorre o que o `GET /api/config` devolveu e abre
+  sessão de cada um — se divergirem, ele quebra.
+- **Degradação assimétrica, de propósito.** Sem catálogo no banco, `exercises_for` devolve o
+  registro de código (comportamento de ontem). Mas a exclusividade por plano falha **fechada**:
+  `min_plan` sem ordem resolvível some. Fechar tudo esvaziaria a tela Escolha num soluço de
+  banco; abrir a exclusividade entregaria conteúdo pago. Cada lado falha para o lado certo dele.
+- **O servidor SUBSTITUI o catálogo do cliente, não completa.** Exercício que o servidor não
+  listou está desligado ou fora do plano; mantê-lo por herança do embutido recriaria exatamente
+  o card que a admissão recusa.
+- **Lista vazia quer dizer "não sei", não "não há exercício".** É o que o servidor manda com o
+  banco fora, e o cliente guarda `null` em vez de `[]` — guardar `[]` apagaria a tela Escolha
+  por causa de um soluço. Card em branco seria pior que card nenhum.
+- **Categoria virou slug na migration, convertida e não copiada.** O cliente guardava `'Cardio'`
+  e `'Força'` (strings de exibição); o rótulo agora é derivado por `categoryLabel()`. Copiar
+  quebraria as conquistas da SPEC-019 e o mix da SPEC-022 em silêncio.
+- **403 e não 404 na recusa por plano**: o exercício existe, o acesso é que não. E não 400,
+  porque o corpo da requisição está correto — mudou a permissão, não a sintaxe.
+- **`slug` vira somente-leitura depois de criado.** O `clean()` pega slug inexistente, mas não
+  pega um slug VÁLIDO trocado por outro slug VÁLIDO — que é como se perde a ficha de um
+  exercício, sem erro nenhum na tela.
+
+**Dois defeitos que só o navegador mostrou** (e que `curl` e teste com `fetch` dublado
+aprovavam):
+
+1. **O `ETag` nunca chegava ao JavaScript.** Cross-origin, `resposta.headers.get('ETag')` volta
+   `null` sem `Access-Control-Expose-Headers`. Medido: `localStorage` ficava vazio depois de
+   três buscas bem-sucedidas. Sem erro nenhum — só o payload inteiro descendo para sempre. O
+   CORS ganhou `Expose-Headers: ETag` e `If-None-Match` na lista do preflight, com dois testes.
+2. **O ETag era decoração mesmo depois disso.** O `If-None-Match` só saía se houvesse catálogo
+   em memória (senão um 304 deixaria o app sem catálogo) — e no boot o store nasce vazio, então
+   nunca saía. A correção é hidratar do `localStorage` antes de falar com a rede: boot lê o
+   disco, revalida, e o caso comum custa uma resposta sem corpo. Medido no navegador: 1954 bytes
+   → `304`.
+
+Também medido: o boot fazia **duas** buscas de config porque o efeito dependia de
+`account.status`, que muda `unknown → anonymous` sem o plano mudar. Passou a depender do **id**
+da conta — que no boot anônimo não muda, e na troca de conta muda.
+
+**Verificação no stack real** (containers `digital-fit`, com o `df-teste` da sessão paralela
+rodando em paralelo nas portas +10):
+
+| O que | Como | Resultado |
+|---|---|---|
+| CA 3 da SPEC-018 + a metade que faltava | desligar `squat` no painel e chamar a API | catálogo encolheu para `['jumping_jack']` e `POST /sessions` devolveu **403 `exercise_unavailable`**, sem restart |
+| Headers da resposta | `curl -i` | `ETag`, `Cache-Control: private, must-revalidate`, `Vary: Authorization` |
+| Revalidação | `curl -H "If-None-Match: …"` | `status=304 bytes=0` |
+| Painel → tela | renomear `squat` e recarregar o app | card passou a ler "Agachamento livre / Pernas, glúteos e core" |
+| Rótulo de categoria | ler o DOM | `cardio → Cardio`, `forca → Força` |
+
+Os dados de dev que mexi para medir foram restaurados ao final.
+
+Gates: `ruff` limpo, `pytest` 644 verdes, `npm run lint`/`typecheck`/`test` verdes (377).
+**Screenshot não foi possível** — trava neste browser controlado (quirk conhecido); tudo acima
+foi medido por JS no DOM e por `curl`, que é o caminho que este projeto já usa.
+
+**Pendências:** critérios 3, 4, 10 e 11 da SPEC-018 agora estão cobertos; o 8 (`config_version`
+no relatório) segue com a T-075. Duas descobertas no BACKLOG: figura de pose de exercício que só
+existe no servidor, e a divergência silenciosa entre o `main_angle` aberto do servidor e o
+fechado do cliente.
+
 ## 2026-07-31 (18) · T-073 — configuração de negócio vira dado, sem mudar produto nenhum
 
 `Plan` + `SiteConfig` + `User.plan/plan_until` + `capabilities_for()`, e a admissão passando a

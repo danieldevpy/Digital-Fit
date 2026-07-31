@@ -74,3 +74,28 @@ def test_em_debug_o_ip_da_lan_passa(debug_ligado) -> None:
     resposta = Client().get("/healthz", HTTP_ORIGIN="http://192.168.0.104:5173")
 
     assert resposta["Access-Control-Allow-Origin"] == "http://192.168.0.104:5173"
+
+
+def test_o_etag_e_legivel_pelo_javascript(debug_ligado) -> None:
+    """Sem `Expose-Headers`, o navegador entrega a resposta e ESCONDE o `ETag` (T-074).
+
+    É o teste do defeito que só o navegador mostrou: `curl` imprime o header (ignora CORS) e um
+    teste com `fetch` dublado também, mas em `fetch` de verdade
+    `resposta.headers.get('ETag')` volta `null` cross-origin. O sintoma não é erro nenhum — é o
+    `GET /api/config` baixando o payload inteiro para sempre, em vez de custar 304.
+    """
+    resposta = Client().get("/healthz", HTTP_ORIGIN=ORIGEM)
+
+    assert "ETag" in resposta["Access-Control-Expose-Headers"]
+
+
+def test_o_preflight_aceita_o_cabecalho_de_revalidacao(debug_ligado) -> None:
+    """`If-None-Match` não é cabeçalho simples: sem ele na lista, a revalidação nem sai."""
+    resposta = Client().options(
+        "/api/config",
+        HTTP_ORIGIN=ORIGEM,
+        HTTP_ACCESS_CONTROL_REQUEST_METHOD="GET",
+        HTTP_ACCESS_CONTROL_REQUEST_HEADERS="If-None-Match",
+    )
+
+    assert "If-None-Match" in resposta["Access-Control-Allow-Headers"]
