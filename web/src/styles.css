@@ -2086,6 +2086,30 @@ a {
   border-color: rgba(107, 140, 255, 0.28);
 }
 
+.prep-cell__ex-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.prep-cell__ex-guide {
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: var(--cyan);
+  font: 700 0.5625rem var(--font-ui);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 .prep-cell__value {
   margin: 0;
   font: 700 1.1875rem var(--font-num);

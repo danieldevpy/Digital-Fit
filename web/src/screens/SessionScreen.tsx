@@ -231,17 +231,28 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
           </header>
 
           <div className="prep__side prep__side--left">
-            <button
-              type="button"
-              className="prep-cell prep-cell--action prep-cell--ex"
-              onClick={() => navigate({ screen: 'exercicios' })}
-            >
-              <p className="v2-label">Exercício</p>
-              {/* A figura segue o exercício selecionado (T-082). Mesma classe de antes: o
-                  tamanho, o ciano e o glow continuam vindo do CSS, muda só a pose. */}
-              <ExerciseIcon exercise={exerciseKey} className="prep-cell__ex-icon" />
-              <p className="prep-cell__ex-name">{exercise.display_name}</p>
-            </button>
+            <div className="prep-cell prep-cell--ex">
+              <button
+                type="button"
+                className="prep-cell__ex-main prep-cell--action"
+                onClick={() => navigate({ screen: 'exercicios' })}
+              >
+                <p className="v2-label">Exercício</p>
+                {/* A figura segue o exercício selecionado (T-082). Mesma classe de antes: o
+                    tamanho, o ciano e o glow continuam vindo do CSS, muda só a pose. */}
+                <ExerciseIcon exercise={exerciseKey} className="prep-cell__ex-icon" />
+                <p className="prep-cell__ex-name">{exercise.display_name}</p>
+              </button>
+              {/* SPEC-015: o guia só aparece sozinho na primeira vez — depois disso só
+                  este link reabre o exemplo, sem repetir o funil. */}
+              <button
+                type="button"
+                className="prep-cell__ex-guide"
+                onClick={() => navigate({ screen: 'guia', exercise: exerciseKey })}
+              >
+                ver exemplo
+              </button>
+            </div>
 
             <StepperCell
               label="Série"
