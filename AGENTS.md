@@ -2,6 +2,19 @@
 
 Regras para qualquer sessão de desenvolvimento (humano ou agente).
 
+## Skills (o fluxo abaixo, operacionalizado)
+
+Agentes devem usar as skills do projeto em `.claude/skills/` — elas transformam estas regras
+em passo a passo com gates:
+
+- **`df-executor`** — executar uma task `T-XXX` (contexto mínimo, escopo travado, testes a
+  partir dos critérios de aceite, gates, DEVLOG, commit).
+- **`df-exercise`** — criar, calibrar ou promover um exercício (checklist da SPEC-020,
+  `evalctl`, escada de maturidade). Usa-se **junto** com a df-executor.
+- **`df-spec`** — escrever/revisar uma spec e desdobrá-la em tasks.
+
+Pedido que não caiba em nenhuma → seguir o fluxo manual abaixo, que continua sendo a fonte.
+
 ## Fluxo de uma sessão
 
 1. **Carregar contexto mínimo**: ler `context/project.md` → spec da task → só então abrir código relacionado. Não ler arquivos fora do escopo da task.

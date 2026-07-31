@@ -6,6 +6,14 @@
 
 App web que analisa exercícios físicos por visão computacional em **sessões de 30 segundos**: conta repetições, corrige execução e classifica o exercício. MVP: polichinelo. Alvo final: SaaS multiusuário.
 
+**Rumo atual (Fase 5, 2026-07-30):** produto de **retenção diária** à la Duolingo — fogo
+(streak), meta, XP, trilhas, Treino do Dia — sobre uma **fábrica de exercícios** (spec →
+FSM/hold → gerador → corpus → `evalctl` → produção, com maturidade `beta→calibrado→validado`).
+Duas regras novas que valem como decisão-chave: **engajamento é derivação pura** de
+`SessionClaim`+`SessionResult` (nunca contador persistido novo sem justificativa), e o roadmap
+de exercícios ordena por dificuldade **de detecção** (tiers técnicos), não física. Ver
+SPEC-019…022 e ARCHITECTURE §1/§9.
+
 ## Decisões-chave (não renegociar sem ADR)
 
 1. **Keypoint-first**: o dado central do sistema são keypoints (33 landmarks), nunca vídeo. Vídeo é insumo descartável.
@@ -42,6 +50,11 @@ React + Vite (web) · Django + DRF + Channels (api/gateway) · Python puro/numpy
 | 015 | Primeiro Acesso Guiado (Index → Escolha → Guia → Treino) | client |
 | 016 | Planos Free × Assinatura (quotas no servidor; UI reflete) | api/client |
 | 017 | Perfil Físico & Progresso Realista (peso/altura, kcal MET) | api/client |
+| 018 | Painel de Administração & Plano de Configuração (Plan, Exercise, `GET /api/config`) | api/client |
+| 019 | Engajamento & Gamificação (fogo, meta, XP, conquistas — derivação pura) | api/client |
+| 020 | Catálogo Expandido (categorias, trilhas, maturidade, roadmap por tiers) | api/client/workers/eval |
+| 021 | Exercícios Isométricos (modalidade *hold*; wall sit primeiro) | contrato/worker/api/client |
+| 022 | Treino do Dia & Personalização (objetivo, idade, IMC — assinante) | api/client |
 
 ## Documentos
 
@@ -51,3 +64,5 @@ React + Vite (web) · Django + DRF + Channels (api/gateway) · Python puro/numpy
 - `AGENTS.md` — regras de trabalho das sessões
 - `DEVLOG.md` — histórico de sessões
 - `context/conventions.md` — convenções de código e eventos
+- `.claude/skills/` — skills operacionais dos agentes: `df-executor` (executar T-XXX),
+  `df-exercise` (criar/calibrar/promover exercício), `df-spec` (escrever/revisar specs)

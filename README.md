@@ -163,3 +163,12 @@ Projeto spec-driven: comportamento nasce de uma spec em [`specs/`](specs/), impl
 nasce de uma task `T-XXX` no [`BACKLOG.md`](BACKLOG.md), sessões ficam registradas no
 [`DEVLOG.md`](DEVLOG.md). Regras em [`AGENTS.md`](AGENTS.md), convenções em
 [`context/conventions.md`](context/conventions.md).
+
+Para agentes (Claude Code), o fluxo está operacionalizado em skills versionadas no repo
+([`.claude/skills/`](.claude/skills/)): `df-executor` executa uma task com gates e DEVLOG,
+`df-exercise` é a checklist da fábrica de exercícios (SPEC-020: gerador → corpus → `evalctl`
+→ maturidade), `df-spec` escreve/revisa specs no padrão da casa. "Executar T-XXX" numa sessão
+deve cair na `df-executor` automaticamente.
+
+O rumo atual do produto (Fase 5 — engajamento estilo Duolingo + catálogo crescente) está em
+`ARCHITECTURE.md` §1/§9 e nas SPEC-019…022.

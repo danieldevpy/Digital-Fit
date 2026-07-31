@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-07-30 (16) · docs+skills — O novo rumo vira documentação oficial e skills de agente
+
+Continuação da sessão (15): o Daniel pediu para **finalizar a documentação** assumindo a Fase 5
+como o rumo do projeto, e criar **skills** que orientem agentes a executar cada spec/task com
+entrega confiável e testável.
+
+- **ARCHITECTURE.md v0.3**: §1 ganhou o "Rumo atual" (as duas teses: fábrica de exercícios
+  com maturidade mensurável; engajamento como derivação, não estado) e §9 ganhou as Fases 4
+  (entregue) e 5 (os 4 marcos M1–M4 com raias e pré-requisitos).
+- **context/project.md**: rumo no topo, specs 018–022 na tabela de entidades, skills na lista
+  de documentos — é o arquivo que toda sessão lê primeiro, então o rumo mora nele.
+- **context/conventions.md**: duas seções novas com força de convenção — "Derivação"
+  (derivação pura, fuso SP do engajamento vs UTC da quota, `XP_FORMULA_V`, cache nunca é
+  fonte) e "Exercícios & maturidade" (checklist, escada, feature importada nunca copiada,
+  "o eixo Z mente").
+- **Skills em `.claude/skills/`** (versionadas no repo — viajam com o projeto e qualquer
+  agente Claude Code as descobre):
+  - `df-executor` — executa T-XXX: contexto mínimo na ordem certa, escopo travado ANTES de
+    codar (Entra/Não entra/Descobertas), critérios de aceite viram testes ou verificações
+    medidas, gates obrigatórios, DEVLOG com decisões, commit. Inclui a lista "O que NUNCA
+    fazer" (antecipar Evolução, done com gate vermelho, segundo escritor do Postgres, mexer
+    em limiar calibrado fora de task de calibração, número inventado em tela).
+  - `df-exercise` — a fábrica: classificação por tier antes de codar, checklist DoD da
+    SPEC-020 em 7 passos com caminhos reais, comandos do `evalctl`, escada de maturidade com
+    evidência exigida por promoção, anti-padrões ("calibrar na própria webcam é beta").
+  - `df-spec` — o padrão da casa em 8 regras (Fase Inicial mínima, decisões com dono e
+    alternativa rejeitada, critérios mensuráveis, honestidade de UI, derivação primeiro, as
+    três naturezas de configuração, eventos aditivos, orçamento da VPS) + desdobramento em
+    tasks com raias e marcos funcionais.
+- **AGENTS.md** aponta as skills como a forma operacional do fluxo (o fluxo manual continua
+  sendo a fonte); **prompts/executor.md** marcado como superseded para agentes com skills;
+  **README** ganhou o parágrafo de skills e do rumo.
+- **Decisão**: skills no repo (`.claude/skills/`) e não em `~/.claude` — orientação de agente
+  é parte do projeto, versiona com ele e vale para qualquer máquina/agente que clonar.
+- **Pendências**: nenhuma nova; as da sessão (15) seguem (revisão das specs em draft).
+
 ## 2026-07-30 (15) · SPEC-019…022 — Do MVP ao produto de retenção (o "foguinho" e a fábrica de exercícios)
 
 Sessão de projeto, não de código. Pedido do Daniel: pensar o produto à la Duolingo — recursos

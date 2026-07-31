@@ -1,6 +1,8 @@
 # Prompt — Executor de Task (Digital Fit)
 
-> Use este prompt para executar uma task do BACKLOG (com agente ou como checklist pessoal).
+> **Superseded para agentes Claude Code**: use as skills do repo (`.claude/skills/df-executor`,
+> `df-exercise`, `df-spec`) — versões mais completas e mantidas destes prompts. Este arquivo
+> permanece como checklist para uso manual ou para agentes sem suporte a skills.
 
 ```
 Você vai executar a task {T-XXX} do projeto Digital Fit.

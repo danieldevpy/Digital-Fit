@@ -1,6 +1,6 @@
 # Arquitetura — Digital Fit (app de análise de exercícios)
 
-> Documento vivo. Versão 0.2 — 2026-07-27
+> Documento vivo. Versão 0.3 — 2026-07-30
 > Detalhamento por entidade (fase inicial + evolução): ver `specs/`. Tasks: `BACKLOG.md`.
 > Stack alvo: React · Python · Django · Redis · Postgres · Docker
 > Infra alvo: VPS Debian 4 vCPU / 6 GB RAM · Desenvolvimento local via docker-compose
@@ -10,6 +10,23 @@
 ## 1. Visão do produto
 
 Aplicativo web que captura vídeo do usuário em **sessões de 30 segundos**, analisa a pose corporal em tempo real, **conta repetições, corrige a execução e classifica o exercício**. MVP: polichinelo (jumping jack). Evolução: SaaS multiusuário com histórico, planos e novos exercícios.
+
+**Rumo atual (v0.3, 2026-07-30 — SPEC-019…022, Fase 5):** o produto deixa de ser "um teste de
+exercício" e vira um **produto de retenção diária** à la Duolingo, apoiado em duas teses:
+
+1. **O que construímos é uma fábrica de exercícios**, não um exercício: spec → módulo FSM/hold
+   → gerador sintético → corpus → `evalctl` → produção, com escada de maturidade mensurável
+   (`beta → calibrado → validado`, SPEC-020). O roadmap ordena por dificuldade **de detecção**
+   (tiers A→D), não física — cada tier novo é uma capacidade do motor que destrava um lote de
+   exercícios, e a categoria mobilidade nasce como guardiã do fogo (o "dia leve").
+2. **Engajamento é derivação, não estado**: fogo (streak), meta diária, XP, conquistas,
+   trilhas e o Treino do Dia são leituras agregadas de `SessionClaim`+`SessionResult`
+   (SPEC-019/020/022) — nenhum worker novo, nenhum contador para dessincronizar, ADR-008
+   intacto. É o teste de estresse da promessa replay-derivable da SPEC-010, e ela passa.
+
+A escada de planos (SPEC-016): anônimo tem o produto bom em dose única (com fogo fantasma
+local que a conta adota); Free tem a mecânica diária completa; assinatura compra acúmulo,
+volume, antecipação (Laboratório 🧪) e personalização (Treino do Dia, SPEC-022).
 
 ## 2. Princípio central: *keypoint-first, event-driven*
 
@@ -217,6 +234,30 @@ Objetivo: **ver o contador de polichinelos funcionando na tela.**
 - Novos exercícios: agachamento, flexão, prancha (esta é *hold time*, não reps — a interface `ExerciseAnalyzer` já prevê)
 - Coach por voz (TTS dos eventos `feedback.issued`)
 - Se precisar de vídeo de alta qualidade no cloud: avaliar WebRTC/SFU — **adiado deliberadamente** (ADR-003: WS binário resolve 320px@10fps com 1/10 da complexidade)
+
+### Fase 4 — UI v2 (entregue)
+
+Réplica do protótipo "Evolução UI v2" (SPEC-014/015): tokens novos, roteador por hash,
+fronteira SITE|APP em dois bundles (ADR-010), funil Escolha → Guia → Pré-config → Treino,
+revisada três vezes contra teste em aparelho real.
+
+### Fase 5 — Engajamento & Catálogo (o rumo atual — SPEC-019…022)
+
+Quatro marcos, cada um termina em produto funcional; três raias paralelas (api+client de
+engajamento · workers+eval de exercícios · contrato+worker do hold). Detalhe no `BACKLOG.md`.
+
+- **M1 "O fogo acende"**: streak/meta/XP/conquistas como derivação pura de
+  `SessionClaim`+`SessionResult` (SPEC-019), adoção das sessões do aparelho no cadastro.
+- **M2 "O catálogo cresce"**: categorias, maturidade `beta→calibrado→validado` amarrada à
+  bancada, Lote 1 do Tier A (marcha, elevação de braços, high knees, sumô), trilha
+  Fundamentos (SPEC-020).
+- **M3 "O dia leve"**: modalidade *hold* no contrato e no analysis-worker + wall sit
+  (SPEC-021) — destrava o Tier B e o dia que mantém o fogo sem treino intenso.
+- **M4 "O treino do dia"**: personalização do assinante por objetivo/idade/IMC, seleção
+  diária determinística (SPEC-022).
+
+Pré-requisitos vindos das fases anteriores: T-073/T-074 (Plan + catálogo servido, SPEC-018)
+antes do M2; T-063/T-064 (planos Free/assinatura, SPEC-016) antes do gate comercial do M4.
 
 ## 10. Estrutura de repositório sugerida
 

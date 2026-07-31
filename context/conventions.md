@@ -17,6 +17,29 @@
 - React: componentes funcionais, TypeScript, estado de sessão em um único store (zustand).
 - Nomes de branch: `spec-XXX/t-YYY-descricao-curta`.
 
+## Derivação (gamificação, progresso, trilhas — SPEC-019/020/022)
+
+- Feature de produto sobre dados de treino é **derivação pura** de `SessionClaim`+`SessionResult`:
+  função sem I/O, recomputável do zero, data/"hoje" como parâmetro (sem mock de relógio).
+  Estado persistido novo só para fato não-derivável, justificado na spec.
+- Fuso da virada de dia do engajamento: **America/Sao_Paulo fixo** (a quota da SPEC-016 usa
+  UTC — divergência intencional). Conversão na derivação, armazenamento sempre em UTC.
+- Fórmulas com efeito acumulado (XP) são **versionadas em código** (`XP_FORMULA_V`); mudou a
+  fórmula, incrementa e recalcula tudo.
+- Cache de derivação em Redis é otimização, nunca fonte: recalcular do zero reproduz o cache,
+  e Redis fora degrada para consulta direta (P2 da SPEC-018).
+
+## Exercícios & maturidade (SPEC-020/021)
+
+- Exercício novo segue a checklist da SPEC-020 (skill `df-exercise`): módulo em
+  `exercises/`, gerador sintético, 4 fixtures canônicas, sinais de qualidade, figura
+  (teste da T-082 cobra), guia, catálogo com categoria+MET, nasce `beta`.
+- Maturidade: `beta` (gerador) → `calibrado` (corpus real ≥8 vídeos no `evalctl`, erro ≤ ±1/20)
+  → `validado` (paridade edge×cloud×browser + 1 semana de produção sem anomalia). Promoção é
+  task separada. Free só vê `validado`; `calibrado` é o Laboratório 🧪 do assinante.
+- Feature compartilhada entre exercícios é **importada**, nunca copiada.
+- Câmera é frontal: features vivem no plano X/Y (o eixo Z mente — lição medida do agachamento).
+
 ## Specs & tasks
 
 - Toda mudança de comportamento nasce de uma SPEC; toda implementação nasce de uma task T-XXX no `BACKLOG.md`.
