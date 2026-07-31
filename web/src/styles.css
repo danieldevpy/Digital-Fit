@@ -1046,17 +1046,6 @@ a {
   font-weight: 600;
 }
 
-.prep-setting {
-  margin-top: 12px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--surface-border);
-  background: rgba(0, 0, 0, 0.35);
-  color: var(--text-dim);
-  font-size: 0.75rem;
-  letter-spacing: 0.01em;
-}
-
 .getready {
   position: absolute;
   inset: 0;
@@ -1661,8 +1650,19 @@ a {
     text-transform: uppercase;
   }
 
+  /* Card com borda em volta do bloco inteiro (título + grade): no index.png de referência
+     esta seção é visualmente separada do hero acima e do footer abaixo, não apenas afastada
+     por margem. */
+  .landing__choose {
+    margin-top: 64px;
+    padding: 40px 40px 44px;
+    border: 1px solid var(--surface-border);
+    border-radius: 24px;
+    background: var(--surface);
+  }
+
   .landing__section-title {
-    margin: 64px 0 0;
+    margin: 0;
     text-align: center;
   }
 
@@ -2076,10 +2076,24 @@ a {
 
 .prep-cell--action {
   cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease;
 }
 
 .prep-cell--action:hover {
   border-color: rgba(107, 140, 255, 0.6);
+}
+
+/* Feedback tátil do toque: por padrão o card "afunda" um pouco ao pressionar — no card de
+   preparação isso reforça que é um controle de ciclo, não um rótulo fixo. Desligado quando o
+   sistema pede menos movimento. */
+.prep-cell--action:active {
+  transform: scale(0.95);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prep-cell--action:active {
+    transform: none;
+  }
 }
 
 .prep-cell--ex {
@@ -3008,15 +3022,28 @@ a {
 .prep-cell__hud-icon--blue { color: var(--blue); }
 .prep-cell__hud-icon--purple { color: var(--accent); }
 .prep-cell__hud-icon--hot { color: var(--hot); }
+.prep-cell__hud-icon--cyan { color: var(--cyan); }
 
-/* A preferência de preparação (T-049) mora na coluna direita da pré-config. */
-.prep__side .prep-setting {
-  margin-top: 0;
-  padding: 8px 6px;
-  border-radius: var(--radius);
-  font-size: 0.5625rem;
-  line-height: 1.3;
-  text-align: center;
+/* Pontinhos do ciclo de preparação (T-049): quatro paradas (3s/5s/10s/off), a acesa mostra
+   onde o valor atual está — o mesmo toque no card avança para a próxima. */
+.prep-cell__dots {
+  display: flex;
+  gap: 4px;
+  margin-top: 1px;
+}
+
+.prep-cell__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.prep-cell__dot--on {
+  background: var(--cyan);
+  box-shadow: 0 0 6px rgba(77, 210, 255, 0.75);
+  transform: scale(1.35);
 }
 
 .hud-card__icon {

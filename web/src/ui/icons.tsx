@@ -204,6 +204,17 @@ export function IconZoom({ className }: IconProps) {
   )
 }
 
+export function IconTimer({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M9 2h6" />
+      <path d="M12 9v4l2.6 1.6" />
+      <path d="m18 5.5 1.5 1.5" />
+      <circle cx="12" cy="14" r="7.5" />
+    </svg>
+  )
+}
+
 export function IconChevronRight({ className }: IconProps) {
   return (
     <svg {...base} className={className} aria-hidden="true">
