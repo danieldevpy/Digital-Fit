@@ -5,6 +5,74 @@
 
 ---
 
+## 2026-07-31 (17) · Fase 0 da Fase 5 — revisão das SPEC-019…022 e reescrita de T-073/T-074
+
+Alinhamento antes de codar: revisar as 4 specs em `draft` e garantir que o escopo do admin
+(T-073/T-074) carrega o contrato que M1…M4 vão consumir. As quatro passaram a `approved`.
+Comecei conferindo o código em vez de confiar no texto — duas premissas do BACKLOG caíram e duas
+se confirmaram.
+
+**Verificado (e o que mudou por causa disso):**
+
+- `SessionResult.exercise` **já existe** (`server/api/models.py`). Confirma "T-055 ajuda mas não
+  bloqueia": conquista `centena`, progresso de trilha e item do treino do dia estão de pé sem ela.
+- O report-builder é `python manage.py report_builder` (compose). Confirma a aposta da SPEC-019 de
+  que o `post_save` de `SessionResult` dispara num processo com ORM e Redis compartilhado.
+- **`POST /api/sessions` não trava nada** além de `exercise in EXERCISES` (`sessions.py`). Não
+  havia gancho de `enabled`/plano em lugar nenhum, e T-074 não mencionava admissão — mas o CA 3 da
+  SPEC-018 a exige e o T-090 a pressupunha. Virou escopo explícito da T-074.
+- **O `Plan` não tinha onde guardar 3 capacidades** que as specs já haviam atribuído a ele.
+
+**Decisões (com as alternativas rejeitadas):**
+
+- **Todas as colunas novas em T-073/T-074, não nos marcos.** `Plan` +
+  `streak_protections_month`/`min_maturity`/`daily_workout`; `Exercise` + `met`/`maturity` e
+  `category` como *choices*. Rejeitado "cada marco traz a sua": seriam 4 migrations e o
+  `GET /api/config` mudaria de forma duas vezes depois de o cliente já lê-lo. O preço aceito é
+  T-073/T-074 maiores, carregando coluna que só é usada depois — o comportamento continua com a
+  spec dona.
+- **`category` é código, não dado editável — a SPEC-018 cedeu para a SPEC-020.** A 018 a listava
+  como apresentação; mas conquistas (019) e o mix por objetivo (022) consomem os *slugs*. Pior, a
+  coluna nasce na T-074 populada com as strings de exibição de hoje (`'Cardio'`, `'Força'`): a
+  migration **converte**, não copia, senão o primeiro consumidor a agrupar não acha nada.
+- **`GET /api/config` é privado e o ETag precisa saber.** Com a SPEC-020 o payload varia por plano
+  (o assinante vê o Laboratório). ETag só sobre `config_version` faria um proxy servir a resposta
+  do assinante para o próximo Free — vazamento silencioso que fura o CA 1 da 020. Ficou
+  `Cache-Control: private` + ETag por (versão, plano, `is_admin`).
+- **XP só lê `SessionResult`.** O bônus "+15 meta batida" (019) e o "+25 treino do dia" (022) liam
+  perfil **mutável**: trocar a meta ou o objetivo reescrevia quais dias passados contavam, e o XP
+  histórico saltava sozinho — contradizendo, no único lugar onde importa, a promessa de
+  recomputabilidade da 019. Rejeitado persistir a meta vigente por dia (primeiro estado
+  não-derivável da spec, comprado por um bônus cosmético). A meta continua como anel do dia e
+  gatilho de conquista; o treino do dia mantém a conquista `treino-do-dia-7`. Se um dia o bônus
+  for necessário, o caminho é `daily_workout_done(user, date)` persistido — está na Evolução.
+- **A chave de cache do engajamento leva a data**: `df:eng:{user}:{data_sp}`, TTL até a virada.
+  Uma chave sem data só é invalidada por sessão nova, mas o payload muda **sozinho à meia-noite** —
+  quem treinou 23h50 veria o fogo de ontem até treinar de novo, isto é, até deixar de precisar.
+- **Downgrade nunca apaga fogo antigo** (regra do piso: `max(plano_atual, free)` para dias fora do
+  mês corrente). Sem isso, vencer a assinatura derrubava proteções de 2 para 1 e um fogo de 40 dias
+  virava 12 — churn produzido pela própria mecânica de retenção, no momento da renovação.
+- **Trilha v1 aceita passo `calibrado`.** Com `validado`, os 4 do Lote 1 (que nascem `beta` e o
+  T-096 leva só a `calibrado`) nunca abririam: a Fundamentos fecharia o M2 com 4 de 6 passos
+  trancados para sempre — a "meia-mecânica no ar" que a Fase 5 proíbe por escrito. `beta` segue
+  fora. Consequência registrada na spec: no M2 a Fundamentos do **Free** é curta (Laboratório é
+  benefício de assinante), e por isso a tela precisa distinguir cadeado de progressão de cadeado
+  de plano.
+- **`PROTOCOL_VERSION` não sobe na SPEC-021** — decidido na spec em vez de deixar para a task. A
+  mudança é aditiva nos dois lados; subir por mudança aditiva treina o projeto a ignorar o número.
+- **Grandfathering declarado**: `jumping_jack` e `squat` nascem `validado` por decisão, não por
+  medição (o squat nem corpus tem — T-053). Aplicar o critério retroativamente deixaria o Free sem
+  exercício nenhum no dia da T-074. Está escrito na SPEC-018 para ninguém ler o selo como evidência.
+
+**Pendências geradas:**
+
+- **T-104** (nova): `manage.py exercise_health` — `validado` exige taxa de zero-rep < 20% e o
+  instrumento não existia; sem ele, promoção de maturidade é opinião. Serve também para rebaixar.
+- A SPEC-018 continua `draft` embora a T-072 já esteja `done` e T-073/074 sejam dela. Vale uma
+  passada de status próprio.
+- A dívida do grandfathering tem nome e dono: T-053 (corpus do agachamento) e a passada manual
+  pendente da T-040 (paridade edge×cloud×browser).
+
 ## 2026-07-30 (16) · docs+skills — O novo rumo vira documentação oficial e skills de agente
 
 Continuação da sessão (15): o Daniel pediu para **finalizar a documentação** assumindo a Fase 5

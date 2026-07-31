@@ -1,5 +1,5 @@
 # SPEC-021 — Exercícios Isométricos (modalidade *hold*)
-Status: draft | Camada: contrato + worker + api + client | Depende de: SPEC-002, SPEC-007, SPEC-010, SPEC-014 | Habilita: Tier B da SPEC-020, "dia leve" da SPEC-019
+Status: approved (revisão 2026-07-31) | Camada: contrato + worker + api + client | Depende de: SPEC-002, SPEC-007, SPEC-010, SPEC-014 | Habilita: Tier B da SPEC-020, "dia leve" da SPEC-019
 
 ## Entidade e responsabilidade
 
@@ -67,12 +67,28 @@ task só é o jeito de não entregar nenhuma.
   cadência/rep_durations ficam vazios e as telas não os desenham para hold.
 - Figura própria em `EXERCISE_FIGURES` (teste da T-082 cobra) + guia SPEC-015.
 
-## Sessão válida (amarra com a SPEC-019)
+## Sessão válida e XP (amarra com a SPEC-019)
 
 Exercício hold é **sessão válida** com `hold_valid_ms ≥ 10_000` (10 s sustentados em 30 s de
 sessão — piso generoso de propósito: o dia leve existe para manter o fogo acessível, não para
-ser mais uma prova). A regra vive no `engagement.py` da SPEC-019, que já foi escrita prevendo
-este gancho.
+ser mais uma prova). A regra vive no `engagement.py` da SPEC-019, que recebe o `scoring` do
+exercício por parâmetro justamente para isto — o módulo continua puro e a fixture não precisa
+de banco.
+
+**Hold precisa de linha própria na fórmula de XP, senão o dia leve paga um terço.** A tabela da
+SPEC-019 é toda rep-based: sem componente de tempo, um wall sit sustentado 25 s rende +10
+(sessão) +10 (limpa) = **20 XP**, contra os 60 de um polichinelo. O "dia leve" existe para
+proteger o fogo em dia de corpo cansado; fazer dele um dia de XP ruim é ensinar que ele é uma
+escolha inferior — e a pessoa que precisava dele treina errado ou não treina. Componente novo,
+espelhando as reps para que as duas modalidades tenham o mesmo teto:
+
+| Componente (hold) | Valor |
+|---|---|
+| Tempo sustentado | +1 XP a cada 2 s de `hold_valid_ms`, teto +40 |
+
+Isso incrementa `XP_FORMULA_V` (§XP da SPEC-019) e, como a fórmula é derivada, o histórico
+inteiro é recalculado — que é exatamente o motivo de ela ser versionada. Sessões `reps` não
+mudam de valor: o componente só é lido quando `scoring == "hold"`.
 
 ## Fase Inicial
 
@@ -102,6 +118,10 @@ com descanso (SPEC-009 evolução); sons/heartbeat de sustentação (Modo Efeito
    reps/cadência para hold.
 6. Wall sit com 12 s sustentados acende o fogo; com 8 s, não.
 7. Replay do stream reproduz o mesmo `SessionResult` (promessa da SPEC-010 intacta).
+8. Wall sit de 25 s limpo e polichinelo de 25 reps limpo rendem XP da mesma ordem (teto igual);
+   sessão `reps` não muda de XP com o bump de `XP_FORMULA_V`.
+9. Um consumidor que não conhece `hold.progress` (report-builder da versão anterior, em teste)
+   processa a sessão sem erro — a prova de que o contrato é aditivo e o bump é desnecessário.
 
 ## Fase Evolução
 
@@ -112,7 +132,14 @@ detecção de compensação (quadril caindo lentamente — derivada no tempo, n�
 ## Eventos (consome / produz)
 
 Consome: `pose.frame`. Produz: `hold.progress` (novo), `feedback.issued` (existente).
-`PROTOCOL_VERSION` avalia bump conforme a política do contrato; a mudança é aditiva.
+
+**`PROTOCOL_VERSION` não sobe** — e esta linha decide, em vez de deixar a dúvida para a task. A
+mudança é inteiramente aditiva em ambos os lados: um evento novo que consumidor antigo ignora
+(o gateway repassa o que não conhece, o report-builder faz `match` por tipo) e colunas com
+default 0 num modelo que ninguém lê por posição. Nenhum produtor ou consumidor existente precisa
+mudar para continuar correto, que é o teste do bump. Subir a versão por mudança aditiva treina o
+projeto a ignorar o número — e o dia em que ele significar algo (mudança de formato de
+`pose.frame`, por exemplo) é o dia em que precisamos que ele seja levado a sério.
 
 ## Notas técnicas
 

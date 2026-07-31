@@ -56,7 +56,20 @@ O catálogo está partido em dois hoje: o registro autoritativo (`EXERCISES`, ma
 
 A FSM continua em código — é lógica, tem teste e fixture. A apresentação vira dado:
 
-`display_name`, `category`, `muscle_group`, `default_tip`, `main_angle`, `demo_img`, `dot_color`, ordem de exibição, `enabled`, plano mínimo, e os passos do Guia da SPEC-015 (`img` + texto, ordenados).
+`display_name`, `muscle_group`, `default_tip`, `main_angle`, `demo_img`, `dot_color`, ordem de exibição, `enabled`, plano mínimo, `met`, `maturity`, e os passos do Guia da SPEC-015 (`img` + texto, ordenados).
+
+**`category` é a exceção, e a SPEC-020 tem razão contra esta spec.** A versão anterior deste
+parágrafo listava `category` como apresentação editável. Não é: conquistas (SPEC-019) e o mix
+por objetivo do treino do dia (SPEC-022) consomem os **slugs** das categorias, então categoria
+é contrato de produto, não conteúdo. Fica como `choices` de um vocabulário em código
+(`cardio | forca | core | mobilidade`, SPEC-020 §Categorias); o que é editável é o nome de
+exibição e a cor. Categoria criada por formulário quebraria os dois consumidores em silêncio —
+e o campo do cliente hoje guarda string de exibição (`'Cardio'`, `'Força'`,
+`web/src/session/catalog.ts`), que a migration de dados precisa converter para slug, não copiar.
+
+`met` e `maturity` nascem aqui, mas **sem regra de visibilidade** — quem escreve as regras de
+plano×maturidade é a SPEC-020. Existirem desde a primeira migration é o que evita fazer duas
+migrations no mesmo modelo e reescrever o `GET /api/config` logo depois de ele nascer.
 
 Ganhos diretos: desligar um exercício quebrado sem deploy; publicar exercício exclusivo de assinante sem tocar em código; e o cliente deixa de ser fonte da verdade sobre o que existe.
 
@@ -106,6 +119,9 @@ Plan(slug único, nome, is_default, ordem)
   ├─ history_limit             int
   ├─ kcal_accumulation         bool
   ├─ effects_enabled           bool
+  ├─ streak_protections_month  int      # SPEC-019: anon 0, free 1, subscriber 2
+  ├─ min_maturity              choice   # SPEC-020: validado (piso) | calibrado (Laboratório)
+  ├─ daily_workout             bool     # SPEC-022: card Treino do Dia completo
   ├─ quota_message             text     # mensagem da recusa deste plano
   └─ flags                     JSON     # cosméticos voláteis
 
@@ -114,7 +130,8 @@ User.plan_until  DateTime(null)         # assinatura expira sozinha; nulo = sem 
 User.is_staff    bool                   # acesso ao painel (ver Notas técnicas)
 
 Exercise(slug único, display_name, category, muscle_group, default_tip,
-         main_angle, demo_img, dot_color, ordem, enabled, min_plan FK(null))
+         main_angle, demo_img, dot_color, ordem, enabled, min_plan FK(null),
+         met, maturity)
   └─ ExerciseGuideStep(exercise FK, ordem, img, texto)    # inline no admin
 
 FeedbackMessage(code único, message, hint, severity, priority, active)
@@ -125,6 +142,15 @@ SiteConfig(singleton)
   ├─ series_min/max, reps_min/max, reps_default
   └─ version   int    # incrementa a cada save de QUALQUER modelo desta spec
 ```
+
+**Por que as três colunas das SPEC-019/020/022 nascem aqui, e não lá.** `streak_protections_month`,
+`min_maturity` e `daily_workout` são capacidades de plano, e a tese inteira desta spec é que
+capacidade é **coluna consultada por `capabilities_for()`**, nunca comparação de slug espalhada
+pelo código. Sem elas, o gate do treino do dia vira `plan.slug == "subscriber"` num `if` de view
+— o padrão que esta spec existe para eliminar. O comportamento de cada uma continua sendo da
+spec dona (o cálculo do fogo é da 019, a regra de visibilidade é da 020, o card é da 022): aqui
+nasce só o lugar onde o valor mora e o resolvedor que o entrega. Uma migration por modelo, e o
+formato do `GET /api/config` congela antes de qualquer marco da Fase 5 consumi-lo.
 
 **Colunas tipadas, não chave-valor.** EAV (`Config(key, value)`) dispensa migration, mas abre mão de validação, de tipo e de legibilidade — e este projeto está do lado da validação em todas as decisões anteriores. O preço é uma migration por capacidade nova, que é exatamente o momento em que alguém deveria pensar no que está criando. O `flags` JSON existe para o booleano cosmético que nasce e morre em duas semanas.
 
@@ -140,6 +166,29 @@ Três planos, e nenhum deles é "o worker consulta o banco".
 
 **3. Cliente.** `GET /api/config` devolve, num payload só: catálogo de exercícios habilitados, capacidades do plano de quem chamou (anônimo incluso), limites e mensagens, faixas dos steppers, e `config_version`. Com `ETag`/`If-None-Match` para o revalidar custar 304. O cliente mantém os defaults atuais em código para o primeiro paint e para o caso offline (`web/src/session/catalog.ts`, `configPrefs.ts`) — o valor do servidor vence quando chega, e a tela não espera por ele para desenhar.
 
+**Este payload é privado, e o ETag precisa saber disso.** `GET /api/config` parece cacheável e
+não é: ele varia por plano (capacidades, `quota_message`) e, com a SPEC-020, varia também no
+*conteúdo do catálogo* — o assinante vê os exercícios de Laboratório que o Free não vê. Um ETag
+calculado só sobre `config_version` faz o nginx (ou qualquer proxy no caminho) servir a resposta
+do assinante para o próximo Free que revalidar, vazando o Laboratório e furando a trava de plano
+sem que ninguém veja. Regra vinculante:
+
+- `Cache-Control: private, must-revalidate` — nunca `public`, nunca cache compartilhado.
+- `ETag = hash(config_version, plan.slug, is_admin)` — as três dimensões que mudam o corpo.
+  `is_admin` entra porque a maturidade `beta` é visível só para ela (SPEC-020).
+- `Vary: Authorization`.
+
+O `config_version` sozinho continua sendo o número que o usuário e o relatório enxergam (T-075);
+o ETag é maior que ele de propósito.
+
+**A admissão lê o mesmo resolvedor que o `GET /api/config`.** Hoje `POST /api/sessions` só checa
+`exercise in EXERCISES` (`server/api/sessions.py`) — não existe trava de `enabled` nem de plano
+em lugar nenhum. Uma função só, `exercises_for(user | device) -> dict[slug, ExerciseView]`,
+serve os dois caminhos: o catálogo é `exercises_for(...)` serializado, e a admissão é
+`slug in exercises_for(...)`. Duas listas construídas por dois códigos diferentes divergiriam, e
+divergiriam do jeito pior: um card na tela que a admissão recusa. É a mesma lição do
+`[A/T-051]` que esta spec veio fechar.
+
 ## Fase Inicial
 
 ### Escopo / Comportamento
@@ -148,8 +197,24 @@ Três planos, e nenhum deles é "o worker consulta o banco".
 - `User.is_staff` novo, marcável só por `manage.py` (não pela API, não pelo cadastro).
 - Modelos `Plan`, `Exercise` (+ passos do guia), `SiteConfig` e as telas de admin correspondentes; `User` editável; `SessionClaim`/`SessionResult` em leitura.
 - Migration de dados que cria os planos `anon`, `free` e `subscriber` e os dois exercícios existentes **com exatamente os valores de hoje** — ligar a spec não muda comportamento nenhum.
+  As colunas novas nascem no valor que preserva o comportamento atual: `min_maturity=validado`
+  para todo plano, `maturity=validado` para `jumping_jack` e `squat` (ver §Grandfathering),
+  `met` da tabela da SPEC-020, `daily_workout=false`, proteções conforme a SPEC-019.
 - `capabilities_for()` + cache com invalidação, e o `POST /api/sessions` passando a resolver duração, countdown, cloud e quota por ele (com os defaults do código como piso).
-- `GET /api/config` e o cliente consumindo catálogo e capacidades.
+- `exercises_for()` como resolvedor único do catálogo, consumido pelo `GET /api/config` **e** pela
+  admissão (eixos `enabled` + `min_plan`; o eixo maturidade é acrescentado na mesma função pela
+  SPEC-020).
+- `GET /api/config` com `Cache-Control: private` e ETag por (versão, plano, `is_admin`); o cliente consumindo catálogo e capacidades.
+
+### Grandfathering dos dois exercícios existentes
+
+Pelos critérios da SPEC-020, nem `jumping_jack` nem `squat` seriam `validado` hoje: o agachamento
+não tem corpus real (T-053 segue `todo`) e a paridade edge×cloud×browser da T-040 tem uma passada
+manual pendente. Aplicar o critério retroativamente deixaria o Free **sem exercício nenhum** no
+dia em que a T-074 subir — a spec que prometia "não muda comportamento nenhum" desligaria o
+produto. Então os dois nascem `validado` por decisão declarada, não por medição, e esta linha
+existe para que ninguém leia o selo deles como evidência. A dívida é a T-053 e a passada da
+T-040; o instrumento que mediria a regressão é a task de saúde de exercício da SPEC-020.
 - `session.started` ganha `config_version` (campo opcional, default `0` — aditivo, nenhum consumidor atual quebra); o relatório da SPEC-010 passa a registrar sob qual versão a sessão rodou.
 
 ### Fora de escopo (vai para Evolução)
@@ -167,6 +232,11 @@ Checkout e webhook de pagamento (o plano é atribuído à mão no painel); snaps
 7. Toda alteração fica registrada com autor e data, e é consultável no próprio painel.
 8. Um relatório permite dizer sob qual `config_version` a sessão foi produzida.
 9. A suíte inteira (`pytest`, `npm run test`) passa com o banco de configuração vazio — ou seja, nenhum teste passou a depender de linha em tabela.
+10. Dois planos com catálogos diferentes recebem ETags diferentes para o mesmo `config_version`, e
+    a resposta traz `Cache-Control: private` (teste que compara os headers de dois usuários).
+11. O catálogo do `GET /api/config` e o conjunto que a admissão aceita são o mesmo, por
+    construção: um teste percorre `GET /api/config` e abre sessão de cada slug devolvido, e
+    tenta abrir sessão de um slug `enabled=false` recebendo recusa com motivo.
 
 ## Fase Evolução
 

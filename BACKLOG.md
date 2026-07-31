@@ -102,8 +102,8 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-072 | Admin do Django ligado no processo `api`: apps + middlewares + context processors, `is_staff` novo (separado do `is_admin` de diagnóstico), estáticos servidos, gate por `DJANGO_ENABLE_ADMIN` e ausência no gateway; `User` editável, `SessionClaim`/`SessionResult` em leitura | 018 | done |
-| T-073 | `Plan` + `User.plan`/`plan_until` + `SiteConfig` + `capabilities_for()` com cache invalidado por `post_save` e defaults do código como piso; `POST /api/sessions` passa a resolver quota, duração, countdown e cloud por ele — sem mudar comportamento nenhum (migration de dados com os valores de hoje) | 018/016 | todo |
-| T-074 | `Exercise` (+ passos do guia) no admin com trava de slug contra `EXERCISES`, e `GET /api/config` servindo catálogo e capacidades ao cliente — fecha a divergência do `[A/T-051]` | 018/015 | todo |
+| T-073 | `Plan` (incluindo as 3 capacidades que a Fase 5 consome: `streak_protections_month`, `min_maturity`, `daily_workout`) + `User.plan`/`plan_until` + `SiteConfig` + `capabilities_for()` com cache invalidado por `post_save` e defaults do código como piso; `POST /api/sessions` passa a resolver quota, duração, countdown e cloud por ele — sem mudar comportamento nenhum (migration de dados com os valores de hoje, colunas novas no valor neutro) | 018/016/019/020/022 | todo |
+| T-074 | `Exercise` (+ passos do guia, + `met`/`maturity`/`category` como choices do vocabulário em código) no admin com trava de slug contra `EXERCISES`; resolvedor único `exercises_for()` servindo o `GET /api/config` **e a admissão** (eixos `enabled` + `min_plan`; hoje `POST /sessions` não trava nada); `Cache-Control: private` + ETag por (versão, plano, `is_admin`) — fecha a divergência do `[A/T-051]` | 018/015/020 | todo |
 | T-075 | `config_version` no `session.started` (aditivo, default 0) e no `SessionResult`: o relatório diz sob qual versão de configuração a sessão foi produzida | 018/010/002 | todo |
 | T-063 | Modo Free: quota diária no servidor (`quota_exceeded`), sheet de limite, kcal só ao vivo — **lê do `Plan` da T-073**, não de constante nova | 016/018 | todo |
 | T-064 | Modo Assinatura: duração configurável, modos de exercício, acúmulo de kcal, Modo Efeito — capacidades vêm do `Plan` da T-073 (a flag de plano deixa de ser desta task) | 016/018 | todo |
@@ -129,11 +129,31 @@ raias andam em paralelo sem se tocar: **A** = api+client de engajamento (M1, M4)
 T-073/T-074 (Plan + catálogo servido) antes de T-090; T-063/T-064 (free/assinatura) antes do
 gate do T-103; T-055 (relatório diz o exercício) ajuda o M1 mas não bloqueia.
 
+**Fase 0 — alinhamento, feita em 2026-07-31.** As quatro specs foram revisadas e passaram a
+`approved`; T-073/T-074 foram reescritas para carregar o contrato que os quatro marcos consomem.
+O que mudou e vale saber antes de pegar qualquer task daqui:
+
+- **Todas as colunas novas nascem em T-073/T-074**, não nos marcos. `Plan` ganha
+  `streak_protections_month` (M1), `min_maturity` (M2) e `daily_workout` (M4); `Exercise` ganha
+  `met`, `maturity` e `category` como choices. Uma migration por modelo, e o formato do
+  `GET /api/config` congela antes de qualquer marco consumi-lo. Nenhuma task de M1…M4 cria
+  migration de `Plan` ou de `Exercise`.
+- **T-074 passa a tocar a admissão.** Hoje `POST /sessions` só checa `exercise in EXERCISES` —
+  não existe trava de `enabled` nem de plano. `exercises_for()` nasce lá e é o mesmo resolvedor
+  que serve o catálogo; T-090 acrescenta o eixo maturidade **dentro dela**, não ao lado.
+- **XP só lê `SessionResult`** (SPEC-019 §XP). O bônus de meta batida e o de treino do dia
+  concluído saíram: os dois liam perfil mutável e reescreviam XP histórico. T-086 e T-103
+  encolheram por causa disso; `XP_FORMULA_V` não é incrementado por M4.
+- **Trilha da v1 aceita passo `calibrado`** — com `validado` obrigatório, os 4 exercícios do
+  Lote 1 nunca abririam e o M2 fecharia com meia-trilha trancada.
+- Entrou uma task nova (T-104, saúde do exercício): `validado` exige taxa de zero-rep medida, e
+  o instrumento não existia.
+
 ### M1 — "O fogo acende" (SPEC-019): streak + meta + XP funcionais de ponta a ponta
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-086 | Módulo `engagement.py` puro (streak com proteções/mês no fuso SP, XP v1 versionado, níveis) + fixtures de datas + `GET /api/engagement` com cache Redis invalidado por `post_save` de `SessionResult` + campo `daily_goal` no perfil | 019 | todo |
+| T-086 | Módulo `engagement.py` puro (streak com proteções/mês no fuso SP + piso que impede downgrade de encurtar sequência antiga, XP v1 versionado só sobre `SessionResult`, níveis; `scoring` entra por parâmetro) + fixtures de datas + `GET /api/engagement` com cache `df:eng:{user}:{data_sp}` (TTL até a virada em SP, invalidado por `post_save` de `SessionResult` e `User`) + campo `daily_goal` no perfil | 019 | todo |
 | T-087 | Adoção de sessões do aparelho no cadastro: `device_id` no register, backfill de `SessionClaim.user` — fogo e histórico sobrevivem à criação de conta | 019/011 | todo |
 | T-088 | UI do engajamento: chip do fogo + anel de meta na Início, painel (sheet) com calendário do mês, seção no Perfil, decomposição "+XP" no relatório; fogo fantasma local do anônimo com rótulo honesto e CTA de conta | 019/014 | todo |
 | T-089 | Conquistas v1: catálogo em código (predicados puros), lista no `GET /api/engagement`, toast de nova conquista por diff local, galeria no Perfil | 019 | todo |
@@ -142,14 +162,15 @@ gate do T-103; T-055 (relatório diz o exercício) ajuda o M1 mas não bloqueia.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-090 | `maturity` e `met` no catálogo (Exercise + espelho client), visibilidade por plano×maturidade resolvida no `GET /api/config` **e na admissão** (`POST /sessions` recusa o que o plano não pode) — depende de T-073/T-074 | 020/018 | todo |
-| T-091 | Tela Escolha agrupada por categoria, cadeados com motivo ("crie conta" / "assinante" / "em validação") e selo Laboratório 🧪 na pré-config de exercício `calibrado` | 020/014 | todo |
+| T-090 | Eixo maturidade dentro do `exercises_for()` que a T-074 criou (`Plan.min_maturity`; `beta` só por `is_admin`), valendo no `GET /api/config` e na admissão + espelho client com categoria em slug, `met` e `maturity` — as colunas já vêm de T-074, esta task traz só a regra | 020/018 | todo |
+| T-091 | Tela Escolha agrupada por categoria, cadeados com motivo e **cadeado de progressão visualmente distinto do de plano** ("conclua o passo anterior" ≠ "assinante" ≠ "crie conta") e selo Laboratório 🧪 na pré-config de exercício `calibrado` | 020/014 | todo |
 | T-092 | Exercício: marcha estacionária (`marcha`) — feature de alternância de altura de joelho (compartilhada com T-094), checklist completa da SPEC-020, nasce `beta` | 020/007/012 | todo |
 | T-093 | Exercício: elevação lateral de braços (`elevacao_bracos`) — reusa `arm_angle`; o guardião do fogo junto com a marcha | 020/007/012 | todo |
 | T-094 | Exercício: elevação de joelhos (`high_knees`) — parametrização da feature da marcha com limiar alto + cadência | 020/007/012 | todo |
 | T-095 | Exercício: agachamento sumô (`sumo_squat`) — altura de quadril do `squat` + `ankle_spread` largo na baseline | 020/007/012 | todo |
 | T-096 | Corpus real do Lote 1 + varredura de limiares (promoção `beta → calibrado`, ≥8 vídeos por exercício; fatiável em uma task por exercício, como o T-053 fez com o squat) | 020/012 | todo |
-| T-097 | Trilha Fundamentos: modelos `Trilha`/`TrilhaItem` (admin SPEC-018), progresso derivado de `SessionResult` (3 sessões válidas destravam o passo seguinte), seção da trilha no topo da Escolha | 020 | todo |
+| T-104 | `manage.py exercise_health [--dias N]`: taxa de sessões zero-rep, total e cadência mediana por exercício — o instrumento que falta para promover ou rebaixar maturidade (critério de `validado`), materializa o sintoma do `[A/T-032]`; exercício sem sessão imprime `--` | 020/012 | todo |
+| T-097 | Trilha Fundamentos: modelos `Trilha`/`TrilhaItem` (admin SPEC-018), `clean()` que aceita passo `calibrado`/`validado` e recusa `beta`, progresso derivado de `SessionResult` (3 sessões válidas destravam o passo seguinte), seção da trilha no topo da Escolha — depende de T-096 (Lote 1 em `calibrado`) para abrir mais que 2 passos | 020 | todo |
 
 ### M3 — "O dia leve" (SPEC-021): modalidade hold + wall sit
 
@@ -157,7 +178,7 @@ gate do T-103; T-055 (relatório diz o exercício) ajuda o M1 mas não bloqueia.
 |---|---|---|---|
 | T-098 | Contrato da modalidade hold: `hold.progress` em `events.py` (primeiro, como manda o AGENTS), `scoring` no registro/catálogo, colunas aditivas `hold_valid_ms`/`hold_best_ms` no `SessionResult` + consolidação no report-builder | 021/002/010 | todo |
 | T-099 | Wall sit (`wall_sit`): lógica hold compartilhada em `exercises/` (relógio por `ts`, histerese, `degraded` congela) + parametrização do wall sit pela checklist da SPEC-020 | 021/007/012 | todo |
-| T-100 | HUD e relatório de hold (anel TEMPO EM POSIÇÃO no lugar de reps, telas não desenham cadência para hold) + regra de sessão válida `hold_valid_ms ≥ 10s` no `engagement.py` — depende de T-086 e T-098 | 021/014/019 | todo |
+| T-100 | HUD e relatório de hold (anel TEMPO EM POSIÇÃO no lugar de reps, telas não desenham cadência para hold) + regra de sessão válida `hold_valid_ms ≥ 10s` e componente de XP por tempo sustentado (+1/2s, teto +40, bump de `XP_FORMULA_V`) no `engagement.py` — depende de T-086 e T-098 | 021/014/019 | todo |
 
 ### M4 — "O treino do dia" (SPEC-022): personalização do assinante
 
@@ -165,7 +186,7 @@ gate do T-103; T-055 (relatório diz o exercício) ajuda o M1 mas não bloqueia.
 |---|---|---|---|
 | T-101 | Perfil ganha `birth_year` e `goal` (REST, export/exclusão LGPD, pedido no mesmo momento suave do peso da SPEC-017) | 022/017 | todo |
 | T-102 | Motor do Treino do Dia: seleção determinística pura (seed usuário+data, mix por objetivo, ajuste de baixo impacto por idade/IMC, sempre 1 mobilidade) + fixtures + `GET /api/daily-workout` com cache diário | 022 | todo |
-| T-103 | Card Treino do Dia na Início (assinante completo; Free vê categorias com CTA; anônimo CTA de conta), navegação item→pré-config, bônus +25 XP na conclusão (bump de `XP_FORMULA_V`) — gate pelo plano de T-063/T-064 | 022/016/019 | todo |
+| T-103 | Card Treino do Dia na Início (assinante completo; Free vê categorias com CTA; anônimo CTA de conta), navegação item→pré-config, conquista `treino-do-dia-7` — gate por `Plan.daily_workout` (coluna de T-073), **sem** bônus de XP e sem bump de `XP_FORMULA_V` | 022/016/019 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
