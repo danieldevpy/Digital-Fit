@@ -394,6 +394,15 @@ def clamp_countdown_s(valor: Any) -> int:
     return max(0, min(MAX_COUNTDOWN_S, segundos))
 
 
+def _config_version(valor: Any) -> int:
+    """Normaliza o carimbo de configuração: inteiro não negativo, `0` para qualquer outra coisa."""
+    try:
+        versao = int(valor)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, versao)
+
+
 @dataclass(frozen=True, slots=True)
 class SessionStarted:
     """Sessão admitida pela API; abre o estado no analysis-worker (SPEC-009)."""
@@ -408,6 +417,12 @@ class SessionStarted:
     #: analysis-worker: fosse só animação no cliente, uma repetição feita durante o "3, 2, 1"
     #: entraria no total — que é exatamente o que o recurso existe para evitar.
     countdown_s: int = DEFAULT_COUNTDOWN_S
+    #: Versão da configuração (`SiteConfig.version`, SPEC-018) sob a qual esta sessão foi
+    #: admitida. Carimbo, não parâmetro: nada na análise lê este número — ele viaja porque o
+    #: relatório precisa poder dizer sob qual configuração aquela contagem nasceu, e porque um
+    #: worker jamais consulta o banco para descobrir (P1). `0` = configuração não veio do banco
+    #: (piso do código, P2) ou evento anterior à T-075.
+    config_version: int = 0
 
     def to_data(self) -> dict[str, Any]:
         return {
@@ -415,6 +430,7 @@ class SessionStarted:
             "mode": self.mode.value,
             "duration_s": self.duration_s,
             "countdown_s": self.countdown_s,
+            "config_version": self.config_version,
         }
 
     @classmethod
@@ -426,6 +442,13 @@ class SessionStarted:
             # Ausente = sessão criada antes da T-049 (ou por cliente velho): cai no default,
             # em vez de quebrar a admissão por um campo que não existia.
             countdown_s=clamp_countdown_s(data.get("countdown_s", DEFAULT_COUNTDOWN_S)),
+            # Mesma tolerância, mesmo motivo: sessão publicada antes desta task (ou por um
+            # replay do stream gravado antes dela) continua abrindo, com a versão desconhecida
+            # dita como `0`. Um `_require` aqui recusaria justamente os eventos que a SPEC-010
+            # promete poder reprocessar — e um `_as_int` estrito faria um carimbo torto
+            # derrubar o `session.started` inteiro, levando junto o exercício e o modo, que é
+            # o que o relatório de fato precisa. Metadado não pode custar o relatório.
+            config_version=_config_version(data.get("config_version", 0)),
         )
 
 

@@ -50,11 +50,14 @@ def sessao_completa(
     duracao_ms: int = 30_000,
     session_id: str = "s-1",
     exercise: str = "jumping_jack",
+    config_version: int = 0,
 ) -> list:
     """Uma sessão inteira em eventos: abertura, calibração, N reps espalhadas, fim."""
     eventos = [
         evento(
-            SessionStarted(exercise=exercise, mode=Mode.EDGE, duration_s=30),
+            SessionStarted(
+                exercise=exercise, mode=Mode.EDGE, duration_s=30, config_version=config_version
+            ),
             ts=BASE_TS,
             session_id=session_id,
         ),
@@ -116,6 +119,34 @@ def test_consolida_reps_duracao_e_cadencia():
     assert relatorio.duration_ms == 30_000
     assert relatorio.cadence_rpm == 40.0
     assert relatorio.calibration_samples == 12
+
+
+def test_relatorio_carrega_a_versao_de_configuracao_da_abertura():
+    """T-075: o carimbo do `session.started` chega inteiro ao relatório."""
+    acumulador = ReportAccumulator()
+    relatorio = None
+    for envelope in sessao_completa(config_version=42):
+        relatorio = acumulador.push(envelope) or relatorio
+
+    assert relatorio is not None
+    assert relatorio.config_version == 42
+    assert relatorio.to_dict()["config_version"] == 42
+
+
+def test_sessao_sem_abertura_diz_versao_zero():
+    """Builder que subiu no meio da sessão não viu o carimbo — e não inventa um.
+
+    `0` é "não registrada", e é a mesma escolha já feita para o exercício e o modo: o que
+    faltou é dito, não deduzido da configuração de agora (que é justamente o que quebraria a
+    promessa de relatório derivável por replay).
+    """
+    acumulador = ReportAccumulator()
+    relatorio = None
+    for envelope in sessao_completa(config_version=42)[1:]:  # sem o `session.started`
+        relatorio = acumulador.push(envelope) or relatorio
+
+    assert relatorio is not None
+    assert relatorio.config_version == 0
 
 
 def test_duracao_ignora_a_preparacao():

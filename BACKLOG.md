@@ -104,7 +104,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-072 | Admin do Django ligado no processo `api`: apps + middlewares + context processors, `is_staff` novo (separado do `is_admin` de diagnóstico), estáticos servidos, gate por `DJANGO_ENABLE_ADMIN` e ausência no gateway; `User` editável, `SessionClaim`/`SessionResult` em leitura | 018 | done |
 | T-073 | `Plan` (incluindo as 3 capacidades que a Fase 5 consome: `streak_protections_month`, `min_maturity`, `daily_workout`) + `User.plan`/`plan_until` + `SiteConfig` + `capabilities_for()` com cache invalidado por `post_save` e defaults do código como piso; `POST /api/sessions` passa a resolver quota, duração, countdown e cloud por ele — sem mudar comportamento nenhum (migration de dados com os valores de hoje, colunas novas no valor neutro) | 018/016/019/020/022 | done |
 | T-074 | `Exercise` (+ passos do guia, + `met`/`maturity`/`category` como choices do vocabulário em código) no admin com trava de slug contra `EXERCISES`; resolvedor único `exercises_for()` servindo o `GET /api/config` **e a admissão** (eixos `enabled` + `min_plan`; hoje `POST /sessions` não trava nada); `Cache-Control: private` + ETag por (versão, plano, `is_admin`) — fecha a divergência do `[A/T-051]` | 018/015/020 | done |
-| T-075 | `config_version` no `session.started` (aditivo, default 0) e no `SessionResult`: o relatório diz sob qual versão de configuração a sessão foi produzida | 018/010/002 | todo |
+| T-075 | `config_version` no `session.started` (aditivo, default 0) e no `SessionResult`: o relatório diz sob qual versão de configuração a sessão foi produzida | 018/010/002 | done |
 | T-063 | Modo Free: quota diária no servidor (`quota_exceeded`), sheet de limite, kcal só ao vivo — **lê do `Plan` da T-073**, não de constante nova | 016/018 | todo |
 | T-064 | Modo Assinatura: duração configurável, modos de exercício, acúmulo de kcal, Modo Efeito — capacidades vêm do `Plan` da T-073 (a flag de plano deixa de ser desta task) | 016/018 | todo |
 | T-065 | Perfil físico (peso/altura), kcal MET real, IMC, série temporal de peso, Progresso realista | 017 | todo |
@@ -190,6 +190,13 @@ O que mudou e vale saber antes de pegar qualquer task daqui:
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
+- **[T-075] `ruff format` não é gate, e o repositório já anda fora dele.** Os gates do AGENTS.md
+  são `ruff check` + `pytest`; `ruff format --check .` acusa **dois blocos** em
+  `server/api/models.py` (campos `main_angle` e `maturity` do `Exercise`, escritos na T-074) que
+  ele juntaria em uma linha. Nada quebra — mas o dia em que alguém rodar `ruff format` no
+  repositório inteiro, o diff da task dele virá com arquivos que ele não tocou. Ou o formatador
+  entra na lista de gates (e o repositório é normalizado uma vez), ou fica declarado que não é
+  usado. Hoje é meio-termo silencioso.
 - **[T-074] O `EXERCISE_FIGURES` não cobre exercício que só existe no servidor.** Com o catálogo
   vindo do `GET /api/config`, o painel pode publicar um exercício (slug já registrado em
   `EXERCISES`) cuja figura de pose não existe no bundle do cliente — e figura nova exige deploy.
@@ -215,7 +222,9 @@ O que mudou e vale saber antes de pegar qualquer task daqui:
   view parasse de resolver plano amanhã. A T-073 contornou criando um dublê próprio em
   `tests/test_config.py` que repassa os kwargs (`setdefault`), mas ficaram dois helpers para o
   mesmo trabalho, e o antigo é uma armadilha para a próxima task que acrescentar um argumento.
-  **Proposta: unificar em um dublê só que repasse tudo.**
+  **Proposta: unificar em um dublê só que repasse tudo.** *(T-075: agora são **três** — o
+  `tests/test_config_version.py` precisou do barramento de volta, que a fixture da
+  `test_config.py` não devolve, e copiou as seis linhas. A pressão para unificar só cresce.)*
 - **[T-073] `Plan.history_limit` existe e ninguém lê.** A coluna nasceu com a tabela (SPEC-018
   §A lista "profundidade do histórico" como capacidade de plano), mas `GET /api/sessions?mine`
   continua usando a constante `HISTORY_LIMIT = 50` de `server/api/views.py`. Ficou fora de

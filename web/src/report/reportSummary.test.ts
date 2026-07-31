@@ -17,6 +17,7 @@ function relatorio(parcial: Partial<SessionReport> = {}): SessionReport {
     feedback_counts: {},
     scene_warning_counts: {},
     calibration_samples: 12,
+    config_version: 0,
     created_at: '2026-07-28T12:00:00Z',
     ...parcial,
   }

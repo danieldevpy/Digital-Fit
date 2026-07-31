@@ -60,6 +60,9 @@ def envelope_de(payload, *, seq: int = 1, source: Source = Source.EDGE) -> Envel
 PAYLOADS = [
     SessionCapability(mode=Mode.EDGE, probe_fps=17.5, webgl=True, ua="Firefox/141.0"),
     SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
+    # Com o carimbo de configuração da SPEC-018 (T-075): o round-trip prova que ele atravessa
+    # msgpack e os campos do stream, que é por onde ele chega ao relatório.
+    SessionStarted(exercise="squat", mode=Mode.CLOUD, duration_s=45, config_version=7),
     PoseFrame(landmarks=landmarks()),
     PoseFrame(landmarks=landmarks(0.2), degraded=True, norm={"torso": 1.0}),
     ExercisePhase(phase=Phase.PEAK),
@@ -236,6 +239,31 @@ def test_codigo_desconhecido_e_rejeitado() -> None:
 
 def test_scene_warning_tem_severidade_padrao() -> None:
     assert SceneWarning.from_data({"code": "TOO_FAR"}).severity is Severity.WARNING
+
+
+def test_session_started_sem_config_version_e_aditivo() -> None:
+    """O campo da T-075 é **aditivo**: evento sem ele continua abrindo a sessão.
+
+    Este é o teste que a SPEC-018 pede ao dizer "campo opcional, default 0 — nenhum consumidor
+    atual quebra". O caso não é hipotético: um `session.started` gravado no stream antes desta
+    task, reprocessado depois dela, chega exatamente assim.
+    """
+    base = {"exercise": "jumping_jack", "mode": "edge", "duration_s": 30}
+
+    assert SessionStarted.from_data(base).config_version == 0
+
+
+@pytest.mark.parametrize("lixo", ["v3", None, -1, [1]])
+def test_config_version_torto_vira_zero_em_vez_de_derrubar_o_evento(lixo) -> None:
+    """Metadado não pode custar o relatório.
+
+    `config_version` é carimbo, não parâmetro de medição: um valor torto rejeitado levaria
+    junto o `session.started` inteiro — e com ele o exercício e o modo, que é o que o relatório
+    de fato precisa. Some em silêncio como `0` ("não registrada"), como o countdown já faz.
+    """
+    base = {"exercise": "jumping_jack", "mode": "edge", "duration_s": 30}
+
+    assert SessionStarted.from_data({**base, "config_version": lixo}).config_version == 0
 
 
 # --------------------------------------------------------------------------------------

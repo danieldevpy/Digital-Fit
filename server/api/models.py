@@ -505,6 +505,15 @@ class SessionResult(models.Model):
     feedback_counts = models.JSONField(default=dict)
     scene_warning_counts = models.JSONField(default=dict)
     calibration_samples = models.PositiveIntegerField(default=0)
+    #: Versão da configuração (`SiteConfig.version`) que valia quando esta sessão foi admitida
+    #: (SPEC-018, critério 8). Chega carimbada no `session.started` e nunca é consultada aqui:
+    #: o relatório é derivável por replay, e ler a configuração no momento da gravação diria a
+    #: versão de HOJE sobre uma sessão de ontem.
+    #:
+    #: `0` é "não registrada": sessão anterior a esta coluna, ou admitida com a configuração
+    #: fora do ar (P2, valores do código). Os dois casos compartilham o valor de propósito —
+    #: nos dois, a resposta honesta é a mesma.
+    config_version = models.PositiveIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -535,5 +544,6 @@ class SessionResult(models.Model):
             "feedback_counts": self.feedback_counts,
             "scene_warning_counts": self.scene_warning_counts,
             "calibration_samples": self.calibration_samples,
+            "config_version": self.config_version,
             "created_at": self.created_at.isoformat(),
         }

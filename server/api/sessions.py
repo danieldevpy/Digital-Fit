@@ -154,6 +154,12 @@ def create_session(
     `caps` é o resultado de `capabilities_for()`, resolvido pela view (P1: quem lê configuração é
     a fronteira da API). Ausente, os parâmetros explícitos mandam — é o que mantém esta função
     testável sem banco, como ela já era.
+
+    `config_version` é a exceção a essa regra: sai de `caps` sozinho, sem o chamador pedir. Ele
+    não é uma escolha da admissão (como duração e countdown, que o cliente pede e o plano
+    limita) — é a **procedência** da resolução que produziu `caps`. Fosse mais um parâmetro,
+    esquecê-lo carimbaria `0` num evento cuja configuração veio do banco, e o relatório passaria
+    a mentir em silêncio: exatamente o defeito que este campo existe para eliminar.
     """
     agora = now if now is not None else int(time.time())
     session_id = str(uuid.uuid4())
@@ -218,6 +224,10 @@ def create_session(
             # ela passa pelo teto do PLANO, quando há um. Os dois clamps não são redundância: o
             # primeiro protege contra lixo no corpo da requisição, o segundo é capacidade.
             countdown_s=request.countdown_s if countdown_s is None else countdown_s,
+            # Carimbo da SPEC-018 (P1): a versão que valia no instante da admissão viaja com a
+            # sessão. `0` quando não houve resolução de configuração — chamada de teste sem
+            # `caps`, ou banco/cache fora (P2, `from_db=False`). "Não sei" dito como número.
+            config_version=getattr(caps, "config_version", 0),
         ),
         session_id=session_id,
         ts=ts_ms,

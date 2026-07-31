@@ -16,6 +16,7 @@ const RELATORIO: SessionReport = {
   feedback_counts: { ARMS_TOO_LOW: 2 },
   scene_warning_counts: { OUT_OF_FRAME: 1 },
   calibration_samples: 15,
+  config_version: 0,
   created_at: '2026-07-29T10:00:00Z',
 }
 

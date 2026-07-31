@@ -27,6 +27,13 @@ export interface SessionReport {
   feedback_counts: Record<string, number>
   scene_warning_counts: Record<string, number>
   calibration_samples: number
+  /**
+   * Versão da configuração (SPEC-018) sob a qual a sessão foi admitida; `0` = não registrada.
+   * Nenhuma tela mostra este número — quem pergunta é o suporte, no painel. Está aqui porque
+   * este tipo é o espelho do `to_report()`, e espelho com campo faltando é drift esperando
+   * acontecer (a lição do `[A/T-051]`).
+   */
+  config_version: number
   created_at: string
 }
 

@@ -5,6 +5,58 @@
 
 ---
 
+## 2026-07-31 (20) · T-075 — o relatório passa a dizer sob qual configuração a sessão nasceu
+
+`session.started` ganha `config_version` (aditivo, default `0`), a API carimba a versão que
+valia na admissão, e o `SessionResult` guarda o carimbo. Fecha o critério 8 da SPEC-018 — o
+último em aberto da Fase Inicial dela.
+
+**A pergunta que este campo responde** é de suporte, não de produto: "este treino rodou antes ou
+depois de eu mexer na configuração?". Até aqui a resposta era cruzar o horário do `LogEntry` do
+painel com o `created_at` do relatório no olho. Agora é uma coluna, e o painel filtra por ela.
+
+**Decisões, e o que foi rejeitado:**
+
+- **Carimbo, não consulta.** O relatório copia a versão que veio no evento; nunca lê
+  `SiteConfig` na hora de gravar. Ler o banco pareceria certo em todo teste feito no mesmo
+  minuto e mentiria sobre toda sessão de ontem — e quebraria a promessa da SPEC-010 (relatório
+  derivável 100% por replay, o mesmo motivo pelo qual o worker não tem ORM).
+- **`config_version` sai de `caps` sozinho, sem parâmetro.** Duração e countdown são escolha da
+  admissão (o cliente pede, o plano limita) e por isso viajam como argumento explícito. A versão
+  não é escolha, é **procedência** da resolução que produziu `caps`. Fosse mais um parâmetro,
+  esquecê-lo carimbaria `0` numa sessão cuja config veio do banco — e o relatório mentiria em
+  silêncio, que é o defeito que o campo existe para eliminar.
+- **Valor torto vira `0` em vez de derrubar o evento.** Um `_as_int` estrito recusaria o
+  `session.started` inteiro, levando junto **exercício e modo** — que é o que o relatório de
+  fato precisa. Metadado não pode custar o relatório; mesma escolha já feita para o countdown.
+- **`0` significa "não registrada", e cobre três casos de propósito**: sessão anterior a esta
+  task, builder que subiu no meio da sessão (não viu a abertura) e configuração fora do ar na
+  admissão (P2). Nos três a resposta honesta é a mesma; carimbar a versão de agora seria pior.
+- **Nenhuma tela do usuário mostra o número.** A SPEC-014 é vinculante para a UI e não pede
+  número novo lá; quem pergunta é o operador, no painel. O tipo do cliente ganhou o campo mesmo
+  assim, porque `sessionReport.ts` se declara espelho do `to_report()` — e espelho com campo
+  faltando é o `[A/T-051]` recomeçando.
+
+**Verificação no stack real** (containers `digital-fit`; o `df-teste` da sessão paralela seguiu
+de pé nas portas +10):
+
+| O que | Como | Resultado |
+|---|---|---|
+| Carimbo no evento | `POST /api/sessions` e ler `events.analysis` no Redis | `{… 'countdown_s': 3, 'config_version': 4}`, com `SiteConfig.version = 4` |
+| Uma edição no painel entre duas sessões | salvar o plano `anon` (bump 4 → 5) e abrir a segunda | os relatórios saíram `config_version = 4` e `= 5` |
+| O carimbo é do passado | com o banco já em `5`, reler o relatório da sessão antiga | continuou `4` |
+| Migration | `migrate` → `migrate 0008` → `migrate` no Postgres do compose | aplica **e reverte** limpa |
+| Painel | `manage.py check` com `DJANGO_ENABLE_ADMIN=1` + o teste que abre a changelist | sem issues, 200 |
+
+Gates: `ruff` limpo, `pytest` 662 verdes, `npm run lint`/`typecheck`/`test` verdes (377),
+`makemigrations --check` sem drift. **Sem passada de navegador**: a mudança no cliente é uma
+linha de tipo (apagada na compilação) e nenhuma tela lê o campo — não havia o que observar lá
+que o `curl` no stack real não tenha mostrado melhor.
+
+**Pendências:** a Fase Inicial da SPEC-018 está inteira — critérios 1…11 cobertos. Ficaram no
+stack de dev duas sessões de verificação e a versão de configuração em `5` (o contador só anda
+para frente; desfazê-lo seria mentir para ele).
+
 ## 2026-07-31 (19) · T-074 — o catálogo passa a ter dono, e a admissão passa a travar
 
 `Exercise` + `ExerciseGuideStep` no painel com a trava de slug, `exercises_for()` como

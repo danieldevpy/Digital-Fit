@@ -63,6 +63,10 @@ class SessionReport:
     feedback_counts: dict[str, int]
     scene_warning_counts: dict[str, int]
     calibration_samples: int
+    #: Versão da configuração sob a qual a sessão foi admitida (SPEC-018, T-075). Vem carimbada
+    #: no `session.started` — o builder nunca pergunta ao banco, senão o mesmo replay daria
+    #: relatórios diferentes em momentos diferentes, e daria em silêncio (SPEC-010).
+    config_version: int = 0
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -78,6 +82,7 @@ class SessionReport:
             "feedback_counts": dict(self.feedback_counts),
             "scene_warning_counts": dict(self.scene_warning_counts),
             "calibration_samples": self.calibration_samples,
+            "config_version": self.config_version,
         }
 
 
@@ -103,6 +108,9 @@ class _SessionBuffer:
     feedback: Counter[str] = field(default_factory=Counter)
     scene: Counter[str] = field(default_factory=Counter)
     calibration_samples: int = 0
+    #: `0` até o `session.started` chegar — e continua `0` na sessão cujo início o builder não
+    #: viu (subiu no meio). Igual a `exercise` e `mode`: o que falta é dito, não inventado.
+    config_version: int = 0
 
 
 class ReportAccumulator:
@@ -157,6 +165,7 @@ class ReportAccumulator:
                 dados = SessionStarted.from_data(envelope.data)
                 buffer.exercise = dados.exercise
                 buffer.mode = dados.mode.value
+                buffer.config_version = dados.config_version
             case EventType.SESSION_CALIBRATED:
                 dados_cal = SessionCalibrated.from_data(envelope.data)
                 buffer.calibration_samples = dados_cal.samples
@@ -220,6 +229,7 @@ class ReportAccumulator:
             feedback_counts=dict(buffer.feedback),
             scene_warning_counts=dict(buffer.scene),
             calibration_samples=buffer.calibration_samples,
+            config_version=buffer.config_version,
         )
 
     def drop(self, session_id: str) -> None:

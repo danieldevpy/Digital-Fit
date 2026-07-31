@@ -16,6 +16,7 @@ const RELATORIO: SessionReport = {
   feedback_counts: {},
   scene_warning_counts: {},
   calibration_samples: 12,
+  config_version: 0,
   created_at: '2026-07-29T10:00:00Z',
 }
 

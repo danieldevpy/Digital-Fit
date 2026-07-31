@@ -325,10 +325,24 @@ class SomenteLeituraAdmin(admin.ModelAdmin):
 
 @admin.register(SessionResult)
 class SessionResultAdmin(SomenteLeituraAdmin):
-    """Relatórios consolidados — a resposta para "meu treino não apareceu"."""
+    """Relatórios consolidados — a resposta para "meu treino não apareceu".
 
-    list_display = ("session_id", "exercise", "mode", "reason", "rep_count", "created_at")
-    list_filter = ("exercise", "mode", "reason")
+    `config_version` na lista é o critério 8 da SPEC-018 virando resposta de suporte: quem
+    mudou a duração no painel ontem consegue separar as sessões de antes das de depois sem
+    cruzar horário de `LogEntry` com `created_at` no olho. `0` quer dizer "não registrada" —
+    sessão anterior à T-075, ou admitida com a configuração fora do ar.
+    """
+
+    list_display = (
+        "session_id",
+        "exercise",
+        "mode",
+        "reason",
+        "rep_count",
+        "config_version",
+        "created_at",
+    )
+    list_filter = ("exercise", "mode", "reason", "config_version")
     search_fields = ("session_id",)
     date_hierarchy = "created_at"
 
