@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-07-30 (15) · SPEC-019…022 — Do MVP ao produto de retenção (o "foguinho" e a fábrica de exercícios)
+
+Sessão de projeto, não de código. Pedido do Daniel: pensar o produto à la Duolingo — recursos
+crescentes por role (deslogado/free/assinante), uso diário ("foguinho"), seções/categorias, e
+a lista de exercícios do mais fácil ao mais difícil sabendo que os difíceis pedem mais teste.
+Saíram 4 specs (draft, aguardando revisão dele uma a uma) + a Fase 5 no BACKLOG (T-086…T-103,
+4 marcos, 3 raias paralelas).
+
+- **SPEC-019 Engajamento**: fogo/meta/XP/conquistas como **derivação pura** de
+  `SessionClaim`+`SessionResult` — nenhum worker novo, nenhum contador para dessincronizar,
+  ADR-008 intacto. Decisões com dono: virada do dia em America/Sao_Paulo fixo (diverge da
+  quota da 016, de propósito — meia-noite UTC é 21h no Brasil e mataria a mecânica); fogo ≠
+  meta (fogo = 1 sessão válida, meta é pessoal — meta agressiva não pode queimar constância);
+  proteção de streak é **regra derivada** (N dias perdoados/mês), não item de inventário;
+  sessão de 0 reps não conta nada (anti-farm); XP com bônus de execução limpa — o que o
+  Duolingo não tem e o feedback engine dá de graça. Fogo fantasma do anônimo em localStorage +
+  **adoção das SessionClaim do device no cadastro** (o fogo e o histórico sobrevivem à conta —
+  a promessa do README vira literal).
+- **SPEC-020 Catálogo**: o insight organizador é **dificuldade física ≠ dificuldade de
+  detecção** — o roadmap ordena pelo eixo técnico em tiers (A: em pé/frontal/cíclico → A2:
+  salto/assimetria → B: isométrico → C: chão → D: composto), e cada tier é uma capacidade do
+  motor que destrava um LOTE. Escada de maturidade mensurável pela bancada
+  (`beta`→`calibrado`→`validado`), Laboratório 🧪 = assinante beta-tester que gera corpus.
+  Lote 1: marcha, elevação de braços, high knees, sumô (dois reusam features existentes).
+  Trilha Fundamentos com progresso derivável (sem tabela de progresso).
+- **SPEC-021 Isométricos**: modalidade `hold` (relógio de tempo válido com histerese, soma
+  trechos, `degraded` congela, `hold.progress` no contrato, colunas aditivas no
+  `SessionResult`). Primeiro exercício: wall sit — reusa a altura de quadril do squat, adia a
+  prancha (hold+chão misturaria duas novidades). Habilita o "dia leve" que guarda o fogo.
+- **SPEC-022 Treino do Dia**: seleção diária determinística (seed usuário+data) por objetivo,
+  com ajuste de baixo impacto por idade/IMC declarados — personalização de treino, nunca
+  prescrição de saúde. Assinante completo; Free vê as categorias do dia como teaser honesto.
+- **Pendências geradas**: as 4 specs em `draft` esperam a revisão do Daniel; a Fase 5 depende
+  de T-073/T-074 (Plan + catálogo servido) para o M2 e de T-063/T-064 para o gate do M4.
+  Missões, ligas e push ficaram explicitamente em Evolução (cada um tem custo próprio).
+
 ## 2026-07-30 (14) · T-085 — Aviso de cena: o que a pessoa não vê do outro lado do celular
 
 Pedido do Daniel na mesma conversa do probe: "celular a gente sempre suja a câmera, deixa

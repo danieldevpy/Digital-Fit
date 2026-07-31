@@ -27,6 +27,10 @@ Cada etapa do pipeline é uma **entidade** com duas fases:
 | [SPEC-016](SPEC-016-planos-free-assinatura.md) | Planos: Free × Assinatura (quotas, kcal, Modo Efeito) | futura |
 | [SPEC-017](SPEC-017-perfil-fisico-progresso.md) | Perfil Físico & Progresso Realista (peso/altura) | futura |
 | [SPEC-018](SPEC-018-painel-admin-e-configuracao.md) | Painel de Administração & Plano de Configuração (habilita a 016) | futura |
+| [SPEC-019](SPEC-019-engajamento-e-gamificacao.md) | Engajamento & Gamificação (fogo, meta diária, XP, conquistas) | futura (Fase 5) |
+| [SPEC-020](SPEC-020-catalogo-categorias-trilhas.md) | Catálogo Expandido: categorias, trilhas, maturidade + roadmap de exercícios | futura (Fase 5) |
+| [SPEC-021](SPEC-021-exercicios-isometricos.md) | Exercícios Isométricos (modalidade *hold*; habilita Tier B e "dia leve") | futura (Fase 5) |
+| [SPEC-022](SPEC-022-treino-do-dia-personalizacao.md) | Treino do Dia & Personalização (objetivo, idade, IMC — assinante) | futura (Fase 5) |
 
 ## Template
 

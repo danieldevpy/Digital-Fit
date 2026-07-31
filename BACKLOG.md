@@ -120,6 +120,53 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-084 | Probe honesto: capacidade medida por LATÊNCIA de inferência (mediana, aquecimento descartado, janela elástica 2–3s, rVFC + watchdog) em vez de frames/segundo de parede; fps da câmera vira sinal de cena separado; motivo da decisão exposto; contexto WebGL devolvido | 001 | done |
 | T-085 | Aviso de cena na pré-configuração (luz fraca, contraluz, falta de nitidez/lente suja): orienta, não bloqueia, e só nesta tela — reaproveita o pill da janela da câmera | 003/014 | done |
 
+## Fase 5 — Engajamento & Catálogo (SPEC-019…022; o "foguinho" e a fábrica de exercícios)
+
+Quatro marcos, cada um termina em produto **funcional** — nunca meio-mecânica no ar. Três
+raias andam em paralelo sem se tocar: **A** = api+client de engajamento (M1, M4),
+**B** = workers+eval de exercícios novos (T-092…T-096, paralelizáveis entre si e com tudo),
+**C** = contrato+worker da modalidade hold (M3). Pré-requisitos que já estavam no backlog:
+T-073/T-074 (Plan + catálogo servido) antes de T-090; T-063/T-064 (free/assinatura) antes do
+gate do T-103; T-055 (relatório diz o exercício) ajuda o M1 mas não bloqueia.
+
+### M1 — "O fogo acende" (SPEC-019): streak + meta + XP funcionais de ponta a ponta
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-086 | Módulo `engagement.py` puro (streak com proteções/mês no fuso SP, XP v1 versionado, níveis) + fixtures de datas + `GET /api/engagement` com cache Redis invalidado por `post_save` de `SessionResult` + campo `daily_goal` no perfil | 019 | todo |
+| T-087 | Adoção de sessões do aparelho no cadastro: `device_id` no register, backfill de `SessionClaim.user` — fogo e histórico sobrevivem à criação de conta | 019/011 | todo |
+| T-088 | UI do engajamento: chip do fogo + anel de meta na Início, painel (sheet) com calendário do mês, seção no Perfil, decomposição "+XP" no relatório; fogo fantasma local do anônimo com rótulo honesto e CTA de conta | 019/014 | todo |
+| T-089 | Conquistas v1: catálogo em código (predicados puros), lista no `GET /api/engagement`, toast de nova conquista por diff local, galeria no Perfil | 019 | todo |
+
+### M2 — "O catálogo cresce" (SPEC-020): categorias, 4 exercícios novos, primeira trilha
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-090 | `maturity` e `met` no catálogo (Exercise + espelho client), visibilidade por plano×maturidade resolvida no `GET /api/config` **e na admissão** (`POST /sessions` recusa o que o plano não pode) — depende de T-073/T-074 | 020/018 | todo |
+| T-091 | Tela Escolha agrupada por categoria, cadeados com motivo ("crie conta" / "assinante" / "em validação") e selo Laboratório 🧪 na pré-config de exercício `calibrado` | 020/014 | todo |
+| T-092 | Exercício: marcha estacionária (`marcha`) — feature de alternância de altura de joelho (compartilhada com T-094), checklist completa da SPEC-020, nasce `beta` | 020/007/012 | todo |
+| T-093 | Exercício: elevação lateral de braços (`elevacao_bracos`) — reusa `arm_angle`; o guardião do fogo junto com a marcha | 020/007/012 | todo |
+| T-094 | Exercício: elevação de joelhos (`high_knees`) — parametrização da feature da marcha com limiar alto + cadência | 020/007/012 | todo |
+| T-095 | Exercício: agachamento sumô (`sumo_squat`) — altura de quadril do `squat` + `ankle_spread` largo na baseline | 020/007/012 | todo |
+| T-096 | Corpus real do Lote 1 + varredura de limiares (promoção `beta → calibrado`, ≥8 vídeos por exercício; fatiável em uma task por exercício, como o T-053 fez com o squat) | 020/012 | todo |
+| T-097 | Trilha Fundamentos: modelos `Trilha`/`TrilhaItem` (admin SPEC-018), progresso derivado de `SessionResult` (3 sessões válidas destravam o passo seguinte), seção da trilha no topo da Escolha | 020 | todo |
+
+### M3 — "O dia leve" (SPEC-021): modalidade hold + wall sit
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-098 | Contrato da modalidade hold: `hold.progress` em `events.py` (primeiro, como manda o AGENTS), `scoring` no registro/catálogo, colunas aditivas `hold_valid_ms`/`hold_best_ms` no `SessionResult` + consolidação no report-builder | 021/002/010 | todo |
+| T-099 | Wall sit (`wall_sit`): lógica hold compartilhada em `exercises/` (relógio por `ts`, histerese, `degraded` congela) + parametrização do wall sit pela checklist da SPEC-020 | 021/007/012 | todo |
+| T-100 | HUD e relatório de hold (anel TEMPO EM POSIÇÃO no lugar de reps, telas não desenham cadência para hold) + regra de sessão válida `hold_valid_ms ≥ 10s` no `engagement.py` — depende de T-086 e T-098 | 021/014/019 | todo |
+
+### M4 — "O treino do dia" (SPEC-022): personalização do assinante
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-101 | Perfil ganha `birth_year` e `goal` (REST, export/exclusão LGPD, pedido no mesmo momento suave do peso da SPEC-017) | 022/017 | todo |
+| T-102 | Motor do Treino do Dia: seleção determinística pura (seed usuário+data, mix por objetivo, ajuste de baixo impacto por idade/IMC, sempre 1 mobilidade) + fixtures + `GET /api/daily-workout` com cache diário | 022 | todo |
+| T-103 | Card Treino do Dia na Início (assinante completo; Free vê categorias com CTA; anônimo CTA de conta), navegação item→pré-config, bônus +25 XP na conclusão (bump de `XP_FORMULA_V`) — gate pelo plano de T-063/T-064 | 022/016/019 | todo |
+
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
 - **[T-085] Os limiares de cena não têm corpus para calibrar — e o `evalctl` não os mede.**
