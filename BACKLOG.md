@@ -102,7 +102,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-072 | Admin do Django ligado no processo `api`: apps + middlewares + context processors, `is_staff` novo (separado do `is_admin` de diagnóstico), estáticos servidos, gate por `DJANGO_ENABLE_ADMIN` e ausência no gateway; `User` editável, `SessionClaim`/`SessionResult` em leitura | 018 | done |
-| T-073 | `Plan` (incluindo as 3 capacidades que a Fase 5 consome: `streak_protections_month`, `min_maturity`, `daily_workout`) + `User.plan`/`plan_until` + `SiteConfig` + `capabilities_for()` com cache invalidado por `post_save` e defaults do código como piso; `POST /api/sessions` passa a resolver quota, duração, countdown e cloud por ele — sem mudar comportamento nenhum (migration de dados com os valores de hoje, colunas novas no valor neutro) | 018/016/019/020/022 | todo |
+| T-073 | `Plan` (incluindo as 3 capacidades que a Fase 5 consome: `streak_protections_month`, `min_maturity`, `daily_workout`) + `User.plan`/`plan_until` + `SiteConfig` + `capabilities_for()` com cache invalidado por `post_save` e defaults do código como piso; `POST /api/sessions` passa a resolver quota, duração, countdown e cloud por ele — sem mudar comportamento nenhum (migration de dados com os valores de hoje, colunas novas no valor neutro) | 018/016/019/020/022 | done |
 | T-074 | `Exercise` (+ passos do guia, + `met`/`maturity`/`category` como choices do vocabulário em código) no admin com trava de slug contra `EXERCISES`; resolvedor único `exercises_for()` servindo o `GET /api/config` **e a admissão** (eixos `enabled` + `min_plan`; hoje `POST /sessions` não trava nada); `Cache-Control: private` + ETag por (versão, plano, `is_admin`) — fecha a divergência do `[A/T-051]` | 018/015/020 | todo |
 | T-075 | `config_version` no `session.started` (aditivo, default 0) e no `SessionResult`: o relatório diz sob qual versão de configuração a sessão foi produzida | 018/010/002 | todo |
 | T-063 | Modo Free: quota diária no servidor (`quota_exceeded`), sheet de limite, kcal só ao vivo — **lê do `Plan` da T-073**, não de constante nova | 016/018 | todo |
@@ -189,6 +189,24 @@ O que mudou e vale saber antes de pegar qualquer task daqui:
 | T-103 | Card Treino do Dia na Início (assinante completo; Free vê categorias com CTA; anônimo CTA de conta), navegação item→pré-config, conquista `treino-do-dia-7` — gate por `Plan.daily_workout` (coluna de T-073), **sem** bônus de XP e sem bump de `XP_FORMULA_V` | 022/016/019 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-073] O dublê da admissão descarta os argumentos que a view passa — e passaria verde com
+  a ligação quebrada.** `admissao_falsa` (`tests/test_sessions.py`) troca `create_session` por
+  `lambda pedido, **kwargs: create_session(pedido, redis_client=redis, event_bus=bus)`: os
+  `**kwargs` são engolidos. Enquanto a view só chamava `create_session(pedido, redis_client=…)`
+  isso era inofensivo; agora ela resolve capacidade e passa `caps`, `duration_s`, `countdown_s`
+  e `ttl_s`, e **nenhum** desses chega ao dublê. Os testes de endpoint continuariam verdes se a
+  view parasse de resolver plano amanhã. A T-073 contornou criando um dublê próprio em
+  `tests/test_config.py` que repassa os kwargs (`setdefault`), mas ficaram dois helpers para o
+  mesmo trabalho, e o antigo é uma armadilha para a próxima task que acrescentar um argumento.
+  **Proposta: unificar em um dublê só que repasse tudo.**
+- **[T-073] `Plan.history_limit` existe e ninguém lê.** A coluna nasceu com a tabela (SPEC-018
+  §A lista "profundidade do histórico" como capacidade de plano), mas `GET /api/sessions?mine`
+  continua usando a constante `HISTORY_LIMIT = 50` de `server/api/views.py`. Ficou fora de
+  propósito: a linha da T-073 enumera quota, duração, countdown e cloud, e o histórico limitado
+  é capacidade que a **T-064** liga junto com o resto do Free×Assinatura. Registrado porque
+  coluna que existe e não é lida apodrece — quem editar no painel não vai ver efeito nenhum, e
+  vai concluir que o painel está quebrado.
 
 - **[T-085] Os limiares de cena não têm corpus para calibrar — e o `evalctl` não os mede.**
   Os três valores (`LUZ_MINIMA`, `ESTOURO_MAXIMO`+`LUZ_CENTRO_MINIMA`, `DETALHE_MINIMO`) foram

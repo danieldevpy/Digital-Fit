@@ -100,13 +100,22 @@ def quota_key(device_id: str, *, now: datetime | None = None) -> str:
     return f"trial:{device_id}:{_dia(now)}"
 
 
-def status_for(client, device_id: str, *, now: datetime | None = None) -> TrialStatus:
-    """Lê o contador sem alterá-lo."""
+def status_for(
+    client, device_id: str, *, now: datetime | None = None, limit: int = TRIAL_LIMIT
+) -> TrialStatus:
+    """Lê o contador sem alterá-lo.
+
+    `limit` é parâmetro desde a SPEC-018/T-073: o número vem do plano `anon`, resolvido pela
+    view. A constante continua sendo o default porque ela é o piso do código (P2) — este módulo
+    não consulta banco, e não deve passar a consultar.
+    """
     bruto = client.get(quota_key(device_id, now=now))
-    return TrialStatus(used=int(bruto) if bruto else 0)
+    return TrialStatus(used=int(bruto) if bruto else 0, limit=limit)
 
 
-def consume(client, device_id: str, *, now: datetime | None = None) -> TrialStatus:
+def consume(
+    client, device_id: str, *, now: datetime | None = None, limit: int = TRIAL_LIMIT
+) -> TrialStatus:
     """Marca mais uma sessão usada. Chamado **depois** de a sessão nascer de verdade.
 
     A ordem importa: contar antes queimaria uma sessão do visitante toda vez que a admissão
@@ -118,4 +127,4 @@ def consume(client, device_id: str, *, now: datetime | None = None) -> TrialStat
     usadas = int(client.incr(chave))
     if usadas == 1:
         client.expire(chave, _TTL_S)
-    return TrialStatus(used=usadas)
+    return TrialStatus(used=usadas, limit=limit)

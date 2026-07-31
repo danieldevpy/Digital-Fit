@@ -5,6 +5,68 @@
 
 ---
 
+## 2026-07-31 (18) · T-073 — configuração de negócio vira dado, sem mudar produto nenhum
+
+`Plan` + `SiteConfig` + `User.plan/plan_until` + `capabilities_for()`, e a admissão passando a
+resolver quota, duração, countdown, TTL e cloud por eles. A prova de que a task deu certo é
+**nada ter mudado**: 623 testes verdes, e vários deles comparando o valor resolvido com a
+constante que existia antes.
+
+**Escopo travado antes de codar.** Entrou: os dois modelos, as duas telas de painel, o
+resolvedor com cache, a migration de dados e a ligação na admissão. Não entrou: `Exercise` e
+`GET /api/config` (T-074), `config_version` no evento (T-075), quota do Free e faixa de duração
+do assinante (T-063/T-064), `FeedbackMessage` (Evolução da SPEC-018).
+
+**Decisões, e o que foi rejeitado:**
+
+- **`free.daily_sessions = 0` (ilimitado) na migration.** Hoje conta logada não tem quota
+  nenhuma; a SPEC-016 propõe 10/dia e quem liga é a T-063. Entregar o limite novo já na
+  migration faria a T-073 mudar o produto no dia do deploy, escondida atrás de "só
+  infraestrutura". O teste `test_conta_logada_continua_sem_quota` existe para segurar isso.
+- **O piso do código é por plano, não global** (`_FLOOR_PLAN`). Com o banco fora, o anônimo
+  precisa cair em 3 sessões e na mensagem do trial — um piso único devolveria "ilimitado" para
+  o visitante e abriria o funil inteiro justo quando o banco está ruim.
+- **`capabilities_for` não levanta exceção, e o `except Exception` largo é intencional.** É o P2
+  escrito como fluxo de controle: cache fora → consulta direta; banco fora → constante de
+  ontem. A alternativa (deixar subir) é derrubar um treino por causa de configuração.
+- **Expiração de assinatura resolvida na leitura, não por job.** Um cron que rebaixasse contas
+  seria um segundo lugar onde o plano é decidido, e o dia em que não rodasse ninguém notaria.
+- **O bump da versão usa `queryset.update()`.** `instance.save()` dispararia `post_save` de
+  novo — a diferença entre um contador e um laço. Tem teste (`..._nao_entra_em_laco`).
+- **Snapshot do catálogo inteiro de planos, não de um plano.** São três linhas e a consulta é a
+  mesma; assim trocar o plano de uma conta não precisa de invalidação própria — o que muda é o
+  ponteiro no `User`, lido a cada requisição.
+- **TTL de 5 min no snapshot além do signal.** O signal é o caminho normal; o TTL é a rede para
+  o que ele não cobre — `manage.py shell` com `.update()`, que não dispara `post_save`.
+- **Plano não se apaga pelo painel.** `User.plan` é `SET_NULL`: apagar o `free` esvaziaria
+  contas em silêncio, sem erro na tela. E `slug` vira somente-leitura depois de criado, porque
+  o resolvedor procura `anon` por nome — renomear faria tudo cair no piso sem ninguém ver.
+- **`CloudSlots` ganhou `grace_ms` como parâmetro** (default = a constante). O worker continua
+  sem saber que existe banco (ADR-008); quem resolve capacidade é a API e passa o número.
+
+**Medições e verificações (critérios da SPEC-018, um a um):**
+
+| # | Critério | Como foi verificado |
+|---|---|---|
+| 1 | mudar `daily_sessions` vale sem restart | `test_editar_o_plano_no_painel_muda_a_admissao_sem_restart` — POST no formulário do painel → `capabilities_for` já devolve o novo valor |
+| 2 | Postgres/Redis fora e a sessão ainda nasce | `test_banco_fora_do_ar_nao_levanta_e_devolve_o_piso` + `test_cache_fora_do_ar_cai_para_o_banco` (derrubados de propósito) |
+| 5 | painel não responde no gateway | coberto pela T-072, ainda verde |
+| 6 | só `is_staff` entra | coberto pela T-072, ainda verde |
+| 7 | auditoria com autor e data | `LogEntry` conferido na edição de `Plan` |
+| 9 | suíte com config vazia | `test_plano_apagado_da_tabela_cai_no_piso_do_proprio_slug` |
+
+Gates: `ruff check` limpo, `pytest` 623 verdes, `manage.py check` sem issues,
+`makemigrations --check` sem drift, e as migrations 0005/0006 aplicam **e revertem** limpas.
+`web/` não foi tocada (nem podia: há alteração de UI em paralelo), então os gates do npm não
+se aplicam. **Não abri o painel no navegador** — as telas novas são exercitadas por requisição
+(`GET` 200 na lista e no change de `Plan` e `SiteConfig`), que é o que a lição do
+`ContaCreateForm` da T-072 pedia, mas não é a mesma coisa que olhar.
+
+**Pendências:** critérios 3, 4, 8, 10 e 11 da SPEC-018 são T-074/T-075 e continuam abertos.
+Duas descobertas no BACKLOG: o dublê `admissao_falsa` que engole os kwargs da view (armadilha
+para a próxima task que acrescentar argumento) e `Plan.history_limit`, coluna que existe e
+ninguém lê ainda — é da T-064.
+
 ## 2026-07-31 (17) · Fase 0 da Fase 5 — revisão das SPEC-019…022 e reescrita de T-073/T-074
 
 Alinhamento antes de codar: revisar as 4 specs em `draft` e garantir que o escopo do admin

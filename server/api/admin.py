@@ -1,8 +1,8 @@
 """Painel de operação (SPEC-018, Fase Inicial — T-072).
 
-O que existe aqui é o mínimo que tira o suporte do shell da VPS: ver e editar contas, ler
-sessões e conferir o que foi mudado por quem. **Configuração de produto (planos, exercícios,
-textos) não entra nesta task** — entra nas T-073/T-074, e entra como modelo próprio.
+Duas camadas: suporte (contas e sessões, T-072) e **configuração de produto** — planos e
+parâmetros globais, T-073. O catálogo de exercícios é a T-074 e os textos de feedback ficam para
+a Evolução da SPEC-018.
 
 Duas regras que valem para tudo que for registrado daqui em diante:
 
@@ -27,7 +27,7 @@ from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
 from django.contrib.auth.models import Group
 from django.http import HttpRequest
 
-from api.models import SessionClaim, SessionResult, User
+from api.models import Plan, SessionClaim, SessionResult, SiteConfig, User
 
 admin.site.site_header = "Digital Fit — operação"
 admin.site.site_title = "Digital Fit"
@@ -55,7 +55,7 @@ def _normaliza_email(form: Any) -> str:
 class ContaChangeForm(UserChangeForm):
     class Meta(UserChangeForm.Meta):
         model = User
-        fields = ("email", "name", "is_active", "is_admin")
+        fields = ("email", "name", "is_active", "is_admin", "plan", "plan_until")
 
     def clean_email(self) -> str:
         return _normaliza_email(self)
@@ -87,8 +87,8 @@ class UserAdmin(DjangoUserAdmin):
     form = ContaChangeForm
     add_form = ContaCreateForm
 
-    list_display = ("email", "name", "is_active", "is_staff", "is_admin", "date_joined")
-    list_filter = ("is_staff", "is_admin", "is_active")
+    list_display = ("email", "name", "plan", "plan_until", "is_active", "is_staff", "is_admin")
+    list_filter = ("is_staff", "is_admin", "is_active", "plan")
     search_fields = ("email", "name")
     ordering = ("email",)
     filter_horizontal = ()
@@ -96,6 +96,17 @@ class UserAdmin(DjangoUserAdmin):
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Perfil", {"fields": ("name",)}),
+        (
+            "Plano",
+            {
+                "fields": ("plan", "plan_until"),
+                "description": (
+                    "Vazio = plano default. <b>Validade</b> vazia = sem prazo; vencida, a conta "
+                    "cai no default na próxima leitura, sem job de expiração. O pagamento ainda "
+                    "não escreve aqui (SPEC-018 Evolução) — a atribuição é manual."
+                ),
+            },
+        ),
         (
             "Acesso",
             {
@@ -124,6 +135,114 @@ class UserAdmin(DjangoUserAdmin):
     #: promove ninguém sem ter shell na máquina — e a T-048 já tinha estabelecido essa porta
     #: única para o `is_admin`. `last_login`/`date_joined` são fatos, não campos.
     readonly_fields = ("is_staff", "last_login", "date_joined")
+
+
+@admin.register(Plan)
+class PlanAdmin(admin.ModelAdmin):
+    """Planos — a razão de a SPEC-018 existir.
+
+    Editar aqui muda a admissão **sem restart** (o snapshot é invalidado por signal). É também
+    a tela mais perigosa do painel: `daily_sessions = 1` no plano default desliga o produto para
+    todo mundo às 3 h da manhã. O que compra segurança contra isso é o `clean()` do modelo
+    (faixas plausíveis) e o P2 — nunca a boa intenção de quem edita.
+    """
+
+    list_display = (
+        "nome",
+        "slug",
+        "is_default",
+        "daily_sessions",
+        "session_max_s",
+        "allow_cloud",
+        "min_maturity",
+        "daily_workout",
+    )
+    list_filter = ("is_default", "allow_cloud", "daily_workout", "min_maturity")
+    search_fields = ("slug", "nome")
+    ordering = ("ordem", "slug")
+
+    fieldsets = (
+        (None, {"fields": ("slug", "nome", "is_default", "ordem")}),
+        (
+            "Sessões",
+            {
+                "fields": ("daily_sessions", "session_min_s", "session_max_s", "countdown_max_s"),
+                "description": (
+                    "<b>Sessões por dia:</b> 0 significa ilimitado. O contador do visitante é "
+                    "por aparelho; o da conta, por usuário."
+                ),
+            },
+        ),
+        (
+            "Recursos",
+            {"fields": ("allow_cloud", "history_limit", "kcal_accumulation", "effects_enabled")},
+        ),
+        (
+            "Fase 5",
+            {
+                "fields": ("streak_protections_month", "min_maturity", "daily_workout"),
+                "description": (
+                    "Capacidades consumidas pelo engajamento (SPEC-019), pelo catálogo "
+                    "(SPEC-020) e pelo treino do dia (SPEC-022). Sem consumidor ligado ainda: "
+                    "mudar aqui hoje não tem efeito visível."
+                ),
+            },
+        ),
+        ("Textos", {"fields": ("quota_message", "flags")}),
+    )
+
+    #: O slug é contrato: `capabilities_for` resolve o anônimo por `anon` e o default por
+    #: `is_default`, e uma renomeação silenciosa faria o resolvedor cair no piso do código sem
+    #: ninguém ver — o produto continuaria de pé, com a configuração toda ignorada.
+    def get_readonly_fields(self, request: HttpRequest, obj: Any = None) -> tuple[str, ...]:
+        return ("slug",) if obj else ()
+
+    def has_delete_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        """Plano não se apaga pelo painel.
+
+        Apagar o `free` deixaria toda conta sem capacidade resolvida e apagar o `anon` mataria o
+        funil — e o `on_delete=SET_NULL` do `User.plan` faria isso em silêncio, sem erro na tela.
+        Plano que não se usa mais se desativa por ordem e por limite, não por DELETE.
+        """
+        return False
+
+
+@admin.register(SiteConfig)
+class SiteConfigAdmin(admin.ModelAdmin):
+    """Parâmetros globais (singleton).
+
+    Sem botão de adicionar e sem botão de apagar: a linha é uma só, criada pela migration. Um
+    segundo `SiteConfig` seria uma configuração que nunca é lida (o resolvedor busca `pk=1`) —
+    a pior espécie de bug de painel, o que parece ter funcionado.
+    """
+
+    list_display = ("__str__", "default_duration_s", "cloud_slots", "ticket_ttl_s", "updated_at")
+    readonly_fields = ("version", "updated_at")
+
+    fieldsets = (
+        ("Sessão", {"fields": ("default_duration_s", "default_countdown_s", "ticket_ttl_s")}),
+        ("Capacidade cloud", {"fields": ("cloud_slots", "cloud_grace_ms")}),
+        (
+            "Faixas da pré-configuração",
+            {
+                "fields": (
+                    "series_min",
+                    "series_max",
+                    "series_default",
+                    "reps_min",
+                    "reps_max",
+                    "reps_default",
+                )
+            },
+        ),
+        ("Versão", {"fields": ("version", "updated_at")}),
+    )
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return not SiteConfig.objects.exists()
+
+    def has_delete_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        return False
 
 
 class SomenteLeituraAdmin(admin.ModelAdmin):

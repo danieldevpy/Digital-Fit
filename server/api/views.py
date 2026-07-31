@@ -14,6 +14,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from api import trial
+from api.config import capabilities_for
 from api.models import SessionClaim, SessionResult
 from api.sessions import DENIED_CLOUD, SessionRequest, bus, create_session
 
@@ -88,21 +89,28 @@ def _admitir(request: Request) -> Response:
     # Logado não carrega device: o aparelho só interessa a quem não tem conta.
     device_id = "" if usuario else trial.device_id_from(request.headers)
 
+    # P1 da SPEC-018: quem lê configuração é a fronteira da API, uma vez por admissão, e o valor
+    # resolvido viaja daqui para baixo. `capabilities_for` nunca levanta — banco ou cache fora
+    # devolvem o piso do código, que é o comportamento anterior a esta spec (P2).
+    caps = capabilities_for(usuario)
+
     try:
         cliente = bus().client
     except Exception as exc:
         logger.exception("falha ao falar com o Redis")
         return Response({"detail": f"nao foi possivel criar a sessao: {exc}"}, status=503)
 
-    # Quota vale so para quem nao tem conta: a conta E o upgrade nesta fase (planos pagos sao
-    # Fase Evolucao da SPEC-011).
+    # A quota do anônimo agora é o `daily_sessions` do plano `anon`, não mais uma constante em
+    # `trial.py`. Conta logada segue sem limite porque o plano `free` nasce com 0 (= ilimitado),
+    # que é o comportamento de hoje — quem liga o limite do Free é a T-063, mudando uma linha no
+    # painel, e o contador por usuário (`df:quota:{user}:{dia}`) nasce lá com ele.
     status = None
-    if usuario is None:
-        status = trial.status_for(cliente, device_id)
+    if usuario is None and not caps.unlimited_sessions:
+        status = trial.status_for(cliente, device_id, limit=caps.daily_sessions)
         if not status.allowed:
             return Response(
                 {
-                    "detail": trial.TRIAL_MESSAGE,
+                    "detail": caps.quota_message or trial.TRIAL_MESSAGE,
                     "code": "trial_exhausted",
                     "device_id": device_id,
                     "trial": status.to_dict(),
@@ -113,7 +121,14 @@ def _admitir(request: Request) -> Response:
             )
 
     try:
-        ticket = create_session(pedido, redis_client=cliente)
+        ticket = create_session(
+            pedido,
+            redis_client=cliente,
+            caps=caps,
+            duration_s=caps.duration_s(),
+            countdown_s=caps.countdown_s(pedido.countdown_s),
+            ttl_s=caps.ticket_ttl_s,
+        )
     except Exception as exc:  # Redis fora do ar: o cliente merece um erro claro
         logger.exception("falha ao criar sessao")
         return Response({"detail": f"nao foi possivel criar a sessao: {exc}"}, status=503)
@@ -129,8 +144,8 @@ def _admitir(request: Request) -> Response:
         return Response(corpo, status=201)
 
     SessionClaim.objects.create(session_id=ticket.session_id, user=usuario, device_id=device_id)
-    if usuario is None:
-        status = trial.consume(cliente, device_id)
+    if usuario is None and not caps.unlimited_sessions:
+        status = trial.consume(cliente, device_id, limit=caps.daily_sessions)
     if status is not None:
         corpo["trial"] = status.to_dict()
     return Response(corpo, status=201)

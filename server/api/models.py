@@ -1,6 +1,6 @@
-"""Persistência da API (SPEC-010 e SPEC-011).
+"""Persistência da API (SPEC-010, SPEC-011 e SPEC-018).
 
-Três tabelas, com papéis bem distintos:
+Tabelas com papéis bem distintos:
 
 - `SessionResult` — o relatório consolidado, escrito pelo **report-builder** a partir dos
   eventos (SPEC-010). Não sabe de usuário e não pode saber: ele é derivável 100% por replay
@@ -9,6 +9,10 @@ Três tabelas, com papéis bem distintos:
   único momento em que o dono é conhecido. Tabela separada justamente para manter a de cima
   replayável.
 - `User` — conta de e-mail e senha (SPEC-011).
+- `Plan` e `SiteConfig` — configuração de **negócio**, editável no painel sem deploy
+  (SPEC-018). Não confundir com as outras duas naturezas: infra é variável de ambiente, e
+  limiar calibrado é constante em código com bancada (SPEC-018 P3). Quem lê estas duas é
+  `api/config.py`, nunca um worker (P1).
 
 A sessão **em andamento** continua em Redis com TTL (`api/sessions.py`); o Postgres guarda o
 que sobrevive ao fim dela.
@@ -19,9 +23,187 @@ from __future__ import annotations
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.core.exceptions import ValidationError
 from django.db import models
 
-__all__ = ["SessionClaim", "SessionResult", "User"]
+__all__ = [
+    "MATURITY_RANK",
+    "Maturity",
+    "Plan",
+    "SessionClaim",
+    "SessionResult",
+    "SiteConfig",
+    "User",
+]
+
+
+class Maturity(models.TextChoices):
+    """Escada de maturidade de um exercício (SPEC-020).
+
+    Vive aqui, e não como tabela, porque é **vocabulário de contrato**: a trilha decide o que
+    aceita por ele e o plano decide o que mostra por ele. Nível novo é commit, com os dois
+    consumidores revisados junto — um nível criado por formulário seria um estado que ninguém
+    sabe comparar.
+
+    A ordem da declaração é a ordem de confiança (`beta` < `calibrado` < `validado`) e é o que
+    `Plan.min_maturity` compara; ver `MATURITY_RANK` abaixo.
+    """
+
+    BETA = "beta", "Beta (só gerador sintético)"
+    CALIBRADO = "calibrado", "Calibrado (corpus real — Laboratório 🧪)"
+    VALIDADO = "validado", "Validado (paridade + produção)"
+
+
+#: Confiança crescente. Fora da classe porque um atributo dentro de `TextChoices` viraria um
+#: membro do enum. Dicionário e não `IntegerChoices` porque o valor guardado no banco precisa
+#: continuar legível numa consulta de suporte ("por que este some para o Free?").
+MATURITY_RANK: dict[str, int] = {
+    Maturity.BETA.value: 0,
+    Maturity.CALIBRADO.value: 1,
+    Maturity.VALIDADO.value: 2,
+}
+
+
+class Plan(models.Model):
+    """O que cada tipo de conta pode (SPEC-018 §A + SPEC-016).
+
+    **O anônimo é um plano** (`slug="anon"`), e não um caminho de código à parte. Até aqui o
+    trial vivia em `api/trial.py` porque era o único limite que existia; com esta tabela ele
+    passa a ser o plano de entrada do funil — mesmo campo de limite, mesma mensagem de recusa,
+    um resolvedor só. O que continua diferente é a **chave do contador** (`trial:{device}:{dia}`
+    para anônimo, `df:quota:{user}:{dia}` para logado): a identidade do contado muda, a regra não.
+
+    `is_default` é o plano de quem tem conta e não tem FK — ou seja, `free`. O `anon` nunca é
+    default: ele é escolhido pela *ausência* de usuário, não pela ausência de plano.
+
+    Colunas tipadas e não chave-valor (`Config(key, value)`): EAV dispensaria migration, mas
+    abriria mão de validação, de tipo e de legibilidade, e este projeto está do lado da
+    validação em todas as decisões anteriores. O preço — uma migration por capacidade nova — é
+    exatamente o momento em que alguém deveria pensar no que está criando. O `flags` JSON existe
+    para o booleano cosmético que nasce e morre em duas semanas.
+    """
+
+    slug = models.SlugField(max_length=32, unique=True)
+    nome = models.CharField(max_length=60)
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Plano de quem tem conta e não tem plano atribuído. Exatamente um.",
+    )
+    ordem = models.PositiveSmallIntegerField(default=0)
+
+    daily_sessions = models.PositiveSmallIntegerField(
+        default=0, help_text="Sessões por dia. 0 = ilimitado."
+    )
+    session_min_s = models.PositiveSmallIntegerField(default=30)
+    session_max_s = models.PositiveSmallIntegerField(default=30)
+    countdown_max_s = models.PositiveSmallIntegerField(default=10)
+    allow_cloud = models.BooleanField(default=True)
+    history_limit = models.PositiveSmallIntegerField(default=50)
+    kcal_accumulation = models.BooleanField(default=False)
+    effects_enabled = models.BooleanField(default=False)
+
+    #: Dias falhos perdoados por mês-calendário (SPEC-019). Coluna aqui, cálculo do fogo lá:
+    #: capacidade é dado, derivação é função pura.
+    streak_protections_month = models.PositiveSmallIntegerField(default=0)
+    #: Maturidade mínima visível para este plano (SPEC-020). `validado` é o piso do produto;
+    #: `calibrado` é o Laboratório do assinante. `beta` NUNCA é liberado por plano — é
+    #: ferramenta de dev, atrás de `is_admin`, e por isso não é opção aqui.
+    min_maturity = models.CharField(
+        max_length=12,
+        choices=[
+            (Maturity.VALIDADO.value, Maturity.VALIDADO.label),
+            (Maturity.CALIBRADO.value, Maturity.CALIBRADO.label),
+        ],
+        default=Maturity.VALIDADO,
+    )
+    #: Card Treino do Dia completo (SPEC-022). Coluna e não `plan.slug == "subscriber"` num
+    #: `if` de view: decisão comercial que mora no código precisa de deploy para mudar de ideia.
+    daily_workout = models.BooleanField(default=False)
+
+    quota_message = models.TextField(
+        blank=True, help_text="Mensagem da recusa por quota deste plano."
+    )
+    flags = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "plan"
+        ordering = ["ordem", "slug"]
+
+    def __str__(self) -> str:
+        return f"{self.nome} ({self.slug})"
+
+    def clean(self) -> None:
+        """Validação de consequência (SPEC-018 §Sobre o limite do admin).
+
+        O painel não sabe que uma edição tem consequência: nada nele impede desligar o produto
+        para todo mundo às 3 h da manhã. Estas faixas são a parte que dá para comprar barato —
+        não substituem o P2 (default do código como piso), somam a ele.
+        """
+        erros: dict[str, str] = {}
+        if self.session_min_s > self.session_max_s:
+            erros["session_min_s"] = "a duração mínima não pode passar da máxima."
+        if not 5 <= self.session_min_s <= 600:
+            erros["session_min_s"] = "fora da faixa plausivel (5 a 600 s)."
+        if not 5 <= self.session_max_s <= 600:
+            erros["session_max_s"] = "fora da faixa plausivel (5 a 600 s)."
+        if self.countdown_max_s > 60:
+            erros["countdown_max_s"] = "preparação acima de 60 s seguraria vaga sem treinar."
+        if erros:
+            raise ValidationError(erros)
+
+
+class SiteConfig(models.Model):
+    """Parâmetros globais que não dependem de plano (SPEC-018 §D).
+
+    Singleton por convenção (`pk=1`, garantido pelo `save`): a alternativa — uma linha por
+    ambiente — só faria sentido se um processo servisse dois ambientes, o que não acontece e
+    não deve passar a acontecer sem ADR.
+    """
+
+    cloud_slots = models.PositiveSmallIntegerField(default=3)
+    cloud_grace_ms = models.PositiveIntegerField(default=15_000)
+    ticket_ttl_s = models.PositiveSmallIntegerField(default=45)
+    default_duration_s = models.PositiveSmallIntegerField(default=30)
+    default_countdown_s = models.PositiveSmallIntegerField(default=3)
+
+    series_min = models.PositiveSmallIntegerField(default=1)
+    series_max = models.PositiveSmallIntegerField(default=9)
+    series_default = models.PositiveSmallIntegerField(default=1)
+    reps_min = models.PositiveSmallIntegerField(default=5)
+    reps_max = models.PositiveSmallIntegerField(default=30)
+    reps_default = models.PositiveSmallIntegerField(default=15)
+
+    #: Incrementa a cada save de qualquer modelo desta spec. É o número que o relatório vai
+    #: carimbar (T-075) para poder dizer sob qual configuração a sessão foi produzida.
+    version = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "site_config"
+        verbose_name = "configuração do site"
+        verbose_name_plural = "configuração do site"
+
+    def __str__(self) -> str:
+        return f"configuração v{self.version}"
+
+    def save(self, *args, **kwargs) -> None:
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def clean(self) -> None:
+        erros: dict[str, str] = {}
+        if self.series_min > self.series_max:
+            erros["series_min"] = "mínimo acima do máximo."
+        if self.reps_min > self.reps_max:
+            erros["reps_min"] = "mínimo acima do máximo."
+        if not self.series_min <= self.series_default <= self.series_max:
+            erros["series_default"] = "default fora da própria faixa."
+        if not self.reps_min <= self.reps_default <= self.reps_max:
+            erros["reps_default"] = "default fora da própria faixa."
+        if self.cloud_slots > 32:
+            erros["cloud_slots"] = "acima do que a VPS aguenta (4 vCPU / 6 GB)."
+        if erros:
+            raise ValidationError(erros)
 
 
 class UserManager(BaseUserManager):
@@ -82,6 +264,22 @@ class User(AbstractBaseUser):
     #: (`manage.py createsuperuser` ou `admin_tools --panel-on`): nenhuma rota da API o aceita.
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
+
+    #: Plano da conta (SPEC-018). Nulo é o caso normal e significa "o plano default" — e não
+    #: "sem plano": atribuir `free` a toda conta existente na migration criaria milhares de FKs
+    #: para dizer o que a ausência já diz, e obrigaria a um UPDATE em massa no dia em que o
+    #: default mudasse de nome.
+    plan = models.ForeignKey(
+        "api.Plan",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="users",
+    )
+    #: Quando a assinatura expira. Nulo = sem prazo. Vencido cai para o default **na leitura**
+    #: (`capabilities_for`), sem job de expiração: um cron que rebaixa contas seria um segundo
+    #: lugar onde o plano é decidido, e o dia em que ele não rodasse ninguém notaria.
+    plan_until = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 

@@ -82,7 +82,7 @@ def _agora_ms() -> int:
 class CloudSlots:
     """Semáforo de sessões cloud sobre um cliente Redis."""
 
-    __slots__ = ("_acquire", "_active", "_client", "_key", "_limit")
+    __slots__ = ("_acquire", "_active", "_client", "_grace_ms", "_key", "_limit")
 
     def __init__(
         self,
@@ -90,10 +90,15 @@ class CloudSlots:
         *,
         limit: int = DEFAULT_CLOUD_SLOTS,
         key: str = CLOUD_SLOTS_KEY,
+        grace_ms: int = GRACE_MS,
     ) -> None:
         self._client = client
         self._limit = limit
         self._key = key
+        #: Parâmetro desde a SPEC-018/T-073: a API resolve a capacidade e passa o valor na
+        #: admissão. O default continua sendo a constante — o piso do código do P2 —, e este
+        #: módulo segue sem saber que existe banco, como o ADR-008 exige.
+        self._grace_ms = grace_ms
         self._acquire = client.register_script(_ACQUIRE)
         self._active = client.register_script(_ACTIVE)
 
@@ -111,7 +116,7 @@ class CloudSlots:
         concedido = bool(
             self._acquire(
                 keys=[self._key],
-                args=[session_id, agora, agora + ttl_ms + GRACE_MS, self._limit],
+                args=[session_id, agora, agora + ttl_ms + self._grace_ms, self._limit],
             )
         )
         if not concedido:

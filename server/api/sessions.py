@@ -136,16 +136,24 @@ def create_session(
     *,
     duration_s: int = DEFAULT_DURATION_S,
     ttl_s: int = DEFAULT_TTL_S,
+    countdown_s: int | None = None,
     now: int | None = None,
     redis_client=None,
     event_bus=None,
     slots=None,
+    caps=None,
 ) -> SessionTicket:
     """Admite a sessão: registra em Redis, publica `session.started` e devolve o ticket.
 
-    Edge entra sempre (sem limite na Fase Inicial). Cloud depende de vaga no semáforo
-    (`slots:cloud = 3`, SPEC-009): sem vaga, a resposta é `mode: "denied_cloud"` e o cliente
-    trata como indisponibilidade momentânea.
+    Edge entra sempre (sem limite na Fase Inicial). Cloud depende do plano (`allow_cloud`,
+    SPEC-018) **e** de vaga no semáforo (`slots:cloud = 3`, SPEC-009): sem qualquer um dos dois,
+    a resposta é `mode: "denied_cloud"` e o cliente trata como indisponibilidade momentânea. Os
+    dois motivos dão a mesma resposta de propósito — para quem está do outro lado, "seu plano não
+    tem" e "não há vaga agora" pedem a mesma ação, e distinguir aqui só vazaria configuração.
+
+    `caps` é o resultado de `capabilities_for()`, resolvido pela view (P1: quem lê configuração é
+    a fronteira da API). Ausente, os parâmetros explícitos mandam — é o que mantém esta função
+    testável sem banco, como ela já era.
     """
     agora = now if now is not None else int(time.time())
     session_id = str(uuid.uuid4())
@@ -159,8 +167,15 @@ def create_session(
     # uma sessão que nunca foi admitida.
     if request.requested_mode is Mode.EDGE:
         modo = Mode.EDGE
+    elif caps is not None and not caps.allow_cloud:
+        modo = None
     else:
-        semaforo = slots if slots is not None else CloudSlots(cliente)
+        if slots is not None:
+            semaforo = slots
+        elif caps is not None:
+            semaforo = CloudSlots(cliente, limit=caps.cloud_slots, grace_ms=caps.cloud_grace_ms)
+        else:
+            semaforo = CloudSlots(cliente)
         modo = (
             Mode.CLOUD
             if semaforo.acquire(session_id, ttl_ms=ttl_s * 1000, now_ms=agora * 1000)
@@ -199,7 +214,10 @@ def create_session(
             exercise=request.exercise,
             mode=modo,
             duration_s=duration_s,
-            countdown_s=request.countdown_s,
+            # A preferência do cliente já veio normalizada pelo teto do CÓDIGO (`parse`); aqui
+            # ela passa pelo teto do PLANO, quando há um. Os dois clamps não são redundância: o
+            # primeiro protege contra lixo no corpo da requisição, o segundo é capacidade.
+            countdown_s=request.countdown_s if countdown_s is None else countdown_s,
         ),
         session_id=session_id,
         ts=ts_ms,

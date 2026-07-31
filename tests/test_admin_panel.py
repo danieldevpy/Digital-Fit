@@ -241,6 +241,122 @@ def test_troca_de_senha_pelo_painel(client, operador, comum) -> None:
     assert client.get(f"{PAINEL}api/user/{comum.pk}/password/").status_code == 200
 
 
+# --- configuração de produto (T-073) ----------------------------------------------------
+#
+# Todos por REQUISIÇÃO, e não instanciando `ModelAdmin`: a lição do `ContaCreateForm` acima é
+# que fieldset errado responde 500 sem que nenhum teste de classe perceba. Aqui há dois
+# fieldsets novos e um `get_readonly_fields` condicional — exatamente o tipo de código que
+# quebra na tela e passa na unidade.
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_telas_de_plano_e_configuracao_abrem(client, operador) -> None:
+    from api.models import Plan
+
+    client.force_login(operador)
+    free = Plan.objects.get(slug="free")
+
+    assert client.get(f"{PAINEL}api/plan/").status_code == 200
+    assert client.get(f"{PAINEL}api/plan/{free.pk}/change/").status_code == 200
+    assert client.get(f"{PAINEL}api/siteconfig/").status_code == 200
+    assert client.get(f"{PAINEL}api/siteconfig/1/change/").status_code == 200
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_editar_o_plano_no_painel_muda_a_admissao_sem_restart(client, operador) -> None:
+    """Critério 1 da SPEC-018, pelo caminho real: formulário do painel → resolvedor."""
+    from api.config import capabilities_for
+    from api.models import Plan
+
+    anon = Plan.objects.get(slug="anon")
+    assert capabilities_for(None).daily_sessions == 3
+
+    client.force_login(operador)
+    campos = {
+        campo: getattr(anon, campo)
+        for campo in (
+            "nome",
+            "ordem",
+            "daily_sessions",
+            "session_min_s",
+            "session_max_s",
+            "countdown_max_s",
+            "history_limit",
+            "streak_protections_month",
+            "min_maturity",
+            "quota_message",
+        )
+    }
+    campos["daily_sessions"] = 5
+    campos["allow_cloud"] = "on"
+    campos["flags"] = "{}"
+
+    resposta = client.post(f"{PAINEL}api/plan/{anon.pk}/change/", data=campos)
+
+    assert resposta.status_code == 302, resposta.context["adminform"].form.errors
+    assert capabilities_for(None).daily_sessions == 5
+
+    # Critério 7 da spec, agora sobre configuração: mudança de capacidade sem autor e data
+    # registrados seria a pior espécie de mudança sem deploy.
+    from django.contrib.admin.models import LogEntry
+
+    registro = LogEntry.objects.latest("action_time")
+    assert registro.user == operador
+    assert "Daily sessions" in registro.change_message
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_plano_nao_se_apaga_pelo_painel(client, operador) -> None:
+    """`User.plan` é `SET_NULL`: apagar o `free` esvaziaria contas em silêncio, sem erro."""
+    from api.models import Plan
+
+    client.force_login(operador)
+    free = Plan.objects.get(slug="free")
+
+    assert client.get(f"{PAINEL}api/plan/{free.pk}/delete/").status_code == 403
+    assert Plan.objects.filter(slug="free").exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_configuracao_do_site_e_singleton(client, operador) -> None:
+    """Um segundo `SiteConfig` seria configuração que nunca é lida (o resolvedor busca `pk=1`)."""
+    client.force_login(operador)
+
+    assert client.get(f"{PAINEL}api/siteconfig/add/").status_code == 403
+    assert client.get(f"{PAINEL}api/siteconfig/1/delete/").status_code == 403
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_painel_atribui_plano_e_validade_a_uma_conta(client, operador, comum) -> None:
+    """SPEC-018 §E: atribuir plano e validade é o suporte que hoje passa por shell na VPS."""
+    from api.config import capabilities_for
+    from api.models import Plan
+
+    assinatura = Plan.objects.get(slug="subscriber")
+    client.force_login(operador)
+
+    resposta = client.post(
+        f"{PAINEL}api/user/{comum.pk}/change/",
+        data={
+            "email": comum.email,
+            "name": comum.name,
+            "is_active": "on",
+            "plan": assinatura.pk,
+            "plan_until_0": "2027-01-01",
+            "plan_until_1": "00:00:00",
+        },
+    )
+
+    assert resposta.status_code == 302, resposta.context["adminform"].form.errors
+    comum.refresh_from_db()
+    assert capabilities_for(comum).plan_slug == "subscriber"
+
+
 @pytest.mark.django_db
 def test_cadastro_pela_api_nao_concede_o_painel(client) -> None:
     """O caminho óbvio de ataque, agora para a flag que abre dado dos outros."""
