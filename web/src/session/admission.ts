@@ -9,13 +9,7 @@ import { countdownPreference } from './preferences'
 import type { Mode } from '../lib/events'
 import { Mode as ModeValues } from '../lib/events'
 import { toCapabilityData, type ProbeOutcome } from '../probe/runProbe'
-
-/** Quanto do trial anônimo deste aparelho já foi usado hoje (SPEC-011). */
-export interface TrialStatus {
-  used: number
-  limit: number
-  remaining: number
-}
+import type { QuotaSnapshot } from './quota'
 
 /** Resposta do `POST /api/sessions` — espelho de `SessionTicket` em `server/api/sessions.py`. */
 export interface SessionTicket {
@@ -28,15 +22,29 @@ export interface SessionTicket {
   expires_at: number
   /** Id do aparelho: na primeira visita quem o gera é o servidor (SPEC-011). */
   device_id?: string
-  /** Ausente para quem tem conta — só o trial anônimo tem contador. */
-  trial?: TrialStatus | null
+  /**
+   * Quanto da quota de hoje já foi gasto. Vem SEMPRE, inclusive em plano ilimitado (com
+   * `unlimited: true`) — um campo que sumisse obrigaria o cliente a ler ausência como
+   * permissão, e ausência também é o que ele veria num corpo truncado ou num bug.
+   */
+  quota: QuotaSnapshot
 }
 
 /**
- * Código da recusa por trial esgotado (HTTP 429). O cliente distingue isto de "servidor com
- * problema" porque a ação é outra: aqui não adianta tentar de novo, adianta criar conta.
+ * Códigos da recusa por quota (HTTP 429). O cliente distingue isto de "servidor com problema"
+ * porque a ação é outra: aqui não adianta tentar de novo.
+ *
+ * São dois porque a ação de quem lê é diferente. `trial_exhausted`: o visitante cria conta, e a
+ * conta resolve hoje mesmo. `quota_exceeded`: a conta já existe e é ela que chegou ao limite —
+ * o convite a criar conta seria um conselho impossível de seguir.
  */
 export const TRIAL_EXHAUSTED = 'trial_exhausted'
+export const QUOTA_EXCEEDED = 'quota_exceeded'
+
+/** Se este código é uma recusa por limite diário (qualquer das duas identidades). */
+export function isQuotaRefusal(code: string | undefined): boolean {
+  return code === TRIAL_EXHAUSTED || code === QUOTA_EXCEEDED
+}
 
 /**
  * Pedido de cloud sem vaga no semáforo (`slots:cloud = 3`, SPEC-009) volta com este `mode`,
@@ -47,14 +55,20 @@ export const DENIED_CLOUD = 'denied_cloud'
 
 export class AdmissionError extends Error {
   readonly status?: number
-  /** `trial_exhausted` quando a recusa é a quota do visitante (SPEC-011, critério 1). */
+  /** `trial_exhausted` ou `quota_exceeded` quando a recusa é o limite diário (SPEC-016). */
   readonly code?: string
+  /**
+   * O contador no instante da recusa. Vem junto do erro para o sheet dizer "10 de 10" e "renova
+   * às 21:00" sem uma segunda chamada — e sem o cliente estimar nada por conta própria.
+   */
+  readonly quota?: QuotaSnapshot
 
-  constructor(message: string, status?: number, code?: string) {
+  constructor(message: string, status?: number, code?: string, quota?: QuotaSnapshot) {
     super(message)
     this.name = 'AdmissionError'
     this.status = status
     this.code = code
+    this.quota = quota
   }
 }
 
@@ -107,9 +121,9 @@ export async function requestSession(
   }
 
   if (!resposta.ok) {
-    const { detail, code, device_id } = await corpoDeErro(resposta)
+    const { detail, code, device_id, quota } = await corpoDeErro(resposta)
     rememberDeviceId(device_id)
-    throw new AdmissionError(detail ?? mensagemPadrao(resposta), resposta.status, code)
+    throw new AdmissionError(detail ?? mensagemPadrao(resposta), resposta.status, code, quota)
   }
 
   const ticket = (await resposta.json()) as SessionTicket
@@ -130,6 +144,7 @@ interface ErroDaAdmissao {
   detail?: string
   code?: string
   device_id?: string
+  quota?: QuotaSnapshot
 }
 
 async function corpoDeErro(resposta: Response): Promise<ErroDaAdmissao> {

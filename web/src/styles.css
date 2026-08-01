@@ -778,17 +778,6 @@ a {
   font-size: 0.78rem;
 }
 
-.account__trial {
-  margin: 10px 0 0;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 138, 61, 0.45);
-  border-radius: 12px;
-  color: var(--hot);
-  font-size: 0.82rem;
-  line-height: 1.4;
-  text-align: left;
-}
-
 .account__form {
   display: flex;
   flex-direction: column;
@@ -3089,4 +3078,85 @@ a {
 .mock-stats__cell .stats__icon {
   width: 16px;
   height: 16px;
+}
+
+/* ---------------------------------------------------------------- quota diária (T-063)
+
+   Bloco do limite na folha de conta e o chip de plano acima dele. Ficam no fim do arquivo
+   porque nasceram depois — e porque `.account__trial`, que este bloco substitui, some junto
+   com o último `trialMessage` (a busca por "trial" no CSS não deve achar nada de vivo). */
+.account__plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px auto 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.1);
+  font-size: 0.72rem;
+}
+
+.account__plan-name {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.account__plan-left {
+  color: var(--text-dim);
+}
+
+/* Laranja do `--hot` e não vermelho de erro: bater no limite é ter treinado muito, não ter
+   feito algo errado — é o que o "🎉" do título diz, e a cor tem de dizer o mesmo. */
+.account__quota {
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 138, 61, 0.45);
+  border-radius: 12px;
+  background: rgba(255, 138, 61, 0.07);
+  text-align: left;
+}
+
+.account__quota-title {
+  margin: 0;
+  color: var(--hot);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.account__quota-text {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.account__quota-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+.account__quota-renew {
+  margin-left: auto;
+}
+
+.account__quota-soon {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+/* "estimado" sob o número do card CALORIAS. Minúsculo de propósito: a ressalva precisa estar
+   lá para o número não se apresentar como medição, e não pode competir com ele por atenção. */
+.hud-card__note {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-dim);
+  font-size: 0.5rem;
+  letter-spacing: 0.04em;
 }

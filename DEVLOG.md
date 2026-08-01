@@ -5,6 +5,96 @@
 
 ---
 
+## 2026-08-01 (21) · T-063 — o Free ganha limite, e o limite ganha uma tela honesta
+
+Quota diária por plano no servidor (`429 quota_exceeded`), sheet de limite com contagem e hora
+de renovação, e kcal ao vivo no HUD. Fecha os quatro critérios da Fase Inicial da SPEC-016 — e
+é o primeiro produto a **consumir** o `Plan` que a T-073 deixou pronto sem ligar nada.
+
+**O que muda para quem usa:** a conta Free passa a ter 10 sessões por dia (a "proposta inicial"
+da spec), a 11ª é recusada pelo servidor, e a tela avisa **antes de a câmera abrir**. O card
+CALORIAS deixa de ser `--` durante o treino.
+
+**Decisões, e o que foi rejeitado:**
+
+- **`trial.py` virou `quota.py`, e a regra ficou uma só.** A SPEC-018 §A já dizia o que fazer:
+  *"a identidade do contado muda, a regra não"*. Um módulo chamado "trial" contando as sessões
+  de quem tem conta seria o convite a escrever o segundo contador — e dois contadores da mesma
+  regra divergem no dia em que só um for corrigido. A chave do visitante continua `trial:` e
+  **não** foi renomeada: renomeá-la zeraria o contador de todo mundo no deploy, dando um dia
+  grátis a mais justamente a quem já tinha esgotado.
+- **O piso do código do Free é 10, não 0.** Escrevi `0` (ilimitado) primeiro, para "degradar
+  sem travar ninguém", e é a escolha errada: um soluço de Postgres entregaria sessões
+  ilimitadas a todo mundo, em silêncio, até alguém olhar a fatura da VPS. Piso é *"o produto de
+  ontem"*, e o produto de ontem tem limite. Há teste cobrando que a constante e a linha do
+  banco digam o mesmo número.
+- **Rota nova (`GET /api/quota`) em vez de um campo no `GET /api/config`.** O config seria o
+  lugar óbvio e seria um bug: aquela resposta é cacheada por ETag de (versão, plano,
+  `is_admin`), e nenhum dos três muda quando o contador anda — o `used` congelaria no primeiro
+  valor do dia e a tela diria "restam 7" para sempre. Número errado na tela é pior que número
+  nenhum (SPEC-014).
+- **O pré-voo não é a trava, e há teste disso.** A spec é explícita: *"a UI apenas reflete e
+  vende o upgrade, nunca é a única barreira"*. `test_pular_o_pre_voo_nao_ajuda` e
+  `test_limite_no_corpo_da_requisicao_e_ignorado` existem porque o critério 4 é o mais fácil de
+  fingir que se testou — um teste do caminho normal prova que o caminho normal funciona, não
+  que não há outro.
+- **Dois códigos de recusa, não um.** `trial_exhausted` (crie conta, resolve hoje) e
+  `quota_exceeded` (a conta é que chegou ao limite). Um código só obrigaria o cliente a olhar
+  se há usuário para escolher a mensagem — e o servidor já sabe. Convidar quem já tem conta a
+  criar conta seria um conselho impossível de seguir.
+- **A hora de renovação é formatada no cliente, a partir do instante.** O servidor conta o dia
+  em UTC; escrever "renova à meia-noite" mentiria para quem está no Brasil, onde o contador
+  vira às 21 h. Mandar o `resets_at` e formatá-lo no navegador mantém as duas coisas
+  verdadeiras — e a tela de fato exibiu `Renova amanhã às 21:00`.
+- **Não há botão de assinar.** A spec pede o CTA "ainda sem checkout — lista de espera/em
+  breve", e um botão que não leva a lugar nenhum seria a primeira afordância inventada de um
+  app cuja regra é mostrar `--` quando não há dado. Enquanto o checkout não existe, o convite é
+  uma frase.
+- **Kcal ao vivo não contradiz "a UI nunca mostra número inventado".** A regra proíbe número
+  que o servidor não forneceu — e é por ela que FC continua `--`. Aqui os dois insumos que
+  decidem o resultado vêm de fora do cliente: o MET é dado do catálogo servido (T-074, editável
+  no painel) e o tempo é o da sessão que o servidor admitiu. O que o cliente põe de si é o
+  peso, e ele entra marcado como `estimado` justamente por ser a única parte que não sabemos.
+  **Sem MET não há conta e não há número** — volta `--`, sem a ressalva.
+- **`message` vazio quando o plano é ilimitado.** Achado ao ler o corpo do assinante no `curl`:
+  a resposta carregava "suas sessões de hoje acabaram" para quem não tem limite. Frase falsa
+  esperando um consumidor descuidado que a exiba.
+
+**Corrigido no navegador, não no editor:** o chip do Perfil dizia `0 de 10 hoje` (restantes) ao
+lado do bloco que dizia `10 de 10 sessões de hoje` (usadas) — dois significados para a mesma
+forma, na mesma tela. Só apareceu com a conta esgotada na tela real; virou `restam 0`.
+
+**Verificação no stack real** (containers `digital-fit`, conta criada pela própria API):
+
+| O que | Como | Resultado |
+|---|---|---|
+| Critério 1 — a 11ª é recusada | 11 `POST /api/sessions` numa conta Free nova | 10× `201` (`used` 1→10), a 11ª `429 quota_exceeded` |
+| Critério 1 — antes da câmera | clicar "Iniciar Exercício" com 10/10 no app | sheet abriu, `video.srcObject` **nulo**, rota ficou na pré-config |
+| O texto que a pessoa lê | DOM da folha de conta | "Você treinou muito hoje 🎉" · "10 de 10 sessões de hoje" · "Renova amanhã às 21:00" |
+| Critério 2 — assinante | trocar o plano da MESMA conta esgotada e repetir | 3× `201`, `unlimited: true`, contador parado em `10` |
+| Critério 4 — forjar o cliente | `X-Device-Id` novo + `daily_sessions: 999` no corpo | `429` — a chave da conta não tem aparelho dentro |
+| Critério 4 — pular o pré-voo | `POST` direto, sem `GET /api/quota` | `429` |
+| Chave e prazo do contador | `redis-cli` | `df:quota:{id}:2026-08-01` = `10`, TTL 172 706 s (48 h) |
+| Critério 3 — MET real na mão do cliente | ler o catálogo servido no `localStorage` | polichinelo `met 8` → 4,9 kcal/30 s; agachamento `met 5` → 3,1 |
+| Critério 3 — o card no HUD | rota `#/treino` no navegador | `0,0 kcal` + `estimado` — prova que o MET servido chegou ao componente |
+| Critério 3 — sem MET, `--` | `docker compose stop api` + catálogo local apagado | `-- kcal`, **sem** a ressalva "estimado" |
+| Custo do pré-voo | `performance.getEntriesByType('resource')` | 3 chamadas no boot — o mesmo que o `GET /api/config` que já existia |
+
+O que **não** foi observado ao vivo: o kcal subindo durante uma sessão de verdade. O navegador
+controlado não tem câmera, então o HUD foi visto com a sessão parada (`0,0`) — o que prova a
+ligação (MET servido → componente), não o movimento. A fórmula tem teste de unidade com o
+número conferido à mão; o movimento fica para o próximo teste no celular.
+
+Gates: `ruff` limpo, `pytest` 678 verdes (+16), `npm run lint`/`typecheck`/`test` verdes (395,
++18), `makemigrations --check` sem drift, `manage.py check` com o painel ligado sem issues.
+
+**Pendências e efeitos colaterais:** o banco de dev ficou com ~27 sessões de verificação, três
+contas `t063-*` e a versão de configuração em `6` (o contador só anda para frente). Nenhuma
+tela soma kcal entre sessões — conferido por busca em `ProgressScreen`, `AnalyticsScreen` e
+`report/`, e garantido por construção: `session/kcal.ts` não tem estado. O acúmulo é capacidade
+de assinante (`kcal_accumulation` no `Plan`) e é a T-064, junto com o peso real da T-065 —
+enquanto ele não chega, os 70 kg continuam premissa declarada na tela.
+
 ## 2026-07-31 (20) · T-075 — o relatório passa a dizer sob qual configuração a sessão nasceu
 
 `session.started` ganha `config_version` (aditivo, default `0`), a API carimba a versão que

@@ -19,7 +19,7 @@ import { toCapabilityData } from '../probe/runProbe'
 import { waitForReport } from '../report/sessionReport'
 import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
-import { AdmissionError, TRIAL_EXHAUSTED, modeToRequest, requestSession } from './admission'
+import { AdmissionError, isQuotaRefusal, modeToRequest, requestSession } from './admission'
 import { exercisePreference } from './preferences'
 import { entryFromEvent } from './coachCard'
 import { setGatewayClient, startNewSequence } from './gatewayInstance'
@@ -177,8 +177,10 @@ export function useSession(enabled: boolean) {
       })
         .then((ticket) => {
           if (cancelado) return
-          // Quanto do trial sobrou (SPEC-011). Vem `null`/ausente para quem tem conta.
-          useAccountStore.getState().setTrial(ticket.trial ?? null)
+          // Quanto da quota de hoje sobrou (SPEC-011/016). O ticket é a fonte mais fresca
+          // que existe — acabou de contar esta sessão —, então o pré-voo não precisa correr
+          // atrás depois de cada treino.
+          useAccountStore.getState().setQuota(ticket.quota)
           // O ticket é a única fonte de `session_id` no caminho real: `session.started` não
           // está nos CLIENT_PUSH_TYPES, então ele nunca chega pelo WS. Sem isto o cliente
           // não sabe em nome de quem enviar `pose.frame` — e não envia nada.
@@ -197,10 +199,11 @@ export function useSession(enabled: boolean) {
             erro instanceof AdmissionError ? erro.message : 'Falha ao abrir a sessão.',
           )
           store.setGatewayStatus('error')
-          // Trial esgotado não é falha de infraestrutura: a ação certa é criar conta, então
-          // a tela de conta abre sozinha com o motivo (SPEC-011, critério 1).
-          if (erro instanceof AdmissionError && erro.code === TRIAL_EXHAUSTED) {
-            useAccountStore.getState().blockByTrial()
+          // Limite diário não é falha de infraestrutura: há uma ação certa a tomar (criar
+          // conta, ou esperar o dia virar), então a folha de conta abre sozinha com o motivo
+          // e a contagem que veio na recusa (SPEC-011 critério 1 / SPEC-016 critério 1).
+          if (erro instanceof AdmissionError && isQuotaRefusal(erro.code)) {
+            useAccountStore.getState().blockByQuota(erro.quota ?? null)
           }
         })
     }

@@ -4,7 +4,14 @@ import { deviceId } from '../auth/storage'
 import { installStorage, uninstallStorage } from '../auth/testStorage'
 import { Mode } from '../lib/events'
 import type { ProbeOutcome } from '../probe/runProbe'
-import { AdmissionError, TRIAL_EXHAUSTED, modeToRequest, requestSession } from './admission'
+import {
+  AdmissionError,
+  QUOTA_EXCEEDED,
+  TRIAL_EXHAUSTED,
+  isQuotaRefusal,
+  modeToRequest,
+  requestSession,
+} from './admission'
 
 const TICKET = {
   session_id: '6f0d2f2e-0c2e-4a3f-9f0a-2b7c2a1d3e4f',
@@ -171,13 +178,53 @@ describe('trial anônimo (SPEC-011)', () => {
     expect((erro as AdmissionError).message).toMatch(/Redis/)
   })
 
-  it('o ticket carrega quanto sobrou do trial', async () => {
+  it('o ticket carrega quanto sobrou da quota de hoje', async () => {
     installStorage()
-    const ticket = await requestSession(
+    const quota = {
+      used: 2,
+      limit: 3,
+      remaining: 1,
+      unlimited: false,
+      allowed: true,
+      resets_at: '2026-08-01T00:00:00Z',
+      plan: 'anon',
+      plan_name: 'Visitante',
+      message: 'acabou',
+    }
+    const ticket = await requestSession(pedido, fetchFake({ ...TICKET, quota }))
+
+    expect(ticket.quota).toEqual(quota)
+  })
+
+  it('a recusa por quota da conta tem código próprio, e traz o contador junto', async () => {
+    installStorage()
+    const quota = {
+      used: 10,
+      limit: 10,
+      remaining: 0,
+      unlimited: false,
+      allowed: false,
+      resets_at: '2026-08-01T00:00:00Z',
+      plan: 'free',
+      plan_name: 'Free',
+      message: 'Você treinou muito hoje 🎉',
+    }
+    const erro = await requestSession(
       pedido,
-      fetchFake({ ...TICKET, trial: { used: 2, limit: 3, remaining: 1 } }),
-    )
-    expect(ticket.trial).toEqual({ used: 2, limit: 3, remaining: 1 })
+      fetchFake({ detail: 'acabou', code: QUOTA_EXCEEDED, quota }, { status: 429 }),
+    ).catch((falha: unknown) => falha)
+
+    // Sem o contador na recusa, o sheet teria de fazer uma segunda chamada só para dizer
+    // "10 de 10" — ou, pior, estimar.
+    expect((erro as AdmissionError).quota).toEqual(quota)
+    expect(isQuotaRefusal((erro as AdmissionError).code)).toBe(true)
+  })
+
+  it('as duas recusas por limite são reconhecidas, e uma falha de infra não', () => {
+    expect(isQuotaRefusal(TRIAL_EXHAUSTED)).toBe(true)
+    expect(isQuotaRefusal(QUOTA_EXCEEDED)).toBe(true)
+    expect(isQuotaRefusal(undefined)).toBe(false)
+    expect(isQuotaRefusal('denied_cloud')).toBe(false)
   })
 })
 

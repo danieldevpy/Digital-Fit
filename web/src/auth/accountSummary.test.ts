@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { SessionReport } from '../report/sessionReport'
-import { displayName, historyDate, historyTotals, trialMessage } from './accountSummary'
+import type { QuotaSnapshot } from '../session/quota'
+import { displayName, historyDate, historyTotals, quotaNotice, renewLabel } from './accountSummary'
 
 const RELATORIO: SessionReport = {
   session_id: 's1',
@@ -20,27 +21,90 @@ const RELATORIO: SessionReport = {
   created_at: '2026-07-29T10:00:00Z',
 }
 
-describe('trialMessage', () => {
-  it('recusado por trial diz o que fazer, não só o que aconteceu', () => {
-    const texto = trialMessage(null, true)
-    expect(texto).toMatch(/Crie uma conta/)
+const AGORA = new Date('2026-07-31T18:00:00Z')
+
+function quota(campos: Partial<QuotaSnapshot> = {}): QuotaSnapshot {
+  return {
+    used: 1,
+    limit: 10,
+    remaining: 9,
+    unlimited: false,
+    allowed: true,
+    resets_at: '2026-08-01T00:00:00Z',
+    plan: 'free',
+    plan_name: 'Free',
+    message: 'Você treinou muito hoje 🎉 Suas sessões de hoje acabaram.',
+    ...campos,
+  }
+}
+
+describe('quotaNotice', () => {
+  it('esgotado mostra o título da spec, a contagem e quando renova', () => {
+    const aviso = quotaNotice(quota({ used: 10, remaining: 0, allowed: false }), true, AGORA)
+
+    expect(aviso?.title).toBe('Você treinou muito hoje 🎉')
+    expect(aviso?.count).toBe('10 de 10 sessões de hoje')
+    expect(aviso?.renew).toMatch(/^Renova às /)
+  })
+
+  it('o texto é o do servidor, não uma cópia local', () => {
+    const doPainel = 'Mensagem que alguém escreveu no admin numa terça-feira.'
+    const aviso = quotaNotice(quota({ allowed: false, message: doPainel }), false, AGORA)
+
+    expect(aviso?.text).toBe(doPainel)
+  })
+
+  it('a contagem acompanha o limite do plano — 15 no painel, 15 na tela', () => {
+    const aviso = quotaNotice(quota({ used: 15, limit: 15, remaining: 0, allowed: false }), true, AGORA)
+
+    expect(aviso?.count).toBe('15 de 15 sessões de hoje')
   })
 
   it('a última sessão do dia avisa', () => {
-    expect(trialMessage({ used: 2, limit: 3, remaining: 1 }, false)).toMatch(/Resta 1 sessão/)
+    const aviso = quotaNotice(quota({ used: 9, remaining: 1 }), false, AGORA)
+
+    expect(aviso?.text).toMatch(/Resta 1 sessão/)
+  })
+
+  it('o visitante é convidado à conta e o Free à assinatura — o degrau seguinte de cada um', () => {
+    const visitante = quotaNotice(quota({ plan: 'anon', used: 2, limit: 3, remaining: 1 }), false, AGORA)
+    const free = quotaNotice(quota({ used: 9, remaining: 1 }), false, AGORA)
+
+    expect(visitante?.text).toMatch(/conta/)
+    expect(free?.text).toMatch(/assinatura/)
   })
 
   it('quem ainda tem folga não é lembrado do limite', () => {
-    expect(trialMessage({ used: 0, limit: 3, remaining: 3 }, false)).toBeNull()
-    expect(trialMessage({ used: 1, limit: 3, remaining: 2 }, false)).toBeNull()
+    expect(quotaNotice(quota({ used: 0, remaining: 10 }), false, AGORA)).toBeNull()
+    expect(quotaNotice(quota({ used: 8, remaining: 2 }), false, AGORA)).toBeNull()
   })
 
-  it('zerado sem ter sido recusado ainda também avisa', () => {
-    expect(trialMessage({ used: 3, limit: 3, remaining: 0 }, false)).toMatch(/usou suas 3/)
+  it('plano ilimitado não tem o que dizer, nem quando bloqueado por engano', () => {
+    expect(quotaNotice(quota({ limit: 0, unlimited: true }), true, AGORA)).toBeNull()
   })
 
-  it('quem tem conta não vê nada sobre trial', () => {
-    expect(trialMessage(null, false)).toBeNull()
+  it('sem resposta do servidor não inventa aviso nenhum', () => {
+    expect(quotaNotice(null, true, AGORA)).toBeNull()
+  })
+})
+
+describe('renewLabel', () => {
+  it('perto da virada diz a hora local, não "meia-noite"', () => {
+    // O servidor conta o dia em UTC; no Brasil isso é 21 h. Dizer "meia-noite" seria mentira.
+    const texto = renewLabel('2026-08-01T00:00:00Z', new Date('2026-07-31T18:00:00Z'))
+
+    expect(texto).toMatch(/^Renova às \d{2}:\d{2}$/)
+  })
+
+  it('longe demais vira "amanhã" — hora exata daqui a 20 h não ajuda ninguém', () => {
+    const texto = renewLabel('2026-08-01T00:00:00Z', new Date('2026-07-31T02:00:00Z'))
+
+    expect(texto).toMatch(/^Renova amanhã às /)
+  })
+
+  it('data podre ou virada já passada não viram texto', () => {
+    expect(renewLabel('não é data', AGORA)).toBeNull()
+    expect(renewLabel('2026-07-30T00:00:00Z', AGORA)).toBeNull()
   })
 })
 

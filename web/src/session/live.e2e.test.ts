@@ -388,8 +388,8 @@ describe.skipIf(!LIGADO)('E2E: cliente TS ↔ stack real', () => {
           requestedMode: Mode.EDGE,
           probe: null,
         })
-        // Conta não gasta trial: o campo nem vem.
-        expect(ticket.trial ?? null).toBeNull()
+        // Conta não gasta o contador do aparelho: a quota que volta é a da conta (T-063).
+        expect(ticket.quota.plan).toBe('free')
 
         const socket = new WebSocket(ticket.ws_url)
         socket.binaryType = 'arraybuffer'

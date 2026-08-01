@@ -13,7 +13,7 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from api import trial
+from api import quota as quota_rule
 from api.config import capabilities_for, config_etag, config_payload, exercises_for
 from api.models import SessionClaim, SessionResult
 from api.sessions import DENIED_CLOUD, SessionRequest, bus, create_session
@@ -23,6 +23,12 @@ logger = logging.getLogger("api")
 #: Quantas sessoes o historico devolve. Sem paginacao na Fase Inicial: a spec pede "historico
 #: do usuario", e quem tem 500 sessoes ainda nao existe. Paginar entra quando existir.
 HISTORY_LIMIT = 50
+
+#: Recusa por quota. Dois codigos e nao um porque a acao de quem le e outra: o visitante cria
+#: conta (e a conta resolve hoje), quem ja tem conta espera o dia virar ou assina. Um codigo so
+#: obrigaria o cliente a olhar se ha usuario para escolher a mensagem — e o servidor ja sabe.
+TRIAL_EXHAUSTED = "trial_exhausted"
+QUOTA_EXCEEDED = "quota_exceeded"
 
 
 def _usuario(request: Request):
@@ -91,6 +97,54 @@ def config(request: Request) -> Response:
     return resposta
 
 
+@api_view(["GET"])
+def quota(request: Request) -> Response:
+    """`GET /api/quota` — quanto ainda da para treinar hoje (SPEC-016, criterio 1).
+
+    Existe por causa de uma palavra do criterio: o sheet de limite tem de aparecer *"antes
+    mesmo de abrir a camera"*. A camera abre na pre-configuracao, antes de qualquer
+    `POST /sessions` — entao um 429 na hora do play chegaria tarde: a pessoa ja teria dado
+    permissao de camera, esperado o landmarker aquecer e se enquadrado para ouvir "nao".
+
+    **Por que nao no `GET /api/config`.** Seria a rota obvia, e seria um bug: aquela resposta e
+    cacheada por ETag de (versao, plano, `is_admin`) e nenhum dos tres muda quando o contador
+    anda. O `used` congelaria no primeiro valor do dia e o cliente exibiria "restam 7" para
+    sempre — um numero errado na tela, que e pior do que numero nenhum (SPEC-014).
+
+    Esta rota nao e a trava e nao pretende ser: a trava e a admissao (criterio 4). Ela e o que
+    permite a UI *refletir* o limite em vez de descobri-lo batendo nele.
+    """
+    usuario = _usuario(request)
+    device_id = "" if usuario else quota_rule.device_id_from(request.headers)
+    caps = capabilities_for(usuario)
+
+    if caps.unlimited_sessions:
+        # Sem limite nao ha contador para ler — e ler assim mesmo criaria a unica chamada de
+        # Redis do assinante nesta rota, para receber de volta o que o plano ja dizia.
+        status = _sem_limite(caps)
+    else:
+        try:
+            status = quota_rule.status_for(
+                bus().client, quota_rule.quota_key(usuario, device_id), limit=caps.daily_sessions
+            )
+        except Exception:
+            # Redis fora: "nao sei" dito como erro, e nao como `used: 0`. Um zero inventado
+            # aqui apagaria o sheet de quem ja esgotou, e o proximo passo dessa pessoa seria a
+            # camera abrindo para nada. O cliente trata a falha ficando com o que ja tinha.
+            logger.warning("nao foi possivel ler a quota", exc_info=True)
+            return Response({"detail": "quota indisponivel agora"}, status=503)
+
+    corpo = _snapshot_de_quota(caps, status, usuario)
+    if usuario is None:
+        # Mesma razao do ticket: na primeira visita quem gerou o id foi o servidor, e contar
+        # amanha na mesma chave depende de o cliente guardar ESTE id.
+        corpo["device_id"] = device_id
+    # Contador do dia nao e cacheavel por ninguem: e o valor que muda a cada sessao.
+    resposta = Response(corpo)
+    resposta["Cache-Control"] = "no-store"
+    return resposta
+
+
 @api_view(["GET", "POST"])
 def sessions(request: Request) -> Response:
     """`POST /api/sessions` admite; `GET /api/sessions?mine` lista o historico (SPEC-011).
@@ -116,7 +170,7 @@ def _admitir(request: Request) -> Response:
 
     usuario = _usuario(request)
     # Logado não carrega device: o aparelho só interessa a quem não tem conta.
-    device_id = "" if usuario else trial.device_id_from(request.headers)
+    device_id = "" if usuario else quota_rule.device_id_from(request.headers)
 
     # P1 da SPEC-018: quem lê configuração é a fronteira da API, uma vez por admissão, e o valor
     # resolvido viaja daqui para baixo. `capabilities_for` nunca levanta — banco ou cache fora
@@ -146,20 +200,24 @@ def _admitir(request: Request) -> Response:
         logger.exception("falha ao falar com o Redis")
         return Response({"detail": f"nao foi possivel criar a sessao: {exc}"}, status=503)
 
-    # A quota do anônimo agora é o `daily_sessions` do plano `anon`, não mais uma constante em
-    # `trial.py`. Conta logada segue sem limite porque o plano `free` nasce com 0 (= ilimitado),
-    # que é o comportamento de hoje — quem liga o limite do Free é a T-063, mudando uma linha no
-    # painel, e o contador por usuário (`df:quota:{user}:{dia}`) nasce lá com ele.
-    status = None
-    if usuario is None and not caps.unlimited_sessions:
-        status = trial.status_for(cliente, device_id, limit=caps.daily_sessions)
+    # A quota vale para TODO plano desde a T-063 (SPEC-016): o que muda entre o visitante e a
+    # conta Free e a chave do contador (`trial:{device}:{dia}` x `df:quota:{user}:{dia}`), nao
+    # a regra. Ate aqui so o anonimo era contado, porque so ele tinha limite.
+    #
+    # Plano ilimitado (`daily_sessions = 0`, e o caso da assinatura) nao le nem escreve
+    # contador nenhum: uma chave por dia por assinante seria lixo no Redis para responder uma
+    # pergunta cuja resposta e sempre "pode".
+    chave = quota_rule.quota_key(usuario, device_id)
+    status = _sem_limite(caps)
+    if not caps.unlimited_sessions:
+        status = quota_rule.status_for(cliente, chave, limit=caps.daily_sessions)
         if not status.allowed:
             return Response(
                 {
-                    "detail": caps.quota_message or trial.TRIAL_MESSAGE,
-                    "code": "trial_exhausted",
+                    "detail": caps.quota_message or _mensagem_padrao_de_quota(usuario),
+                    "code": QUOTA_EXCEEDED if usuario else TRIAL_EXHAUSTED,
                     "device_id": device_id,
-                    "trial": status.to_dict(),
+                    "quota": _snapshot_de_quota(caps, status, usuario),
                 },
                 # 429 e nao 403: nao e falta de permissao, e limite por tempo — e a mesma
                 # requisicao passa amanha sem o cliente mudar nada.
@@ -185,16 +243,53 @@ def _admitir(request: Request) -> Response:
     corpo["device_id"] = device_id
 
     if ticket.mode == DENIED_CLOUD:
-        # Sessao negada nao nasceu: nao tem dono e nao gasta trial.
-        corpo["trial"] = status.to_dict() if status else None
+        # Sessao negada nao nasceu: nao tem dono e nao gasta quota.
+        corpo["quota"] = _snapshot_de_quota(caps, status, usuario)
         return Response(corpo, status=201)
 
     SessionClaim.objects.create(session_id=ticket.session_id, user=usuario, device_id=device_id)
-    if usuario is None and not caps.unlimited_sessions:
-        status = trial.consume(cliente, device_id, limit=caps.daily_sessions)
-    if status is not None:
-        corpo["trial"] = status.to_dict()
+    if not caps.unlimited_sessions:
+        status = quota_rule.consume(cliente, chave, limit=caps.daily_sessions)
+    corpo["quota"] = _snapshot_de_quota(caps, status, usuario)
     return Response(corpo, status=201)
+
+
+def _snapshot_de_quota(caps, status: quota_rule.QuotaStatus, usuario) -> dict[str, Any]:
+    """A quota como o cliente a le — o MESMO corpo nos tres lugares que a devolvem.
+
+    Tres, e um so formato: o ticket do 201, a recusa do 429 e o pre-voo do `GET /api/quota`.
+    Montar cada um no seu lugar daria tres formatos parecidos, e o cliente precisaria de tres
+    leitores para o mesmo numero. O `plan_name` e a `message` viajam junto dos contadores
+    porque e disso que o sheet e feito: quem esta falando, quanto sobrou, e o que dizer.
+    """
+    recusa = caps.quota_message or _mensagem_padrao_de_quota(usuario)
+    return {
+        "plan": caps.plan_slug,
+        "plan_name": caps.plan_name,
+        # Vazio quando o plano e ilimitado: `message` e o texto da RECUSA, e quem nao tem
+        # limite nao tem recusa. Mandar "suas sessoes de hoje acabaram" para um assinante seria
+        # deixar uma frase falsa no corpo esperando um consumidor descuidado que a exiba.
+        "message": "" if status.unlimited else recusa,
+        **status.to_dict(),
+    }
+
+
+def _sem_limite(caps) -> quota_rule.QuotaStatus:
+    """O status de quem nao tem limite, montado sem tocar no Redis.
+
+    Existe para a resposta carregar `quota` SEMPRE. Um campo que some quando o plano e
+    ilimitado obrigaria o cliente a tratar ausencia como permissao — e ausencia tambem e o que
+    ele veria numa resposta velha, num proxy que corta corpo, ou num bug. `unlimited: true`
+    dito em voz alta nao tem esse duplo sentido.
+    """
+    return quota_rule.QuotaStatus(
+        used=0, limit=caps.daily_sessions, resets_at=quota_rule.resets_at()
+    )
+
+
+def _mensagem_padrao_de_quota(usuario) -> str:
+    """Piso da mensagem de recusa, quando o plano nao traz a dele (P2 da SPEC-018)."""
+    return quota_rule.TRIAL_MESSAGE if usuario is None else quota_rule.FREE_MESSAGE
 
 
 def _historico(request: Request) -> Response:

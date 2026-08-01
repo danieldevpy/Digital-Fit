@@ -13,6 +13,9 @@ urlpatterns = [
     path("api/auth/refresh", auth.refresh, name="auth-refresh"),
     path("api/me", auth.me, name="me"),
     path("api/config", views.config, name="config"),
+    # Separada do `/api/config` de proposito: aquela resposta e cacheada por ETag, e esta muda
+    # a cada sessao (ver `views.quota`).
+    path("api/quota", views.quota, name="quota"),
     path("api/sessions", views.sessions, name="sessions"),
     path("api/sessions/<str:session_id>/report", views.session_report, name="session-report"),
 ]

@@ -104,7 +104,7 @@ class Plan(models.Model):
     """O que cada tipo de conta pode (SPEC-018 §A + SPEC-016).
 
     **O anônimo é um plano** (`slug="anon"`), e não um caminho de código à parte. Até aqui o
-    trial vivia em `api/trial.py` porque era o único limite que existia; com esta tabela ele
+    trial vivia num módulo próprio porque era o único limite que existia; com esta tabela ele
     passa a ser o plano de entrada do funil — mesmo campo de limite, mesma mensagem de recusa,
     um resolvedor só. O que continua diferente é a **chave do contador** (`trial:{device}:{dia}`
     para anônimo, `df:quota:{user}:{dia}` para logado): a identidade do contado muda, a regra não.

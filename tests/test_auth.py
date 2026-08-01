@@ -17,9 +17,9 @@ from __future__ import annotations
 
 import pytest
 from api.models import SessionClaim, SessionResult, User
+from api.quota import TRIAL_LIMIT, account_key, device_id_from, device_key, status_for
+from api.quota import consume as consumir
 from api.tokens import verify_token
-from api.trial import TRIAL_LIMIT, TrialStatus, device_id_from, quota_key, status_for
-from api.trial import consume as consumir_trial
 
 from tests.test_sessions import FakeRedis, admissao_falsa
 
@@ -151,22 +151,24 @@ def test_conta_inativa_nao_loga(client, usuario) -> None:
 def test_contador_do_trial_vive_no_redis_e_expira() -> None:
     redis = FakeRedis()
 
-    assert status_for(redis, "dev-1") == TrialStatus(used=0)
+    chave = device_key("dev-1")
+
+    assert status_for(redis, chave, limit=TRIAL_LIMIT).used == 0
     for esperado in (1, 2, 3):
-        assert consumir_trial(redis, "dev-1").used == esperado
-    assert not status_for(redis, "dev-1").allowed
+        assert consumir(redis, chave, limit=TRIAL_LIMIT).used == esperado
+    assert not status_for(redis, chave, limit=TRIAL_LIMIT).allowed
     # TTL posto na primeira contagem, não em toda: sem isso a chave renovaria o prazo a cada
     # sessão e um aparelho ativo nunca zeraria.
-    assert redis.ttls[quota_key("dev-1")] > 0
+    assert redis.ttls[chave] > 0
 
 
 def test_aparelhos_diferentes_tem_trials_independentes() -> None:
     redis = FakeRedis()
     for _ in range(TRIAL_LIMIT):
-        consumir_trial(redis, "dev-1")
+        consumir(redis, device_key("dev-1"), limit=TRIAL_LIMIT)
 
-    assert not status_for(redis, "dev-1").allowed
-    assert status_for(redis, "dev-2").allowed
+    assert not status_for(redis, device_key("dev-1"), limit=TRIAL_LIMIT).allowed
+    assert status_for(redis, device_key("dev-2"), limit=TRIAL_LIMIT).allowed
 
 
 def test_device_id_torto_e_trocado_por_um_novo() -> None:
@@ -186,8 +188,8 @@ def test_quarta_sessao_do_dia_e_negada_com_convite_a_criar_conta(client, monkeyp
     for numero in range(1, TRIAL_LIMIT + 1):
         codigo, corpo = abrir_sessao(client, monkeypatch, headers=device, redis=redis)
         assert codigo == 201, f"sessao {numero} deveria passar"
-        assert corpo["trial"]["used"] == numero
-        assert corpo["trial"]["remaining"] == TRIAL_LIMIT - numero
+        assert corpo["quota"]["used"] == numero
+        assert corpo["quota"]["remaining"] == TRIAL_LIMIT - numero
 
     codigo, corpo = abrir_sessao(client, monkeypatch, headers=device, redis=redis)
 
@@ -210,23 +212,31 @@ def test_a_admissao_devolve_o_device_id_que_gerou(client, monkeypatch) -> None:
         client, monkeypatch, headers={"HTTP_X_DEVICE_ID": device}, redis=redis
     )
 
-    assert segunda["trial"]["used"] == 2
+    assert segunda["quota"]["used"] == 2
 
 
 @pytest.mark.django_db
-def test_usuario_logado_nao_gasta_trial(client, usuario, monkeypatch) -> None:
-    """A conta É o upgrade nesta fase: planos pagos são Fase Evolução."""
+def test_conta_conta_na_chave_dela_e_nao_na_do_aparelho(client, usuario, monkeypatch) -> None:
+    """A conta continua sendo o upgrade do visitante — só que agora ela também tem limite.
+
+    Até a T-063 este teste se chamava `test_usuario_logado_nao_gasta_trial` e cobrava
+    `redis.counters == {}`: quem tinha conta não era contado, porque não havia o que contar. A
+    SPEC-016 ligou os 10/dia do Free, e o que sobrou da propriedade antiga é a parte que
+    importa — a conta **não** gasta o trial do aparelho. Sem isso, quem cria conta no meio do
+    dia herdaria as sessões que já tinha feito como visitante, e a conta pareceria um
+    downgrade.
+    """
     redis = FakeRedis()
     cabecalhos = {**autorizacao(client), "HTTP_X_DEVICE_ID": "aparelho-de-teste-01"}
 
-    for _ in range(TRIAL_LIMIT + 2):
+    for numero in range(1, TRIAL_LIMIT + 3):
         codigo, corpo = abrir_sessao(client, monkeypatch, headers=cabecalhos, redis=redis)
         assert codigo == 201
-        assert "trial" not in corpo
+        assert corpo["quota"]["used"] == numero
 
-    assert redis.counters == {}
+    assert set(redis.counters) == {account_key(usuario.pk)}
     assert SessionClaim.objects.filter(user=usuario).count() == TRIAL_LIMIT + 2
-    # Sessão de quem tem conta não carrega aparelho: o device só existe para contar trial.
+    # Sessão de quem tem conta não carrega aparelho: o device só existe para o visitante.
     assert set(SessionClaim.objects.values_list("device_id", flat=True)) == {""}
 
 

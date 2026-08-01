@@ -195,7 +195,7 @@ REST_FRAMEWORK = {
     # que responde `is_authenticated=False` já é tudo que as views precisam distinguir.
     "UNAUTHENTICATED_USER": None,
     #: Rate limit das rotas de auth (SPEC-011). Só elas: limitar `POST /sessions` seria mexer
-    #: na quota do trial, que é decisão de produto e vive em `api/trial.py`.
+    #: na quota diária, que é decisão de produto e vive em `api/quota.py` + `Plan`.
     "DEFAULT_THROTTLE_RATES": {"auth": os.environ.get("AUTH_THROTTLE_RATE", "10/min")},
 }
 

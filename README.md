@@ -40,11 +40,14 @@ limites conhecidos em [docs/DEPLOY.md](docs/DEPLOY.md).
 Existe por um motivo concreto: `getUserMedia` exige contexto seguro, então **a câmera não
 abre pelo IP da rede local** — testar no celular pede HTTPS de verdade.
 
-## Contas e trial
+## Contas e quota diária
 
 Treinar não exige conta: quem chega tem **3 sessões por dia** por aparelho (SPEC-011). A
 quarta responde `429` com `code: trial_exhausted`, e a tela convida a criar conta — de graça,
-e-mail e senha, sem confirmação. A conta serve para guardar o histórico:
+e-mail e senha, sem confirmação. A conta Free tem **10 sessões por dia** (SPEC-016); a 11ª
+responde `429` com `code: quota_exceeded`. O limite de cada plano é linha de tabela, não
+constante: quem manda é o `Plan` do painel (SPEC-018), e `GET /api/quota` diz quanto sobrou
+hoje. A conta serve para guardar o histórico:
 
 ```
 POST /api/auth/register    # 201 + {user, access, refresh}

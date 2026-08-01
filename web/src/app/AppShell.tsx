@@ -12,6 +12,7 @@ import { GuideScreen } from '../screens/GuideScreen'
 import { ProgressScreen } from '../screens/ProgressScreen'
 import { SessionScreen } from '../screens/SessionScreen'
 import { podeAlimentarSessao } from '../session/pipelineGate'
+import { fetchQuota } from '../session/quota'
 import { fetchServerConfig } from '../session/serverConfig'
 import { useSession } from '../session/useSession'
 import { navigate, useRoute } from '../shell/nav'
@@ -51,6 +52,22 @@ export function AppShell() {
   const contaId = useAccountStore((state) => state.user?.id ?? null)
   useEffect(() => {
     void fetchServerConfig()
+  }, [contaId])
+
+  // Pré-voo da quota (SPEC-016, T-063). É o que faz o sheet de limite aparecer ANTES de a
+  // câmera abrir: sem ele, quem já esgotou daria permissão de câmera, esperaria o landmarker
+  // aquecer e se enquadraria só para ouvir "não" na hora do play.
+  //
+  // Uma vez por identidade, e não a cada tela: depois de cada sessão quem atualiza o contador
+  // é o próprio ticket (`useSession`), que acabou de contá-la e por isso sabe mais que uma
+  // consulta nova. Falhar é silencioso pelo mesmo motivo das duas chamadas acima.
+  useEffect(() => {
+    // `null` é "não deu para saber", não "sem limite": nesse caso o store fica como estava, e
+    // quem decide continua sendo a admissão. Escrever o `null` apagaria o sheet de quem já
+    // esgotou por causa de um Wi-Fi ruim.
+    void fetchQuota().then((quota) => {
+      if (quota) useAccountStore.getState().setQuota(quota)
+    })
   }, [contaId])
 
   // Ponte `#/ex/<slug>` vinda do site: só o app sabe se o guia daquele exercício já foi visto

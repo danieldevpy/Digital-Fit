@@ -1,7 +1,24 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { SessionReport } from '../report/sessionReport'
+import type { QuotaSnapshot } from '../session/quota'
 import { useAccountStore } from './account'
+
+/** Quota de conta Free com folga; os testes sobrescrevem o que interessa a cada um. */
+function quota(campos: Partial<QuotaSnapshot> = {}): QuotaSnapshot {
+  return {
+    used: 1,
+    limit: 10,
+    remaining: 9,
+    unlimited: false,
+    allowed: true,
+    resets_at: '2026-08-01T00:00:00Z',
+    plan: 'free',
+    plan_name: 'Free',
+    message: 'Você treinou muito hoje 🎉',
+    ...campos,
+  }
+}
 
 const RELATORIO = { session_id: 's1', rep_count: 20 } as SessionReport
 
@@ -27,14 +44,16 @@ describe('estado da conta', () => {
     expect(depois.busy).toBe(false)
   })
 
-  it('quem entrou não vê mais aviso de trial', () => {
+  it('entrar não herda a quota do visitante — nem o número, nem o bloqueio', () => {
     const store = useAccountStore.getState()
-    store.setTrial({ used: 3, limit: 3, remaining: 0 })
-    store.blockByTrial()
+    store.setQuota(quota({ plan: 'anon', used: 3, limit: 3, remaining: 0, allowed: false }))
+    store.blockByQuota()
     store.setUser({ id: 1, email: 'a@b.com', name: '', is_admin: false, date_joined: '2026-07-29T10:00:00Z' })
 
-    expect(useAccountStore.getState().trial).toBeNull()
-    expect(useAccountStore.getState().trialBlocked).toBe(false)
+    // A conta nova nasceria esgotada por causa do visitante de antes — e a conta é justamente
+    // o upgrade que se oferece a ele.
+    expect(useAccountStore.getState().quota).toBeNull()
+    expect(useAccountStore.getState().quotaBlocked).toBe(false)
   })
 
   it('trocar de conta não deixa o histórico da pessoa anterior na tela', () => {
@@ -60,35 +79,48 @@ describe('estado da conta', () => {
   })
 })
 
-describe('trial', () => {
-  it('recusa por trial abre a tela de conta sozinha', () => {
+describe('quota diária', () => {
+  it('recusa por limite abre a tela de conta sozinha', () => {
     expect(useAccountStore.getState().sheetOpen).toBe(false)
-    useAccountStore.getState().blockByTrial()
+    useAccountStore.getState().blockByQuota()
 
     const depois = useAccountStore.getState()
     expect(depois.sheetOpen).toBe(true)
-    expect(depois.trialBlocked).toBe(true)
+    expect(depois.quotaBlocked).toBe(true)
   })
 
-  it('uma sessão que entrou depois do bloqueio desfaz o aviso', () => {
-    useAccountStore.getState().blockByTrial()
-    useAccountStore.getState().setTrial({ used: 1, limit: 3, remaining: 2 })
+  it('a recusa traz o contador junto, para o sheet não precisar perguntar de novo', () => {
+    useAccountStore.getState().blockByQuota(quota({ used: 10, remaining: 0, allowed: false }))
 
-    expect(useAccountStore.getState().trialBlocked).toBe(false)
+    expect(useAccountStore.getState().quota?.used).toBe(10)
   })
 
-  it('sessão que entrou gastando a última NÃO desfaz o aviso', () => {
-    useAccountStore.getState().blockByTrial()
-    useAccountStore.getState().setTrial({ used: 3, limit: 3, remaining: 0 })
+  it('contador com folga destrava a tela — é a virada do dia com o app aberto', () => {
+    useAccountStore.getState().blockByQuota()
+    useAccountStore.getState().setQuota(quota({ used: 1, remaining: 9, allowed: true }))
 
-    expect(useAccountStore.getState().trialBlocked).toBe(true)
+    expect(useAccountStore.getState().quotaBlocked).toBe(false)
+  })
+
+  it('sessão que gastou a última NÃO destrava', () => {
+    useAccountStore.getState().blockByQuota()
+    useAccountStore.getState().setQuota(quota({ used: 10, remaining: 0, allowed: false }))
+
+    expect(useAccountStore.getState().quotaBlocked).toBe(true)
+  })
+
+  it('plano ilimitado nunca bloqueia', () => {
+    useAccountStore.getState().blockByQuota()
+    useAccountStore.getState().setQuota(quota({ plan: 'subscriber', limit: 0, unlimited: true }))
+
+    expect(useAccountStore.getState().quotaBlocked).toBe(false)
   })
 
   it('fechar a tela não apaga o motivo do bloqueio', () => {
-    useAccountStore.getState().blockByTrial()
+    useAccountStore.getState().blockByQuota()
     useAccountStore.getState().openSheet(false)
 
-    expect(useAccountStore.getState().trialBlocked).toBe(true)
+    expect(useAccountStore.getState().quotaBlocked).toBe(true)
   })
 })
 

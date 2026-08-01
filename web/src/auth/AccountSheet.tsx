@@ -8,8 +8,34 @@ import { useEffect, useState } from 'react'
 import { formatDuration } from '../report/sessionReport'
 import { useAccountStore } from '../store/account'
 import { BrandMark } from '../ui/BrandMark'
-import { displayName, historyDate, historyTotals, trialMessage } from './accountSummary'
+import { displayName, historyDate, historyTotals, quotaNotice } from './accountSummary'
+import type { QuotaNotice } from './accountSummary'
 import { fetchHistory, login, logout, register } from './api'
+
+/**
+ * O sheet de limite da SPEC-016: contagem, hora em que renova e a saída.
+ *
+ * **Não há botão de assinar, e é de propósito.** A spec pede o CTA de assinatura "ainda sem
+ * checkout — lista de espera/`em breve`", e um botão que não leva a lugar nenhum seria a
+ * primeira afordância inventada de um app cuja regra é mostrar `--` quando não há dado
+ * (SPEC-014). Enquanto o checkout não existe, o convite é uma frase; no dia em que existir,
+ * vira botão nesta mesma linha.
+ */
+function QuotaBlock({ notice, upsell }: { notice: QuotaNotice; upsell: boolean }) {
+  return (
+    <div className="account__quota">
+      <p className="account__quota-title">{notice.title}</p>
+      <p className="account__quota-text">{notice.text}</p>
+      <p className="account__quota-meta">
+        {notice.count && <span className="tabular">{notice.count}</span>}
+        {notice.renew && <span className="account__quota-renew">{notice.renew}</span>}
+      </p>
+      {upsell && (
+        <p className="account__quota-soon">Assinatura em breve — e aí o limite deixa de existir.</p>
+      )}
+    </div>
+  )
+}
 
 export function AccountSheet() {
   const open = useAccountStore((state) => state.sheetOpen)
@@ -35,14 +61,16 @@ function Entrada() {
   const [senha, setSenha] = useState('')
   const [nome, setNome] = useState('')
 
-  const trial = useAccountStore((state) => state.trial)
-  const blocked = useAccountStore((state) => state.trialBlocked)
+  const quota = useAccountStore((state) => state.quota)
+  const blocked = useAccountStore((state) => state.quotaBlocked)
   const erro = useAccountStore((state) => state.formError)
   const busy = useAccountStore((state) => state.busy)
   const { setUser, setFormError, setBusy, openSheet } = useAccountStore.getState()
 
   const cadastro = modo === 'register'
-  const aviso = trialMessage(trial, blocked)
+  // Visitante não vê convite a assinar: para ele o próximo degrau é a conta, que é de graça e
+  // está logo abaixo no formulário. Oferecer assinatura antes da conta seria pular o funil.
+  const aviso = quotaNotice(quota, blocked)
 
   const enviar = async (evento: React.FormEvent) => {
     evento.preventDefault()
@@ -61,7 +89,7 @@ function Entrada() {
   return (
     <>
       <p className="account__title">{cadastro ? 'Criar conta' : 'Entrar'}</p>
-      {aviso && <p className="account__trial">{aviso}</p>}
+      {aviso && <QuotaBlock notice={aviso} upsell={false} />}
 
       <form className="account__form" onSubmit={enviar}>
         {cadastro && (
@@ -136,6 +164,8 @@ function Conta() {
   const user = useAccountStore((state) => state.user)
   const history = useAccountStore((state) => state.history)
   const historyStatus = useAccountStore((state) => state.historyStatus)
+  const quota = useAccountStore((state) => state.quota)
+  const blocked = useAccountStore((state) => state.quotaBlocked)
   const { openSheet, reset, startHistory, applyHistory, failHistory } = useAccountStore.getState()
 
   // Sair é a única ação destrutiva do app (leva embora o acesso e o histórico da tela). Ela
@@ -152,11 +182,31 @@ function Conta() {
   }, [historyStatus, startHistory, applyHistory, failHistory])
 
   const totais = historyTotals(history)
+  const aviso = quotaNotice(quota, blocked)
 
   return (
     <>
       <p className="account__title">Olá, {displayName(user)}</p>
       <p className="account__email">{user?.email}</p>
+
+      {/* Chip de plano (SPEC-016 §Fase Inicial). O nome vem do servidor (`Plan.nome`), não de
+          um mapa de slugs no cliente: plano renomeado no painel aparece renomeado aqui. Sem
+          quota conhecida o chip não aparece — inventar "Free" seria afirmar o plano de alguém
+          com base em nada. */}
+      {quota && (
+        <p className="account__plan">
+          <span className="account__plan-name">{quota.plan_name}</span>
+          {/* "restam N", e não "N de M": o bloco logo abaixo diz "10 de 10 sessões de hoje"
+              contando as USADAS, e o chip contava as RESTANTES no mesmo formato — dois
+              significados para a mesma forma, na mesma tela. Visto no navegador com a conta
+              esgotada: o chip dizia "0 de 10" ao lado de "10 de 10". A palavra desfaz. */}
+          {!quota.unlimited && (
+            <span className="account__plan-left tabular">restam {quota.remaining}</span>
+          )}
+        </p>
+      )}
+
+      {aviso && <QuotaBlock notice={aviso} upsell />}
 
       <div className="account__totals">
         <div className="account__total">

@@ -4,21 +4,83 @@
 // convite a criar conta muda conforme quantas sessões restam, e a data do histórico tem de
 // dizer "hoje" quando é hoje — as duas coisas se testam com um objeto.
 import type { SessionReport } from '../report/sessionReport'
-import type { TrialStatus } from '../session/admission'
+import type { QuotaSnapshot } from '../session/quota'
 
-/** O que dizer sobre o trial de quem ainda não tem conta. `null` = não há o que dizer. */
-export function trialMessage(trial: TrialStatus | null, blocked: boolean): string | null {
-  if (blocked) {
-    return 'Suas 3 sessões grátis de hoje acabaram. Crie uma conta para continuar treinando.'
+/** O sheet de limite da SPEC-016, montado. `null` = não há nada a dizer sobre a quota agora. */
+export interface QuotaNotice {
+  title: string
+  /** Texto do servidor (`Plan.quota_message`, editável no painel) — nunca uma cópia local. */
+  text: string
+  /** "10 de 10 sessões de hoje". `null` quando o plano não tem limite. */
+  count: string | null
+  /** "Renova às 21:00". `null` quando não há o que renovar. */
+  renew: string | null
+}
+
+/**
+ * O que dizer sobre a quota de hoje.
+ *
+ * Puro e separado do componente pela mesma razão do `reportSummary`: isto é regra, não desenho.
+ * Quando avisar, e com que palavras, muda conforme quem está falando e quanto sobrou — e as
+ * três coisas se testam com um objeto.
+ *
+ * **Todo número aqui vem do servidor.** O texto é o `Plan.quota_message`, a contagem é
+ * `used`/`limit` e o horário sai do `resets_at`. O cliente não guarda cópia de nenhum dos três:
+ * o painel muda o limite para 15 e esta função passa a dizer 15, sem deploy.
+ */
+export function quotaNotice(
+  quota: QuotaSnapshot | null,
+  blocked: boolean,
+  agora: Date = new Date(),
+): QuotaNotice | null {
+  if (!quota || quota.unlimited) return null
+
+  const esgotou = blocked || !quota.allowed
+  if (esgotou) {
+    return {
+      // O título é do cliente e o corpo é do servidor de propósito: o "🎉" da spec é parte do
+      // desenho da tela (é ele que faz o limite ler como parabéns e não como punição), e o
+      // corpo é o que o suporte reescreve no painel numa terça-feira sem chamar ninguém.
+      title: 'Você treinou muito hoje 🎉',
+      text: quota.message,
+      count: `${quota.used} de ${quota.limit} sessões de hoje`,
+      renew: renewLabel(quota.resets_at, agora),
+    }
   }
-  if (!trial) return null
-  if (trial.remaining <= 0) {
-    return 'Você usou suas 3 sessões grátis de hoje.'
+
+  // Só avisa quando o fim está perto: repetir "restam 10" logo na primeira sessão é ansiedade
+  // de graça em quem ainda nem sabe se gostou do produto.
+  if (quota.remaining > 1) return null
+  return {
+    title: 'Última sessão de hoje',
+    text:
+      quota.plan === 'anon'
+        ? 'Resta 1 sessão grátis hoje. Com conta, são mais.'
+        : 'Resta 1 sessão hoje. Com assinatura, não acaba.',
+    count: `${quota.used} de ${quota.limit} sessões de hoje`,
+    renew: renewLabel(quota.resets_at, agora),
   }
-  // Só avisa quando o fim está perto: repetir "restam 3" logo na primeira sessão é ansiedade
-  // de graça num visitante que ainda nem sabe se gostou do produto.
-  if (trial.remaining === 1) return 'Resta 1 sessão grátis hoje. Com conta, não acaba.'
-  return null
+}
+
+/**
+ * "Renova às 21:00" — no fuso de quem está lendo, não no do contador.
+ *
+ * O servidor conta o dia em UTC (`api/quota.py`), e dizer "à meia-noite" seria mentir para
+ * quem está no Brasil: lá o contador vira às 21 h. Mandar o instante e formatá-lo aqui é o que
+ * mantém as duas coisas verdadeiras ao mesmo tempo — o servidor conta como conta, e a pessoa
+ * lê a hora do relógio dela.
+ *
+ * Acima de 12 h de espera vira "amanhã": um horário exato para daqui a 20 h não ajuda ninguém
+ * a decidir nada, e "amanhã" é a informação que a pessoa de fato usa.
+ */
+export function renewLabel(isoUtc: string, agora: Date = new Date()): string | null {
+  const virada = new Date(isoUtc)
+  if (Number.isNaN(virada.getTime())) return null
+
+  const horas = (virada.getTime() - agora.getTime()) / 3_600_000
+  if (horas <= 0) return null
+  const hora = virada.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return horas > 12 ? `Renova amanhã às ${hora}` : `Renova às ${hora}`
 }
 
 /** Data curta de uma sessão do histórico: "hoje 19:42", "ontem 08:10", "24 jul 07:55". */

@@ -9,7 +9,7 @@ por engano, é aqui que aparece, e não em produção.
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from api import trial
+from api import quota
 from api.config import (
     PLAN_ANON,
     PLAN_FREE,
@@ -45,8 +45,8 @@ def test_sem_banco_nenhum_o_anonimo_recebe_o_trial_de_hoje() -> None:
     caps = capabilities_for(None)
 
     assert caps.plan_slug == PLAN_ANON
-    assert caps.daily_sessions == trial.TRIAL_LIMIT
-    assert caps.quota_message == trial.TRIAL_MESSAGE
+    assert caps.daily_sessions == quota.TRIAL_LIMIT
+    assert caps.quota_message == quota.TRIAL_MESSAGE
     assert caps.from_db is False
 
 
@@ -71,7 +71,7 @@ def test_banco_fora_do_ar_nao_levanta_e_devolve_o_piso(monkeypatch) -> None:
 
     caps = capabilities_for(None)
 
-    assert caps.daily_sessions == trial.TRIAL_LIMIT
+    assert caps.daily_sessions == quota.TRIAL_LIMIT
     assert caps.from_db is False
 
 
@@ -107,19 +107,20 @@ def test_migration_cria_os_tres_planos_e_o_singleton() -> None:
 
 
 @pytest.mark.django_db
-def test_conta_logada_continua_sem_quota() -> None:
-    """O `free` nasce ilimitado porque é o que acontece HOJE.
+def test_conta_free_tem_a_quota_diaria_da_spec_016() -> None:
+    """Os 10/dia que a T-073 deixou prontos e a T-063 ligou (migration `0010_quota_do_free`).
 
-    A SPEC-016 propõe 10/dia e a T-063 é quem liga. Uma migration que já entregasse o limite
-    novo mudaria o produto no dia do deploy, escondida atrás de "só infraestrutura".
+    Este teste afirmava o contrário até a T-063 (`daily_sessions == 0`, ilimitado). A inversão
+    é o produto mudando de ideia por spec — não um teste sendo consertado.
     """
     usuario = User.objects.create_user(email="a@x.com", password="segredo123")
 
     caps = capabilities_for(usuario)
 
     assert caps.plan_slug == PLAN_FREE
-    assert caps.daily_sessions == 0
-    assert caps.unlimited_sessions is True
+    assert caps.daily_sessions == quota.FREE_LIMIT
+    assert caps.unlimited_sessions is False
+    assert caps.quota_message == quota.FREE_MESSAGE
 
 
 @pytest.mark.django_db
@@ -185,7 +186,7 @@ def test_plano_apagado_da_tabela_cai_no_piso_do_proprio_slug() -> None:
     caps = capabilities_for(None)
 
     assert caps.plan_slug == PLAN_ANON
-    assert caps.daily_sessions == trial.TRIAL_LIMIT
+    assert caps.daily_sessions == quota.TRIAL_LIMIT
 
 
 # --------------------------------------------------------------------------------------
@@ -288,7 +289,7 @@ def test_min_maturity_nao_oferece_beta() -> None:
 
 
 class RedisFalso:
-    """Só o que a admissão usa: hash da sessão e contador do trial."""
+    """Só o que a admissão usa: hash da sessão e o contador diário."""
 
     def __init__(self) -> None:
         self.contadores: dict[str, int] = {}
@@ -338,13 +339,13 @@ def test_admissao_usa_a_quota_do_plano_anon(client, admissao) -> None:
     primeira = client.post("/api/sessions", data=corpo, content_type="application/json")
     assert primeira.status_code == 201
     aparelho = primeira.json()["device_id"]
-    assert primeira.json()["trial"]["limit"] == 1
+    assert primeira.json()["quota"]["limit"] == 1
 
     segunda = client.post(
         "/api/sessions",
         data=corpo,
         content_type="application/json",
-        headers={trial.DEVICE_HEADER: aparelho},
+        headers={quota.DEVICE_HEADER: aparelho},
     )
 
     assert segunda.status_code == 429

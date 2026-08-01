@@ -39,7 +39,7 @@ from typing import Any
 from django.core.cache import cache
 from django.db.models import F
 
-from api.trial import TRIAL_LIMIT, TRIAL_MESSAGE
+from api.quota import FREE_LIMIT, FREE_MESSAGE, TRIAL_LIMIT, TRIAL_MESSAGE
 
 __all__ = [
     "PLAN_ANON",
@@ -140,10 +140,12 @@ _FLOOR_PLAN: dict[str, dict[str, Any]] = {
     },
     PLAN_FREE: {
         "plan_name": "Free",
-        # 0 = ilimitado, e é o comportamento de HOJE: quota de conta ainda não existe (a
-        # SPEC-016 propõe 10/dia, e quem a liga é a T-063). Migration de dados não muda produto.
-        "daily_sessions": 0,
-        "quota_message": "",
+        # 10/dia desde a T-063 (SPEC-016). O piso é o número REAL do produto, não `0`: se
+        # fosse `0` (ilimitado), um Postgres fora do ar entregaria sessões sem limite a todo
+        # mundo, em silêncio e sem ninguém perceber até a fatura da VPS. Piso é "o produto de
+        # ontem", e o produto de ontem tem limite.
+        "daily_sessions": FREE_LIMIT,
+        "quota_message": FREE_MESSAGE,
         "streak_protections_month": 1,
         "daily_workout": False,
     },

@@ -2,8 +2,10 @@
 //
 // É UM componente com dois modos porque a CameraView precisa sobreviver à passagem
 // pré-config → treino: ela vive num slot estável (`.sess__cam`) e o resto é cromo
-// absoluto que troca por cima. Desvios honestos da referência (FC `--`, kcal `--`,
-// stop no lugar de pause) estão na tabela §Desvios da SPEC-014.
+// absoluto que troca por cima. Desvios honestos da referência (FC `--`, stop no lugar de
+// pause) estão na tabela §Desvios da SPEC-014. O kcal deixou de ser um deles na T-063: ele
+// tem MET servido pelo catálogo e tempo real de sessão, e só o peso é premissa — declarada
+// na própria tela como "estimado" (SPEC-016, critério 3).
 import { useEffect, useState } from 'react'
 import { CameraView } from '../capture/CameraView'
 import { CountdownSetting } from '../hud/CountdownSetting'
@@ -23,10 +25,12 @@ import {
   setSeriesPreference,
 } from '../session/configPrefs'
 import { useCountdown } from '../session/countdown'
+import { ESTIMATED_LABEL, formatKcal, liveKcal } from '../session/kcal'
 import { exercisePreference } from '../session/preferences'
 import { useNow } from '../session/useNow'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
+import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
 import { ExerciseIcon } from '../ui/exerciseIcon'
@@ -171,7 +175,20 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   const mostraAngulo = exercise.main_angle === 'arm_abduction' && armAngleDeg !== null
   const angulo = mostraAngulo ? `${Math.round(armAngleDeg)}°` : '--'
 
+  // Calorias ao vivo (SPEC-016, critério 3). O MET vem do catálogo servido; sem ele o card
+  // mostra `--`, que é o comportamento de antes desta task e continua sendo o honesto.
+  const kcal = formatKcal(liveKcal(exercise.met, durationS - secondsLeft))
+
   const iniciar = () => {
+    // Portão de quota (SPEC-016, critério 1): o limite tem de aparecer ANTES da câmera. Aqui
+    // ele não é a trava — a trava é o `POST /sessions`, e há teste de que pular esta linha não
+    // ajuda (`tests/test_quota.py`). O que esta linha evita é a pessoa dar permissão de
+    // câmera, esperar o pipeline aquecer e se enquadrar para só então ouvir "não".
+    const quota = useAccountStore.getState().quota
+    if (quota && !quota.allowed) {
+      useAccountStore.getState().blockByQuota()
+      return
+    }
     if (!cameraReady) cameraControls?.start()
     navigate({ screen: 'treino' })
   }
@@ -300,6 +317,9 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
               </p>
             </div>
 
+            {/* Continua `--` na pré-config, e por um motivo que não é preguiça: a sessão
+                ainda não começou, então o gasto até agora é zero — e "0,0 kcal" ao lado do
+                botão de iniciar lê como promessa quebrada, não como estado inicial. */}
             <div className="prep-cell">
               <p className="v2-label">Calorias estimadas</p>
               <IconFlame className="prep-cell__hud-icon prep-cell__hud-icon--hot" />
@@ -370,9 +390,12 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
           <div className="hud-card hud-card--kcal">
             <p className="v2-label">Calorias</p>
             <IconFlame className="hud-card__icon hud-card__icon--hot" />
-            <p className="hud-card__big">
-              -- <small>kcal</small>
+            <p className="hud-card__big tabular">
+              {kcal} <small>kcal</small>
             </p>
+            {/* O rótulo aparece só quando há número: sem MET o card mostra `--`, e chamar de
+                "estimado" um traço seria estimar o quê? */}
+            {kcal !== '--' && <span className="hud-card__note">{ESTIMATED_LABEL}</span>}
           </div>
 
           {coach.tone !== 'default' && (

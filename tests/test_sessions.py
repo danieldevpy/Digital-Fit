@@ -34,7 +34,7 @@ AGORA = 1_722_100_000
 
 
 class FakeRedis:
-    """Só o que a admissão usa: o hash da sessão e o contador do trial (SPEC-011)."""
+    """Só o que a admissão usa: o hash da sessão e o contador diário (SPEC-011/016)."""
 
     def __init__(self) -> None:
         self.hashes: dict[str, dict] = {}
