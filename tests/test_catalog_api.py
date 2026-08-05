@@ -57,13 +57,31 @@ def test_met_veio_da_tabela_da_spec() -> None:
 
 
 @pytest.mark.django_db
-def test_os_dois_nascem_validado_por_decisao_declarada() -> None:
+def test_os_dois_primeiros_nascem_validado_por_decisao_declarada() -> None:
     """Grandfathering da SPEC-018: o critério de `validado` não foi medido para nenhum dos dois.
 
     Se este teste começar a falhar porque alguém rebaixou um deles, o Free fica sem exercício —
     leia a SPEC-018 §Grandfathering antes de "consertar" o teste.
     """
-    assert set(Exercise.objects.values_list("maturity", flat=True)) == {"validado"}
+    maturidades = dict(Exercise.objects.values_list("slug", "maturity"))
+
+    assert maturidades["jumping_jack"] == "validado"
+    assert maturidades["squat"] == "validado"
+
+
+@pytest.mark.django_db
+def test_exercicio_de_chao_nasce_beta_e_nao_herda_o_grandfathering() -> None:
+    """O oposto do teste acima, e é o que separa decisão declarada de decisão medida.
+
+    A flexão e o abdominal (T-106/T-107) tiveram os limiares calibrados no gerador sintético,
+    contra nenhum vídeo de gente treinando. `beta` é a afirmação verdadeira sobre isso, e o
+    grandfathering da SPEC-018 valia para os dois que já estavam no ar — não é um selo que se
+    herda por chegar depois.
+    """
+    maturidades = dict(Exercise.objects.values_list("slug", "maturity"))
+
+    assert maturidades["flexao"] == "beta"
+    assert maturidades["abdominal"] == "beta"
 
 
 # --------------------------------------------------------------------------------------
@@ -117,7 +135,9 @@ def test_exercicio_desligado_some_do_catalogo_e_a_admissao_recusa(client, admiss
     Exercise.objects.get(slug="squat").save()
 
     payload = client.get("/api/config").json()
-    assert [e["slug"] for e in payload["exercises"]] == ["jumping_jack"]
+    servidos = [e["slug"] for e in payload["exercises"]]
+    assert "squat" not in servidos
+    assert "jumping_jack" in servidos  # o resto do catálogo não foi junto
 
     resposta = client.post(
         "/api/sessions",
@@ -137,7 +157,9 @@ def test_exclusivo_de_plano_nao_abre_para_quem_nao_tem(client, admissao) -> None
     Exercise.objects.get(slug="squat").save()
 
     # Anônimo não vê nem abre.
-    assert [e["slug"] for e in client.get("/api/config").json()["exercises"]] == ["jumping_jack"]
+    servidos = [e["slug"] for e in client.get("/api/config").json()["exercises"]]
+    assert "squat" not in servidos
+    assert "jumping_jack" in servidos
     recusa = client.post(
         "/api/sessions",
         data={"exercise": "squat", "requested_mode": "edge"},

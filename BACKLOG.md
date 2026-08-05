@@ -188,7 +188,45 @@ O que mudou e vale saber antes de pegar qualquer task daqui:
 | T-102 | Motor do Treino do Dia: seleção determinística pura (seed usuário+data, mix por objetivo, ajuste de baixo impacto por idade/IMC, sempre 1 mobilidade) + fixtures + `GET /api/daily-workout` com cache diário | 022 | todo |
 | T-103 | Card Treino do Dia na Início (assinante completo; Free vê categorias com CTA; anônimo CTA de conta), navegação item→pré-config, conquista `treino-do-dia-7` — gate por `Plan.daily_workout` (coluna de T-073), **sem** bônus de XP e sem bump de `XP_FORMULA_V` | 022/016/019 | todo |
 
+### SPEC-020 Tier C — exercícios de chão
+
+| Task | Descrição | Spec | Status |
+|---|---|---|---|
+| T-106 | Flexão de braço (`flexao`): FSM lateral com profundidade medida como fração da **própria prancha** da pessoa + sinais `PUSHUP_TOO_SHALLOW`/`HIPS_SAGGING`/`HIPS_PIKED`; traz junto a capacidade que o Tier C exigia — `Posture` no `scene_hints()` e validação de cena que mede a extensão do corpo no eixo certo (SPEC-003 evolução) — e o campo `scene_tip` por exercício, porque a frase fixa do Guia ("celular na vertical") é falsa para chão. Nasce `beta` | 020/003/007/012 | **feito** (2026-08-05) |
+| T-107 | Abdominal (`abdominal`): FSM lateral com a subida do ombro medida em alturas de joelho (referência sem memória, estável no primeiro frame) + sinais `CRUNCH_TOO_SHALLOW`/`CRUNCH_TOO_FAST`. Nasce `beta` | 020/007/012 | **feito** (2026-08-05) |
+| T-108 | Corpus real de chão (≥ 8 vídeos por exercício, guia de gravação já escrito em `eval/corpus/README.md`) + varredura de limiares → promoção `beta → calibrado` de `flexao` e `abdominal`. É o T-053 do Tier C | 020/012 | todo |
+| T-109 | **Agachamento não conta em produção** (ver Descoberta `[A/T-106]`): trocar `hip_height` absoluto por razão sobre a altura de quadril da própria pessoa (o desenho da T-106), regravar as fixtures do gerador com proporções reais e revarrer os limiares. Não é polimento: hoje o exercício está no ar, `validado`, contando zero | 007/012/020 | **todo (alta)** |
+| T-110 | Espaço normalizado é anisotrópico (Descoberta `[A/T-106]`): levar largura/altura do frame no `pose.frame` e corrigir `x` na normalização, ou declarar por escrito que toda feature é razão no mesmo eixo. Mexe no contrato de eventos (AGENTS: `events.py` primeiro) e obriga a revarrer polichinelo e agachamento | 002/006 | todo |
+
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[A/T-106] O agachamento não conta repetição nenhuma em gente de verdade — medido.** O limiar
+  de `agachado` é `hip_height < 0.72` torsos, calibrado contra o boneco sintético, que diz que
+  quem está em pé lê 1,02. Rodando o pipeline REAL (vídeo → MediaPipe → `normalize()` →
+  `SquatAnalyzer.features()`) sobre os três vídeos do corpus, gente em pé lê **1,31 / 1,61 /
+  1,44** torsos, e **0 dos 286 frames** cairia abaixo de 0,72. Descendo na mesma proporção que o
+  gerador (×0,62), um agachamento paralelo de verdade chega a ~0,89 — nunca cruza o limiar. O
+  boneco tem perna de 1,05 torsos e gente tem ~1,7. É a materialização exata do sintoma que o
+  `[A/T-032]` descreveu e que o `manage.py exercise_health` (T-104) existe para pegar: sessão sem
+  repetição. Task T-109. **A lição foi absorvida pela T-106/T-107**: feature de exercício novo é
+  razão entre duas medidas do mesmo corpo, nunca constante em torsos vinda do gerador.
+- **[A/T-106] O espaço normalizado do MediaPipe é anisotrópico, e ninguém tinha notado.** `x` é
+  dividido pela largura do frame e `y` pela altura, então uma distância horizontal e uma vertical
+  do mesmo tamanho real têm valores diferentes — e a diferença é a proporção do vídeo. Medido no
+  corpus: a mesma largura de ombros lê **0,352 torsos** no vídeo em paisagem (854×480) e **1,188**
+  no vídeo em retrato (576×1024). Razão 3,37, contra 3,16 previstos só pelo formato do quadro.
+  Os dois exercícios existentes escapam por acidente feliz — `ankle_spread` é razão de dois
+  horizontais e `hip_height` de um vertical por um torso quase vertical —, mas qualquer feature
+  que misture os eixos herda o formato do vídeo. Num corpo **deitado** isso deixa de ser
+  acidente: o torso é horizontal e o movimento é vertical. Task T-110.
+- **[A/T-106] A suíte não roda sem variável de ambiente na mão, e um teste é contraditório com o
+  `conftest`.** `tests/conftest.py` faz `os.environ.setdefault("DJANGO_DB_SQLITE", ...)` contando
+  ser lido antes do `django.setup()` do pytest-django; neste ambiente isso não acontece e a suíte
+  inteira morre tentando Postgres/Redis. Rodando com `DJANGO_DB_SQLITE=1 DJANGO_CACHE_LOCMEM=1`
+  na linha de comando tudo passa **menos** `test_smoke.py::test_settings_leem_ambiente`, que
+  afirma `ENGINE == postgresql` — ou seja, o teste e o conftest não podem estar certos ao mesmo
+  tempo. Um dos dois está errado desde sempre; provavelmente o teste, que deveria checar a
+  *leitura* da variável e não o valor final.
 
 - **[T-075] `ruff format` não é gate, e o repositório já anda fora dele.** Os gates do AGENTS.md
   são `ruff check` + `pytest`; `ruff format --check .` acusa **dois blocos** em

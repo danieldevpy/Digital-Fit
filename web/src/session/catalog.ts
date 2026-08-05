@@ -34,8 +34,24 @@ export interface ExerciseInfo {
    * esqueleto sobre a imagem existe para evitar (SPEC-013).
    */
   main_angle: 'arm_abduction' | 'none'
-  /** Imagem de demonstração (SPEC-015: "todo exercício tem demo visual"). */
+  /**
+   * Imagem de demonstração (SPEC-015: "todo exercício tem demo visual").
+   *
+   * **Vazio é um estado suportado**, e não um esquecimento: exercício novo chega antes da
+   * foto, e apontar para um arquivo que não existe põe ícone de imagem quebrada no card. Quem
+   * cai no vazio desenha a FIGURA do exercício (`ExerciseIcon`) — a mesma silhueta do resto do
+   * app, que afirma a pose certa sem prometer uma fotografia.
+   */
   demo_img: string
+  /**
+   * Como montar a cena para ESTE exercício (SPEC-015 / SPEC-020 Tier C).
+   *
+   * Era uma frase fixa dentro da tela do Guia — "celular apoiado na vertical, uns 2 metros" —
+   * verdadeira enquanto todo exercício era em pé. A flexão e o abdominal pedem o oposto
+   * (celular deitado no chão, de lado), e instrução de cena errada aqui não é erro de texto: é
+   * a sessão inteira sair zerada porque o worker não viu o corpo. Vazio cai na frase padrão.
+   */
+  scene_tip?: string
   /** Cor do dot de grupo no card da Escolha (SPEC-014 §2). */
   dot_color: string
   /** Passos do exemplo guiado (SPEC-015). Vazio não quebra: o Guia mostra demo + cena. */
@@ -64,6 +80,19 @@ const CATEGORY_LABELS: Record<string, string> = {
 export function categoryLabel(slug: string): string {
   return CATEGORY_LABELS[slug] ?? slug
 }
+
+/**
+ * A frase de cena padrão — a que valia para todo mundo enquanto todo exercício era em pé.
+ *
+ * Vive aqui, e não dentro da tela do Guia, porque agora ela é o **fallback** de um campo do
+ * catálogo: quem não declara `scene_tip` recebe esta.
+ */
+export const CENA_PADRAO =
+  'celular apoiado na vertical, uns 2 metros de distância, corpo inteiro no quadro e luz vindo de frente.'
+
+/** A cena dos exercícios de chão (SPEC-020 Tier C): o celular deita junto com a pessoa. */
+const CENA_CHAO =
+  'celular deitado no chão, de lado, a uns 2 metros — a tela precisa ver seu corpo inteiro de perfil, da cabeça aos pés.'
 
 export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   jumping_jack: {
@@ -94,6 +123,39 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
       { img: '/img/guia/agachamento-1.jpg', text: 'Suba estendendo as pernas sem tirar os pés do chão — subida completa conta a repetição.' },
     ],
   },
+  // Os dois de chão (T-106/T-107) nascem SEM foto, de propósito: a tela cai na figura do
+  // exercício em vez de apontar para um arquivo que não existe. Trocar por foto depois é
+  // edição no painel, sem deploy.
+  flexao: {
+    display_name: 'Flexão de braço',
+    category: 'forca',
+    muscle_group: 'Peito, ombro e tríceps',
+    default_tip: 'Corpo numa linha reta da cabeça aos pés, do começo ao fim.',
+    main_angle: 'none',
+    demo_img: '',
+    dot_color: '#f59e0b',
+    scene_tip: CENA_CHAO,
+    guide_steps: [
+      { img: '', text: 'Deite o celular no chão, de lado, e fique de perfil para ele — ele precisa ver você da cabeça aos pés.' },
+      { img: '', text: 'Comece na prancha: mãos abaixo dos ombros, braço estendido, corpo numa linha reta da cabeça aos calcanhares.' },
+      { img: '', text: 'Desça dobrando o cotovelo até uns 90°, com o peito perto do chão, e suba estendendo o braço — a subida completa conta a repetição.' },
+    ],
+  },
+  abdominal: {
+    display_name: 'Abdominal',
+    category: 'core',
+    muscle_group: 'Abdômen',
+    default_tip: 'Suba com o abdômen, devagar, sem puxar o pescoço.',
+    main_angle: 'none',
+    demo_img: '',
+    dot_color: '#a78bfa',
+    scene_tip: CENA_CHAO,
+    guide_steps: [
+      { img: '', text: 'Deite o celular no chão, de lado, e deite-se de perfil para ele — ele precisa ver seu tronco e seus joelhos.' },
+      { img: '', text: 'Deite de costas com os joelhos dobrados e os pés apoiados, calcanhar perto do quadril: é o joelho levantado que serve de referência para a contagem.' },
+      { img: '', text: 'Suba encolhendo o abdômen até as escápulas saírem do chão, mantendo a lombar apoiada, e volte devagar — a descida completa conta a repetição.' },
+    ],
+  },
 }
 
 export const DEFAULT_EXERCISE = 'jumping_jack'
@@ -118,6 +180,7 @@ function daServidor(ex: ServerExercise): ExerciseInfo {
     // ângulo que este cliente não sabe ler daria número errado na barra de métricas.
     main_angle: ex.main_angle === 'arm_abduction' ? 'arm_abduction' : 'none',
     demo_img: ex.demo_img,
+    scene_tip: ex.scene_tip,
     dot_color: ex.dot_color,
     guide_steps: ex.guide_steps,
     met: ex.met,

@@ -241,6 +241,7 @@ def _read_snapshot_from_db() -> dict[str, Any]:
                 "default_tip": ex.default_tip,
                 "main_angle": ex.main_angle,
                 "demo_img": ex.demo_img,
+                "scene_tip": ex.scene_tip,
                 "dot_color": ex.dot_color,
                 "met": float(ex.met),
                 "maturity": ex.maturity,

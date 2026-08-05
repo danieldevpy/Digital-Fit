@@ -1800,6 +1800,21 @@ a {
   border: 1px solid rgba(77, 210, 255, 0.18);
 }
 
+/* Exercício sem foto de demonstração: a figura ocupa a mesma caixa que a imagem ocuparia, para
+   a grade de cards não desalinhar quando os dois tipos convivem (T-106). O `padding` existe
+   porque a figura é um traço, não uma fotografia — encostada na borda, ela lê como recorte. */
+.ex-card__demo--figura,
+.guide__demo--figura {
+  color: var(--accent, #4dd2ff);
+  padding: 14px;
+  object-fit: initial;
+}
+
+.guide__demo--figura {
+  height: 190px;
+  background: var(--bg);
+}
+
 .ex-card__wave {
   color: var(--cyan);
   opacity: 0.8;

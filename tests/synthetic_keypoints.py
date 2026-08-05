@@ -59,6 +59,10 @@ class Pose:
     O default `KNEE_STRAIGHT` mantém toda pose antiga idêntica ao byte: perna reta é
     exatamente a geometria que existia antes, e é isso que faz a extensão não mexer em
     nenhuma das fixtures do polichinelo.
+
+    Esta é a pose de quem está **em pé, de frente**. Os corpos deitados vistos de lado são a
+    `PushUpPose` e a `CrunchPose` — geometria diferente demais para caber num parâmetro a
+    mais (T-106/T-107).
     """
 
     arm_angle: float = ARMS_DOWN
@@ -68,7 +72,7 @@ class Pose:
 
 
 def stick_figure(
-    pose: Pose,
+    pose: Pose | PushUpPose | CrunchPose,
     *,
     torso: float = 0.30,
     center: tuple[float, float] = (0.5, 0.55),
@@ -78,7 +82,17 @@ def stick_figure(
 
     `torso` é o comprimento do torso em unidades de frame — é ele que representa a distância
     da câmera (0.30 ≈ pessoa a 2 m; 0.15 ≈ a 4 m). `center` é o quadril médio no quadro.
+
+    Despacha por tipo de pose: `PushUpPose` e `CrunchPose` montam o corpo deitado visto de
+    lado (T-106/T-107). O despacho fica aqui, e não numa função separada, para `sequence()` —
+    e portanto toda fixture, todo teste e o `evalctl` — continuar funcionando sem saber que
+    existem duas geometrias.
     """
+    if isinstance(pose, PushUpPose):
+        return _pushup_figure(pose, torso=torso, center=center, visibility=visibility)
+    if isinstance(pose, CrunchPose):
+        return _crunch_figure(pose, torso=torso, center=center, visibility=visibility)
+
     cx, cy = center
     shoulder_w = _SHOULDER_WIDTH * torso
     hip_w = _HIP_WIDTH * torso
@@ -174,6 +188,322 @@ def stick_figure(
     return [[x, y, 0.0, visibility] for x, y in points]
 
 
+# ======================================================================================
+# Corpo deitado, visto de lado (T-106 flexão / T-107 abdominal)
+# ======================================================================================
+#
+# **Proporções próprias, e MEDIDAS — não as do boneco em pé.** O boneco de cima tem braço de
+# 0.75 torsos e perna de 1.05; gente de verdade, medida no corpus da bancada pelo caminho
+# real (vídeo → MediaPipe → `normalize()`), tem isto:
+#
+# ======================  =========================  ==============  ==========
+# medida (em torsos)      corpus real (3 vídeos)     boneco em pé    aqui
+# ======================  =========================  ==============  ==========
+# ombro→pulso                    0.89 / 1.35 / 1.11       0.75          1.15
+# quadril→tornozelo              1.33 / 1.85 / 1.50       1.05          1.65
+# ombro→nariz                    0.32 / 0.37 / 0.48       0.32          0.37
+# `hip_height` em pé             1.31 / 1.61 / 1.44       1.02           —
+# ======================  =========================  ==============  ==========
+#
+# O boneco em pé não foi corrigido aqui de propósito: mexer nele muda toda fixture do
+# polichinelo e do agachamento, e o efeito dessa divergência no agachamento virou Descoberta
+# própria no BACKLOG (`[A/T-106]`) — o limiar de 0.72 torsos do `squat` foi calibrado contra
+# 1.02 e gente real lê 1.44. Corrigir isso é task, não efeito colateral desta.
+#
+# A lição que os dois exercícios daqui absorveram: **feature de exercício novo é razão entre
+# duas medidas do MESMO eixo do MESMO corpo**, nunca uma constante em torsos. Assim o
+# gerador errar a proporção do boneco não vira limiar errado em produção.
+
+#: Proporções do corpo deitado, em torsos. Ver a tabela acima.
+_LAT_UPPER_ARM = 0.60
+_LAT_FOREARM = 0.55
+_LAT_THIGH = 0.85
+_LAT_SHIN = 0.80
+_LAT_NECK = 0.37
+#: Altura do tornozelo com a ponta do pé no chão (prancha) — o pé tem espessura.
+_LAT_ANKLE_LIFT = 0.15
+#: Quanto o ombro/quadril de trás aparece atrás do da frente. Numa vista lateral perfeita os
+#: dois lados coincidiriam e `shoulder_width` seria zero — o que não acontece em vídeo real e
+#: deixaria a calibração medindo uma largura de ombros nula.
+_LAT_SPLIT = 0.12
+#: Visibilidade do lado de trás: o corpo esconde metade de si numa vista lateral. Fica acima
+#: do limiar de `degraded` (0.5) porque o MediaPipe estima o lado ocluído em vez de desistir —
+#: é o que se vê nos vídeos do corpus.
+_LAT_FAR_VISIBILITY = 0.62
+
+# Ângulos do cotovelo (ombro–cotovelo–pulso) da flexão, em graus. O topo não trava o
+# cotovelo; o fundo é o padrão de execução que a literatura de treino usa (NASM/ACE): descer
+# até ~90° de cotovelo, ou até o peito quase tocar o chão, o que vier primeiro.
+ELBOW_TOP = 172.0
+ELBOW_BOTTOM = 90.0
+#: Desvio do quadril da linha ombro→tornozelo, em torsos. Positivo = quadril CAINDO (o erro
+#: clássico da flexão); negativo = quadril empinado.
+HIPS_ALIGNED = 0.0
+HIPS_SAGGED = 0.22
+HIPS_PIKED = -0.22
+
+# Ângulos do tronco do abdominal, em graus a partir do chão. Deitado não é exatamente 0: o
+# ombro tem espessura e fica um pouco acima do quadril.
+TRUNK_FLAT = 4.0
+#: Amplitude de um crunch bem executado: ~30° de flexão de tronco, com as escápulas saindo do
+# chão. Passar muito disso deixa de ser crunch e vira abdominal completo (o quadril entra).
+TRUNK_CRUNCH = 30.0
+#: Ângulo da coxa com o chão na montagem do abdominal (joelho dobrado, pé apoiado). 58° põe o
+#: joelho a 0.72 torsos do chão, que é o que a trigonometria dá para "calcanhar a 30–45 cm do
+#: quadril" num corpo de 1,75 m.
+THIGH_ANGLE = 58.0
+#: Montagens extremas de perna, para medir o quanto a referência do joelho balança: pé longe
+#: (coxa baixa) e pé colado no glúteo (coxa alta).
+THIGH_FEET_FAR = 45.0
+THIGH_FEET_CLOSE = 72.0
+
+
+@dataclass(frozen=True, slots=True)
+class PushUpPose:
+    """Uma flexão vista de lado, celular no chão (T-106).
+
+    Dois parâmetros, que são exatamente os dois eixos que a FSM julga: quanto o cotovelo
+    dobrou (a repetição) e quanto o quadril saiu da linha do corpo (a qualidade).
+
+    As mãos ficam no chão e o ombro desce sobre elas — é assim que uma flexão se parece de
+    lado, e é por isso que a altura do ombro sobre o pulso é a feature que conta.
+    """
+
+    #: Ângulo ombro–cotovelo–pulso. Menor = mais fundo.
+    elbow_angle: float = ELBOW_TOP
+    #: Desvio perpendicular do quadril da linha ombro→tornozelo, em torsos. + = caindo.
+    hip_offset: float = HIPS_ALIGNED
+
+
+@dataclass(frozen=True, slots=True)
+class CrunchPose:
+    """Um abdominal (crunch) visto de lado, celular no chão (T-107).
+
+    O quadril fica no chão e o tronco sobe — o que separa um crunch de um abdominal completo.
+    O joelho dobrado com o pé apoiado não é enfeite: é ele que dá a **referência vertical**
+    que a FSM usa para não depender de constante em torsos.
+    """
+
+    #: Ângulo do tronco (quadril→ombro) com o chão. Maior = mais alto.
+    trunk_angle: float = TRUNK_FLAT
+    #: Ângulo da coxa com o chão. Define a altura do joelho, a referência da feature.
+    thigh_angle: float = THIGH_ANGLE
+
+
+def _lateral_landmarks(
+    *,
+    nose: tuple[float, float],
+    shoulder: tuple[float, float],
+    elbow: tuple[float, float],
+    wrist: tuple[float, float],
+    hip: tuple[float, float],
+    knee: tuple[float, float],
+    ankle: tuple[float, float],
+    axis: tuple[float, float],
+    torso: float,
+    visibility: float,
+) -> list[list[float]]:
+    """Monta os 33 landmarks a partir das articulações de UM lado, vistas de perfil.
+
+    O lado de trás nasce deslocado ao longo do eixo do corpo (`axis`), metade para cada lado,
+    para que a MÉDIA dos dois lados caia exatamente na articulação — que é o que toda feature
+    lê — e mesmo assim `shoulder_width` não seja zero.
+    """
+    dx, dy = axis[0] * _LAT_SPLIT * torso / 2, axis[1] * _LAT_SPLIT * torso / 2
+
+    def par(ponto: tuple[float, float]) -> tuple[tuple[float, float], tuple[float, float]]:
+        """(perto, longe) — a média dos dois é `ponto`."""
+        return (ponto[0] - dx, ponto[1] - dy), (ponto[0] + dx, ponto[1] + dy)
+
+    l_shoulder, r_shoulder = par(shoulder)
+    l_elbow, r_elbow = par(elbow)
+    l_wrist, r_wrist = par(wrist)
+    l_hip, r_hip = par(hip)
+    l_knee, r_knee = par(knee)
+    l_ankle, r_ankle = par(ankle)
+
+    # Face: o rosto olha na direção do eixo do corpo (para onde a cabeça aponta).
+    olho = 0.05 * torso
+    orelha = 0.09 * torso
+    mao = 0.06 * torso
+    pe = 0.10 * torso
+
+    pontos: list[tuple[float, float]] = [
+        nose,  # 0
+        (nose[0] - olho / 2, nose[1] - olho),  # 1 left_eye_inner
+        (nose[0] - olho, nose[1] - olho),  # 2 left_eye
+        (nose[0] - olho * 1.5, nose[1] - olho),  # 3 left_eye_outer
+        (nose[0] + olho / 2, nose[1] - olho),  # 4 right_eye_inner
+        (nose[0] + olho, nose[1] - olho),  # 5 right_eye
+        (nose[0] + olho * 1.5, nose[1] - olho),  # 6 right_eye_outer
+        (nose[0] - orelha, nose[1]),  # 7 left_ear
+        (nose[0] + orelha, nose[1]),  # 8 right_ear
+        (nose[0] - olho / 2, nose[1] + olho),  # 9 mouth_left
+        (nose[0] + olho / 2, nose[1] + olho),  # 10 mouth_right
+        l_shoulder,  # 11
+        r_shoulder,  # 12
+        l_elbow,  # 13
+        r_elbow,  # 14
+        l_wrist,  # 15
+        r_wrist,  # 16
+        (l_wrist[0], l_wrist[1] + mao),  # 17 left_pinky
+        (r_wrist[0], r_wrist[1] + mao),  # 18 right_pinky
+        (l_wrist[0] + mao / 2, l_wrist[1] + mao),  # 19 left_index
+        (r_wrist[0] + mao / 2, r_wrist[1] + mao),  # 20 right_index
+        (l_wrist[0] - mao / 2, l_wrist[1] + mao / 2),  # 21 left_thumb
+        (r_wrist[0] - mao / 2, r_wrist[1] + mao / 2),  # 22 right_thumb
+        l_hip,  # 23
+        r_hip,  # 24
+        l_knee,  # 25
+        r_knee,  # 26
+        l_ankle,  # 27
+        r_ankle,  # 28
+        (l_ankle[0] - pe / 2, l_ankle[1] + pe / 2),  # 29 left_heel
+        (r_ankle[0] - pe / 2, r_ankle[1] + pe / 2),  # 30 right_heel
+        (l_ankle[0] + pe, l_ankle[1] + pe / 2),  # 31 left_foot_index
+        (r_ankle[0] + pe, r_ankle[1] + pe / 2),  # 32 right_foot_index
+    ]
+
+    # Índices ímpares do MediaPipe são o lado esquerdo; aqui o esquerdo é o lado de PERTO da
+    # câmera. O lado de trás vem com visibilidade menor, como em vídeo real.
+    longe = {12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32}
+    return [
+        [x, y, 0.0, (visibility * _LAT_FAR_VISIBILITY if i in longe else visibility)]
+        for i, (x, y) in enumerate(pontos)
+    ]
+
+
+def _pushup_figure(
+    pose: PushUpPose,
+    *,
+    torso: float,
+    center: tuple[float, float],
+    visibility: float,
+) -> list[list[float]]:
+    """Flexão de lado: mãos no chão, cabeça à esquerda, pés à direita.
+
+    `center` continua sendo o quadril — a mesma convenção do boneco em pé, para que
+    `sequence()` e as fixtures não precisem saber qual geometria estão usando.
+    """
+    cx, cy = center
+    braco_sup = _LAT_UPPER_ARM * torso
+    antebraco = _LAT_FOREARM * torso
+    perna = (_LAT_THIGH + _LAT_SHIN) * torso
+    corpo = torso + perna  # ombro→tornozelo com o corpo em prancha
+
+    # Distância ombro→pulso pelo ângulo do cotovelo (lei dos cossenos).
+    theta = math.radians(pose.elbow_angle)
+    ombro_pulso = math.sqrt(
+        braco_sup**2 + antebraco**2 - 2 * braco_sup * antebraco * math.cos(theta)
+    )
+
+    # O ombro fica sobre a mão: numa flexão o que desce é o corpo, a mão não anda.
+    wrist = (cx - torso * 1.05, cy)
+    shoulder = (wrist[0], wrist[1] - ombro_pulso)
+
+    # Cotovelo: interseção dos círculos (ombro, braço) e (pulso, antebraço), escolhendo a
+    # solução que aponta para os PÉS — é para lá que o cotovelo vai numa flexão.
+    if ombro_pulso < 1e-6:
+        elbow = (shoulder[0] + braco_sup, shoulder[1])
+    else:
+        a = (braco_sup**2 - antebraco**2 + ombro_pulso**2) / (2 * ombro_pulso)
+        h = math.sqrt(max(braco_sup**2 - a**2, 0.0))
+        # Do ombro em direção ao pulso (para baixo), depois perpendicular (para os pés).
+        base = (shoulder[0], shoulder[1] + a)
+        elbow = (base[0] + h, base[1])
+
+    # Corpo em prancha: reta do ombro até o tornozelo, que fica quase no chão.
+    chao = wrist[1]
+    ankle_y = chao - _LAT_ANKLE_LIFT * torso
+    dy_corpo = ankle_y - shoulder[1]
+    dx_corpo = math.sqrt(max(corpo**2 - dy_corpo**2, (0.3 * corpo) ** 2))
+    ankle = (shoulder[0] + dx_corpo, ankle_y)
+
+    eixo = (dx_corpo / corpo, dy_corpo / corpo)  # ombro → tornozelo, unitário
+    perpendicular = (-eixo[1], eixo[0])  # gira 90°: y+ = para o chão no trecho horizontal
+    desvio = pose.hip_offset * torso
+
+    fracao_quadril = torso / corpo
+    hip = (
+        shoulder[0] + eixo[0] * corpo * fracao_quadril + perpendicular[0] * desvio,
+        shoulder[1] + eixo[1] * corpo * fracao_quadril + perpendicular[1] * desvio,
+    )
+    # Joelho na reta quadril→tornozelo, na proporção coxa/perna.
+    fracao_joelho = _LAT_THIGH / (_LAT_THIGH + _LAT_SHIN)
+    knee = (
+        hip[0] + (ankle[0] - hip[0]) * fracao_joelho,
+        hip[1] + (ankle[1] - hip[1]) * fracao_joelho,
+    )
+    # Cabeça no prolongamento do tronco, para além do ombro.
+    nose = (shoulder[0] - eixo[0] * _LAT_NECK * torso, shoulder[1] - eixo[1] * _LAT_NECK * torso)
+
+    return _lateral_landmarks(
+        nose=nose,
+        shoulder=shoulder,
+        elbow=elbow,
+        wrist=wrist,
+        hip=hip,
+        knee=knee,
+        ankle=ankle,
+        axis=eixo,
+        torso=torso,
+        visibility=visibility,
+    )
+
+
+def _crunch_figure(
+    pose: CrunchPose,
+    *,
+    torso: float,
+    center: tuple[float, float],
+    visibility: float,
+) -> list[list[float]]:
+    """Abdominal de lado: costas no chão, cabeça à esquerda, joelhos dobrados à direita."""
+    cx, cy = center
+    hip = (cx, cy)  # o quadril não sai do chão num crunch — é o que o define
+    chao = cy
+
+    # Tronco: sobe do quadril em direção à cabeça (para a esquerda).
+    alpha = math.radians(pose.trunk_angle)
+    eixo = (-math.cos(alpha), -math.sin(alpha))  # quadril → ombro, unitário
+    shoulder = (hip[0] + eixo[0] * torso, hip[1] + eixo[1] * torso)
+
+    # Cabeça no prolongamento do tronco. O boneco NÃO modela queixo colado no peito: num corpo
+    # deitado a cabeça flexionada gira o nariz por cima do peito, e o sinal disso na projeção
+    # lateral muda de sentido conforme onde a cabeça pivota. Sinal de qualidade que o gerador
+    # não sabe assinar com segurança não vira limiar — por isso o erro de execução que o
+    # `abdominal` critica é a CADÊNCIA (relógio, não geometria), e não o pescoço.
+    nose = (shoulder[0] + eixo[0] * _LAT_NECK * torso, shoulder[1] + eixo[1] * _LAT_NECK * torso)
+
+    # Perna: coxa sobe do quadril, canela desce até o pé apoiado no chão.
+    beta = math.radians(pose.thigh_angle)
+    knee = (
+        hip[0] + _LAT_THIGH * torso * math.cos(beta),
+        hip[1] - _LAT_THIGH * torso * math.sin(beta),
+    )
+    queda = chao - knee[1]
+    avanco = math.sqrt(max((_LAT_SHIN * torso) ** 2 - queda**2, (0.2 * _LAT_SHIN * torso) ** 2))
+    ankle = (knee[0] + avanco, chao)
+
+    # Braços ao lado do corpo (mão na nuca deixaria o pulso em cima do rosto e não muda
+    # nenhuma feature do crunch): cotovelo e pulso apoiados perto do quadril.
+    elbow = (shoulder[0] + 0.35 * torso, chao - 0.05 * torso)
+    wrist = (shoulder[0] + 0.85 * torso, chao - 0.05 * torso)
+
+    return _lateral_landmarks(
+        nose=nose,
+        shoulder=shoulder,
+        elbow=elbow,
+        wrist=wrist,
+        hip=hip,
+        knee=knee,
+        ankle=ankle,
+        axis=eixo,
+        torso=torso,
+        visibility=visibility,
+    )
+
+
 def _jitter(landmarks: list[list[float]], sigma: float, rng) -> list[list[float]]:
     """Ruído gaussiano nas coordenadas — imita o tremor do modelo de pose."""
     return [
@@ -217,15 +547,22 @@ def still_poses(count: int) -> list[Pose]:
 COUNTDOWN_FRAMES = 20
 
 
-def session_poses(poses: list[Pose], *, countdown: int = COUNTDOWN_FRAMES) -> list[Pose]:
+def session_poses(
+    poses: list[Pose], *, countdown: int = COUNTDOWN_FRAMES, still: Pose | None = None
+) -> list[Pose]:
     """Poses de uma sessão REAL: countdown parado e depois o exercício.
+
+    `still` é a pose do countdown. O default (em pé, braços baixos) só serve a quem treina em
+    pé — quem vai fazer flexão passa o countdown na prancha, e quem vai fazer abdominal passa
+    deitado. Sem esse parâmetro, uma fixture de exercício de chão começaria com a pessoa em pé
+    e mediria a calibração de um corpo que não é o do exercício.
 
     Existe porque a T-019 tornou a calibração parte do caminho: o worker mede o corpo no
     primeiro segundo e só então começa a contar. Uma fixture que emenda direto no exercício
     não representa mais nenhuma sessão de verdade — e perderia a primeira repetição, que é
     exatamente o que se veria em produção se o countdown não existisse.
     """
-    return [*still_poses(countdown), *poses]
+    return [*(still_poses(countdown) if still is None else [still] * countdown), *poses]
 
 
 def jumping_jack_poses(
@@ -286,3 +623,70 @@ def squat_poses(
                 )
             )
     return [*poses, em_pe, em_pe]
+
+
+def plank_pose(*, hip_offset: float = HIPS_ALIGNED) -> PushUpPose:
+    """Prancha alta: braço estendido, corpo alinhado. É a posição inicial da flexão."""
+    return PushUpPose(elbow_angle=ELBOW_TOP, hip_offset=hip_offset)
+
+
+def pushup_poses(
+    reps: int,
+    *,
+    frames_per_rep: int = 15,
+    amplitude: float = 1.0,
+    hip_offset: float = HIPS_ALIGNED,
+) -> list[PushUpPose]:
+    """Poses de `reps` flexões contínuas, interpoladas por cosseno (T-106).
+
+    Mesma forma das outras: `amplitude` < 1 é a flexão que não desce (o análogo da rep
+    preguiçosa), e a sequência termina **na prancha** para a última repetição não ficar
+    eternamente em andamento.
+
+    `hip_offset` vale para a série inteira — quadril caindo é erro de postura sustentado, não
+    de um frame.
+    """
+    topo = plank_pose(hip_offset=hip_offset)
+    poses: list[PushUpPose] = []
+    for _rep in range(reps):
+        for index in range(frames_per_rep):
+            fraction = (1 - math.cos(2 * math.pi * index / frames_per_rep)) / 2 * amplitude
+            poses.append(
+                PushUpPose(
+                    elbow_angle=ELBOW_TOP + (ELBOW_BOTTOM - ELBOW_TOP) * fraction,
+                    hip_offset=hip_offset,
+                )
+            )
+    return [*poses, topo, topo]
+
+
+def lying_pose(*, thigh_angle: float = THIGH_ANGLE) -> CrunchPose:
+    """Deitado de costas, joelhos dobrados. É a posição inicial do abdominal."""
+    return CrunchPose(trunk_angle=TRUNK_FLAT, thigh_angle=thigh_angle)
+
+
+def crunch_poses(
+    reps: int,
+    *,
+    frames_per_rep: int = 15,
+    amplitude: float = 1.0,
+    thigh_angle: float = THIGH_ANGLE,
+) -> list[CrunchPose]:
+    """Poses de `reps` abdominais contínuos, interpolados por cosseno (T-107).
+
+    `thigh_angle` é a montagem da perna, e existe como parâmetro porque é a única variação de
+    montagem que mexe na feature: o joelho é a referência vertical do exercício. Pé longe do
+    glúteo abaixa a referência e infla o `lift` — o teste de sensibilidade mede quanto.
+    """
+    deitado = lying_pose(thigh_angle=thigh_angle)
+    poses: list[CrunchPose] = []
+    for _rep in range(reps):
+        for index in range(frames_per_rep):
+            fraction = (1 - math.cos(2 * math.pi * index / frames_per_rep)) / 2 * amplitude
+            poses.append(
+                CrunchPose(
+                    trunk_angle=TRUNK_FLAT + (TRUNK_CRUNCH - TRUNK_FLAT) * fraction,
+                    thigh_angle=thigh_angle,
+                )
+            )
+    return [*poses, deitado, deitado]

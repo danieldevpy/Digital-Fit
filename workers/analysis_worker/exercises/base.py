@@ -10,6 +10,7 @@ não monta envelope, porque `session_id`/`seq` são do worker, não dele.
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from workers.shared.events import ExercisePhase, Phase, QualitySignal, RepDetected
@@ -20,10 +21,30 @@ __all__ = [
     "AnalysisEvent",
     "ExerciseAnalyzer",
     "Features",
+    "Posture",
     "SceneHints",
     "feed",
     "get_analyzer",
 ]
+
+
+class Posture(StrEnum):
+    """Em que eixo o corpo se estende durante o exercício (SPEC-003 / SPEC-020 Tier C).
+
+    A validação de cena mede distância pela altura cabeça→tornozelo. Isso vale para quem está
+    **em pé** e é falso para quem está **deitado**: uma pessoa em prancha tem cabeça e
+    tornozelo quase na mesma altura, a medida dá ~0, e o produto avisaria "aproxime-se" a
+    sessão inteira enquanto o enquadramento está perfeito.
+
+    Quem sabe a resposta é o exercício, não o validador — por isso a postura é declarada no
+    `scene_hints()` do analisador. É o eixo técnico que a SPEC-020 chama de Tier C.
+    """
+
+    #: Corpo na vertical: a distância se lê na altura (o enquadramento de sempre).
+    STANDING = "standing"
+    #: Corpo na horizontal, celular deitado no chão: a distância se lê na largura.
+    FLOOR = "floor"
+
 
 #: Features de um frame. `bool` entra junto porque sinais como `wrist_above_shoulder` são
 #: booleanos por natureza (SPEC-007).
@@ -36,12 +57,17 @@ type AnalysisEvent = ExercisePhase | RepDetected | QualitySignal
 class SceneHints(Protocol):
     """Faixas ideais de cena declaradas pelo exercício.
 
-    Consumido de verdade na Fase Evolução da SPEC-003 (distância ótima por exercício); existe
-    desde já para que o analisador seja a fonte dessa informação, e não uma tabela solta.
+    Nasceu como declaração sem consumidor ("Fase Evolução da SPEC-003"); a chegada dos
+    exercícios de chão (T-106/T-107) a tornou consumida de verdade — o validador de cena lê
+    daqui a postura e a faixa, em vez de aplicar a regra de quem está em pé a todo mundo.
     """
 
-    #: Altura do corpo (cabeça→tornozelo) como fração da altura do frame.
+    #: Extensão do corpo (cabeça→tornozelo) como fração do lado do frame que a postura usa:
+    #: a ALTURA de pé, a LARGURA deitado.
     body_height_range: tuple[float, float]
+
+    #: Em que eixo o corpo se estende. Ver `Posture`.
+    posture: Posture
 
 
 @runtime_checkable

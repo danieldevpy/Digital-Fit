@@ -21,6 +21,8 @@ export interface ServerExercise {
   default_tip: string
   main_angle: string
   demo_img: string
+  /** Vazio = a frase padrão de cena. Servidor antigo não manda o campo, e isso é suportado. */
+  scene_tip?: string
   dot_color: string
   met: number
   maturity: string

@@ -284,6 +284,16 @@ class Code(StrEnum):
     ARMS_TOO_LOW = "ARMS_TOO_LOW"
     LEGS_TOO_CLOSED = "LEGS_TOO_CLOSED"
     SQUAT_TOO_SHALLOW = "SQUAT_TOO_SHALLOW"
+    PUSHUP_TOO_SHALLOW = "PUSHUP_TOO_SHALLOW"
+    #: Quadril fora da linha ombro→tornozelo na flexão. Dois códigos e não um com sinal: o que
+    #: a pessoa tem de fazer é oposto ("contraia o abdômen" × "abaixe o quadril"), e um código
+    #: só obrigaria o texto a falar dos dois casos de uma vez.
+    HIPS_SAGGING = "HIPS_SAGGING"
+    HIPS_PIKED = "HIPS_PIKED"
+    CRUNCH_TOO_SHALLOW = "CRUNCH_TOO_SHALLOW"
+    #: Abdominal no impulso. É o erro que a literatura de execução cita como o mais comum do
+    #: crunch — subir rápido demais recruta o flexor de quadril no lugar do abdômen.
+    CRUNCH_TOO_FAST = "CRUNCH_TOO_FAST"
     # Cena — SPEC-003, viram `scene.warning`
     OUT_OF_FRAME = "OUT_OF_FRAME"
     TOO_FAR = "TOO_FAR"

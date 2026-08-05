@@ -107,6 +107,13 @@ class SessionState:
     def __post_init__(self) -> None:
         if self.analyzer is None:
             self.analyzer = get_analyzer(self.exercise)
+        # A cena passa a saber em que postura o corpo vai ficar (T-106): validar uma flexão com
+        # a régua de quem está em pé pediria "aproxime-se" a sessão inteira. Os campos são
+        # sobrescritos e não recriados para não jogar fora um validador com debounce próprio,
+        # que os testes injetam.
+        hints = self.analyzer.scene_hints()
+        self.scene.posture = hints.posture
+        self.scene.body_range = hints.body_height_range
 
     def counting(self, now_wall_ms: int) -> bool:
         """A FSM já pode ver os frames? Falso enquanto mede o corpo e durante a preparação."""

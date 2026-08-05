@@ -42,3 +42,35 @@ SQUAT_TOO_SHALLOW:
   hint: Baixe até a coxa ficar paralela ao chão
   severity: info
   priority: 22
+
+PUSHUP_TOO_SHALLOW:
+  message: Desça mais na flexão
+  hint: Dobre o cotovelo até uns 90°, com o peito perto do chão
+  severity: info
+  priority: 23
+
+# Quadril fora da linha é a crítica que separa flexão de flexão bem feita, e vem antes das de
+# amplitude: quem está com a lombar cedendo precisa ouvir isso antes de "desça mais".
+HIPS_SAGGING:
+  message: Contraia o abdômen
+  hint: O quadril está caindo — mantenha o corpo numa linha reta da cabeça aos pés
+  severity: info
+  priority: 20
+
+HIPS_PIKED:
+  message: Abaixe o quadril
+  hint: O quadril está empinado — alinhe o corpo da cabeça aos pés
+  severity: info
+  priority: 20
+
+CRUNCH_TOO_SHALLOW:
+  message: Suba um pouco mais
+  hint: Tire as escápulas do chão, sem descolar a lombar
+  severity: info
+  priority: 23
+
+CRUNCH_TOO_FAST:
+  message: Mais devagar
+  hint: Subir no impulso usa o quadril; suba contando dois tempos
+  severity: info
+  priority: 21

@@ -209,11 +209,18 @@ class Exercise(models.Model):
     default_tip = models.TextField(
         blank=True, help_text="Estado vazio do card do treinador — ele nunca fica sem texto."
     )
-    main_angle = models.CharField(
-        max_length=16, choices=MainAngle.choices, default=MainAngle.NONE
-    )
+    main_angle = models.CharField(max_length=16, choices=MainAngle.choices, default=MainAngle.NONE)
     demo_img = models.CharField(max_length=200, blank=True)
     dot_color = models.CharField(max_length=9, default="#34d399")
+    #: Como montar a cena para ESTE exercício (SPEC-015 / SPEC-020 Tier C).
+    #:
+    #: Era uma frase fixa na tela do Guia — "celular apoiado na vertical, uns 2 metros" — o que
+    #: é verdade para quem treina em pé e mentira para quem vai fazer flexão com o celular
+    #: deitado no chão. Instrução de cena errada não é detalhe de texto: é a diferença entre o
+    #: worker enxergar o corpo e a sessão inteira sair zerada. Vazio cai na frase de sempre.
+    scene_tip = models.TextField(
+        blank=True, help_text="Vazio usa a frase padrão (em pé, celular na vertical, 2 m)."
+    )
     ordem = models.PositiveSmallIntegerField(default=0)
     enabled = models.BooleanField(
         default=True, help_text="Desligado some do catálogo E a admissão passa a recusar."
@@ -232,9 +239,7 @@ class Exercise(models.Model):
     met = models.DecimalField(max_digits=4, decimal_places=1, default=0)
     #: Quão provado está (SPEC-020). Coluna aqui, **regra de visibilidade na T-090**: esta task
     #: só a carrega até o cliente. Nasce junto para não fazer duas migrations no mesmo modelo.
-    maturity = models.CharField(
-        max_length=12, choices=Maturity.choices, default=Maturity.BETA
-    )
+    maturity = models.CharField(max_length=12, choices=Maturity.choices, default=Maturity.BETA)
 
     class Meta:
         db_table = "exercise"

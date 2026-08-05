@@ -4,15 +4,18 @@ Exercício novo entra aqui e em mais lugar nenhum — se precisar mexer fora des
 interface está errada (SPEC-007, notas técnicas).
 """
 
+from workers.analysis_worker.exercises.abdominal import CrunchAnalyzer, CrunchThresholds
 from workers.analysis_worker.exercises.base import (
     EXERCISES,
     AnalysisEvent,
     ExerciseAnalyzer,
     Features,
+    Posture,
     SceneHints,
     feed,
     get_analyzer,
 )
+from workers.analysis_worker.exercises.flexao import PushUpAnalyzer, PushUpThresholds
 from workers.analysis_worker.exercises.jumping_jack import (
     JumpingJackAnalyzer,
     JumpingJackThresholds,
@@ -22,10 +25,15 @@ from workers.analysis_worker.exercises.squat import SquatAnalyzer, SquatThreshol
 __all__ = [
     "EXERCISES",
     "AnalysisEvent",
+    "CrunchAnalyzer",
+    "CrunchThresholds",
     "ExerciseAnalyzer",
     "Features",
     "JumpingJackAnalyzer",
     "JumpingJackThresholds",
+    "Posture",
+    "PushUpAnalyzer",
+    "PushUpThresholds",
     "SceneHints",
     "SquatAnalyzer",
     "SquatThresholds",

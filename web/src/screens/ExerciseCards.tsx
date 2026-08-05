@@ -4,6 +4,7 @@
 import { categoryLabel, useCatalog } from '../session/catalog'
 import { exercisePreference } from '../session/preferences'
 import { appHref } from '../shell/origins'
+import { ExerciseIcon } from '../ui/exerciseIcon'
 import { IconChevronRight, IconWave } from '../ui/icons'
 import { chooseExercise } from './funnel'
 
@@ -36,12 +37,18 @@ export function ExerciseCards({ grid = false, openInApp = false }: ExerciseCards
             <h3 className="ex-card__name">{info.display_name}</h3>
             <span className="ex-card__badge">30s</span>
             <IconWave className="ex-card__wave" />
-            <img
-              className="ex-card__demo"
-              src={info.demo_img}
-              alt={`Demonstração: ${info.display_name}`}
-              loading="lazy"
-            />
+            {/* Exercício sem foto desenha a figura, não uma imagem quebrada — ver o comentário
+                de `demo_img` no catálogo. */}
+            {info.demo_img ? (
+              <img
+                className="ex-card__demo"
+                src={info.demo_img}
+                alt={`Demonstração: ${info.display_name}`}
+                loading="lazy"
+              />
+            ) : (
+              <ExerciseIcon exercise={key} className="ex-card__demo ex-card__demo--figura" />
+            )}
             <span className="ex-card__foot">
               <span
                 className="ex-card__dot"

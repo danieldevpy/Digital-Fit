@@ -68,3 +68,68 @@ contraluz". Campo vazio é melhor que campo errado.
 ## Nomeação
 
 `<exercicio>-<numero>.mp4`, dois dígitos: `polichinelo-01.mp4`, `polichinelo-02.mp4`.
+
+## Exercícios de chão: flexão e abdominal (T-106/T-107)
+
+Estes dois nasceram **calibrados só no gerador sintético** — não existe um único vídeo de gente
+de verdade por trás dos limiares deles. É exatamente para isso que este corpus existe, e é o
+que separa `beta` de `calibrado` na SPEC-020: **8 vídeos rotulados por exercício**.
+
+A gravação muda em três pontos, e os três importam mais que no polichinelo:
+
+1. **Celular DEITADO no chão, de lado.** Não é preferência de enquadramento: de frente, uma
+   flexão é um corpo encolhendo contra a lente, e não há feature que sobreviva a isso. A pessoa
+   fica de perfil para a câmera, corpo inteiro no quadro, da cabeça aos pés.
+2. **Comece 2 a 3 segundos parado NA POSIÇÃO DO EXERCÍCIO** — na prancha (flexão) ou deitado de
+   joelho dobrado (abdominal), não em pé. A calibração mede o corpo nesse intervalo, e ela
+   precisa medir o corpo que vai treinar.
+3. **No abdominal, calcanhar perto do quadril.** A altura do joelho é a referência da contagem;
+   pé longe demais abaixa a referência e infla a medida. Gravar uma variação com o pé longe é
+   útil — é justamente a condição que a bancada precisa medir —, mas anote em `conditions`.
+
+O que vale a pena variar, além da tabela acima:
+
+| dimensão | variações que interessam |
+|---|---|
+| lado | perfil para a esquerda e para a direita (a FSM não deve se importar) |
+| formato | vídeo em paisagem e em retrato — é o eixo que a anisotropia do espaço normalizado ataca (ver `[A/T-106]` no BACKLOG) |
+| execução (flexão) | limpa, meia amplitude, quadril caindo, quadril empinado, de joelhos |
+| execução (abdominal) | limpa, curta demais, no impulso (rápida), pé longe do quadril |
+
+```yaml
+- file: flexao-01.mp4
+  exercise: flexao
+  expected_reps: 12
+  conditions:
+    orientacao: paisagem
+    angulo: perfil esquerdo
+    inicio: ~3s parado na prancha
+    execucao: limpa
+```
+
+### Vídeos da internet servem?
+
+Servem, e são o caminho mais rápido para os 8 primeiros — desde que **o rótulo seja seu**:
+`expected_reps` é a contagem que uma pessoa fez assistindo, e um número herdado de outra fonte
+envenena a bancada inteira. Duas ressalvas práticas: o vídeo tem de ter a pessoa de perfil e
+inteira no quadro (a maioria dos tutoriais corta na cintura ou troca de ângulo no meio), e
+corte de câmera no meio da série invalida a gravação para contagem — a FSM não sabe que houve
+corte, e o pulo vira repetição fantasma ou repetição perdida.
+
+Há corpus público com este recorte: o **RepCount** (`svip-lab.github.io/dataset/RepCount_dataset.html`)
+tem `pushup` e `situp` entre suas 7 classes, com anotação de início e fim de cada repetição —
+ou seja, já traz o rótulo no formato de que esta bancada precisa. Serve para as primeiras
+varreduras; o corpus próprio continua sendo o que decide, porque é ele que tem as condições do
+produto (celular no chão, 30 s, luz de casa).
+
+Rodada típica de uma varredura de limiar, depois que os vídeos existirem:
+
+```bash
+uv run python -m eval.evalctl run eval/corpus/ --report eval/out/flexao-baseline.json
+# mexe no limiar em workers/analysis_worker/exercises/flexao.py
+uv run python -m eval.evalctl run eval/corpus/ --report eval/out/flexao-novo.json
+uv run python -m eval.evalctl compare eval/out/flexao-baseline.json eval/out/flexao-novo.json
+```
+
+A tabela da varredura vai para o DEVLOG — limiar escolhido sem o número que o justificou é
+chute com aparência de medição.

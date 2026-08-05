@@ -21,13 +21,21 @@
 // quem só quer o nome de exibição de um exercício.
 import type { ReactElement } from 'react'
 
-import { IconExJumpingJack, IconExSquat, IconExStanding } from './icons'
+import {
+  IconExCrunch,
+  IconExJumpingJack,
+  IconExPushUp,
+  IconExSquat,
+  IconExStanding,
+} from './icons'
 
 type Figura = (props: { className?: string }) => ReactElement
 
 export const EXERCISE_FIGURES: Record<string, Figura> = {
   jumping_jack: IconExJumpingJack,
   squat: IconExSquat,
+  flexao: IconExPushUp,
+  abdominal: IconExCrunch,
 }
 
 /**

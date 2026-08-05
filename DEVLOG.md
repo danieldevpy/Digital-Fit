@@ -5,6 +5,135 @@
 
 ---
 
+## 2026-08-05 (22) · T-106/T-107 — flexão e abdominal, e a descoberta de que o agachamento não conta
+
+Dois exercícios de chão (SPEC-020 **Tier C**), a capacidade de motor que o Tier C exigia, e uma
+medição que deveria mudar a prioridade do backlog.
+
+### A descoberta, primeiro, porque ela é maior que a task
+
+**O agachamento está no ar, `validado`, e não conta uma única repetição em gente de verdade.**
+
+Antes de escolher qualquer limiar, rodei o pipeline REAL sobre o corpus que já existe — vídeo →
+MediaPipe → `normalize()` → `SquatAnalyzer.features()`. Uma pessoa **em pé** lê:
+
+| vídeo | `hip_height` em pé (mediana) | frames que o squat leria como agachado |
+|---|---|---|
+| polichinelo-01 | 1,310 torsos | 0 / 124 |
+| polichinelo-02 | 1,609 torsos | 0 / 61 |
+| polichinelo-03 | 1,440 torsos | 0 / 101 |
+
+O limiar de "agachado" é **0,72**, calibrado contra um boneco sintético que diz que em pé se lê
+1,02 (perna de 1,05 torsos; gente real tem ~1,7). Descendo na mesma proporção que o gerador
+(×0,62), um agachamento paralelo de verdade chega a ~0,89 — nunca cruza o limiar. O módulo
+avisava por escrito que os números vinham do gerador e "errar para menos é o lado seguro"; a
+medição mostra que o lado seguro também é o lado que não conta. Virou **T-109 (alta)** e
+Descoberta `[A/T-106]`.
+
+Junto veio uma segunda: **o espaço normalizado é anisotrópico**. O MediaPipe divide `x` pela
+largura e `y` pela altura, então a mesma largura de ombros lê 0,352 torsos no vídeo em paisagem
+e 1,188 no vídeo em retrato (razão 3,37; o formato do quadro sozinho prevê 3,16). Os dois
+exercícios existentes escapam por acidente — `ankle_spread` é razão de dois horizontais,
+`hip_height` é vertical sobre um torso quase vertical. Num corpo **deitado** o acidente acaba: o
+torso é horizontal e o movimento é vertical. Virou T-110.
+
+### O que essas duas medições fizeram com o desenho dos exercícios novos
+
+A regra que os dois módulos seguem, e que é a resposta às duas descobertas: **feature é razão
+entre duas medidas do mesmo eixo do mesmo corpo, nunca constante em torsos**.
+
+- **Flexão** — `depth` = altura atual do ombro sobre a mão ÷ a maior altura que ESTA pessoa
+  mostrou na sessão (a prancha dela). Cancela o torso, o formato do vídeo, a distância da câmera
+  e o tamanho da pessoa. Sobra "quanto do seu próprio braço você dobrou".
+- **Abdominal** — `lift` = subida do ombro ÷ altura do joelho. Aqui a referência **não precisa de
+  memória**: o joelho dobrado com o pé apoiado é uma altura vertical estável que existe em todo
+  frame, inclusive no primeiro. É por isso que o joelho dobrado virou requisito de medição no
+  Guia, e não detalhe de execução.
+
+Limiares escolhidos por tabela medida no gerador (as duas estão nos docstrings dos módulos):
+
+| flexão — cotovelo | `depth` |   | abdominal — tronco | `lift` |
+|---|---|---|---|---|
+| 172° (prancha) | 1,000 |   | 4° (deitado) | 0,097 |
+| 130° | 0,909 |   | 20° | 0,474 |
+| 115° | 0,846 |   | 25° | 0,586 |
+| 100° | 0,768 |   | 30° (crunch cheio) | 0,694 |
+| 90° (fundo) | 0,709 |   | 40° | 0,892 |
+
+Descer conta em `depth < 0,82` (~107° de cotovelo) e subir conta em `lift > 0,52` (~22° de
+tronco). Os 90° de cotovelo e os 30° de tronco não são invenção: são o padrão de execução que
+NASM/ACE descrevem (flexão até ~90° ou peito perto do chão; crunch até as escápulas saírem do
+chão, lombar apoiada). Os limiares ficam um pouco **abertos** em relação ao padrão de propósito —
+um `beta` que não conta nada nunca recebe corpus para deixar de ser `beta`, que é exatamente
+como o agachamento chegou onde chegou.
+
+### A capacidade de motor que o Tier C exigia
+
+A SPEC-007 manda parar e registrar quando um exercício novo precisa de mudança fora de
+`exercises/`. Precisou, e a lacuna era real: **a validação de cena mede distância pela altura
+cabeça→tornozelo**, e numa flexão a cabeça e o tornozelo ficam quase na mesma altura. A medida
+dá ~0, e o produto pediria "aproxime-se" a sessão inteira com o enquadramento perfeito.
+
+Resolvido pelo contrato, não por tabela de slug: `Posture` (`standing`/`floor`) entrou no
+`scene_hints()` do analisador, o `SceneValidator` passou a ler dali a postura e a faixa, e o
+router liga os dois na abertura da sessão. Default = `standing` com a faixa da SPEC-003, então
+**nenhuma sessão existente muda de resultado** — há teste cobrando isso.
+
+O mesmo problema tinha uma versão de texto que teria estragado a sessão do usuário: a tela do
+Guia dizia, fixo, "celular apoiado na vertical, uns 2 metros". Virou `scene_tip` por exercício
+(coluna, editável no painel), com a frase antiga de fallback.
+
+### Decisões menores, com o motivo
+
+- **Nada de sinal de qualidade para "puxar o pescoço" no abdominal.** Era o candidato óbvio (a
+  literatura cita muito), mas o boneco não sabe assinar o sentido dele: cabeça flexionada num
+  corpo deitado gira o nariz por cima do peito, e o sinal na projeção lateral muda conforme onde
+  a cabeça pivota. Sondei e o valor foi na direção contrária à intuição. Sinal que o gerador não
+  sabe assinar não vira limiar — o erro de execução que sobrou é a **cadência**
+  (`CRUNCH_TOO_FAST`, < 800 ms por rep), que se mede com relógio e não com geometria.
+- **Crítica de postura sai JUNTO com a repetição, não no lugar dela.** Quadril caído é uma flexão
+  que aconteceu e foi mal feita; rep rasa é uma flexão que não aconteceu. `HIPS_SAGGING` e
+  `CRUNCH_TOO_FAST` acompanham o `rep.detected`; `PUSHUP_TOO_SHALLOW` e `CRUNCH_TOO_SHALLOW`
+  substituem-no. É a distinção que os dois primeiros exercícios não precisaram fazer.
+- **`HIPS_SAGGING` e `HIPS_PIKED` são dois códigos, não um com sinal.** O conserto é oposto
+  ("contraia o abdômen" × "abaixe o quadril") e um código só obrigaria o texto a falar dos dois.
+- **A flexão nunca lê fase inicial `PEAK`.** A referência da prancha é o próprio primeiro frame,
+  então `depth` vale 1,0 por construção. Quem começa a captura no fundo perde **uma** repetição —
+  troca deliberada, e é a que o contrato de `initial_phase` manda fazer ("rep fantasma é pior que
+  rep perdida"). O abdominal não tem esse limite, porque a referência dele existe no frame 1.
+- **Os dois nascem sem foto de demonstração.** `demo_img` vazio virou estado suportado: a tela
+  desenha a **figura** do exercício em vez de apontar para um arquivo que não existe. Antes, um
+  `src` vazio renderizava ícone de imagem quebrada. Trocar por foto depois é edição no painel.
+- **Gerador com proporções próprias para o corpo deitado**, medidas no corpus (braço 1,15 torsos,
+  perna 1,65 — contra 0,75 e 1,05 do boneco em pé). Não corrigi o boneco em pé: mexer nele muda
+  toda fixture do polichinelo e do agachamento, e essa correção é a T-109.
+
+### O que fica pendente, e o que precisa de decisão
+
+- **`beta` está visível para todo mundo, porque a T-090 não existe ainda.** A SPEC-020 diz que
+  `beta` só aparece com `is_admin`, mas a regra que lê `Plan.min_maturity` é a T-090, que está
+  `todo`. Na prática, subindo assim, os dois exercícios aparecem no catálogo de qualquer usuário
+  com o selo `beta` no payload e nenhuma tela mostrando esse selo (T-091 também `todo`). Foi a
+  escolha consciente para permitir teste em produção; desfazer é um clique em `enabled` no
+  painel, que é exatamente para isso que a coluna existe.
+- **Nenhum vídeo real por trás dos limiares.** O guia de gravação dos dois exercícios já está em
+  `eval/corpus/README.md`, com as três diferenças que importam (celular deitado, countdown na
+  posição do exercício, calcanhar perto do quadril) e a nota sobre corpus público com `pushup`/
+  `situp` já rotulados. Promoção a `calibrado` é a T-108.
+- **Não testado em aparelho.** A verificação foi feita no navegador (catálogo, cards, Guia); o
+  caminho câmera → worker com uma pessoa deitada de verdade é o que a T-108 vai exercitar.
+- **`main_angle` continua `none` nos dois.** De lado, o ângulo do cotovelo é honesto e daria uma
+  barra de métricas de verdade — mas o cliente só sabe desenhar abdução de braço, e ampliar a
+  união é a Descoberta `[A/T-074]`, que já previa este momento.
+
+**Gates:** `ruff check` + `ruff format` limpos; `pytest` verde (só `test_smoke::test_settings_leem_ambiente`
+falha, e é contradição pré-existente entre o teste e o `conftest` — Descoberta `[A/T-106]`);
+`npm run lint`/`typecheck`/`test` verdes (395 testes, incluindo o de figura da T-082, que passou
+a cobrar as duas figuras novas); `evalctl` conta 12/12 nos dois exercícios pelo caminho da
+bancada, com calibração.
+
+---
+
 ## 2026-08-01 (21) · T-063 — o Free ganha limite, e o limite ganha uma tela honesta
 
 Quota diária por plano no servidor (`429 quota_exceeded`), sheet de limite com contagem e hora

@@ -250,7 +250,10 @@ class ExerciseAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-        ("Apresentação", {"fields": ("default_tip", "main_angle", "demo_img", "dot_color")}),
+        (
+            "Apresentação",
+            {"fields": ("default_tip", "main_angle", "demo_img", "dot_color", "scene_tip")},
+        ),
         (
             "Catálogo (SPEC-020)",
             {

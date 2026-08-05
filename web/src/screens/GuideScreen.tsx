@@ -1,10 +1,11 @@
 // Tela Guia / exemplo passo a passo (SPEC-015). Estática de propósito: aqui não monta
 // câmera nem sessão — é o respiro entre escolher e treinar.
-import { exerciseSubtitle, getExercise } from '../session/catalog'
+import { CENA_PADRAO, exerciseSubtitle, getExercise } from '../session/catalog'
 import { setGuideSeen } from '../session/preferences'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
 import { BrandMark } from '../ui/BrandMark'
+import { ExerciseIcon } from '../ui/exerciseIcon'
 import { IconPlay } from '../ui/icons'
 
 export function GuideScreen({ exercise }: { exercise: string }) {
@@ -24,18 +25,26 @@ export function GuideScreen({ exercise }: { exercise: string }) {
         <h1 className="guide__title">{info.display_name}</h1>
         <p className="guide__sub">{exerciseSubtitle(info)}</p>
 
-        <img
-          className="guide__demo"
-          src={info.demo_img}
-          alt={`Demonstração do exercício ${info.display_name}`}
-        />
+        {/* Sem foto, a figura do exercício. Um `src` vazio renderiza ícone de imagem
+            quebrada, que é pior que não prometer fotografia nenhuma. */}
+        {info.demo_img ? (
+          <img
+            className="guide__demo"
+            src={info.demo_img}
+            alt={`Demonstração do exercício ${info.display_name}`}
+          />
+        ) : (
+          <ExerciseIcon exercise={exercise} className="guide__demo guide__demo--figura" />
+        )}
 
         {info.guide_steps.length > 0 && (
           <div className="guide__steps">
             {info.guide_steps.map((step, i) => (
               <div className="guide-step" key={i}>
                 <span className="guide-step__n">{i + 1}</span>
-                <img className="guide-step__img" src={step.img} alt="" loading="lazy" />
+                {step.img && (
+                  <img className="guide-step__img" src={step.img} alt="" loading="lazy" />
+                )}
                 <p className="guide-step__text">{step.text}</p>
               </div>
             ))}
@@ -43,8 +52,7 @@ export function GuideScreen({ exercise }: { exercise: string }) {
         )}
 
         <p className="guide__scene">
-          <strong>Prepare a cena:</strong> celular apoiado na vertical, uns 2 metros de
-          distância, corpo inteiro no quadro e luz vindo de frente.
+          <strong>Prepare a cena:</strong> {info.scene_tip || CENA_PADRAO}
         </p>
 
         <div className="guide__cta">

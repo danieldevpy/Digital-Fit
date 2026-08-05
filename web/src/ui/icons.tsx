@@ -296,6 +296,43 @@ export function IconExSquat({ className }: IconProps) {
 }
 
 /**
+ * Flexão, no fundo do movimento: corpo deitado de perfil, cotovelo dobrado para trás.
+ *
+ * As duas figuras de chão (esta e a do abdominal) são as primeiras DEITADAS do vocabulário, e
+ * é isso que as separa de tudo que já existia: as três de pé são verticais e altas, estas duas
+ * são largas e baixas. No card, a diferença de silhueta chega antes do desenho.
+ *
+ * Entre si, elas se separam pelo que sustenta o corpo: aqui é o braço até o chão, com o resto
+ * do corpo suspenso numa linha; no abdominal é o joelho dobrado para cima. Desenhar a flexão
+ * na prancha (braço reto) as deixaria parecidas demais — o cotovelo dobrado é o que diz "isto
+ * é uma flexão" e não "isto é uma pessoa deitada".
+ */
+export function IconExPushUp({ className }: IconProps) {
+  return (
+    <svg {...figura} className={className} aria-hidden="true">
+      <circle cx="4.2" cy="17.2" r="2.8" />
+      <path d="M7.2 18.8 14 21 20.8 23.4 M20.8 23.4 22.3 25.6 M7.6 19 10.8 22.2 7.4 25.4" />
+    </svg>
+  )
+}
+
+/**
+ * Abdominal, no topo do movimento: costas no chão, tronco encolhido, joelho dobrado para cima.
+ *
+ * O joelho alto não é enfeite de desenho — é a montagem que o exercício exige para ser medido
+ * (é dele que sai a referência da contagem, ver `abdominal.py`). A figura afirma a mesma coisa
+ * que o Guia pede em texto.
+ */
+export function IconExCrunch({ className }: IconProps) {
+  return (
+    <svg {...figura} className={className} aria-hidden="true">
+      <circle cx="3.8" cy="19.4" r="2.8" />
+      <path d="M6.6 20.8 13 24 M13 24 17.6 18.6 21.6 24.6 M7 21.4 10 23.2" />
+    </svg>
+  )
+}
+
+/**
  * Em pé, neutra — a figura de quem ainda não tem figura.
  *
  * Existe para o fallback do registro não poder ser o polichinelo: um exercício novo sem pose

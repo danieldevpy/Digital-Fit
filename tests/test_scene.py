@@ -1,8 +1,19 @@
 """Validação de cena mínima (T-013 / SPEC-003)."""
 
+import dataclasses
+
+import numpy as np
 import pytest
 
-from tests.synthetic_keypoints import Pose, jumping_jack_poses, sequence, still_poses
+from tests.synthetic_keypoints import (
+    Pose,
+    jumping_jack_poses,
+    plank_pose,
+    pushup_poses,
+    sequence,
+    still_poses,
+)
+from workers.analysis_worker.exercises import Posture
 from workers.analysis_worker.scene import (
     FRAME_ANCHORS,
     MAX_BODY_HEIGHT,
@@ -34,6 +45,13 @@ def avisos_de(poses, validator: SceneValidator | None = None, **kwargs) -> list[
 
 def codigos(avisos) -> list[str]:
     return [aviso.code.value for aviso in avisos]
+
+
+def espelha_no_x(frame):
+    """O mesmo frame com o corpo deitado para o outro lado."""
+    pontos = np.array(frame.points, dtype=float)
+    pontos[:, 0] = -pontos[:, 0]
+    return dataclasses.replace(frame, points=pontos)
 
 
 # --------------------------------------------------------------------------------------
@@ -240,3 +258,56 @@ def test_avisos_nao_dependem_da_fase_do_movimento(pose: Pose) -> None:
     avisos = avisos_de([pose] * 60, torso=TORSO_CENA_BOA)
 
     assert avisos == []
+
+
+# --------------------------------------------------------------------------------------
+# Corpo deitado — a capacidade que o Tier C exigiu (T-106/T-107, SPEC-003 evolução)
+# --------------------------------------------------------------------------------------
+
+
+def test_corpo_deitado_medido_com_a_regua_de_quem_esta_em_pe_parece_longe_demais() -> None:
+    """O bug que a postura existe para consertar, travado como teste.
+
+    Numa flexão a cabeça e o tornozelo ficam quase na mesma ALTURA: a medida de quem está em
+    pé dá quase zero e o produto pediria "aproxime-se" a sessão inteira, com o enquadramento
+    perfeito. Se um dia alguém remover a postura, é aqui que aparece.
+    """
+    frame = frames_normalizados([plank_pose()], torso=0.16)[0]
+
+    assert SceneValidator.body_height(frame, Posture.STANDING) < MIN_BODY_HEIGHT
+    assert SceneValidator.body_height(frame, Posture.FLOOR) > MIN_BODY_HEIGHT
+
+
+def test_flexao_bem_enquadrada_nao_gera_aviso() -> None:
+    validator = SceneValidator(posture=Posture.FLOOR, body_range=(0.45, 0.98))
+
+    avisos = avisos_de(pushup_poses(6), validator=validator, torso=0.16)
+
+    assert avisos == []
+
+
+def test_flexao_longe_demais_ainda_gera_too_far() -> None:
+    """A trava não sumiu: ela passou a medir no eixo certo."""
+    validator = SceneValidator(posture=Posture.FLOOR, body_range=(0.45, 0.98))
+
+    avisos = avisos_de([plank_pose()] * 60, validator=validator, torso=0.07)
+
+    assert Code.TOO_FAR.value in codigos(avisos)
+
+
+def test_deitar_para_o_outro_lado_nao_muda_o_enquadramento() -> None:
+    """Cabeça à esquerda ou à direita dos pés é escolha de quem grava, não erro de cena."""
+    validator = SceneValidator(posture=Posture.FLOOR, body_range=(0.45, 0.98))
+    frame = frames_normalizados([plank_pose()], torso=0.16)[0]
+    espelhado = espelha_no_x(frame)
+
+    assert SceneValidator.body_height(espelhado, Posture.FLOOR) == pytest.approx(
+        SceneValidator.body_height(frame, Posture.FLOOR), abs=1e-6
+    )
+    assert validator.check(espelhado) == []
+
+
+def test_a_postura_padrao_continua_sendo_em_pe() -> None:
+    """Nenhuma sessão existente muda de resultado por causa desta capacidade."""
+    assert SceneValidator().posture is Posture.STANDING
+    assert SceneValidator().body_range == (MIN_BODY_HEIGHT, MAX_BODY_HEIGHT)

@@ -46,7 +46,12 @@ import math
 from collections import deque
 from dataclasses import dataclass, field
 
-from workers.analysis_worker.exercises.base import EXERCISES, AnalysisEvent, Features
+from workers.analysis_worker.exercises.base import (
+    EXERCISES,
+    AnalysisEvent,
+    Features,
+    Posture,
+)
 from workers.shared.events import Code, ExercisePhase, Phase, QualitySignal, RepDetected
 from workers.shared.normalize import Baseline, NormFrame
 
@@ -265,6 +270,7 @@ class SquatAnalyzer:
 @dataclass(frozen=True, slots=True)
 class _SquatSceneHints:
     body_height_range: tuple[float, float]
+    posture: Posture = Posture.STANDING
 
 
 #: Mesma faixa global da SPEC-003 que o polichinelo usa. A faixa ótima por exercício é Fase

@@ -4,8 +4,18 @@ Duas travas, as que dá para checar só com keypoints:
 
 1. **Enquadramento** — os 4 landmarks-âncora (ombros e tornozelos) precisam de `visibility ≥
    0.5`. Falhando por mais de 1 s ⇒ `OUT_OF_FRAME`.
-2. **Distância** — a altura do corpo (cabeça → tornozelo) tem de ficar entre 40% e 95% da altura
-   do frame. Fora disso ⇒ `TOO_FAR` / `TOO_CLOSE`.
+2. **Distância** — a extensão do corpo (cabeça → tornozelo) tem de ficar entre 40% e 95% do
+   lado do frame. Fora disso ⇒ `TOO_FAR` / `TOO_CLOSE`.
+
+**Qual lado do frame depende da postura do exercício** (T-106/T-107). Até os exercícios de
+chão, "extensão do corpo" era sempre a ALTURA cabeça→tornozelo, porque todo exercício era em
+pé. Numa flexão a cabeça e o tornozelo ficam quase na mesma altura: a medida antiga dá ~0, e o
+produto pediria "aproxime-se" a sessão inteira com o enquadramento perfeito. Deitado, quem
+mede distância é a LARGURA.
+
+Quem declara a postura é o exercício, no `scene_hints()` (`Posture`) — o validador não tem
+tabela de slug nenhuma. A faixa também vem de lá, então exercício com enquadramento próprio
+não precisa mexer neste arquivo.
 
 Nada aqui **bloqueia** a sessão: na Fase Inicial os warnings orientam o usuário e vão para o
 relatório. Bloquear início por cena ruim, luz, tilt de câmera e score de cena são Fase Evolução.
@@ -21,6 +31,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from workers.analysis_worker.exercises.base import Posture
 from workers.shared.events import Code, SceneWarning, Severity
 from workers.shared.normalize import NormFrame
 
@@ -75,6 +86,11 @@ class SceneValidator:
 
     trigger_after_ms: int = TRIGGER_AFTER_MS
     repeat_after_ms: int = REPEAT_AFTER_MS
+    #: Postura do exercício em curso, declarada pelo analisador. O default mantém o
+    #: comportamento de quem está em pé — nenhuma sessão existente muda de resultado.
+    posture: Posture = Posture.STANDING
+    #: Faixa aceitável da extensão do corpo. Default = a faixa global da SPEC-003.
+    body_range: tuple[float, float] = (MIN_BODY_HEIGHT, MAX_BODY_HEIGHT)
     counts: dict[str, int] = field(default_factory=dict)
     _states: dict[Code, _CodeState] = field(default_factory=dict)
 
@@ -115,21 +131,35 @@ class SceneValidator:
             ativos.add(Code.OUT_OF_FRAME)
             return ativos
 
-        altura = self.body_height(frame)
-        if altura < MIN_BODY_HEIGHT:
+        minimo, maximo = self.body_range
+        extensao = self.body_height(frame, self.posture)
+        if extensao < minimo:
             ativos.add(Code.TOO_FAR)
-        elif altura > MAX_BODY_HEIGHT:
+        elif extensao > maximo:
             ativos.add(Code.TOO_CLOSE)
         return ativos
 
     @staticmethod
-    def body_height(frame: NormFrame) -> float:
-        """Altura cabeça→tornozelo como fração da altura do frame.
+    def body_height(frame: NormFrame, posture: Posture = Posture.STANDING) -> float:
+        """Extensão cabeça→tornozelo como fração do lado do frame que a postura usa.
 
         Os pontos vêm em torsos; multiplicar pela escala (`torso`, em unidades de frame) devolve
         a medida na moeda que a SPEC-003 usa. Assim a checagem de distância não precisa dos
         landmarks crus.
+
+        De pé mede-se em `y` (fração da altura do frame); deitado, em `x` (fração da largura) —
+        os landmarks do MediaPipe já vêm normalizados por altura e largura respectivamente, então
+        cada eixo sai na fração do seu próprio lado sem conversão nenhuma.
         """
-        cabeca = float(frame.points[_NOSE][1])
-        tornozelos = max(float(frame.points[_LEFT_ANKLE][1]), float(frame.points[_RIGHT_ANKLE][1]))
-        return (tornozelos - cabeca) * frame.torso
+        eixo = 0 if posture is Posture.FLOOR else 1
+        cabeca = float(frame.points[_NOSE][eixo])
+        tornozelos = [
+            float(frame.points[_LEFT_ANKLE][eixo]),
+            float(frame.points[_RIGHT_ANKLE][eixo]),
+        ]
+        # Deitado, a cabeça pode estar à esquerda ou à direita dos pés — o sinal depende de
+        # para que lado a pessoa deitou, e não diz nada sobre o enquadramento.
+        if posture is Posture.FLOOR:
+            distante = max(tornozelos, key=lambda valor: abs(valor - cabeca))
+            return abs(distante - cabeca) * frame.torso
+        return (max(tornozelos) - cabeca) * frame.torso
