@@ -1849,6 +1849,188 @@ a {
   color: var(--text-dim);
 }
 
+/* ---------- faixas por categoria da tela Escolha do app (SPEC-020) ----------
+   O card grande acima é a vitrine do SITE; aqui embaixo é o app, onde a altura não pode
+   crescer com o catálogo. O porquê está no cabeçalho de `screens/ExerciseRails.tsx`. */
+
+.rails {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 20px;
+}
+
+.rail__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.rail__title {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.rail__count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border);
+  color: var(--text-faint);
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
+.rail__all {
+  margin-left: auto;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--accent-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* A faixa sangra até a borda da tela (o `.choose` tem 16px de padding): card cortado na
+   margem é o que anuncia que há mais para o lado — com a faixa terminando alinhada ao texto,
+   ela lê como uma fileira completa. */
+.rail__track {
+  display: flex;
+  gap: 10px;
+  margin-inline: -16px;
+  padding: 2px 16px;
+  overflow-x: auto;
+  /* O gesto lateral fica na faixa e não vira "voltar" do navegador. */
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+/* "ver todos": a mesma faixa vira grade e nada mais fica fora do quadro. */
+.rail__track--aberta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  overflow-x: visible;
+}
+
+.ex-mini {
+  position: relative;
+  flex: 0 0 160px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rail__track--aberta .ex-mini {
+  flex: initial;
+}
+
+.ex-mini:hover,
+.ex-mini--on {
+  border-color: rgba(139, 92, 246, 0.65);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.16);
+}
+
+.ex-mini__demo {
+  display: block;
+  width: 100%;
+  height: 92px;
+  /* `contain` pelo mesmo motivo do card grande: a demo aparece inteira, e o fundo escuro
+     dela se funde com o --bg da moldura. */
+  object-fit: contain;
+  background: var(--bg);
+  border-radius: 10px;
+  border: 1px solid rgba(77, 210, 255, 0.18);
+}
+
+/* Sem foto, a figura ocupa a MESMA caixa — os dois tipos convivem na mesma faixa e o card
+   não pode encolher por causa disso. */
+.ex-mini__demo--figura {
+  color: var(--accent, #4dd2ff);
+  padding: 8px;
+  object-fit: initial;
+}
+
+.ex-mini__badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 2px 7px;
+  border: 1px solid rgba(107, 140, 255, 0.4);
+  border-radius: 999px;
+  /* Opaco, e não translúcido como o do card grande: aqui ele fica POR CIMA da foto. */
+  background: rgba(5, 7, 13, 0.78);
+  color: #8ea4ff;
+  font: 700 0.625rem var(--font-num);
+}
+
+/* Duas linhas fixas: "Marcha estacionária" e "Abdominal" precisam terminar na mesma altura,
+   senão o rodapé dos cards vizinhos desalinha dentro da faixa. */
+.ex-mini__name {
+  min-height: 2.1em;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.ex-mini__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ex-mini__dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.ex-mini__group {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ex-mini__go {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  color: var(--text-faint);
+}
+
+@media (min-width: 700px) {
+  .ex-mini {
+    flex-basis: 196px;
+  }
+
+  .ex-mini__demo {
+    height: 116px;
+  }
+}
+
 /* ---------- guia / exemplo passo a passo (SPEC-015) ---------- */
 
 .guide {

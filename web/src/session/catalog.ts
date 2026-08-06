@@ -82,6 +82,60 @@ export function categoryLabel(slug: string): string {
 }
 
 /**
+ * Ordem das seções da tela Escolha — do que aquece para o que exige (SPEC-020 §Categorias).
+ *
+ * Vive aqui e não na tela porque é a mesma decisão de produto que o `CATEGORY_LABELS`: a
+ * ordem em que as categorias se apresentam é conteúdo, não layout. A tela só desenha.
+ */
+const CATEGORY_ORDER = ['cardio', 'forca', 'core', 'mobilidade']
+
+export interface CategoryGroup {
+  /** Slug da categoria — o que os consumidores de contrato leem. */
+  category: string
+  /** Rótulo de exibição já resolvido, para a tela não ter que chamar `categoryLabel`. */
+  label: string
+  /** Chaves dos exercícios da categoria, na ordem do catálogo (que é a `ordem` do servidor). */
+  keys: string[]
+}
+
+/**
+ * Agrupa o catálogo em seções por categoria (SPEC-020 §Escopo: "tela Escolha agrupada por
+ * categoria").
+ *
+ * **Categoria desconhecida vira seção própria no fim, e não some.** O servidor pode servir uma
+ * categoria que este cliente não conhece — foi o `[A/T-051]` inteiro —, e engolir o exercício
+ * aqui recriaria o mesmo sintoma pelo outro lado: o exercício existe, a admissão aceita, e a
+ * tela não o mostra. Aparecer com o slug cru é feio; sumir é bug.
+ *
+ * Função pura, fora do componente, porque é a única parte disto que dá para cobrar por teste
+ * sem DOM — a suíte do web roda em `node`.
+ */
+export function groupByCategory(
+  keys: string[],
+  catalog: Record<string, ExerciseInfo>,
+): CategoryGroup[] {
+  const porCategoria = new Map<string, string[]>()
+  for (const key of keys) {
+    const info = catalog[key]
+    if (!info) continue
+    const atual = porCategoria.get(info.category)
+    if (atual) atual.push(key)
+    else porCategoria.set(info.category, [key])
+  }
+
+  // As conhecidas na ordem declarada; as demais depois, na ordem em que apareceram no catálogo
+  // (que é a `ordem` do servidor — o operador ainda manda no que vem antes dentro do resto).
+  const conhecidas = CATEGORY_ORDER.filter((slug) => porCategoria.has(slug))
+  const resto = [...porCategoria.keys()].filter((slug) => !CATEGORY_ORDER.includes(slug))
+
+  return [...conhecidas, ...resto].map((category) => ({
+    category,
+    label: categoryLabel(category),
+    keys: porCategoria.get(category)!,
+  }))
+}
+
+/**
  * A frase de cena padrão — a que valia para todo mundo enquanto todo exercício era em pé.
  *
  * Vive aqui, e não dentro da tela do Guia, porque agora ela é o **fallback** de um campo do

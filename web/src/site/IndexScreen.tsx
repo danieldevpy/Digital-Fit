@@ -158,9 +158,9 @@ export function IndexScreen() {
               Treinos rápidos, <em>resultados reais</em>
             </p>
           </div>
-          {/* `openInApp`: no site cada card é um link para o app, que decide Guia ou
-              Pré-config (SPEC-015) — a decisão depende do localStorage de lá. */}
-          <ExerciseCards grid openInApp />
+          {/* Cada card é um link para o app, que decide Guia ou Pré-config (SPEC-015) — a
+              decisão depende do localStorage de lá. */}
+          <ExerciseCards />
         </div>
 
         <footer className="landing__footer">

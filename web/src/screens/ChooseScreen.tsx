@@ -1,7 +1,8 @@
-// Tela Escolha de exercício (SPEC-014 §2, tela 2 da referência).
+// Tela Escolha de exercício (SPEC-014 §2, tela 2 da referência), agora agrupada por categoria
+// em faixas horizontais — o porquê da troca está no cabeçalho do `ExerciseRails`.
 import { TabBar } from '../shell/TabBar'
 import { BrandMark } from '../ui/BrandMark'
-import { ExerciseCards } from './ExerciseCards'
+import { ExerciseRails } from './ExerciseRails'
 
 export function ChooseScreen() {
   return (
@@ -12,7 +13,7 @@ export function ChooseScreen() {
         <p className="choose__subtitle">
           Treinos rápidos, <em>resultados reais</em>
         </p>
-        <ExerciseCards />
+        <ExerciseRails />
       </div>
       <TabBar />
     </>

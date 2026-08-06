@@ -5,6 +5,56 @@
 
 ---
 
+## 2026-08-05 (25) · T-091 (metade layout) — a Escolha vira faixas por categoria
+
+A tela Escolha empilhava um card de ~305px por exercício. Com dois exercícios aquilo cabia na
+tela; com os quatro de hoje já são ~1.220px de rolagem, e o Lote 1 da SPEC-020 (T-092…T-095)
+mais o wall sit levariam a ~3.000px — a tela deixaria de ser uma escolha e viraria um catálogo
+que se percorre.
+
+**A troca que resolve não é encolher o card, é trocar o eixo.** Cada categoria virou uma faixa
+horizontal (`screens/ExerciseRails.tsx`): a altura da tela passou a escalar com o número de
+CATEGORIAS — vocabulário fechado em código, quatro — e não com o de exercícios. Estimativa pelo
+box model: ~630px hoje, ~850px com dez exercícios. A rolagem lateral fica dentro da categoria,
+que é onde a comparação de verdade acontece ("qual cardio eu faço hoje?"), não entre elas.
+
+Decisões:
+
+- **O card grande não morreu, virou do site.** `ExerciseCards` agora é exclusivo do Index, onde
+  a foto grande é o argumento de venda e rolar é o comportamento esperado de uma página de
+  marketing. Com o app fora, sumiram os props `grid`/`openInApp` e o ramo de botão.
+- **"ver todos" existe porque a faixa esconde.** É a fraqueza conhecida do formato: o que está
+  fora do quadro não se anuncia. O botão abre a categoria numa grade — e só aparece com mais de
+  2 exercícios, senão prometeria revelar o que já está à vista. O limite é constante e não
+  medido por JS de propósito: medido, o botão apareceria e sumiria na rotação do aparelho.
+- **A faixa sangra até a borda da tela** (`margin-inline: -16px`). Card cortado na margem é o
+  que anuncia que há mais para o lado; terminando alinhada ao texto, a faixa lê como fileira
+  completa. Junto vai `overscroll-behavior-x: contain`, senão o gesto lateral vira "voltar".
+- **`groupByCategory` é regra pura no `catalog.ts`, não lógica na tela.** A ordem em que as
+  categorias se apresentam é conteúdo, igual ao `CATEGORY_LABELS`. E é a única parte disto que
+  dá para cobrar por teste — a suíte do web roda em `node`, sem DOM.
+- **Categoria desconhecida vira seção com o slug cru, e não some.** O servidor pode servir
+  categoria que este cliente não conhece; engolir o exercício aqui seria o `[A/T-051]` de volta
+  pelo outro lado — existe no servidor, a admissão aceita, e a tela não mostra. Feio é
+  aceitável; sumir é bug.
+- **`ui/ExerciseDemo.tsx`**: a regra "sem foto, desenha a figura" agora existe uma vez só. Ela
+  passou a valer em duas telas com visuais diferentes, e escrita duas vezes se perde uma —
+  exercício novo chega antes da foto, e a tela que esqueceu o fallback põe ícone de imagem
+  quebrada no lugar da pose.
+
+Gates: `typecheck`, `lint`, `build` limpos; `vitest` 402/402 (7 novos em `catalogGroups.test.ts`).
+
+Pendências geradas:
+
+- **O T-091 continua `todo`** — esta entrada entrega só a metade layout. Cadeados com motivo
+  (progressão ≠ plano ≠ conta) e selo Laboratório 🧪 dependem do eixo maturidade da T-090.
+- **A trilha Fundamentos (T-097) pede uma seção no TOPO da Escolha.** As faixas deixam o lugar
+  livre, mas ninguém verificou se anel de progresso + cadeado cabem no card da faixa ou se a
+  trilha precisa do card grande de volta. Decidir quando a T-097 chegar.
+- **Não foi verificado em aparelho.** Os números de altura são do box model do CSS, não medidos.
+
+---
+
 ## 2026-08-05 (24) · T-106/T-107 — os exercícios de chão ganham foto (e o hero perde 1,8 MB)
 
 Os dois exercícios de chão subiram sem foto de demonstração, caindo na figura do exercício. A
