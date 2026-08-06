@@ -5,6 +5,53 @@
 
 ---
 
+## 2026-08-06 (33) · T-123 — as leituras do histórico, puras
+
+`history/aggregates.ts`: nove funções, nenhuma lê relógio, rede ou store. "Hoje" é parâmetro,
+como manda a doutrina de derivação (`context/conventions.md`). 28 testes, sem mock de tempo.
+
+**A decisão que evita uma briga futura: o nome `diasComTreino`.** A SPEC-024 §4 pede a grade do
+mês marcando o dia em que a pessoa treinou. A SPEC-019 tem **"dia ativo"** como vocabulário
+vinculante, e lá ele exige sessão *válida* (`rep_count ≥ 1`, "senão abrir a câmera por 30 s vira
+fazenda de fogo"). São conceitos diferentes com a mesma cara. Chamar este de "dias ativos"
+garantiria o pior desfecho no M1: o fogo acendendo num dia que esta grade não marcou, ou o
+contrário, e ninguém sabendo qual das duas está errada. Dois nomes, dois conceitos.
+
+**Outras decisões.**
+
+- **Semana de calendário (segunda a domingo), não janela de 7 dias corridos.** A pessoa compara
+  com o que ela chama de semana; uma janela deslizante faria o mesmo treino mudar de semana a
+  cada dia que passa. Semana vazia entra com zero — o buraco é a informação.
+- **Cadência nunca mistura exercícios.** rep/min de polichinelo e de agachamento são grandezas
+  de movimentos com duração diferente: a linha misturada oscilaria conforme o que a pessoa
+  escolheu treinar, não conforme ela melhorou.
+- **Consistência de ritmo é relativa à própria média** (coeficiente de variação), não em ms.
+  300 ms de desvio é muito num polichinelo e pouco num agachamento — é a mesma doutrina das
+  features da FSM, razão contra si mesmo. Teste cobre: rápido e lento igualmente regulares
+  empatam.
+- **`null` com menos de duas repetições**, em vez de `0`. Zero afirmaria regularidade perfeita
+  que ninguém mediu — a régua do `--` aplicada a um número derivado.
+- **Rumo das correções compara MÉDIA POR SESSÃO**, não total absoluto. Quem treinou o dobro de
+  vezes acumularia o dobro de correções sem ter piorado em nada. Tem teste dedicado: total
+  recente maior, média por sessão menor, resposta "caindo".
+- **Margem de 10% antes de chamar de mudança.** Sem ela, 2 contra 2,1 viraria "está piorando", e
+  a tela informaria ruído de amostra como notícia sobre o corpo de alguém.
+- **`tendencia: boolean` dentro da própria série**, em vez de um `if` na tela. É o critério 7
+  (gate de honestidade) tornado difícil de burlar: quem for desenhar a linha na T-125 recebe o
+  aviso junto com os pontos, e não precisa lembrar da regra.
+- **Relatório antigo sem `feedback_counts`/`scene_warning_counts` não derruba nada** — os campos
+  entram com `?? {}` e há teste.
+
+**Gates**: lint, typecheck e 483 testes web verdes (28 novos). Python não tocado.
+
+**Critérios da SPEC-024 nesta task**: 7 (gate de honestidade, testado nos dois lugares onde
+existe — série de cadência e rumo das correções), 9 (tudo puro, sem rede e sem relógio de
+verdade), 10 (gates). Nenhuma tela mudou: T-124 e T-125 é que consomem isto.
+
+**Pendências geradas**: nenhuma.
+
+---
+
 ## 2026-08-06 (32) · T-122 — o dado acorda quando alguém olha
 
 Os três gatilhos do contrato de frescor, ligados. O que não existia em `web/src` antes desta
