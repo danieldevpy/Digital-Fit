@@ -53,7 +53,25 @@ describe('improvements', () => {
   it('traduz o código para o mesmo texto que o HUD mostrou ao vivo', () => {
     const itens = improvements(relatorio({ feedback_counts: { [Code.OUT_OF_FRAME]: 1 } }))
 
-    expect(itens[0]?.text).toBe('Você saiu do quadro.')
+    expect(itens[0]?.text).toBe('Apareça inteiro no quadro')
+  })
+
+  // A regressão que motivou a T-126: enquanto só o polichinelo contava, os dois códigos dele
+  // eram o mundo inteiro. Quem terminava um agachamento lia `SQUAT_TOO_SHALLOW` em "o que
+  // melhorar" — o nome da constante, na tela, depois de suar.
+  it('nenhum código de execução chega à tela como identificador', () => {
+    const itens = improvements(
+      relatorio({
+        feedback_counts: {
+          [Code.SQUAT_TOO_SHALLOW]: 3,
+          [Code.PUSHUP_TOO_SHALLOW]: 2,
+          [Code.CRUNCH_TOO_FAST]: 1,
+        },
+      }),
+    )
+
+    for (const item of itens) expect(item.text).not.toBe(item.code)
+    expect(itens[0]?.text).toBe('Desça mais no agachamento')
   })
 
   it('devolve lista vazia quando não houve aviso nenhum', () => {

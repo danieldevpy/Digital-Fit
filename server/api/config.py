@@ -34,6 +34,7 @@ import hashlib
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 
 from django.core.cache import cache
@@ -419,6 +420,39 @@ def config_payload(user=None, *, now: datetime | None = None) -> dict[str, Any]:
         },
         # Lista e não dicionário: a ordem de exibição é dado, e objeto JSON não promete ordem.
         "exercises": _catalogo_serializado(catalogo),
+        # Dicionário aqui, ao contrário do catálogo: quem lê procura POR código, e não existe
+        # ordem de exibição — o relatório ordena por frequência, o HUD por prioridade.
+        "feedback": _mensagens_de_feedback(),
+    }
+
+
+@lru_cache(maxsize=1)
+def _mensagens_de_feedback() -> dict[str, dict[str, str]]:
+    """Código → texto em pt-BR, do mesmo YAML que o feedback engine carrega (SPEC-018 §C).
+
+    **Por que o cliente precisa disto.** O `feedback.issued` que chega ao vivo traz a frase
+    pronta, mas o relatório (SPEC-010) guarda só `{código: contagem}` — e aí o cliente tem de
+    traduzir sozinho. Ele traduzia com um mapa próprio, escrito quando o polichinelo era o
+    único exercício que contava; hoje há oito códigos de execução e o mapa conhece dois. Os
+    outros seis chegavam à tela em CAIXA ALTA, com nome de constante.
+
+    A alternativa era copiar as frases para dentro do bundle. Seria a mesma decisão de novo, só
+    que maior: dois arquivos de texto para manter em sincronia, e a promessa da SPEC-018 §C
+    ("reescrever sem deploy") valendo para o HUD e não para o relatório.
+
+    `lru_cache` porque o arquivo é do deploy, não do banco: mudou o YAML, mudou o processo.
+    """
+    try:
+        from workers.analysis_worker.feedback import FeedbackCatalog
+
+        entradas = FeedbackCatalog.load().entries
+    except Exception:  # P2: configuração indisponível nunca derruba a resposta.
+        logger.warning("catalogo de feedback indisponivel; cliente cai no embutido", exc_info=True)
+        return {}
+
+    return {
+        code.value: {"message": entrada.message, **({"hint": entrada.hint} if entrada.hint else {})}
+        for code, entrada in entradas.items()
     }
 
 

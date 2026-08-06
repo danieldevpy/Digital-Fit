@@ -60,10 +60,26 @@ export const Severity = {
 } as const
 export type Severity = (typeof Severity)[keyof typeof Severity]
 
-/** Códigos da Fase 0 (SPEC-003/SPEC-008). A mensagem em pt-BR vive no catálogo do servidor. */
+/**
+ * Códigos de sinal e feedback (SPEC-003/SPEC-008). A mensagem em pt-BR vive no catálogo do
+ * servidor — aqui fica só o código, que é o contrato.
+ *
+ * Ficou parado na Fase 0 por três exercícios: enquanto só o polichinelo contava, os dois
+ * códigos dele eram o mundo inteiro. Agachamento, flexão e abdominal trouxeram seis códigos de
+ * execução que este espelho não conhecia, e o cliente é justamente quem os desenha no
+ * relatório — sem estarem aqui, chegavam à tela como o próprio identificador.
+ */
 export const Code = {
+  // Execução — viram `quality.signal` e depois `feedback.issued`.
   ARMS_TOO_LOW: 'ARMS_TOO_LOW',
   LEGS_TOO_CLOSED: 'LEGS_TOO_CLOSED',
+  SQUAT_TOO_SHALLOW: 'SQUAT_TOO_SHALLOW',
+  PUSHUP_TOO_SHALLOW: 'PUSHUP_TOO_SHALLOW',
+  HIPS_SAGGING: 'HIPS_SAGGING',
+  HIPS_PIKED: 'HIPS_PIKED',
+  CRUNCH_TOO_SHALLOW: 'CRUNCH_TOO_SHALLOW',
+  CRUNCH_TOO_FAST: 'CRUNCH_TOO_FAST',
+  // Cena — viram `scene.warning`.
   OUT_OF_FRAME: 'OUT_OF_FRAME',
   TOO_FAR: 'TOO_FAR',
   TOO_CLOSE: 'TOO_CLOSE',

@@ -169,6 +169,15 @@ sessões. T-055 (histórico diz qual exercício) ajuda o M0 e não o bloqueia.
 | T-124 | Tela Progresso sobre as agregações: dias ativos do mês, sessões/reps das últimas 4 semanas, reps por exercício, última sessão em destaque. Sai o "em breve". Sem kcal e sem fogo — são SPEC-017/019. Depende de T-121+T-123 | 024/014 | done |
 | T-125 | Tela Analytics sobre as agregações: cadência por exercício ao longo do tempo, consistência de ritmo, correções mais frequentes e se caem, avisos de cena. Sai a lista de bullets declarativa. Depende de T-121+T-123 | 024/014 | done |
 
+**M0.1 — o que o M0 pôs na tela e os exercícios novos deixaram errado.** As três tasks abaixo
+nasceram de ler as telas do M0 com o catálogo de hoje (quatro exercícios, oito códigos de
+execução) em vez do de quando elas foram escritas (um exercício, dois códigos). Nenhuma é
+funcionalidade nova: são o mesmo dado, dito certo.
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-126 | O relatório e o Analytics param de falar em CAIXA ALTA: espelho de `Code` completo em `lib/events.ts` (seis códigos de execução faltavam desde o Tier C), catálogo de texto do feedback servido no `GET /api/config` a partir do mesmo YAML que o motor lê (SPEC-018 §C), e `textForCode` em três degraus — servidor, embutido completo, o próprio código. Ver Descoberta `[T-126]` | 008/018/010 | done |
+
 ### M1 — "O fogo acende" (SPEC-019): streak + meta + XP funcionais de ponta a ponta
 
 | ID | Task | Spec | Status |
@@ -299,6 +308,20 @@ sessões. T-055 (histórico diz qual exercício) ajuda o M0 e não o bloqueia.
   conta. **Quem fecha isso é a T-087** (`device_id` no register + backfill de
   `SessionClaim.user`), que já está no M1. Registrado porque hoje o único aviso disso é a linha
   "guardado neste aparelho" no Perfil do visitante — e ela some assim que a conta existe.
+
+- **[T-126] O cliente traduzia códigos com um mapa escrito quando só um exercício contava — e
+  ninguém viu por três exercícios.** `textForCode` conhecia cinco códigos: os três de cena e os
+  dois do polichinelo. Agachamento, flexão e abdominal trouxeram seis códigos de execução
+  (`SQUAT_TOO_SHALLOW`, `PUSHUP_TOO_SHALLOW`, `HIPS_SAGGING`, `HIPS_PIKED`,
+  `CRUNCH_TOO_SHALLOW`, `CRUNCH_TOO_FAST`) e nenhum deles tinha frase: iam para o "o que
+  melhorar" do relatório **como o próprio identificador**, em CAIXA ALTA, na tela de quem
+  acabou de suar. Passou despercebido porque o HUD ao vivo nunca dependeu do mapa — o
+  `feedback.issued` traz a frase pronta —, e porque o único exercício que contava de verdade
+  era o polichinelo (`[A/T-106]`). O sintoma só ficou visível quando a T-125 pôs as contagens
+  numa segunda tela. **A causa de fundo é o espelho**: `web/src/lib/events.ts` se declara
+  espelho de `events.py` e ficou parado na Fase 0; o `Code` de lá cresceu, o de cá não. Um
+  teste sobre o espelho não teria pego — os dois arquivos são listas separadas —, e é por isso
+  que o gate da T-126 é do outro lado: todo código do contrato precisa ter texto.
 
 - **[T-085] Os limiares de cena não têm corpus para calibrar — e o `evalctl` não os mede.**
   Os três valores (`LUZ_MINIMA`, `ESTOURO_MAXIMO`+`LUZ_CENTRO_MINIMA`, `DETALHE_MINIMO`) foram

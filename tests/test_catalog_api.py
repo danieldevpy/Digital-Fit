@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 
 from tests.test_config import RedisFalso, admissao  # noqa: F401 — fixture reusada
 from workers.analysis_worker.exercises import EXERCISES
+from workers.shared.events import Code
 
 SENHA = "segredo-de-teste-123"
 
@@ -324,3 +325,34 @@ def test_payload_traz_met_e_maturity_para_a_fase_5(client) -> None:
 
     assert polichinelo["met"] == 8.0
     assert polichinelo["maturity"] == "validado"
+
+
+# --------------------------------------------------------------------------------------
+# Texto de feedback no payload (T-126) — o relatório precisa falar português
+# --------------------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_payload_traz_o_texto_de_todo_codigo_do_contrato(client) -> None:
+    """O cliente traduz `{código: contagem}` sozinho — e o relatório é onde isso aparece.
+
+    Sem esta parte do payload ele dependia de um mapa próprio, escrito quando o polichinelo era
+    o único exercício que contava. `SQUAT_TOO_SHALLOW` chegava à tela com nome de constante.
+    """
+    feedback = client.get("/api/config").json()["feedback"]
+
+    for code in Code:
+        assert code.value in feedback, f"codigo sem texto no payload: {code.value}"
+        assert feedback[code.value]["message"]
+
+
+@pytest.mark.django_db
+def test_payload_e_motor_leem_o_mesmo_catalogo(client) -> None:
+    """Duas cópias do mesmo texto divergem; esta é a mesma promessa do `[A/T-051]`."""
+    from workers.analysis_worker.feedback import FeedbackCatalog
+
+    feedback = client.get("/api/config").json()["feedback"]
+    entradas = FeedbackCatalog.load().entries
+
+    assert feedback["SQUAT_TOO_SHALLOW"]["message"] == entradas[Code.SQUAT_TOO_SHALLOW].message
+    assert feedback["HIPS_PIKED"]["hint"] == entradas[Code.HIPS_PIKED].hint

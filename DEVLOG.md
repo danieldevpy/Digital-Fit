@@ -5,6 +5,73 @@
 
 ---
 
+## 2026-08-06 (36) · T-126 — o relatório para de falar em CAIXA ALTA
+
+Continuação do M0, olhando as telas novas com o catálogo de **hoje** em vez do de quando elas
+foram escritas. O primeiro achado não estava no Progresso nem no Analytics: estava no relatório
+do fim do treino, e está em produção desde que o agachamento entrou.
+
+**O sintoma.** `textForCode` conhecia cinco códigos — os três de cena e os dois do polichinelo.
+O Tier C trouxe seis códigos de execução (`SQUAT_TOO_SHALLOW`, `PUSHUP_TOO_SHALLOW`,
+`HIPS_SAGGING`, `HIPS_PIKED`, `CRUNCH_TOO_SHALLOW`, `CRUNCH_TOO_FAST`) e nenhum tinha frase. Em
+"o que melhorar", quem terminava um agachamento lia `SQUAT_TOO_SHALLOW`: o nome da constante,
+em caixa alta, depois de suar. A T-125 só ampliou o alcance ao pôr as mesmas contagens numa
+segunda tela.
+
+**Por que ninguém viu.** O HUD ao vivo nunca dependeu daquele mapa — o `feedback.issued` chega
+com a frase pronta do catálogo do worker. E o único exercício que contava de verdade era o
+polichinelo (`[A/T-106]`), cujos dois códigos por acaso estavam no mapa. Duas coincidências
+sustentando uma tela.
+
+**A correção, em três degraus.**
+
+1. **`web/src/lib/events.ts` volta a ser espelho.** O arquivo se declara espelho de
+   `events.py` e estava parado na Fase 0: o `Code` de lá cresceu, o de cá não.
+2. **`GET /api/config` passa a servir o catálogo de texto** (`_mensagens_de_feedback`), lido do
+   **mesmo** `catalog.pt-BR.yaml` que o motor carrega. É o que a SPEC-018 §C já prometia —
+   "as frases que a pessoa lê suando; você vai querer reescrevê-las sem deploy" — valendo
+   também para o relatório, e não só para o HUD.
+3. **`textForCode` fica com três degraus**: servidor, embutido completo, o próprio código.
+
+**Decisões.**
+
+- **Não copiei as frases para o bundle.** Seria a mesma decisão que causou o bug, só que maior:
+  dois arquivos de texto para manter em sincronia. O embutido continua existindo (primeiro
+  paint, offline), mas agora está **completo**, e o servidor vence quando chega — a mesma
+  doutrina do catálogo de exercícios da T-074.
+- **O último degrau continua feio de propósito.** Código desconhecido aparece como código. Foi
+  assim que este bug foi descoberto, e um "—" educado no lugar o teria escondido para sempre.
+- **`lru_cache` no lado do servidor**, e não cache do Django: o YAML é do deploy, não do banco.
+  Mudou o arquivo, mudou o processo. Falha na leitura devolve `{}` e o cliente cai no embutido
+  (P2 da SPEC-018: configuração indisponível nunca derruba resposta).
+- **Dicionário vazio no payload é lido como "não sei"**, igual à lista vazia do catálogo: o
+  store guarda `null` em vez de `{}`, senão um soluço do servidor faria toda frase do relatório
+  virar código na tela.
+- **`TOO_FAR` mudou de texto**, e isto é conserto e não estilo: o cliente dizia "afaste-se
+  menos: você está longe demais" enquanto o HUD, ao vivo, dizia "aproxime-se da câmera". Duas
+  vozes para o mesmo aviso, uma delas dizendo o contrário do movimento pedido.
+
+**O gate que fecha a porta.** `todo código do contrato tem texto embutido` percorre
+`Object.values(Code)` e exige frase para cada um. Código novo em `events.ts` sem frase quebra o
+teste — não a tela de quem acabou de treinar. Do lado do servidor, dois testes: o payload cobre
+todo `Code`, e payload e motor leem o mesmo catálogo (a promessa do `[A/T-051]`, aplicada a
+texto).
+
+**Gates.** `npm run lint`, `npm run typecheck`, `npm run test` (487, +4), `uv run ruff check .`.
+
+**Sobre o `pytest` desta sessão.** Redis e Postgres não estão de pé nesta máquina (nenhum
+contêiner do compose rodando), e sem eles a suíte inteira erra na conexão — nada a ver com esta
+task. Rodou em duas partes que juntas a cobrem: `DJANGO_DB_SQLITE=1 DJANGO_CACHE_LOCMEM=1 uv
+run pytest` passa tudo **exceto** `test_settings_leem_ambiente`, que falha por causa do próprio
+override (ele afirma que o settings lê Postgres do ambiente); e esse teste passa sozinho com
+`DJANGO_CACHE_LOCMEM=1`. Vale subir o compose antes do próximo gate de verdade.
+
+**Pendências.** Nenhuma nova. A `hint` viaja no payload e ainda não tem consumidor — o
+relatório mostra só a `message`; ela está lá porque o catálogo a tem e cortá-la obrigaria a
+mexer no servidor de novo quando a tela quiser explicar o "como".
+
+---
+
 ## 2026-08-06 (35) · T-125 — o Analytics para de prometer e começa a medir
 
 Última task do M0. A tela era um card e três bullets dizendo o que viria; agora tem quatro

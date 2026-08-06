@@ -58,12 +58,24 @@ export interface StepperRanges {
   reps_default: number
 }
 
+/**
+ * Texto de um código de feedback (SPEC-008 §1, servido pela SPEC-018 §C).
+ *
+ * `hint` é opcional porque no catálogo ele é opcional — e o relatório usa só a `message`.
+ */
+export interface FeedbackText {
+  message: string
+  hint?: string
+}
+
 export interface ServerConfig {
   config_version: number
   plan: PlanCapabilities
   session: SessionLimits
   steppers: StepperRanges
   exercises: ServerExercise[]
+  /** Servidor anterior à T-126 não manda o campo; o cliente cai no embutido. */
+  feedback?: Record<string, FeedbackText>
 }
 
 export interface ConfigState {
@@ -72,6 +84,8 @@ export interface ConfigState {
   plan: PlanCapabilities | null
   session: SessionLimits | null
   steppers: StepperRanges | null
+  /** `null` = o servidor ainda não falou. Nunca "este código não tem texto". */
+  feedback: Record<string, FeedbackText> | null
   configVersion: number
   apply: (config: ServerConfig) => void
   reset: () => void
@@ -82,6 +96,7 @@ const DEFAULTS = {
   plan: null,
   session: null,
   steppers: null,
+  feedback: null,
   configVersion: 0,
 }
 
@@ -93,6 +108,11 @@ export const useConfigStore = create<ConfigState>((set) => ({
       // `_catalogo_serializado` no `api/config.py`). Guardá-la como `[]` apagaria a tela
       // Escolha; guardar `null` mantém o catálogo embutido no ar.
       exercises: config.exercises.length > 0 ? config.exercises : null,
+      // Mesma leitura do catálogo, e pelo mesmo motivo: dicionário vazio é o servidor dizendo
+      // "não consegui ler o YAML" (ver `_mensagens_de_feedback` em `api/config.py`). Guardá-lo
+      // como `{}` faria toda frase do relatório virar código na tela.
+      feedback:
+        config.feedback && Object.keys(config.feedback).length > 0 ? config.feedback : null,
       plan: config.plan,
       session: config.session,
       steppers: config.steppers,

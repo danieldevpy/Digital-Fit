@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { Code, Severity } from '../lib/events'
+import { useConfigStore } from '../store/config'
 import {
   COACH_ENTRY_TTL_MS,
   entryFromEvent,
   resolveCoachCard,
+  textForCode,
   type CoachEntry,
 } from './coachCard'
 
@@ -43,7 +45,9 @@ describe('prioridade (critério 3 da SPEC-013)', () => {
   it('warning de cena vence feedback de execução', () => {
     const card = resolveCoachCard({ ...base, scene: scene(), feedback: feedback() })
     expect(card.tone).toBe('scene')
-    expect(card.text).toContain('longe demais')
+    // `TOO_FAR` é "a pessoa está longe": o texto manda aproximar. Era "afaste-se menos" no mapa
+    // do cliente, contra "aproxime-se da câmera" no catálogo que o HUD já usava ao vivo.
+    expect(card.text).toContain('Aproxime-se')
   })
 
   it('feedback vence a dica padrão', () => {
@@ -101,7 +105,7 @@ describe('texto dos códigos', () => {
 
   it('traduz o código quando não há message (scene.warning)', () => {
     expect(resolveCoachCard({ ...base, scene: scene({ code: Code.OUT_OF_FRAME }) }).text).toBe(
-      'Você saiu do quadro.',
+      'Apareça inteiro no quadro',
     )
   })
 
@@ -128,5 +132,31 @@ describe('entryFromEvent', () => {
 
   it('assume severidade warning quando o evento não manda', () => {
     expect(entryFromEvent({ code: Code.TOO_CLOSE }, NOW).severity).toBe(Severity.WARNING)
+  })
+})
+
+describe('textForCode', () => {
+  afterEach(() => useConfigStore.getState().reset())
+
+  // O gate da T-126: espelho do contrato e mapa de texto crescem juntos. Código novo em
+  // `events.ts` sem frase aqui quebra este teste — e não a tela de quem acabou de treinar.
+  it('todo código do contrato tem texto embutido', () => {
+    for (const code of Object.values(Code)) {
+      expect(textForCode(code), `código sem texto embutido: ${code}`).not.toBe(code)
+    }
+  })
+
+  it('o catálogo do servidor vence o embutido (SPEC-018 §C: texto sem deploy)', () => {
+    useConfigStore.setState({
+      feedback: { [Code.SQUAT_TOO_SHALLOW]: { message: 'Desça até a coxa ficar paralela' } },
+    })
+
+    expect(textForCode(Code.SQUAT_TOO_SHALLOW)).toBe('Desça até a coxa ficar paralela')
+    // O que o servidor não mandou continua vindo do embutido, e não some.
+    expect(textForCode(Code.HIPS_PIKED)).toBe('Abaixe o quadril')
+  })
+
+  it('código desconhecido devolve ele mesmo — feio de propósito, para ser visto', () => {
+    expect(textForCode('CODIGO_QUE_NAO_EXISTE')).toBe('CODIGO_QUE_NAO_EXISTE')
   })
 })
