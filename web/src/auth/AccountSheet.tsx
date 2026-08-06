@@ -4,9 +4,9 @@
 // vista de quem usa: "minha conta". O visitante vê o formulário e o motivo de criar conta; o
 // logado vê o que treinou. Duas telas separadas obrigariam a navegar para descobrir em qual
 // dos dois estados se está.
-import { useEffect, useState } from 'react'
-import { refreshHistory } from '../history/refresh'
+import { useState } from 'react'
 import { useHistoryStore } from '../history/store'
+import { useFreshHistory } from '../history/useFreshHistory'
 import { formatDuration } from '../report/sessionReport'
 import { useAccountStore } from '../store/account'
 import { BrandMark } from '../ui/BrandMark'
@@ -184,6 +184,7 @@ function Conta() {
   const history = useHistoryStore((state) => state.sessions)
   const historyStatus = useHistoryStore((state) => state.status)
   const source = useHistoryStore((state) => state.source)
+  const loadError = useHistoryStore((state) => state.loadError)
   const quota = useAccountStore((state) => state.quota)
   const blocked = useAccountStore((state) => state.quotaBlocked)
   const { openSheet, reset } = useAccountStore.getState()
@@ -193,12 +194,9 @@ function Conta() {
   // sessão de login para desfazer (T-079).
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
 
-  // Abrir a folha é "ganhar foco" (SPEC-024 §2). Aqui ainda é uma carga por montagem; os
-  // outros dois gatilhos (página voltar a ficar visível, fim de sessão) e o debounce entram
-  // na T-122, e é por isso que o `refreshHistory` já é a única porta.
-  useEffect(() => {
-    void refreshHistory()
-  }, [])
+  // Abrir a folha é "ganhar foco" (SPEC-024 §2): revalida ao montar e quando a página volta a
+  // ficar visível. O fim de sessão não passa por aqui — ele invalida direto no store.
+  useFreshHistory()
 
   const totais = historyTotals(history)
   const aviso = quotaNotice(quota, blocked)
@@ -258,6 +256,12 @@ function Conta() {
           critério 5) — mas dizer de onde ela veio é o que separa "desatualizado" de "mentira". */}
       {source === 'local' && history.length > 0 && (
         <p className="account__hint">Mostrando o que está guardado neste aparelho.</p>
+      )}
+      {/* Revalidação que falhou com dado bom na tela. Discreto de propósito: o número não está
+          errado, só pode não ser o último. Um erro em vermelho aqui assustaria por causa de um
+          Wi-Fi ruim. */}
+      {loadError && source === 'server' && history.length > 0 && (
+        <p className="account__hint">Não consegui atualizar agora — pode faltar algo recente.</p>
       )}
       {historyStatus === 'ready' && history.length === 0 && (
         <p className="account__hint">

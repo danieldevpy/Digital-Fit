@@ -151,9 +151,18 @@ export async function fetchMe(fetchImpl: typeof fetch = fetch): Promise<AccountU
   return (await resposta.json()) as AccountUser
 }
 
-/** Histórico do usuário (`GET /api/sessions?mine`). Lança se a conta não valer mais. */
-export async function fetchHistory(fetchImpl: typeof fetch = fetch): Promise<SessionReport[]> {
-  const resposta = await authedFetch('/api/sessions?mine', {}, fetchImpl)
+/**
+ * Histórico do usuário (`GET /api/sessions?mine`). Lança se a conta não valer mais.
+ *
+ * O `signal` existe para a revalidação da SPEC-024 §2: quando um foco novo chega antes de a
+ * resposta anterior voltar, a antiga é abortada. Sem isso a resposta lenta pousaria por cima
+ * da recente e a tela voltaria no tempo — o bug clássico do stale-while-revalidate.
+ */
+export async function fetchHistory(
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<SessionReport[]> {
+  const resposta = await authedFetch('/api/sessions?mine', { signal }, fetchImpl)
   if (!resposta.ok) {
     throw new AuthError(
       await detalhe(resposta, 'Não foi possível carregar o histórico.'),

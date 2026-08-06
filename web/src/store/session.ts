@@ -1,5 +1,6 @@
 // Estado da sessão em um único store (convenções §Código).
 import { create } from 'zustand'
+import { refreshHistory } from '../history/refresh'
 import { useHistoryStore } from '../history/store'
 import { loadLastReport, markLastReportClosed, saveLastReport } from '../report/lastReport'
 import type {
@@ -393,6 +394,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     // `waitForReport` chegam os dois neste método —, e é o que faz o Progresso do visitante
     // existir sem conta. O `record` é idempotente por `session_id`.
     useHistoryStore.getState().record(report)
+    // Terceiro gatilho do contrato de frescor (T-122): fim de sessão invalida o histórico NA
+    // HORA, sem esperar foco e **ignorando o debounce** — aqui houve um fato novo, não uma
+    // suspeita. É o caso que originou a spec: treinou, foi no Perfil, viu o número de antes.
+    // Sem conta isto só relê o aparelho, que o `record` acabou de atualizar.
+    void refreshHistory({ force: true })
     set({ report, reportStatus: 'ready' })
   },
   failReport: () => set({ reportStatus: 'error' }),

@@ -4,6 +4,7 @@
 // (`digitalfit.last_report`, gravado na revisão de 2026-07-30). Série temporal, sequência de
 // dias e evolução de peso são a T-065 (SPEC-017): declarados aqui como "em breve" em vez de
 // desenhados com número inventado — a régua da SPEC-014 §Desvios vale para telas novas também.
+import { useFreshHistory } from '../history/useFreshHistory'
 import { reasonText } from '../report/reportSummary'
 import { getExercise } from '../session/catalog'
 import { navigate } from '../shell/nav'
@@ -20,6 +21,10 @@ export function ProgressScreen() {
   // Do store, não do `localStorage` direto: o store já rehidrata `digitalfit.last_report` no
   // boot, e ler o arquivo duas vezes abriria a porta para duas verdades na mesma tela.
   const report = useSessionStore((state) => state.report)
+  // O contrato de frescor da SPEC-024 §2 vale para esta tela desde já (T-122), embora quem vai
+  // DESENHAR o histórico aqui seja a T-124: entrar na aba e voltar do bolso já revalidam, e
+  // deixar isso para depois faria a tela nova nascer com o mesmo defeito que a spec conserta.
+  useFreshHistory()
 
   return (
     <>

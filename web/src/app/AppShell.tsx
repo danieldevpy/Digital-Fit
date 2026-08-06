@@ -4,6 +4,7 @@
 import { useEffect } from 'react'
 import { AccountSheet } from '../auth/AccountSheet'
 import { fetchMe } from '../auth/api'
+import { refreshHistory } from '../history/refresh'
 import { useHistoryStore } from '../history/store'
 import { ReportSheet } from '../report/ReportSheet'
 import { AnalyticsScreen } from '../screens/AnalyticsScreen'
@@ -62,6 +63,22 @@ export function AppShell() {
   useEffect(() => {
     void fetchServerConfig()
   }, [contaId])
+
+  // Trocou de identidade, troca de histórico (T-122). O `setUser` já devolveu a lista ao que o
+  // APARELHO sabe; esta linha traz o que o servidor sabe sobre quem entrou agora. Sem ela, quem
+  // faz login só veria as próprias sessões ao abrir o Perfil, e o Progresso ficaria mostrando
+  // apenas o que o aparelho tem, calado sobre o resto.
+  //
+  // Depende de `contaId` **e** de `status` porque as duas trocas importam e nenhuma cobre a
+  // outra: sair da conta mantém o id em `null` e muda só o status; trocar de conta mantém o
+  // status em `authenticated` e muda só o id.
+  const contaStatus = useAccountStore((state) => state.status)
+  useEffect(() => {
+    // `unknown` é o boot antes de o `/api/me` responder — buscar aqui seria perguntar o
+    // histórico de uma identidade que ainda não se sabe qual é.
+    if (contaStatus === 'unknown') return
+    void refreshHistory()
+  }, [contaId, contaStatus])
 
   // Pré-voo da quota (SPEC-016, T-063). É o que faz o sheet de limite aparecer ANTES de a
   // câmera abrir: sem ele, quem já esgotou daria permissão de câmera, esperaria o landmarker

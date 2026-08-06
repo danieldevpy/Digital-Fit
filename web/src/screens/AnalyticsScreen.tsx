@@ -5,6 +5,7 @@
 // de relatório do fim da sessão (SPEC-010). O que falta é o acúmulo entre sessões, que
 // depende do histórico da SPEC-011/017. Até lá esta tela diz isso e leva ao que existe, em
 // vez de mostrar gráfico com número de exemplo.
+import { useFreshHistory } from '../history/useFreshHistory'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
 import { useSessionStore } from '../store/session'
@@ -32,6 +33,9 @@ const PROXIMOS = [
 export function AnalyticsScreen() {
   const report = useSessionStore((state) => state.report)
   const reopenReport = useSessionStore((state) => state.reopenReport)
+  // Mesma razão da ProgressScreen: o frescor entra antes do desenho (T-125), para a tela nova
+  // não nascer com o defeito que a spec conserta.
+  useFreshHistory()
 
   return (
     <>

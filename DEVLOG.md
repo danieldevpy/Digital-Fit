@@ -5,6 +5,65 @@
 
 ---
 
+## 2026-08-06 (32) · T-122 — o dado acorda quando alguém olha
+
+Os três gatilhos do contrato de frescor, ligados. O que não existia em `web/src` antes desta
+task: **um `visibilitychange`**. Nenhum. Quem guardava o celular no bolso e voltava não
+remontava componente nenhum, e a tela ficava com o número de quando o aparelho foi guardado.
+
+**Os três, e onde cada um mora.**
+
+| Gatilho | Onde | Passa pelo debounce? |
+|---|---|---|
+| entrar na tela | `useFreshHistory()` (Progresso, Analytics, Perfil) | sim |
+| página voltar a ficar visível | mesmo hook, `visibilitychange` | sim |
+| fim de sessão | `applyReport` em `store/session.ts` | **não** |
+
+O terceiro não mora numa tela de propósito: ele não depende de haver tela aberta. E ignora o
+debounce porque ali houve um **fato novo**, não uma suspeita — esperar 30 s para mostrar o
+treino que a pessoa acabou de fazer é literalmente a queixa que originou a spec.
+
+Entrou um quarto, que a task não enumerava e sem o qual o contrato tem buraco: **troca de
+identidade**, no `AppShell`. Depende de `contaId` **e** de `status` porque nenhuma das duas
+cobre a outra — sair da conta mantém o id em `null` e muda só o status; trocar de conta mantém
+o status em `authenticated` e muda só o id.
+
+**Decisões.**
+
+- **Debounce de 30 s.** Foco é barato de ganhar: alternar entre Progresso e Analytics, ou
+  entre abas, ganharia foco várias vezes por minuto em cima de um dado que só muda quando a
+  própria pessoa treina — e esse caso tem gatilho próprio.
+- **Abortar não é falhar.** O `catch` do `refreshHistory` distingue os dois: pedido substituído
+  sai calado, porque marcar `loadError` ali acenderia o aviso de "pode estar velho" justamente
+  no instante em que um dado mais novo está a caminho. Testado com uma resposta segurada à mão.
+- **`fetchHistory` ganhou `signal`** (parâmetro opcional, aditivo — nenhum chamador existente
+  mudou). O `AbortController` é o que impede a resposta lenta de pousar por cima da recente e
+  fazer a tela voltar no tempo; o bug clássico de stale-while-revalidate.
+- **`deveRevalidarAoMudarVisibilidade` é função exportada**, não `if` dentro do hook. O
+  `visibilitychange` dispara nas duas pontas e só a volta interessa; a suíte roda em
+  `environment: 'node'` e sem extrair a regra ela só seria verificável à mão, num celular.
+- **O hook entrou no Progresso e no Analytics agora**, antes de as telas desenharem o histórico
+  (T-124/T-125). Deixar para depois faria a tela nova nascer com o defeito que a spec conserta.
+- **O aviso de falha é discreto** ("Não consegui atualizar agora — pode faltar algo recente") e
+  só aparece com dado bom na tela. O número não está errado, só pode não ser o último; um erro
+  em vermelho por causa de um Wi-Fi ruim assustaria à toa.
+
+**Medições.** `npm run lint`, `npm run typecheck`, `npm run test` (455 testes, 44 arquivos),
+`uv run ruff check .` e `uv run pytest` verdes. Python não foi tocado.
+
+**Critérios da SPEC-024 nesta task**: 2 e 3 verificados em `refresh.test.ts` — uma requisição
+depois de `FRESH_MS`, nenhuma antes, e `force` furando a janela. 5 verificado nos dois lados
+(store e refresh). O ramo do `AbortController` tem teste próprio, com a primeira resposta
+segurada até a segunda aterrissar.
+
+**Pendência declarada, não escondida**: o *fio* do `visibilitychange` (addEventListener no
+`document` real e a limpeza no unmount) **não tem teste** — a suíte roda sem DOM e o projeto
+não tem setup de teste de componente React. A regra que ele carrega tem teste; o registro do
+ouvinte foi verificado por leitura. Vale um teste de verdade no dia em que houver DOM na
+suíte, e isso é decisão de infraestrutura, não desta task.
+
+---
+
 ## 2026-08-06 (31) · T-121 — o histórico ganha dono, e o visitante ganha passado
 
 Primeira task do M0. Entra `web/src/history/` com quatro arquivos e sai a segunda verdade:
