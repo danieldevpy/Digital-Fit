@@ -1,5 +1,5 @@
 # SPEC-024 — Histórico como Fonte Única & Contrato de Frescor
-Status: draft | Camada: client (+ leitura da api existente) | Depende de: SPEC-010, SPEC-011, SPEC-014 | Referência: "progresso e analytics estão inúteis e os dados nunca estão atualizados" (Daniel, 2026-08-06)
+Status: implemented(initial) — T-121…T-125, 2026-08-06 | Camada: client (+ leitura da api existente) | Depende de: SPEC-010, SPEC-011, SPEC-014 | Referência: "progresso e analytics estão inúteis e os dados nunca estão atualizados" (Daniel, 2026-08-06)
 
 ## Entidade e responsabilidade
 
