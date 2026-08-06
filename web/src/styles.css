@@ -3582,3 +3582,92 @@ a {
   color: var(--text-faint);
   font-size: 0.66rem;
 }
+
+/* ------------------------------------------------------------------ Analytics (T-125)
+
+   A tela deixou de declarar o que viria e passou a ler o histórico (SPEC-024 §4). Reaproveita
+   os contêineres do Progresso (`prog__section`, `prog__exercicios`) de propósito: são a mesma
+   família de informação, e dois tratamentos diferentes fariam parecer dois produtos. */
+
+.ana__serie {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Linha de cadência. `preserveAspectRatio: none` estica o viewBox na horizontal, e por isso
+   `vector-effect` é obrigatório: sem ele o traço engrossaria junto e ficaria uma faixa. */
+.ana__linha {
+  width: 100%;
+  height: 40px;
+}
+
+.ana__linha polyline {
+  fill: none;
+  stroke: var(--cyan);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.ana__linha circle {
+  fill: var(--blue);
+}
+
+/* O que falta para a linha existir (SPEC-024 §5). Fica no lugar do gráfico, não abaixo dele:
+   é a informação que substitui o desenho, não uma nota de rodapé sobre ele. */
+.ana__falta {
+  padding: 10px 0 2px;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.ana__ritmo-barra {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-2), var(--hot));
+}
+
+.ana__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ana__item-icon {
+  flex: none;
+}
+
+.ana__item-corpo {
+  flex: 1;
+  min-width: 0;
+}
+
+.ana__item-texto {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.ana__rumo {
+  margin: 2px 0 0;
+  color: var(--text-faint);
+  font-size: 0.66rem;
+}
+
+/* Correção que diminui é boa notícia; que aumenta, um alerta discreto. Verde e âmbar dos
+   tokens da SPEC-014 — nada de vermelho: isto é treino, não erro de sistema. */
+.ana__rumo--bom {
+  color: var(--live);
+}
+
+.ana__rumo--ruim {
+  color: var(--hot);
+}
+
+.ana__item-valor {
+  flex: none;
+  font: 700 1rem var(--font-num);
+}

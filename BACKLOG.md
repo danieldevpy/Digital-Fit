@@ -167,7 +167,7 @@ sessões. T-055 (histórico diz qual exercício) ajuda o M0 e não o bloqueia.
 | T-122 | Contrato de frescor: revalida ao entrar na tela, ao a página voltar a ficar visível (`visibilitychange`) e **na hora** que uma sessão termina (este ignora o debounce); stale-while-revalidate, debounce de 30 s, `AbortController` contra resposta velha por cima de nova, falha mantém o dado anterior com aviso discreto. Depende de T-121 | 024/014 | done |
 | T-123 | Agregações puras em `history/aggregates.ts` + fixtures de `SessionReport[]` (sem rede, sem relógio de verdade): dias ativos no fuso de quem lê, sessões/reps por semana, reps por exercício, cadência por exercício ao longo do tempo, dispersão de `rep_durations_ms`, `feedback_counts` e `scene_warning_counts` agregados, e o gate de honestidade (< 2 sessões do mesmo exercício ⇒ nenhuma tendência). Depende de T-121; paralela a T-122 | 024 | done |
 | T-124 | Tela Progresso sobre as agregações: dias ativos do mês, sessões/reps das últimas 4 semanas, reps por exercício, última sessão em destaque. Sai o "em breve". Sem kcal e sem fogo — são SPEC-017/019. Depende de T-121+T-123 | 024/014 | done |
-| T-125 | Tela Analytics sobre as agregações: cadência por exercício ao longo do tempo, consistência de ritmo, correções mais frequentes e se caem, avisos de cena. Sai a lista de bullets declarativa. Depende de T-121+T-123 | 024/014 | todo |
+| T-125 | Tela Analytics sobre as agregações: cadência por exercício ao longo do tempo, consistência de ritmo, correções mais frequentes e se caem, avisos de cena. Sai a lista de bullets declarativa. Depende de T-121+T-123 | 024/014 | done |
 
 ### M1 — "O fogo acende" (SPEC-019): streak + meta + XP funcionais de ponta a ponta
 

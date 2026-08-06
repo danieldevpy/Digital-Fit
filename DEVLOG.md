@@ -5,6 +5,51 @@
 
 ---
 
+## 2026-08-06 (35) · T-125 — o Analytics para de prometer e começa a medir
+
+Última task do M0. A tela era um card e três bullets dizendo o que viria; agora tem quatro
+blocos, todos sobre `SessionReport[]`: **ritmo por exercício** (linha), **constância do ritmo**
+sessão a sessão, **o que mais aparece** (correções + rumo) e **enquadramento** (avisos de cena).
+
+**O gate de honestidade fica visível, e é o melhor da tela.** Exercício com uma sessão só não
+ganha gráfico: ganha a frase "mais um treino de agachamento e o ritmo vira linha", **no lugar**
+do desenho e não abaixo dele. Isso não é um `if` que alguém precisou lembrar — o `tendencia`
+viaja dentro da série desde a T-123, e quem desenha recebe o aviso junto com os pontos.
+
+**Decisões.**
+
+- **Linha em `<polyline>` SVG, sem biblioteca.** São pontos num path; trazer um motor de
+  gráfico engordaria o bundle de um app que já roda inferência de pose no celular. Custo
+  medido: o bundle foi de 263,20 kB para 268,21 kB (79,74 → 80,91 kB gzip) — 5 kB para as duas
+  telas novas inteiras.
+- **`vector-effect: non-scaling-stroke`** é obrigatório com `preserveAspectRatio: none`: sem
+  ele o traço engrossaria junto com o eixo esticado e viraria uma faixa.
+- **Escala é o intervalo da própria série**, como o `cadenceBars` do relatório já fazia: escala
+  fixa achataria a variação que o gráfico existe para mostrar. Série constante desenha no meio
+  — dividir por zero mandaria a linha para fora do quadro.
+- **Constância vira `±X%`, não coeficiente de variação.** "±12%" é uma frase que alguém entende
+  sobre o próprio treino; "0,12" é um número de estatística. Sessão com menos de duas
+  repetições não entra na lista, pela mesma razão do `null` na T-123.
+- **Correções e avisos de cena têm a MESMA forma**, seguindo o precedente do `improvements()`
+  do relatório: para quem treinou, "suba mais os braços" e "você saiu do quadro" são a mesma
+  pergunta — o que eu faço diferente da próxima vez.
+- **Verde para correção que diminui, âmbar para a que aumenta, nada de vermelho.** Isto é
+  treino, não erro de sistema; e o rumo só aparece quando existe (uma sessão não tem duas
+  metades para comparar).
+- **Reaproveita os contêineres do Progresso** (`prog__section`, `prog__exercicios`) de
+  propósito: são a mesma família de informação, e dois tratamentos fariam parecer dois
+  produtos.
+
+**Medições**: lint, typecheck, 483 testes web e build de produção verdes. CSS 46,18 kB
+(9,10 kB gzip).
+
+**Pendência declarada, a mesma da T-124**: **sem verificação visual em navegador** — a extensão
+do Chrome não está conectada nesta sessão. Comportamento e dados estão cobertos por teste; o
+layout (linha SVG esticada, barras percentuais, grade de 7 colunas) foi verificado por build e
+leitura. É o tipo de coisa que só o celular desmente.
+
+---
+
 ## 2026-08-06 (34) · T-124 — o Progresso deixa de ser uma sessão
 
 A tela mostrava **um** treino (`digitalfit.last_report`) e um parágrafo dizendo que histórico,
