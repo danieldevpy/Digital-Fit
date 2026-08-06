@@ -123,22 +123,22 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
       { img: '/img/guia/agachamento-1.jpg', text: 'Suba estendendo as pernas sem tirar os pés do chão — subida completa conta a repetição.' },
     ],
   },
-  // Os dois de chão (T-106/T-107) nascem SEM foto, de propósito: a tela cai na figura do
-  // exercício em vez de apontar para um arquivo que não existe. Trocar por foto depois é
-  // edição no painel, sem deploy.
+  // Os dois de chão (T-106/T-107). As fotos são de PERFIL com a câmera no chão de propósito:
+  // a demo do Guia é a primeira coisa que ensina o enquadramento, e enquadramento errado num
+  // exercício de chão não é estética — é a sessão inteira sair zerada.
   flexao: {
     display_name: 'Flexão de braço',
     category: 'forca',
     muscle_group: 'Peito, ombro e tríceps',
     default_tip: 'Corpo numa linha reta da cabeça aos pés, do começo ao fim.',
     main_angle: 'none',
-    demo_img: '',
+    demo_img: '/img/guia/flexao-2.jpg',
     dot_color: '#f59e0b',
     scene_tip: CENA_CHAO,
     guide_steps: [
-      { img: '', text: 'Deite o celular no chão, de lado, e fique de perfil para ele — ele precisa ver você da cabeça aos pés.' },
-      { img: '', text: 'Comece na prancha: mãos abaixo dos ombros, braço estendido, corpo numa linha reta da cabeça aos calcanhares.' },
-      { img: '', text: 'Desça dobrando o cotovelo até uns 90°, com o peito perto do chão, e suba estendendo o braço — a subida completa conta a repetição.' },
+      { img: '/img/guia/flexao-1.jpg', text: 'Deite o celular no chão, de lado, e fique de perfil para ele — ele precisa ver você da cabeça aos pés.' },
+      { img: '/img/guia/flexao-1.jpg', text: 'Comece na prancha: mãos abaixo dos ombros, braço estendido, corpo numa linha reta da cabeça aos calcanhares.' },
+      { img: '/img/guia/flexao-2.jpg', text: 'Desça dobrando o cotovelo até uns 90°, com o peito perto do chão, e suba estendendo o braço — a subida completa conta a repetição.' },
     ],
   },
   abdominal: {
@@ -147,13 +147,13 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
     muscle_group: 'Abdômen',
     default_tip: 'Suba com o abdômen, devagar, sem puxar o pescoço.',
     main_angle: 'none',
-    demo_img: '',
+    demo_img: '/img/guia/abdominal-2.jpg',
     dot_color: '#a78bfa',
     scene_tip: CENA_CHAO,
     guide_steps: [
-      { img: '', text: 'Deite o celular no chão, de lado, e deite-se de perfil para ele — ele precisa ver seu tronco e seus joelhos.' },
-      { img: '', text: 'Deite de costas com os joelhos dobrados e os pés apoiados, calcanhar perto do quadril: é o joelho levantado que serve de referência para a contagem.' },
-      { img: '', text: 'Suba encolhendo o abdômen até as escápulas saírem do chão, mantendo a lombar apoiada, e volte devagar — a descida completa conta a repetição.' },
+      { img: '/img/guia/abdominal-1.jpg', text: 'Deite o celular no chão, de lado, e deite-se de perfil para ele — ele precisa ver seu tronco e seus joelhos.' },
+      { img: '/img/guia/abdominal-1.jpg', text: 'Deite de costas com os joelhos dobrados e os pés apoiados, calcanhar perto do quadril: é o joelho levantado que serve de referência para a contagem.' },
+      { img: '/img/guia/abdominal-2.jpg', text: 'Suba encolhendo o abdômen até as escápulas saírem do chão, mantendo a lombar apoiada, e volte devagar — a descida completa conta a repetição.' },
     ],
   },
 }

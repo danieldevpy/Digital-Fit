@@ -86,7 +86,7 @@ export function IndexScreen() {
             </p>
 
             <div className="landing__hero landing__hero--mobile">
-              <img src="/img/hero.jpg" alt="Pessoa treinando com esqueleto de análise neon" />
+              <img src="/img/hero-female.jpg" alt="Pessoa treinando com esqueleto de análise neon" />
             </div>
 
             <div className="landing__features">
@@ -121,7 +121,7 @@ export function IndexScreen() {
 
           {/* Mini-HUD decorativo do index.png — números de amostra, marcados como tal. */}
           <div className="landing__mock" aria-hidden="true">
-            <img src="/img/hero.jpg" alt="" />
+            <img src="/img/hero-female.jpg" alt="" />
             <div className="mock-stats">
               <div className="mock-stats__cell">
                 <IconSeries className="stats__icon" />

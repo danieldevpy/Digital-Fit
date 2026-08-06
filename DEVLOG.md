@@ -5,6 +5,56 @@
 
 ---
 
+## 2026-08-05 (24) · T-106/T-107 — os exercícios de chão ganham foto (e o hero perde 1,8 MB)
+
+Os dois exercícios de chão subiram sem foto de demonstração, caindo na figura do exercício. A
+figura é o fallback certo, mas não é o produto: ao lado do polichinelo e do agachamento
+fotografados, os dois novos pareciam inacabados. Quatro fotos geradas no Kairogen
+(`nano-banana-pro`, 6 créditos cada, dentro do teto de 7 pedido), no mesmo padrão das que já
+existiam: 900×900 JPEG, 89–96 KB, ginásio escuro, esqueleto neon, grade cyan no chão.
+
+**A decisão de conteúdo que importa: as quatro fotos são de PERFIL, com a câmera no chão.** A
+demo do Guia é a primeira coisa que ensina o enquadramento, e enquadramento errado num
+exercício de chão não é estética — é a sessão inteira sair zerada (a validação de cena mede a
+extensão do corpo no eixo horizontal, e de frente uma flexão é um corpo encolhendo contra a
+lente). Uma foto frontal aqui seria uma instrução errada com cara de instrução certa.
+
+**Sobre gerar as fases certas.** As duas primeiras tentativas de "fundo da flexão" saíram em
+prancha: com uma imagem de referência em prancha, o modelo preserva a pose e ignora a
+instrução de dobrar o cotovelo. O que funcionou foi **abandonar a referência** e descrever a
+cena inteira em texto, com a pose descrita espacialmente ("peito a 5 cm do chão", "ombros mais
+baixos que os cotovelos", "antebraços verticais"). Com a fase certa em mãos, aí sim a
+referência serve — o topo da flexão e o topo do crunch saíram de primeira usando a imagem
+irmã como referência, e é o que garante que o par tenha o mesmo homem, a mesma cena e o mesmo
+enquadramento. Custo total: 30 créditos, 5 gerações, 4 aproveitadas.
+
+**O hero da landing.** A imagem da atleta estava em `herofamale.png` com **1,9 MB** — 21× o
+peso das outras, num PNG, na primeira tela que qualquer visitante abre. Virou
+`hero-female.jpg`, 900×900, 91 KB, mesmo tamanho renderizado. O PNG original fica fora do
+repositório (não versionado): é o negativo, não o produto.
+
+**Duas coisas que a verificação no app revelou, e que valem mais que as imagens:**
+
+1. **Quem coloca foto em produção é a migration, não o `catalog.ts`.** Com a API no ar, o
+   cliente usa o catálogo do SERVIDOR (o `[A/T-051]` resolvido pela T-074) — o `catalog.ts` é
+   só o default embutido para o primeiro paint e o modo offline. Editar o cliente e esquecer a
+   migration deixaria a foto invisível para todo mundo que tem rede. Por isso a `0013` existe,
+   e por isso ela só preenche quem está com o campo **vazio**: um `demo_img` já trocado pelo
+   painel não pode ser sobrescrito por deploy.
+2. **Mudança de dado por migration não invalida o snapshot de configuração.** A `0013` alterou
+   o banco e o `GET /api/config` continuou servindo a foto vazia: a invalidação normal é por
+   `post_save`, que uma migration com modelo histórico não dispara. Não é bug — o próprio
+   `config.py` documenta o TTL de 5 minutos justamente para este caso, e no deploy o processo
+   reinicia de qualquer forma. Vale saber ao testar: ou espera 5 minutos, ou reinicia a API.
+
+**Verificação:** os quatro cards da Escolha desenham foto (nenhuma imagem quebrada, `900×900`,
+mesma altura de card); o Guia dos dois de chão mostra demo + três passos ilustrados + a frase
+de cena correta; `GET /api/config` devolve os quatro `demo_img` preenchidos depois da migration.
+Gates: `ruff` limpo, pytest verde (menos a falha pré-existente do `test_smoke`), web
+lint/typecheck/test verdes (395).
+
+---
+
 ## 2026-08-05 (23) · T-106 — a flexão contava braço levantado: o porteiro de postura
 
 Teste em produção, no mesmo dia: *"dependendo da posição ele já contava, quando levantava ele
