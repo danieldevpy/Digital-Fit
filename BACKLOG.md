@@ -55,7 +55,7 @@
 | T-026 | Logs estruturados JSON + página de status + backup diário do Postgres | — | todo |
 | T-027 | CI: ruff+pytest+lint web+build de imagens no push | — | todo |
 | T-028 | Teste de carga: 30 sessões edge + 3 cloud simultâneas na VPS via `evalctl replay` (validar orçamento) | 009/012 | todo |
-| T-042 | Eval em CI: subset rápido em todo push, corpus completo manual; PR que degrada acurácia falha | 012 | todo |
+| T-042 | Eval em CI: subset rápido em todo push, corpus completo manual; PR que degrada acurácia falha | 012 | **done** — o subset é `tests/test_corpus_regressao.py` sobre os keypoints de `eval/fixtures/` (1,9 MB versionados no lugar de 50 MB de vídeo), rodando dentro do `pytest` que a CI já executa. Cobra **contagem**, não acurácia: o rótulo da flexão veio de título de vídeo (`[A/T-108]`), e snapshot protege do que interessa. Corpus completo com extração segue manual — a CI não tem os vídeos |
 
 ## Fase 3 — Evoluções (uma task por "Fase Evolução" priorizada)
 

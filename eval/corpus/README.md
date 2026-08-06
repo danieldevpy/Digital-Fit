@@ -65,6 +65,27 @@ Os campos de `conditions` são livres, mas **use os mesmos nomes entre vídeos**
 agrupa por eles (`por luz`, `por distancia`) e é assim que se descobre "erra sempre em
 contraluz". Campo vazio é melhor que campo errado.
 
+## Depois de gravar: gerar a fixture (é ela que vira gate)
+
+O vídeo não entra no git (50 MB, `.gitignore`). O que entra são os **keypoints** dele:
+
+```bash
+uv run --extra eval python -m eval.evalctl run eval/corpus/ --save-keypoints eval/fixtures
+```
+
+Cada vídeo vira um JSON em `eval/fixtures/` — o corpus inteiro cabe em 1,9 MB versionado,
+contra 50 MB de vídeo. Depois, carimbe a contagem em `CONTAGENS`, no
+`tests/test_corpus_regressao.py`, e ela passa a ser cobrada **em todo push** (T-042).
+
+Aquele teste roda a FSM de verdade sobre gente de verdade em milissegundos, sem MediaPipe e
+sem vídeo. Ele pega mudança de limiar, de FSM e de porteiro — a camada onde mora todo o
+histórico de regressão deste projeto. O que ele **não** pega é mudança na extração (versão do
+modelo, do MediaPipe), porque a fixture congela a saída do extrator de propósito: para isso
+existe o `evalctl run` sobre os vídeos, que continua manual porque a CI não tem os arquivos.
+
+Gravou um vídeo e não gerou a fixture? Então aquele vídeo protege você na sua máquina e não
+protege ninguém no push.
+
 ## Nomeação
 
 `<exercicio>-<numero>.mp4`, dois dígitos: `polichinelo-01.mp4`, `polichinelo-02.mp4`.

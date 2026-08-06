@@ -1,5 +1,11 @@
 # CI minima da Fase 0: lint + testes do lado Python.
-# Build de imagens, lint do web e eval em CI: T-027 / T-042.
+# Build de imagens e lint do web: T-027.
+#
+# O gate de contagem (T-042) ja roda aqui dentro, sem passo proprio: `tests/test_corpus_regressao.py`
+# le os keypoints versionados em `eval/fixtures/` e roda a FSM sobre gente real. Nao precisa do
+# extra `eval` porque nao extrai pose nenhuma — a extracao ja aconteceu, uma vez, na maquina de
+# quem gravou. O corpus completo (video -> MediaPipe -> FSM) continua manual, por falta dos
+# videos no git.
 name: ci
 
 on:
@@ -17,7 +23,8 @@ jobs:
           enable-cache: true
 
       # Sem o extra `eval` de proposito: MediaPipe/OpenCV pesam ~200 MB e os testes da
-      # bancada rodam com extractor injetado. Eval em CI e a T-042.
+      # bancada rodam com extractor injetado — inclusive o gate de contagem, que le keypoints
+      # ja extraidos.
       - name: Instalar dependencias
         run: uv sync --frozen --extra server
 

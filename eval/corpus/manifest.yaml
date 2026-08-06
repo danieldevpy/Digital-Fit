@@ -119,3 +119,25 @@
     fonte: internet
     execucao: nao continua (compilado com cortes e fala)
     conhecido: sem rotulo confiavel; elbow_angle bruto conta 11 no trecho (nao validavel)
+
+# Primeiro video de AGACHAMENTO do corpus (2026-08-06). Ate ele existir, o unico dado real
+# sobre o exercicio vinha de gente EM PE nos videos de polichinelo — e foi dai que saiu a
+# Descoberta [A/T-106], que extrapolou a descida do gerador sintetico e concluiu, errado, que
+# o agachamento nao contaria nunca. Ver DEVLOG.
+- file: agachamento-frente-aprox-18-repetiçẽos-v1.mp4
+  exercise: squat
+  expected_reps: 18
+  conditions:
+    orientacao: retrato
+    resolucao: 720x1280
+    angulo: frontal
+    celular: em pe
+    inicio: a confirmar
+    execucao: agachamento profundo (quadril na altura do joelho no fundo)
+    # ATENCAO: o rotulo "18" veio do nome do arquivo ("aprox 18"), nao de contagem quadro a
+    # quadro. Serve para regressao (o numero nao pode mudar sozinho), nao para acuracia.
+    #
+    # Medido em 2026-08-06 pelo pipeline real: em pe 1,330 torsos, fundo 0,675, razao 0,507.
+    # O limiar `agachado` (0,72) exige descer a 54,1% da altura de quadril em pe; esta pessoa
+    # desce a 50,7%. Conta, com 3,4 pontos de margem — quem parar acima do paralelo conta 0.
+    conhecido: 18/18 pelo evalctl; 0 em producao pelo navegador (mesma sessao, ver DEVLOG)

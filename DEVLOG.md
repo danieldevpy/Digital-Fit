@@ -5,6 +5,67 @@
 
 ---
 
+## 2026-08-06 (40) · T-042 — o gate de contagem, e por que ele não usa vídeo
+
+Pergunta do Daniel depois do caso da flexão: *"como posso blindar para que todo push ou deploy
+teste que todos os exercícios estão contando como deveriam?"*. É a T-042, que estava no backlog
+desde a Fase 1 e tinha um obstáculo concreto: **os vídeos não estão no git** (50 MB,
+`.gitignore`), e a CI não instala MediaPipe.
+
+**A saída foi não versionar vídeo, e sim keypoints.** O `evalctl --save-keypoints` e o formato
+`KeypointFixture` já existiam desde a T-039; faltava usá-los como gate. Medido: os sete vídeos
+viram 9,7 MB de JSON, **1,9 MB depois da compressão do git**. O teste roda em milissegundos —
+JSON → FSM, sem MediaPipe, sem decodificar vídeo, sem baixar o modelo de 17 MB.
+
+**Não precisou de passo novo na CI.** O gate é um arquivo em `tests/`, então ele entra pelo
+`uv run pytest` que já roda em todo push e todo PR. A CI continua sem o extra `eval`, e isso
+deixou de ser uma limitação: a extração já aconteceu, uma vez, na máquina de quem gravou.
+
+**A prova de que serve para alguma coisa** (rodada antes de commitar, com os limiares de hoje
+contra os cenários de regressão):
+
+| cenário | agachamento | flexão frontal |
+|---|---|---|
+| hoje | 18 | 50 |
+| limiar `down_hip_height` apertado para 0,60 | **0** | — |
+| porteiro de chão só de perfil (o estado do commit `eb14b5e`) | — | **0** |
+
+A segunda linha é o caso real: o commit da T-106 que consertou "a flexão contava braço
+levantado" apagou a contagem frontal no mesmo movimento e foi para produção. Com este arquivo,
+ele teria falhado no push.
+
+**Decisões.**
+
+- **Cobra a contagem de HOJE, não o rótulo.** `expected_reps` da flexão veio do **título** do
+  vídeo (`[A/T-108]`); cobrar acurácia contra rótulo herdado seria ajustar o produto a um
+  número que ninguém verificou. O snapshot pergunta a coisa certa — "isto mudou sem alguém
+  pedir?" — e a distância até o rótulo continua sendo medida pelo `evalctl`, que é onde ela
+  pertence.
+- **O compilado `frente&lado` ficou de fora do mapa.** Ele conta 0 hoje, e é um vídeo de rede
+  social com cortes de câmera; carimbar esse zero transformaria um número ruim em contrato. Um
+  terceiro teste garante que nenhuma OUTRA fixture fique fora sem querer.
+- **`SEM_MATERIAL_REAL = {"abdominal"}`.** O teste que exige um vídeo por exercício no ar
+  falharia hoje: o abdominal está em produção desde a T-107 e o corpus nunca teve um vídeo
+  dele — a mesma posição em que a flexão estava. Travar o push de todo mundo por causa disso
+  seria transformar um achado em pedágio, então a dívida ficou **escrita e visível**, com um
+  teste extra que impede alguém de esconder exercício novo na lista.
+- **O corpus ganhou o primeiro vídeo de agachamento** (do Daniel, 720×1280, frontal, 36 s), e
+  com ele o manifest ganhou o que faltava para o exercício existir na bancada.
+
+**O que este gate NÃO pega, dito por escrito no próprio arquivo**: mudança na extração (versão
+do modelo ou do MediaPipe) — a fixture congela a saída do extrator de propósito, para isolar a
+FSM; e a perna do navegador, manual por construção (`[A/T-040]`). São exatamente as duas coisas
+que explicariam o caso ainda aberto do vídeo de agachamento contando 0 em produção.
+
+**Gates.** `ruff check` e `format --check` limpos; `pytest` com **814 passando** (+9), mesma
+exceção de ambiente das entradas anteriores.
+
+**Pendências.** O lado **web continua sem CI nenhuma** (T-027): `lint`, `typecheck` e `test`
+só rodam na máquina de quem escreve. E nada impede um deploy de commit vermelho — `prod.sh up`
+não olha a CI.
+
+---
+
 ## 2026-08-06 (39) · O plano de uma conta vira comando, e sai de dentro de um `.sh`
 
 Pedido do Daniel: o `scripts/activate-subscriber.sh` (commitado ontem, sem task) devia morrer e
