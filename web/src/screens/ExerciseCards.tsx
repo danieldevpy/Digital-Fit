@@ -36,6 +36,9 @@ export function ExerciseCards() {
               info={info}
               className="ex-card__demo"
               figuraClassName="ex-card__demo--figura"
+              // Aqui a rolagem é a do documento, então o adiamento funciona de verdade — e a
+              // vitrine do site é longa o bastante para valer a pena.
+              lazy
             />
             <span className="ex-card__foot">
               <span

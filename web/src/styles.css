@@ -2021,15 +2021,11 @@ a {
   color: var(--text-faint);
 }
 
-@media (min-width: 700px) {
-  .ex-mini {
-    flex-basis: 196px;
-  }
-
-  .ex-mini__demo {
-    height: 116px;
-  }
-}
+/* NÃO acrescente aqui uma media query de viewport para agrandar o card: o app inteiro vive
+   dentro do `.app__phone`, que é `max-width: 430px` em qualquer tela. Uma `@media (min-width:
+   700px)` casa com o monitor e não com o quadro — no desktop ela dava cards de 196px dentro de
+   um quadro de 430px, um layout que nenhum celular jamais veria. Se um dia o card precisar
+   variar, o instrumento é container query sobre a faixa, não a viewport. */
 
 /* ---------- guia / exemplo passo a passo (SPEC-015) ---------- */
 

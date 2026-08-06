@@ -15,9 +15,25 @@ interface ExerciseDemoProps {
   className: string
   /** Classe extra só do ramo figura (o traço precisa de respiro que a fotografia não precisa). */
   figuraClassName: string
+  /**
+   * Adiar o carregamento até a imagem entrar em cena.
+   *
+   * **Padrão `false`, e a exceção é que precisa ser justificada** — o contrário do instinto.
+   * Dentro de um contêiner com `overflow-x: auto` o Chrome nunca dispara o carregamento de uma
+   * imagem `lazy`: ela fica com `currentSrc` vazio e `complete: false` para sempre, mesmo
+   * visível na tela. Medido no navegador, não deduzido — foi assim que as fotos sumiram das
+   * faixas da Escolha. Só ligue onde a rolagem for a do documento, como na vitrine do site.
+   */
+  lazy?: boolean
 }
 
-export function ExerciseDemo({ exercise, info, className, figuraClassName }: ExerciseDemoProps) {
+export function ExerciseDemo({
+  exercise,
+  info,
+  className,
+  figuraClassName,
+  lazy = false,
+}: ExerciseDemoProps) {
   if (!info.demo_img) {
     return <ExerciseIcon exercise={exercise} className={`${className} ${figuraClassName}`} />
   }
@@ -26,7 +42,7 @@ export function ExerciseDemo({ exercise, info, className, figuraClassName }: Exe
       className={className}
       src={info.demo_img}
       alt={`Demonstração: ${info.display_name}`}
-      loading="lazy"
+      loading={lazy ? 'lazy' : 'eager'}
     />
   )
 }
