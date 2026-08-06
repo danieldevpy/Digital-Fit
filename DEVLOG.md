@@ -459,6 +459,103 @@ cadastro) é o que torna verdadeiro o CTA de conta que o rótulo "neste aparelho
 
 ---
 
+## 2026-08-06 (29) · T-108 (parte) — a flexão de frente, e a tese que estava errada
+
+O Daniel quis "ângulo habilitável por exercício", começando pela flexão de frente: *"o celular
+no chão em pé pegaria bem também para detectar em pouco espaço, de lado já ocupa mais"*. A
+`flexao.py` respondia que isso é impossível — "de frente uma flexão é um corpo encolhendo
+contra a lente e não há feature que sobreviva" (SPEC-020, Tier C). Ele trouxe dois vídeos.
+
+**A tese estava meio certa e meio errada, e a metade errada é a que importa.** O encolhimento
+existe e é violento — mas ele **é** a feature. O que a bancada mediu, antes de qualquer código:
+
+| grandeza (razão, mesmo frame) | flexão perfil | flexão frente | em pé (real) |
+|---|---|---|---|
+| ombros ÷ tronco aparente | 0,12 | **1,9–48** | 0,29–1,26 |
+| tronco \|dx/dy\| (porteiro antigo) | 1,56–3,47 | 0,00–1,19 | 0,00–0,13 |
+| pulso − quadril | 0,48–0,77 | 0,25–2,74 | **≤ 0,16** |
+
+- **Diagnóstico do 0 de 50.** O porteiro era `trunk_spread ≥ 1,2`; de frente o vetor
+  ombro→quadril aponta para a lente, o `dx` some, o gate nunca abre. Máximo observado no vídeo
+  inteiro: 0,66. A FSM ficava congelada — não era limiar mal calibrado, era feature cega.
+- **Porteiro novo: `pulso − quadril`, e vale nas DUAS vistas.** A mão está no chão e o quadril
+  está mais longe da lente; num plano que se afasta, mais longe é mais alto na imagem. Em pé
+  o máximo medido em três vídeos reais é 0,16, o limiar ficou em 0,30 — quase o dobro de folga.
+- **A vista se lê sozinha** em `ombros ÷ tronco`: 16× de separação entre perfil (0,12) e frente
+  (≥1,9), limiar em 1,0 no meio do vão. Ninguém configura nada. `PushUpAnalyzer(view=...)`
+  força, e é o gancho para a escolha na tela que o Daniel pediu.
+- **De frente quem conta é o ângulo do cotovelo**, dividido pelo topo da própria pessoa —
+  mesma doutrina do perfil (razão contra si mesmo), outra grandeza. A altura do ombro, que
+  sustenta o perfil, balança de 0,3 a 2,3 torsos aqui porque cada rep muda a distância da lente.
+
+**Varredura (o número que escolheu o limiar).** O par de menor erro bruto era (0,60/0,86), com
+erro 1 — e é lixo: 0,86 fica 0,001 abaixo do menor topo medido, ajuste ao rótulo. As
+distribuições dão a janela real: **todo fundo de rep < 0,585, todo topo > 0,859**, então a
+histerese tem de viver nessa folga. Dentro dela, **20 pares dão contagem idêntica** — platô, não
+pico. Escolhido (0,63 / 0,80), e o 0,63 tem justificativa independente: é o equivalente exato
+dos 107° de cotovelo que o perfil já usa (107 ÷ 171).
+
+| desce | sobe | v1 (50) | v2 (50) |
+|---|---|---|---|
+| 0,60–0,70 | 0,74–0,85 | 52 | 50 |
+| 0,60 | 0,88 | 42 | 50 |
+| 0,60 | 0,92 | 6 | 49 |
+
+**Resultado, pelo pipeline real (`evalctl`): 0/50 e 0/50 → 52/50 e 50/50.**
+
+**A cena mentia duas vezes, e consertar uma só teria piorado.** Nos prints de produção o
+produto dizia "Você saiu do quadro" a sessão inteira com o enquadramento perfeito: o tornozelo
+é âncora obrigatória e de frente tem visibilidade **0,09 em 100% dos frames**. Mas a checagem de
+distância também estava errada (0,07–0,33 contra faixa 0,45–0,98, **98–100% dos frames fora**);
+corrigir só a âncora trocaria "saiu do quadro" por "aproxime-se".
+
+- `SceneHints` ganhou `frame_anchors` — o exercício declara o que precisa estar visível, como
+  já declarava a postura. A flexão declara tronco+braços (0–4% de frames ruins), sem tornozelo.
+- Deitado, a distância virou **a maior separação entre as âncoras**, que não pressupõe eixo
+  nenhum. Medido: perfil longe 0,08, perfil bom 0,19, frontal 0,66–0,95.
+- Avisos nos vídeos reais: **26 → 0** (v1) e **26 → 2** (v2, os frames em que o modelo perde o
+  pulso de verdade).
+
+**O `evalctl` pegou um bug que o teste não pegou.** A primeira versão emitia `HIPS_SAGGING` x35
+**e** `HIPS_PIKED` x17 na mesma série — `hip_line` traça a reta sobre o tornozelo, que de frente
+é adivinhado. Crítica contraditória é crítica inventada. De frente o produto agora **conta e não
+julga** postura, e o teste passou a varrer os dois desalinhamentos (a versão anterior só
+exercitava o quadril alinhado e passava sem provar nada).
+
+- **Gerador**: boneco frontal montado em 3D e **projetado em perspectiva** — de frente a
+  perspectiva não é detalhe de desenho, é o fenômeno medido. As razões que ele produz batem com
+  as dos vídeos reais (`sh/torso` 1,4–8,8 contra 1,9–48; cotovelo 54–180 contra 35–176). Foi ele
+  que expôs `min_shoulder_to_torso=1,5` fechando o porteiro **no topo** da rep (onde o
+  encolhimento é mínimo): virou 1,0, frouxo de propósito, porque quem recusa gente em pé é o
+  outro porteiro, com folga de verdade.
+- Gates: `ruff check`/`format` e `pytest` (792) verdes; 26 testes novos em
+  `tests/test_flexao_frontal.py`.
+
+**Maturidade continua `beta`, e o motivo é o rótulo.** Os dois vídeos são de rede social e o
+"50" veio do título, não de contagem própria — o README do corpus é explícito que rótulo
+herdado envenena a bancada. O v1 conta 52 num platô estável, o que tanto pode ser acerto do
+algoritmo quanto rótulo errado. Promover a `calibrado` exige os 8 vídeos com contagem do Daniel.
+
+**Nota de produção (acrescentada no commit, sessão seguinte).** Este trabalho ficou 19 h na
+árvore sem commit, e nesse intervalo o Daniel testou a flexão frontal **em produção** (conta
+admin, vídeo do corpus pela fonte de vídeo da T-040): contava zero. Produção roda o que está
+commitado, e o que está commitado é o porteiro de perfil. Medido hoje, o mesmo vídeo em três
+revisões:
+
+| revisão | `flexão-frente-v2` |
+|---|---|
+| `a1003ad` (05/08 20:03, antes do porteiro) | 51 |
+| `eb14b5e` → HEAD (**o que está em produção**) | 0 |
+| esta árvore | 50 |
+
+O commit que consertou o "braço levantado" apagou a contagem frontal no mesmo movimento, e
+ninguém tinha como saber: naquele momento não havia teste nem vídeo de flexão frontal no
+repositório. A lição não é sobre a flexão — **conserto de porteiro é conserto de recall, e
+perda de recall não quebra teste nenhum**. Quem gritou foi o corpus, um dia depois, e por
+acaso.
+
+---
+
 ## 2026-08-06 (28) · T-120 — o treino só começa com a câmera ligada
 
 Pedido direto do Daniel, em paralelo à SPEC-023. O CTA da pré-configuração fazia duas coisas

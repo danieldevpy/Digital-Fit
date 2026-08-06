@@ -225,7 +225,7 @@ funcionalidade nova: são o mesmo dado, dito certo.
 |---|---|---|---|
 | T-106 | Flexão de braço (`flexao`): FSM lateral com profundidade medida como fração da **própria prancha** da pessoa + sinais `PUSHUP_TOO_SHALLOW`/`HIPS_SAGGING`/`HIPS_PIKED`; traz junto a capacidade que o Tier C exigia — `Posture` no `scene_hints()` e validação de cena que mede a extensão do corpo no eixo certo (SPEC-003 evolução) — e o campo `scene_tip` por exercício, porque a frase fixa do Guia ("celular na vertical") é falsa para chão. Nasce `beta` | 020/003/007/012 | **feito** (2026-08-05) |
 | T-107 | Abdominal (`abdominal`): FSM lateral com a subida do ombro medida em alturas de joelho (referência sem memória, estável no primeiro frame) + sinais `CRUNCH_TOO_SHALLOW`/`CRUNCH_TOO_FAST`. Nasce `beta` | 020/007/012 | **feito** (2026-08-05) |
-| T-108 | Corpus real de chão (≥ 8 vídeos por exercício, guia de gravação já escrito em `eval/corpus/README.md`) + varredura de limiares → promoção `beta → calibrado` de `flexao` e `abdominal`. É o T-053 do Tier C | 020/012 | todo |
+| T-108 | Corpus real de chão (≥ 8 vídeos por exercício, guia de gravação já escrito em `eval/corpus/README.md`) + varredura de limiares → promoção `beta → calibrado` de `flexao` e `abdominal`. É o T-053 do Tier C | 020/012 | **parcial** — a vista frontal saiu daqui (DEVLOG 29): de frente a flexão conta 52/50 e 50/50 onde contava 0/50, e o mesmo 0/50 estava valendo **em produção**. Falta o que dá nome à task: 8 vídeos por exercício com contagem própria. Sem eles não há promoção a `calibrado` (Descoberta `[A/T-108]`) |
 | T-109 | **Agachamento não conta em produção** (ver Descoberta `[A/T-106]`): trocar `hip_height` absoluto por razão sobre a altura de quadril da própria pessoa (o desenho da T-106), regravar as fixtures do gerador com proporções reais e revarrer os limiares. Não é polimento: hoje o exercício está no ar, `validado`, contando zero | 007/012/020 | **todo (alta)** |
 | T-110 | Espaço normalizado é anisotrópico (Descoberta `[A/T-106]`): levar largura/altura do frame no `pose.frame` e corrigir `x` na normalização, ou declarar por escrito que toda feature é razão no mesmo eixo. Mexe no contrato de eventos (AGENTS: `events.py` primeiro) e obriga a revarrer polichinelo e agachamento | 002/006 | todo |
 
@@ -258,6 +258,28 @@ funcionalidade nova: são o mesmo dado, dito certo.
   afirma `ENGINE == postgresql` — ou seja, o teste e o conftest não podem estar certos ao mesmo
   tempo. Um dos dois está errado desde sempre; provavelmente o teste, que deveria checar a
   *leitura* da variável e não o valor final.
+
+- **[A/T-108] A régua de cena é estática por sessão, mas a vista da câmera só se conhece depois
+  do primeiro frame no chão.** `scene_hints()` é lido **uma vez**, no `__post_init__` do
+  `router.py`; a vista (perfil/frente) é descoberta pela geometria durante a sessão. Resultado:
+  a flexão precisa declarar UMA faixa de distância que sirva às duas vistas, e o mesmo corpo à
+  mesma distância mede ~3× mais de frente do que de perfil (0,69 contra 0,20 — medido). A faixa
+  ficou larga (0,12–1,10) e as duas pontas perderam sensibilidade: não avisa mais "afaste-se" de
+  perfil, e o "aproxime-se" só dispara mais longe do que disparava. Está do lado certo do erro
+  (a SPEC-003 manda errar para o lado de não avisar) mas é sensibilidade jogada fora. **Consertar
+  é dar ao validador uma régua que possa mudar quando a vista for decidida** — `scene_hints()`
+  por frame, ou o analisador publicando a vista para o router. Enquanto isso não existe, a
+  faixa larga é o preço. Foi também a única mudança desta task fora de `exercises/` (a
+  `SceneHints` ganhou `frame_anchors`), que pela regra da SPEC-007 é exatamente o sinal de que
+  a interface tinha uma lacuna.
+- **[A/T-108] O corpus de chão está rotulado por título de vídeo, não por contagem própria.** Os
+  dois vídeos de flexão frontal (`flexão-frente-50-repetições-v1/v2`) são de rede social e o
+  `expected_reps: 50` veio do título ("50 FLEXÕES = MAIS FORTE QUE 99% DO MUNDO"), não de alguém
+  contando. O `eval/corpus/README.md` é explícito: *"o rótulo seja seu… um número herdado de
+  outra fonte envenena a bancada inteira"*. Hoje isso não é fatal — os limiares foram escolhidos
+  por platô (20 pares com contagem idêntica) e não por minimizar erro contra o rótulo —, mas
+  **impede a promoção a `calibrado`**: o v1 conta 52 e não há como saber se o certo é 52 ou 50.
+  Fecha junto com os 8 vídeos rotulados da T-108.
 
 - **[T-075] `ruff format` não é gate, e o repositório já anda fora dele.** Os gates do AGENTS.md
   são `ruff check` + `pytest`; `ruff format --check .` acusa **dois blocos** em

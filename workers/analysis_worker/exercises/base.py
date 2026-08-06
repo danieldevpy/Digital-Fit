@@ -17,6 +17,7 @@ from workers.shared.events import ExercisePhase, Phase, QualitySignal, RepDetect
 from workers.shared.normalize import NormFrame
 
 __all__ = [
+    "DEFAULT_FRAME_ANCHORS",
     "EXERCISES",
     "AnalysisEvent",
     "ExerciseAnalyzer",
@@ -26,6 +27,11 @@ __all__ = [
     "feed",
     "get_analyzer",
 ]
+
+#: Âncoras de enquadramento de quem está EM PÉ: ombros e tornozelos (SPEC-003). Mora aqui, e
+#: não no validador de cena, porque quem declara âncora é o exercício — e um exercício não pode
+#: importar o validador sem inverter a direção da dependência.
+DEFAULT_FRAME_ANCHORS: tuple[int, ...] = (11, 12, 27, 28)
 
 
 class Posture(StrEnum):
@@ -62,12 +68,23 @@ class SceneHints(Protocol):
     daqui a postura e a faixa, em vez de aplicar a regra de quem está em pé a todo mundo.
     """
 
-    #: Extensão do corpo (cabeça→tornozelo) como fração do lado do frame que a postura usa:
-    #: a ALTURA de pé, a LARGURA deitado.
+    #: Extensão do corpo como fração do frame. De pé é a ALTURA cabeça→tornozelo; deitado é a
+    #: maior distância entre as âncoras (ver `frame_anchors` e `SceneValidator.body_height`).
     body_height_range: tuple[float, float]
 
     #: Em que eixo o corpo se estende. Ver `Posture`.
     posture: Posture
+
+    #: Landmarks que precisam estar visíveis para a cena valer — e, deitado, também os que
+    #: medem a distância. O default histórico (ombros + tornozelos) é a régua de quem está em
+    #: pé, e ela **mente** num exercício de chão filmado de frente: medido nos dois vídeos
+    #: frontais do corpus, o tornozelo tem visibilidade 0,09 em 100% dos frames, porque é a
+    #: parte mais longe e mais de esguelha para a lente. O produto passava a sessão inteira
+    #: dizendo "você saiu do quadro" com o enquadramento perfeito.
+    #:
+    #: Quem sabe quais landmarks importam é o exercício, pela mesma razão que já vale para a
+    #: postura: o validador não tem — e não deve ter — tabela de slug nenhuma.
+    frame_anchors: tuple[int, ...]
 
 
 @runtime_checkable

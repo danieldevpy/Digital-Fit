@@ -14,6 +14,7 @@ from tests.synthetic_keypoints import (
     still_poses,
 )
 from workers.analysis_worker.exercises import Posture
+from workers.analysis_worker.exercises.flexao import PushUpAnalyzer
 from workers.analysis_worker.scene import (
     FRAME_ANCHORS,
     MAX_BODY_HEIGHT,
@@ -45,6 +46,22 @@ def avisos_de(poses, validator: SceneValidator | None = None, **kwargs) -> list[
 
 def codigos(avisos) -> list[str]:
     return [aviso.code.value for aviso in avisos]
+
+
+def validador_do_exercicio(analyzer, **kwargs) -> SceneValidator:
+    """Validador montado com a régua que o EXERCÍCIO declara (T-108).
+
+    Repetir os números aqui dentro seria testar a cópia, não o produto: foi assim que a
+    faixa da flexão continuou parecendo certa num teste enquanto o `scene_hints()` dela
+    dizia outra coisa. O que se quer travar é "o exercício declara e o validador obedece".
+    """
+    hints = analyzer.scene_hints()
+    return SceneValidator(
+        posture=hints.posture,
+        body_range=hints.body_height_range,
+        anchors=hints.frame_anchors,
+        **kwargs,
+    )
 
 
 def espelha_no_x(frame):
@@ -274,12 +291,15 @@ def test_corpo_deitado_medido_com_a_regua_de_quem_esta_em_pe_parece_longe_demais
     """
     frame = frames_normalizados([plank_pose()], torso=0.16)[0]
 
+    ancoras = PushUpAnalyzer().scene_hints().frame_anchors
+    piso_do_exercicio = PushUpAnalyzer().scene_hints().body_height_range[0]
+
     assert SceneValidator.body_height(frame, Posture.STANDING) < MIN_BODY_HEIGHT
-    assert SceneValidator.body_height(frame, Posture.FLOOR) > MIN_BODY_HEIGHT
+    assert SceneValidator.body_height(frame, Posture.FLOOR, ancoras) > piso_do_exercicio
 
 
 def test_flexao_bem_enquadrada_nao_gera_aviso() -> None:
-    validator = SceneValidator(posture=Posture.FLOOR, body_range=(0.45, 0.98))
+    validator = validador_do_exercicio(PushUpAnalyzer())
 
     avisos = avisos_de(pushup_poses(6), validator=validator, torso=0.16)
 
@@ -288,7 +308,7 @@ def test_flexao_bem_enquadrada_nao_gera_aviso() -> None:
 
 def test_flexao_longe_demais_ainda_gera_too_far() -> None:
     """A trava não sumiu: ela passou a medir no eixo certo."""
-    validator = SceneValidator(posture=Posture.FLOOR, body_range=(0.45, 0.98))
+    validator = validador_do_exercicio(PushUpAnalyzer())
 
     avisos = avisos_de([plank_pose()] * 60, validator=validator, torso=0.07)
 
@@ -297,12 +317,13 @@ def test_flexao_longe_demais_ainda_gera_too_far() -> None:
 
 def test_deitar_para_o_outro_lado_nao_muda_o_enquadramento() -> None:
     """Cabeça à esquerda ou à direita dos pés é escolha de quem grava, não erro de cena."""
-    validator = SceneValidator(posture=Posture.FLOOR, body_range=(0.45, 0.98))
+    validator = validador_do_exercicio(PushUpAnalyzer())
     frame = frames_normalizados([plank_pose()], torso=0.16)[0]
     espelhado = espelha_no_x(frame)
 
-    assert SceneValidator.body_height(espelhado, Posture.FLOOR) == pytest.approx(
-        SceneValidator.body_height(frame, Posture.FLOOR), abs=1e-6
+    ancoras = PushUpAnalyzer().scene_hints().frame_anchors
+    assert SceneValidator.body_height(espelhado, Posture.FLOOR, ancoras) == pytest.approx(
+        SceneValidator.body_height(frame, Posture.FLOOR, ancoras), abs=1e-6
     )
     assert validator.check(espelhado) == []
 

@@ -47,6 +47,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from workers.analysis_worker.exercises.base import (
+    DEFAULT_FRAME_ANCHORS,
     EXERCISES,
     AnalysisEvent,
     Features,
@@ -271,6 +272,8 @@ class SquatAnalyzer:
 class _SquatSceneHints:
     body_height_range: tuple[float, float]
     posture: Posture = Posture.STANDING
+    #: Em pe: os ancoras de sempre (ombros e tornozelos).
+    frame_anchors: tuple[int, ...] = DEFAULT_FRAME_ANCHORS
 
 
 #: Mesma faixa global da SPEC-003 que o polichinelo usa. A faixa ótima por exercício é Fase

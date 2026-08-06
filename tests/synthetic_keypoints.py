@@ -72,7 +72,7 @@ class Pose:
 
 
 def stick_figure(
-    pose: Pose | PushUpPose | CrunchPose,
+    pose: Pose | PushUpPose | FrontalPushUpPose | CrunchPose,
     *,
     torso: float = 0.30,
     center: tuple[float, float] = (0.5, 0.55),
@@ -81,13 +81,18 @@ def stick_figure(
     """33 landmarks `[x, y, z, visibility]` para uma pose.
 
     `torso` é o comprimento do torso em unidades de frame — é ele que representa a distância
-    da câmera (0.30 ≈ pessoa a 2 m; 0.15 ≈ a 4 m). `center` é o quadril médio no quadro.
+    da câmera (0.30 ≈ pessoa a 2 m; 0.15 ≈ a 4 m). `center` é o quadril médio no quadro. Na
+    `FrontalPushUpPose` ele vira a **escala aparente** do corpo, porque de frente o tronco é
+    justamente o que encolhe e varia dentro da repetição.
 
     Despacha por tipo de pose: `PushUpPose` e `CrunchPose` montam o corpo deitado visto de
-    lado (T-106/T-107). O despacho fica aqui, e não numa função separada, para `sequence()` —
-    e portanto toda fixture, todo teste e o `evalctl` — continuar funcionando sem saber que
-    existem duas geometrias.
+    lado (T-106/T-107), e `FrontalPushUpPose` monta a flexão vista de frente, em 3D projetado
+    (T-108). O despacho fica aqui, e não numa função separada, para `sequence()` — e portanto
+    toda fixture, todo teste e o `evalctl` — continuar funcionando sem saber quantas
+    geometrias existem.
     """
+    if isinstance(pose, FrontalPushUpPose):
+        return _frontal_pushup_figure(pose, torso=torso, center=center, visibility=visibility)
     if isinstance(pose, PushUpPose):
         return _pushup_figure(pose, torso=torso, center=center, visibility=visibility)
     if isinstance(pose, CrunchPose):
@@ -242,6 +247,53 @@ HIPS_ALIGNED = 0.0
 HIPS_SAGGED = 0.22
 HIPS_PIKED = -0.22
 
+# ------------------------------------------------------------------------------------------
+# Flexão FRONTAL — celular em pé no chão, pessoa de frente (T-108)
+# ------------------------------------------------------------------------------------------
+#
+# Este boneco é o único do arquivo montado em 3D e **projetado em perspectiva**, e isso não é
+# capricho: de frente, a perspectiva não é um detalhe do desenho, é o fenômeno inteiro. O
+# tronco encolhe contra a lente, o quadril (mais longe) SOBE na imagem em relação às mãos, e
+# são exatamente essas duas coisas que a FSM frontal usa para decidir. Um boneco 2D que
+# desenhasse a flexão "de frente" sem projetar produziria fixtures que passam num código
+# errado — que é o pior resultado possível para um gerador.
+#
+# Medidas em metros, câmera na origem olhando para +Z, com Y crescendo para BAIXO (convenção
+# de imagem). O chão fica em Y = `_FR_CAM_HEIGHT`, abaixo da lente.
+#
+# Validação: as razões que saem daqui batem com as medidas dos dois vídeos reais do corpus —
+# `sh_por_torso` ~2–5 (real: p05 1,9, p50 2,7) e `pulso − quadril` ~0,4–1,6 torsos (real:
+# 0,25–2,74). Ver `test_flexao_frontal.py`.
+
+#: Altura da lente acima do chão: um celular deitado de bruços apoiado na parede/objeto.
+_FR_CAM_HEIGHT = 0.07
+#: Distância da lente até a linha das mãos, em metros.
+_FR_HAND_Z = 0.62
+#: Afastamentos em Z (profundidade) a partir das mãos.
+_FR_SHOULDER_DZ = 0.14
+_FR_HIP_DZ = 0.62
+_FR_KNEE_DZ = 1.02
+_FR_ANKLE_DZ = 1.42
+_FR_NOSE_DZ = -0.06
+#: Meias-larguras em X (metros).
+_FR_HAND_X = 0.26
+_FR_SHOULDER_X = 0.20
+_FR_HIP_X = 0.13
+_FR_ANKLE_X = 0.10
+#: Altura do ombro acima do chão com o braço estendido e no fundo da flexão.
+_FR_SHOULDER_TOP = 0.54
+_FR_SHOULDER_BOTTOM = 0.14
+#: Altura do calcanhar/tornozelo e do joelho acima do chão (ponta do pé apoiada).
+_FR_ANKLE_Y = 0.09
+#: Visibilidade dos pés vista de frente. Medido nos dois vídeos reais: 0,08–0,10 em 100% dos
+#: frames — de frente o pé é a parte mais longe e mais de esguelha para a lente. É por isso
+#: que as âncoras de cena da flexão não incluem o tornozelo.
+_FR_FOOT_VISIBILITY = 0.09
+#: Comprimento do tronco em metros, para converter `hip_offset` (que vem em TORSOS, como no
+#: boneco lateral) na geometria em metros desta montagem. Sem esta conversão um `HIPS_SAGGED`
+#: de 0,22 seria lido como 22 cm e enfiaria o quadril no chão.
+_FR_TORSO_M = 0.50
+
 # Ângulos do tronco do abdominal, em graus a partir do chão. Deitado não é exatamente 0: o
 # ombro tem espessura e fica um pouco acima do quadril.
 TRUNK_FLAT = 4.0
@@ -278,6 +330,21 @@ class PushUpPose:
     #: Existe como fixture porque o porteiro de postura da FSM promete aceitar esta variação,
     #: e promessa sem fixture é chute (T-106).
     on_knees: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class FrontalPushUpPose:
+    """Uma flexão vista de FRENTE, celular em pé no chão (T-108).
+
+    Mesmo exercício que `PushUpPose`, outra câmera — e por isso um tipo próprio: é o tipo que
+    faz `stick_figure` escolher a montagem 3D projetada em perspectiva, e é o que impede que
+    uma fixture frontal seja lida como lateral por engano.
+    """
+
+    #: Ângulo ombro–cotovelo–pulso. Menor = mais fundo. Mesma escala do `PushUpPose`.
+    elbow_angle: float = ELBOW_TOP
+    #: Desvio do quadril da linha do corpo, em metros. + = quadril CAINDO.
+    hip_offset: float = HIPS_ALIGNED
 
 
 @dataclass(frozen=True, slots=True)
@@ -463,6 +530,111 @@ def _pushup_figure(
         torso=torso,
         visibility=visibility,
     )
+
+
+def _frontal_pushup_figure(
+    pose: FrontalPushUpPose,
+    *,
+    torso: float,
+    center: tuple[float, float],
+    visibility: float,
+) -> list[list[float]]:
+    """Flexão de frente: corpo montado em 3D e projetado em perspectiva.
+
+    `torso` aqui não é o comprimento do tronco (de frente ele é justamente o que encolhe e
+    varia dentro da repetição): é a **escala aparente** do corpo no quadro, e faz o papel de
+    "distância da câmera" que ele faz nas outras montagens.
+    """
+    cx, cy = center
+
+    # Altura do ombro acima do chão, interpolada pelo ângulo do cotovelo.
+    fracao = (pose.elbow_angle - ELBOW_BOTTOM) / (ELBOW_TOP - ELBOW_BOTTOM)
+    fracao = max(0.0, min(1.0, fracao))
+    ombro_h = _FR_SHOULDER_BOTTOM + (_FR_SHOULDER_TOP - _FR_SHOULDER_BOTTOM) * fracao
+
+    def altura_na_linha(dz: float) -> float:
+        """Altura acima do chão de um ponto a `dz` das mãos, com o corpo em linha reta."""
+        t = (dz - _FR_SHOULDER_DZ) / (_FR_ANKLE_DZ - _FR_SHOULDER_DZ)
+        return ombro_h + (_FR_ANKLE_Y - ombro_h) * t
+
+    # `hip_offset` vem em torsos (mesma convenção do boneco lateral) e a montagem aqui é em
+    # metros. O chão é um piso de verdade: quadril não atravessa o chão, e no FUNDO da flexão
+    # já está quase nele — é por isso que quadril caído se vê no topo, não embaixo.
+    quadril_h = max(altura_na_linha(_FR_HIP_DZ) - pose.hip_offset * _FR_TORSO_M, _FR_ANKLE_Y / 2)
+    joelho_h = altura_na_linha(_FR_KNEE_DZ)
+
+    # Cotovelo: no meio do caminho ombro→pulso, aberto para fora (é para onde ele vai numa
+    # flexão vista de frente) tanto mais quanto mais dobrado o braço estiver.
+    abertura = (1.0 - fracao) * 0.16
+    cotovelo_h = (ombro_h + 0.0) / 2
+    cotovelo_x = (_FR_SHOULDER_X + _FR_HAND_X) / 2 + abertura
+    cotovelo_z = _FR_HAND_Z + _FR_SHOULDER_DZ / 2
+
+    def projeta(x: float, altura: float, z: float) -> tuple[float, float]:
+        """Pinhole: X/Z para a horizontal, (altura da lente − altura do ponto)/Z para a
+        vertical. É esta divisão por Z que encurta o tronco e faz o quadril subir na imagem."""
+        y_cam = _FR_CAM_HEIGHT - altura  # + = abaixo da lente
+        return cx + torso * x / z, cy + torso * y_cam / z
+
+    nariz = projeta(0.0, ombro_h + 0.02, _FR_HAND_Z + _FR_NOSE_DZ)
+    l_shoulder = projeta(-_FR_SHOULDER_X, ombro_h, _FR_HAND_Z + _FR_SHOULDER_DZ)
+    r_shoulder = projeta(+_FR_SHOULDER_X, ombro_h, _FR_HAND_Z + _FR_SHOULDER_DZ)
+    l_elbow = projeta(-cotovelo_x, cotovelo_h, cotovelo_z)
+    r_elbow = projeta(+cotovelo_x, cotovelo_h, cotovelo_z)
+    l_wrist = projeta(-_FR_HAND_X, 0.0, _FR_HAND_Z)
+    r_wrist = projeta(+_FR_HAND_X, 0.0, _FR_HAND_Z)
+    l_hip = projeta(-_FR_HIP_X, quadril_h, _FR_HAND_Z + _FR_HIP_DZ)
+    r_hip = projeta(+_FR_HIP_X, quadril_h, _FR_HAND_Z + _FR_HIP_DZ)
+    l_knee = projeta(-_FR_HIP_X, joelho_h, _FR_HAND_Z + _FR_KNEE_DZ)
+    r_knee = projeta(+_FR_HIP_X, joelho_h, _FR_HAND_Z + _FR_KNEE_DZ)
+    l_ankle = projeta(-_FR_ANKLE_X, _FR_ANKLE_Y, _FR_HAND_Z + _FR_ANKLE_DZ)
+    r_ankle = projeta(+_FR_ANKLE_X, _FR_ANKLE_Y, _FR_HAND_Z + _FR_ANKLE_DZ)
+
+    olho = 0.012 * torso
+    orelha = 0.02 * torso
+    mao = 0.02 * torso
+    pontos: list[tuple[float, float]] = [
+        nariz,
+        (nariz[0] - olho / 2, nariz[1] - olho),
+        (nariz[0] - olho, nariz[1] - olho),
+        (nariz[0] - olho * 1.5, nariz[1] - olho),
+        (nariz[0] + olho / 2, nariz[1] - olho),
+        (nariz[0] + olho, nariz[1] - olho),
+        (nariz[0] + olho * 1.5, nariz[1] - olho),
+        (nariz[0] - orelha, nariz[1]),
+        (nariz[0] + orelha, nariz[1]),
+        (nariz[0] - olho / 2, nariz[1] + olho),
+        (nariz[0] + olho / 2, nariz[1] + olho),
+        l_shoulder,
+        r_shoulder,
+        l_elbow,
+        r_elbow,
+        l_wrist,
+        r_wrist,
+        (l_wrist[0] - mao, l_wrist[1] + mao),
+        (r_wrist[0] + mao, r_wrist[1] + mao),
+        (l_wrist[0] - mao / 2, l_wrist[1] + mao),
+        (r_wrist[0] + mao / 2, r_wrist[1] + mao),
+        (l_wrist[0] - mao, l_wrist[1] + mao / 2),
+        (r_wrist[0] + mao, r_wrist[1] + mao / 2),
+        l_hip,
+        r_hip,
+        l_knee,
+        r_knee,
+        l_ankle,
+        r_ankle,
+        (l_ankle[0], l_ankle[1] + mao / 2),
+        (r_ankle[0], r_ankle[1] + mao / 2),
+        (l_ankle[0], l_ankle[1] + mao),
+        (r_ankle[0], r_ankle[1] + mao),
+    ]
+
+    # Pés e tornozelos com a visibilidade que a lente realmente lhes dá de frente.
+    pes = {27, 28, 29, 30, 31, 32}
+    return [
+        [x, y, 0.0, (_FR_FOOT_VISIBILITY if i in pes else visibility)]
+        for i, (x, y) in enumerate(pontos)
+    ]
 
 
 def _crunch_figure(
@@ -671,6 +843,37 @@ def pushup_poses(
                     elbow_angle=ELBOW_TOP + (ELBOW_BOTTOM - ELBOW_TOP) * fraction,
                     hip_offset=hip_offset,
                     on_knees=on_knees,
+                )
+            )
+    return [*poses, topo, topo]
+
+
+def frontal_plank_pose(*, hip_offset: float = HIPS_ALIGNED) -> FrontalPushUpPose:
+    """Prancha alta vista de frente — a posição inicial da flexão com o celular em pé."""
+    return FrontalPushUpPose(elbow_angle=ELBOW_TOP, hip_offset=hip_offset)
+
+
+def frontal_pushup_poses(
+    reps: int,
+    *,
+    frames_per_rep: int = 15,
+    amplitude: float = 1.0,
+    hip_offset: float = HIPS_ALIGNED,
+) -> list[FrontalPushUpPose]:
+    """Poses de `reps` flexões FRONTAIS contínuas (T-108).
+
+    Mesma forma da `pushup_poses`: cosseno, `amplitude` < 1 é a rep que não desce, e a série
+    termina na prancha para a última repetição não ficar em andamento para sempre.
+    """
+    topo = frontal_plank_pose(hip_offset=hip_offset)
+    poses: list[FrontalPushUpPose] = []
+    for _rep in range(reps):
+        for index in range(frames_per_rep):
+            fraction = (1 - math.cos(2 * math.pi * index / frames_per_rep)) / 2 * amplitude
+            poses.append(
+                FrontalPushUpPose(
+                    elbow_angle=ELBOW_TOP + (ELBOW_BOTTOM - ELBOW_TOP) * fraction,
+                    hip_offset=hip_offset,
                 )
             )
     return [*poses, topo, topo]

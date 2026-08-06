@@ -28,6 +28,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from workers.analysis_worker.exercises.base import (
+    DEFAULT_FRAME_ANCHORS,
     EXERCISES,
     AnalysisEvent,
     Features,
@@ -290,6 +291,8 @@ class JumpingJackAnalyzer:
 class _JumpingJackSceneHints:
     body_height_range: tuple[float, float]
     posture: Posture = Posture.STANDING
+    #: Em pe: os ancoras de sempre (ombros e tornozelos).
+    frame_anchors: tuple[int, ...] = DEFAULT_FRAME_ANCHORS
 
 
 #: Fase Inicial usa a faixa global da SPEC-003 (40–95% da altura do frame). A faixa ótima por

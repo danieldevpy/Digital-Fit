@@ -300,13 +300,24 @@ class CrunchAnalyzer:
 @dataclass(frozen=True, slots=True)
 class _CrunchSceneHints:
     body_height_range: tuple[float, float]
+    frame_anchors: tuple[int, ...]
     posture: Posture = Posture.FLOOR
 
 
-#: Mesma faixa da flexão, e pela mesma razão: corpo deitado ocupa o lado longo do quadro. A
-#: diferença é que o abdominal encolhe as pernas, então a extensão cabeça→tornozelo é menor
-#: que a da prancha — o piso mais baixo (0,40) cabe essa montagem sem acusar "longe demais".
-_SCENE_HINTS = _CrunchSceneHints(body_height_range=(0.40, 0.98))
+#: Tronco + coxa: os landmarks de que a contagem depende (o joelho é a referência vertical do
+#: exercício). O tornozelo sai da lista pela mesma razão que saiu na flexão — num exercício de
+#: chão ele é a parte mais longe da lente, e exigi-lo visível transforma enquadramento bom em
+#: "você saiu do quadro".
+_CRUNCH_ANCHORS = (11, 12, 23, 24, 25, 26)
+
+#: Deitado, a distância é a maior separação entre os âncoras (`SceneValidator.body_height`).
+#: Medido no gerador, por distância da câmera (torso = ombro→quadril como fração do frame):
+#: 0,102–0,119 em t=0,07 (longe demais, tem de avisar), 0,234–0,271 em t=0,16 (bem
+#: enquadrado), 0,659–0,762 em t=0,45 (colado).
+#:
+#: O piso em 0,15 fica no vão entre longe demais e bem enquadrado; o teto em 1,10 acompanha a
+#: flexão. As duas pontas erram para o lado de NÃO avisar, como a SPEC-003 manda.
+_SCENE_HINTS = _CrunchSceneHints(body_height_range=(0.15, 1.10), frame_anchors=_CRUNCH_ANCHORS)
 
 # Literal pelo mesmo motivo dos outros: com `slots=True` o atributo de classe é o descritor.
 EXERCISES["abdominal"] = CrunchAnalyzer

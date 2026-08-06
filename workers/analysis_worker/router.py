@@ -114,6 +114,7 @@ class SessionState:
         hints = self.analyzer.scene_hints()
         self.scene.posture = hints.posture
         self.scene.body_range = hints.body_height_range
+        self.scene.anchors = hints.frame_anchors
 
     def counting(self, now_wall_ms: int) -> bool:
         """A FSM já pode ver os frames? Falso enquanto mede o corpo e durante a preparação."""

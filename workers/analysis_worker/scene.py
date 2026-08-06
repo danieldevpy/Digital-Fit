@@ -29,9 +29,10 @@ SPEC-003 exige.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
-from workers.analysis_worker.exercises.base import Posture
+from workers.analysis_worker.exercises.base import DEFAULT_FRAME_ANCHORS, Posture
 from workers.shared.events import Code, SceneWarning, Severity
 from workers.shared.normalize import NormFrame
 
@@ -48,8 +49,10 @@ _NOSE = 0
 _LEFT_SHOULDER, _RIGHT_SHOULDER = 11, 12
 _LEFT_ANKLE, _RIGHT_ANKLE = 27, 28
 
-#: Âncoras de enquadramento: corpo inteiro visível = ombros e tornozelos (SPEC-003).
-FRAME_ANCHORS: tuple[int, ...] = (_LEFT_SHOULDER, _RIGHT_SHOULDER, _LEFT_ANKLE, _RIGHT_ANKLE)
+#: Âncoras de enquadramento de quem está em pé (SPEC-003). Definidas em `exercises.base`, onde
+#: os exercícios podem declará-las sem inverter a direção da dependência; o nome continua aqui
+#: porque é daqui que a SPEC-003 fala.
+FRAME_ANCHORS: tuple[int, ...] = DEFAULT_FRAME_ANCHORS
 
 #: Visibilidade mínima por âncora.
 MIN_VISIBILITY = 0.5
@@ -91,6 +94,9 @@ class SceneValidator:
     posture: Posture = Posture.STANDING
     #: Faixa aceitável da extensão do corpo. Default = a faixa global da SPEC-003.
     body_range: tuple[float, float] = (MIN_BODY_HEIGHT, MAX_BODY_HEIGHT)
+    #: Landmarks que precisam estar visíveis, declarados pelo exercício (T-108). O default é a
+    #: régua de quem está em pé; um exercício de chão declara a sua.
+    anchors: tuple[int, ...] = FRAME_ANCHORS
     counts: dict[str, int] = field(default_factory=dict)
     _states: dict[Code, _CodeState] = field(default_factory=dict)
 
@@ -125,14 +131,14 @@ class SceneValidator:
         """Que problemas a cena tem **neste** frame, antes do debounce."""
         ativos: set[Code] = set()
 
-        if any(float(frame.visibility[indice]) < MIN_VISIBILITY for indice in FRAME_ANCHORS):
+        if any(float(frame.visibility[indice]) < MIN_VISIBILITY for indice in self.anchors):
             # Fora do quadro é a condição mais grave: sem âncoras, medir distância não faz
             # sentido (a altura do corpo viria de landmarks adivinhados).
             ativos.add(Code.OUT_OF_FRAME)
             return ativos
 
         minimo, maximo = self.body_range
-        extensao = self.body_height(frame, self.posture)
+        extensao = self.body_height(frame, self.posture, self.anchors)
         if extensao < minimo:
             ativos.add(Code.TOO_FAR)
         elif extensao > maximo:
@@ -140,26 +146,44 @@ class SceneValidator:
         return ativos
 
     @staticmethod
-    def body_height(frame: NormFrame, posture: Posture = Posture.STANDING) -> float:
-        """Extensão cabeça→tornozelo como fração do lado do frame que a postura usa.
+    def body_height(
+        frame: NormFrame,
+        posture: Posture = Posture.STANDING,
+        anchors: tuple[int, ...] = FRAME_ANCHORS,
+    ) -> float:
+        """Quanto do frame o corpo ocupa — o proxy de distância da SPEC-003.
 
         Os pontos vêm em torsos; multiplicar pela escala (`torso`, em unidades de frame) devolve
         a medida na moeda que a SPEC-003 usa. Assim a checagem de distância não precisa dos
         landmarks crus.
 
-        De pé mede-se em `y` (fração da altura do frame); deitado, em `x` (fração da largura) —
-        os landmarks do MediaPipe já vêm normalizados por altura e largura respectivamente, então
-        cada eixo sai na fração do seu próprio lado sem conversão nenhuma.
+        **De pé**: altura cabeça→tornozelo em `y` (fração da altura do frame). É a medida
+        original, e continua exata — quem está em pé tem uma altura bem definida.
+
+        **Deitado**: a maior distância entre as âncoras declaradas, em 2D. A medida antiga
+        (cabeça→tornozelo em `x`) pressupunha que o corpo atravessa a imagem na horizontal, o
+        que só vale filmando de lado. De frente o corpo se estende PARA DENTRO da tela: medido
+        nos dois vídeos frontais do corpus, ela dá 0,07–0,33 contra a faixa aceita de 0,45–0,98,
+        e o produto pediria "aproxime-se" em 98–100% dos frames com o enquadramento perfeito.
+
+        A distância entre âncoras não tem esse problema porque não assume eixo nenhum: ela mede
+        o tamanho aparente do que a lente de fato vê. Medido — perfil longe 0,17, perfil bom
+        0,43, frontal 0,58–0,95 — ela cresce com a proximidade nas duas vistas, que é a única
+        coisa que a checagem de distância precisa que seja verdade.
         """
-        eixo = 0 if posture is Posture.FLOOR else 1
-        cabeca = float(frame.points[_NOSE][eixo])
-        tornozelos = [
-            float(frame.points[_LEFT_ANKLE][eixo]),
-            float(frame.points[_RIGHT_ANKLE][eixo]),
-        ]
-        # Deitado, a cabeça pode estar à esquerda ou à direita dos pés — o sinal depende de
-        # para que lado a pessoa deitou, e não diz nada sobre o enquadramento.
+        pontos = frame.points
         if posture is Posture.FLOOR:
-            distante = max(tornozelos, key=lambda valor: abs(valor - cabeca))
-            return abs(distante - cabeca) * frame.torso
+            return (
+                max(
+                    math.hypot(
+                        float(pontos[a][0]) - float(pontos[b][0]),
+                        float(pontos[a][1]) - float(pontos[b][1]),
+                    )
+                    for a in anchors
+                    for b in anchors
+                )
+                * frame.torso
+            )
+        cabeca = float(pontos[_NOSE][1])
+        tornozelos = [float(pontos[_LEFT_ANKLE][1]), float(pontos[_RIGHT_ANKLE][1])]
         return (max(tornozelos) - cabeca) * frame.torso

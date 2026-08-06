@@ -62,3 +62,60 @@
     # Sem countdown: a calibracao come o primeiro segundo (1 rep), e a ultima se perde
     # porque a pessoa sai do quadro nos ~5s finais.
     conhecido: -2 (sem countdown + sai do quadro no fim)
+
+# Exploracao do angulo frontal para flexao (conversa 2026-08-06): as features atuais de
+# flexao.py sao calibradas para perfil (celular deitado, de lado) — este video testa a
+# hipotese de celular em pe, de frente. Ver DEVLOG/BACKLOG para o diagnostico.
+- file: flexão-frente-50-repetições-v1.mp4
+  exercise: flexao
+  expected_reps: 50
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    angulo: frontal
+    celular: em pe no chao
+    inicio: a confirmar (nao gravado com countdown parado)
+    execucao: a confirmar
+    # Com o porteiro atual (trunk_spread >= 1.2, calibrado para perfil) conta 0/50: de
+    # frente o vetor ombro->quadril fica quase vertical na imagem (trunk_spread max
+    # observado = 0.66), entao o gate nunca abre. Ver diagnostico na conversa.
+    # ATENCAO: o rotulo veio do TITULO do video (rede social), nao de contagem propria — o que
+    # o README desaconselha explicitamente. Ver Descoberta [A/T-108] no BACKLOG: e o que impede
+    # a promocao de `flexao` a `calibrado`.
+    #
+    # Antes da T-108: 0/50 (o porteiro `trunk_spread >= 1.2` e de perfil e nunca abre de
+    # frente — maximo observado 0.66). Depois: 52/50, com a vista detectada como `frontal` e a
+    # contagem pelo angulo do cotovelo. O 52 esta num plato estavel (20 pares de limiar dao o
+    # mesmo numero), entao a diferenca tanto pode ser o rotulo quanto o algoritmo.
+    conhecido: 52/50 (era 0/50 antes da T-108); rotulo herdado do titulo, nao verificado
+
+- file: flexão-frente-50-repetições-v2.mp4
+  exercise: flexao
+  expected_reps: 50
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    angulo: frontal
+    celular: em pe no chao
+    inicio: a confirmar
+    execucao: a confirmar
+    # Mesmo rotulo herdado do titulo que o v1 (ver [A/T-108]).
+    # A camera fica bem mais perto: em ~4% dos frames o modelo perde pulso/cotovelo
+    # (visibilidade < 0.5), e sao esses que ainda produzem 2 avisos legitimos de
+    # OUT_OF_FRAME — os unicos que sobraram depois da T-108 (eram 26).
+    conhecido: 50/50 exato (era 0/50 antes da T-108); ~4% dos frames com pulso/cotovelo perdidos
+
+# Video de internet/rede social (nao gravacao propria) — tem cortes de camera, fala e um
+# angulo obliquo (nao puramente frontal nem perfil, mistura os dois). NAO tem expected_reps
+# confiavel: e um compilado promocional ("E VOCE? QUANTAS CONSEGUE?"), nao uma serie continua
+# — o corte no meio invalida a contagem (ver README, secao "Videos da internet servem?").
+# Serve so como teste de robustez de feature (variedade de angulo/oclusao), nao para acuracia.
+- file: flexão-frente&lado-v1.mp4
+  exercise: flexao
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    angulo: obliquo (misto frente/lado, com cortes)
+    fonte: internet
+    execucao: nao continua (compilado com cortes e fala)
+    conhecido: sem rotulo confiavel; elbow_angle bruto conta 11 no trecho (nao validavel)
