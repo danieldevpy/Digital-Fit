@@ -3415,3 +3415,170 @@ a {
   font-size: 0.5rem;
   letter-spacing: 0.04em;
 }
+
+/* ------------------------------------------------------------------ Progresso (T-124)
+
+   A tela deixou de mostrar uma sessão e passou a mostrar o histórico (SPEC-024 §4). Três
+   blocos: grade do mês, quatro semanas em barras, totais por exercício. Tudo em cima dos
+   tokens da SPEC-014 — nenhuma cor nova. */
+
+.prog__section {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 22px 0 10px;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prog__section-note {
+  color: var(--text-faint);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+/* Sete colunas fixas: a grade do mês tem de casar com a linha de letras acima dela, e
+   `auto-fit` faria as duas se desalinharem quando o mês começa no domingo. */
+.prog__mes {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.prog__dia-label {
+  padding-bottom: 4px;
+  color: var(--text-faint);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.prog__dia {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-faint);
+  font: 600 0.68rem var(--font-num);
+}
+
+.prog__dia--vazio {
+  background: none;
+}
+
+/* O dia com treino é o único aceso. Roxo cheio, não borda: à distância de um braço a borda
+   some e a grade vira ruído uniforme. */
+.prog__dia--treino {
+  background: var(--accent);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.prog__dia--hoje {
+  outline: 1px solid var(--blue);
+  outline-offset: -1px;
+}
+
+.prog__semanas {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 14px 12px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.prog__semana {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.prog__barra-trilho {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 64px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.prog__barra {
+  width: 100%;
+  min-height: 0;
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent-deep));
+}
+
+.prog__semana-valor {
+  font: 700 0.95rem var(--font-num);
+}
+
+.prog__semana-label {
+  color: var(--text-faint);
+  font-size: 0.62rem;
+}
+
+.prog__exercicios {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.prog__exercicio-linha {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prog__exercicio-nome {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.prog__exercicio-valor {
+  font: 700 0.95rem var(--font-num);
+}
+
+.prog__exercicio-unidade {
+  color: var(--text-dim);
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+
+.prog__exercicio-trilho {
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.prog__exercicio-barra {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+}
+
+.prog__exercicio-sub {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-faint);
+  font-size: 0.66rem;
+}

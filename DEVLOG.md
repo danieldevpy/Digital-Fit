@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-08-06 (34) · T-124 — o Progresso deixa de ser uma sessão
+
+A tela mostrava **um** treino (`digitalfit.last_report`) e um parágrafo dizendo que histórico,
+sequência de dias e evolução por semana eram "em breve" — com a nota de cabeçalho invocando a
+régua da SPEC-014 §Desvios. A nota estava certa quando foi escrita. O que mudou não foi a
+régua: é que o dado passou a existir e ninguém tinha voltado para ligá-lo.
+
+Agora: três números no topo (treinos, repetições, dias), **grade do mês**, **quatro semanas em
+barras**, **totais por exercício**, e o último treino como destaque no fim — onde ele passa a
+ser o detalhe, não a tela inteira.
+
+**Decisões de desenho.**
+
+- **Mês de calendário, não "últimos 30 dias".** Mesma razão da semana de calendário na T-123: a
+  pessoa lê o mês em que está, e uma janela deslizante faria o mesmo treino mudar de lugar todo
+  dia. A grade abre na segunda, casando com `inicioDaSemana`.
+- **Dia com treino é roxo cheio, não contorno.** À distância de um braço — que é como o produto
+  é usado — a borda some e a grade vira ruído uniforme. Hoje ganha um `outline` azul, que é
+  informação diferente e por isso forma diferente.
+- **Semana sem treino fica com o trilho vazio**, não com uma barra de 1px: o zero tem de
+  parecer zero. É a mesma família de decisão do `--`.
+- **A escala das barras é a maior semana da própria pessoa**, não um alvo. Não existe meta
+  nesta spec (meta é SPEC-019), e inventar um teto viraria uma cobrança que ninguém combinou.
+- **Zero cálculo no componente.** Tudo vem de `history/aggregates.ts`. A única função de data
+  aqui é `chaveDoDia`, e ela existe para casar com o formato do `diaLocal` — as duas pontas têm
+  de gerar a mesma chave, senão a grade não acende.
+- **Nenhuma cor nova**: só tokens da SPEC-014.
+- **O rótulo "neste aparelho"** aparece quando a fonte é local, com o convite a criar conta —
+  e o aviso de "não consegui atualizar" quando a fonte é o servidor e a última revalidação
+  falhou. É o critério 5 aparecendo na tela que a spec nomeia.
+
+**Sem kcal e sem fogo.** Os dois cabiam visualmente e nenhum dos dois é derivável do que se
+mede hoje: kcal precisa do peso (SPEC-017) e fogo precisa da regra de sessão válida e do fuso
+fixo (SPEC-019). Antecipar qualquer um dentro de uma task de Fase Inicial é exatamente o que a
+AGENTS §3 proíbe.
+
+**Medições**: lint, typecheck e 483 testes web verdes; `npm run build` fecha em 268 ms com CSS
+de 45,35 kB (8,90 kB gzip) e o bundle do app em 263,20 kB (79,74 kB gzip).
+
+**Pendência declarada**: **não houve verificação visual em navegador**. A extensão do Chrome
+não está conectada nesta sessão ("Browser extension is not connected"), então o layout foi
+verificado por build e por leitura, não por medição de geometria como manda o quirk registrado
+para este projeto. O que está em risco é layout, não comportamento — mas a grade de 7 colunas e
+as barras com altura percentual são exatamente o tipo de coisa que só o aparelho real desmente.
+**Vale um olhar no celular antes de considerar a tela pronta.**
+
+---
+
 ## 2026-08-06 (33) · T-123 — as leituras do histórico, puras
 
 `history/aggregates.ts`: nove funções, nenhuma lê relógio, rede ou store. "Hoje" é parâmetro,
