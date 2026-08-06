@@ -119,6 +119,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-083 | O anel serrilhado do HUD para de girar quando o exercício começa | 014 | done |
 | T-084 | Probe honesto: capacidade medida por LATÊNCIA de inferência (mediana, aquecimento descartado, janela elástica 2–3s, rVFC + watchdog) em vez de frames/segundo de parede; fps da câmera vira sinal de cena separado; motivo da decisão exposto; contexto WebGL devolvido | 001 | done |
 | T-085 | Aviso de cena na pré-configuração (luz fraca, contraluz, falta de nitidez/lente suja): orienta, não bloqueia, e só nesta tela — reaproveita o pill da janela da câmera | 003/014 | done |
+| T-120 | O treino só começa com a câmera ligada: o CTA da pré-configuração vira dois degraus ("Ligar câmera" → "Iniciar Exercício"), regra pura em `session/startGate.ts`. Antes, um toque pedia permissão e navegava junto — o treino abria por cima do diálogo do navegador, e com permissão negada abria sem imagem | 014 | **feito** (2026-08-06) |
 
 ## Fase 5 — Engajamento & Catálogo (SPEC-019…022; o "foguinho" e a fábrica de exercícios)
 

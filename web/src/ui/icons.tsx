@@ -185,6 +185,16 @@ export function IconStop({ className }: IconProps) {
   )
 }
 
+/** Primeiro degrau do CTA da pré-configuração: ligar a câmera (ver `session/startGate.ts`). */
+export function IconCamera({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M3 8.5a2 2 0 0 1 2-2h2.2l1.3-2h6l1.3 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      <circle cx="12" cy="12.5" r="3.4" />
+    </svg>
+  )
+}
+
 export function IconMirror({ className }: IconProps) {
   return (
     <svg viewBox="0 0 14 18" fill="none" stroke="currentColor" strokeWidth={1.6} className={className} aria-hidden="true">

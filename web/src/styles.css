@@ -1296,6 +1296,16 @@ a {
   outline-offset: 2px;
 }
 
+/* Travado só enquanto o navegador decide a permissão (`session/startGate.ts`): perde o glow,
+   que é o convite ao toque, e mantém o texto legível — quem espera precisa ler o "Abrindo
+   câmera…" mais do que precisa do brilho. */
+.v2-cta:disabled {
+  border-color: rgba(139, 92, 246, 0.35);
+  box-shadow: none;
+  color: var(--text-dim);
+  cursor: default;
+}
+
 .v2-cta__play {
   position: absolute;
   right: 9px;
@@ -1532,8 +1542,17 @@ a {
 
 @media (min-width: 900px) {
   .landing {
+    height: auto;
+    display: block;
     max-width: 1120px;
-    padding: 28px 40px 0;
+    padding: 28px 40px 40px;
+  }
+
+  /* No desktop não há tabbar fixa segurando o layout: a página rola pelo navegador
+     (scrollbar nativa, Espaço/Page Down/Home/End) em vez do truque de div interna
+     com scrollbar escondida que a tela mobile usa por causa da tabbar. */
+  .landing__scroll {
+    overflow-y: visible;
   }
 
   .landing__nav {
@@ -3179,6 +3198,12 @@ a {
   width: 12px;
   height: 12px;
   color: #fff;
+}
+
+/* O ▶ é sólido e o de câmera é traçado: no mesmo 12px o traçado some. */
+.v2-cta__play-icon--cam {
+  width: 16px;
+  height: 16px;
 }
 
 .landing__brand--mobile {

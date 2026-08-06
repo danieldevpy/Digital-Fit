@@ -28,6 +28,7 @@ import { useCountdown } from '../session/countdown'
 import { estadoDoExemplo, temConta } from '../session/guideGate'
 import { ESTIMATED_LABEL, formatKcal, liveKcal } from '../session/kcal'
 import { exercisePreference, guideSeen } from '../session/preferences'
+import { ctaDeInicio } from '../session/startGate'
 import { useNow } from '../session/useNow'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
@@ -35,7 +36,7 @@ import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
 import { ExerciseIcon } from '../ui/exerciseIcon'
-import { IconAngle, IconFlame, IconMirror, IconPlay, IconStop } from '../ui/icons'
+import { IconAngle, IconCamera, IconFlame, IconMirror, IconPlay, IconStop } from '../ui/icons'
 
 /** Silhueta-guia ciano do protótipo — sobre a câmera na pré-configuração. */
 function SilhouetteGuide() {
@@ -174,6 +175,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   })
 
   const cameraReady = cameraStatus === 'ready'
+  const cta = ctaDeInicio(cameraStatus)
   const now = useNow(sceneEntry !== null || feedbackEntry !== null)
   const coach = resolveCoachCard({
     scene: sceneEntry,
@@ -199,7 +201,13 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
       useAccountStore.getState().blockByQuota()
       return
     }
-    if (!cameraReady) cameraControls?.start()
+    // Câmera desligada: o toque LIGA e fica. Não navega (`session/startGate.ts`) — sair da
+    // pré-configuração no instante do diálogo de permissão pulava justamente o que esta tela
+    // serve para fazer, que é a pessoa se ver e se enquadrar antes de começar.
+    if (!cameraReady) {
+      cameraControls?.start()
+      return
+    }
     navigate({ screen: 'treino' })
   }
 
@@ -241,7 +249,9 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                     ? sceneAdvice.text
                     : cameraReady
                       ? 'Você já está visível · alinhe-se à guia'
-                      : 'A câmera abre aqui — alinhe-se à guia'}
+                      : // O treino não começa mais com a câmera desligada: o pill diz o passo
+                        // que falta em vez de descrever a janela vazia.
+                        'Ligue a câmera para se enquadrar'}
                 </span>
               </div>
             </div>
@@ -347,10 +357,17 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
 
           <div className="prep__bottom">
             <div className="prep__cta">
-              <button type="button" className="v2-cta" onClick={iniciar}>
-                Iniciar Exercício
+              {/* Dois degraus (`session/startGate.ts`): com a câmera desligada este botão é o
+                  interruptor dela, e só quando há imagem ele vira a porta do treino. O ícone
+                  acompanha o rótulo — um ▶ ao lado de "Ligar câmera" prometeria treino. */}
+              <button type="button" className="v2-cta" onClick={iniciar} disabled={cta.disabled}>
+                {cta.label}
                 <span className="v2-cta__play">
-                  <IconPlay className="v2-cta__play-icon" />
+                  {cta.action === 'iniciar' ? (
+                    <IconPlay className="v2-cta__play-icon" />
+                  ) : (
+                    <IconCamera className="v2-cta__play-icon v2-cta__play-icon--cam" />
+                  )}
                 </span>
               </button>
             </div>

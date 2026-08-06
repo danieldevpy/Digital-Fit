@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-08-06 (28) · T-120 — o treino só começa com a câmera ligada
+
+Pedido direto do Daniel, em paralelo à SPEC-023. O CTA da pré-configuração fazia duas coisas
+num toque só: `cameraControls.start()` **e** `navigate({ screen: 'treino' })`, na mesma linha.
+Quem chegava com a câmera desligada — todo mundo, na primeira vez — saía da pré-configuração
+no instante em que o navegador abre o diálogo de permissão. O treino começava por cima do
+popup, e enquadramento, espelhar, zoom e o aviso de cena da T-085 passavam batidos. Com
+permissão negada era pior: navegava igual, para uma tela de treino sem imagem nenhuma.
+
+- **A regra virou função pura** (`web/src/session/startGate.ts` + teste), como o portão de
+  partida da T-069: `ctaDeInicio(cameraStatus)` devolve ação, rótulo e travamento. `ready` é o
+  **único** estado cuja ação é `iniciar` — e isso é o que o teste cobra, varrendo os outros
+  quatro. Regra de ordem se testa com tabela de estados; montar React aqui não provaria mais.
+- **`denied` e `error` continuam clicáveis**, com o mesmo rótulo de `idle`. O motivo da falha
+  já está escrito na capa da `CameraView`; o que sobra ao botão é a única saída útil, que é
+  tentar de novo depois de liberar a permissão. Só `requesting` desabilita — enquanto o
+  navegador decide, tocar de novo não reabre nada.
+- **A ordem do portão de quota não mudou** (SPEC-016, critério 1): o limite é verificado antes
+  de tudo, inclusive antes de ligar a câmera. Quem esgotou não dá permissão para ouvir "não".
+- **Efeito colateral bom no treino**: o mesmo `iniciar` é o play do FAB da tela de treino
+  quando a câmera caiu. Antes ele navegava para a tela onde já se estava; agora liga a câmera
+  e fica, que é o que aquele botão sempre quis dizer.
+- Ajustes de texto e forma: o pill da janela dizia "A câmera abre aqui — alinhe-se à guia"
+  (descrição de janela vazia) e passou a dizer "Ligue a câmera para se enquadrar"; o ícone do
+  CTA acompanha o rótulo (▶ só quando é treino mesmo — um play ao lado de "Ligar câmera"
+  prometeria o que o toque não faz); `.v2-cta:disabled` perde o glow e mantém o texto legível.
+- Gates: `npm run lint`, `npm run typecheck` e `npm run test` verdes (39 arquivos, 416 testes,
+  4 novos). Verificado no navegador: com a permissão bloqueada, o toque no CTA mantém a rota
+  em `preparar` (`location.hash` vazio) e mostra "Permissão negada" — que é exatamente o caso
+  que antes ia parar num treino cego. O caminho com câmera concedida não é testável no browser
+  controlado (sem dispositivo); fica para a passada no aparelho real.
+- Spec atualizada junto (AGENTS: a spec vence): SPEC-014 §3, critério 3 e Revisão 2026-08-06.
+
+---
+
 ## 2026-08-06 (26) · O exemplo guiado passa a depender de quem é — e duas regressões das faixas
 
 ### O exemplo por identidade, não por histórico

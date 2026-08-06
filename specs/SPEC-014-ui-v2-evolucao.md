@@ -103,7 +103,7 @@ Header: "Pré-configuração" + "Vamos preparar seu treino". Corpo em 3 colunas 
 - Centro: câmera ao vivo (CameraView) em moldura com borda azulada e glow; overlay de grade 28px, varredura `dfScan`, silhueta-guia ciano tracejada (`dfGlow`), pill inferior "Você já está visível · alinhe-se à guia". **Desde a T-080 a câmera ocupa a tela inteira** e essa moldura é o recorte nítido dela — ver Revisão (3).
 - Coluna direita (96px): botão Espelhar (liga/desliga o espelhamento do palco), card FREQUÊNCIA CARDÍACA (`--` BPM + onda `dfWave` — sem sensor, placeholder honesto), card ÂNGULO (ao vivo, T-044), card CALORIAS ESTIMADAS (`--` kcal, anel pontilhado).
 
-CTA "Iniciar Exercício ▶" (pill glow) → inicia câmera+sessão (GetReady 3-2-1 existente) e navega para Treino ao Vivo. Tab bar embaixo.
+CTA (pill glow) em **dois degraus desde a T-120**: com a câmera desligada ele é "Ligar câmera 📷" e apenas liga, sem sair da tela; com a câmera pronta vira "Iniciar Exercício ▶" → sessão (GetReady 3-2-1 existente) e navegação para Treino ao Vivo. Tab bar embaixo. Ver Revisão 2026-08-06.
 
 DURAÇÃO na Fase Inicial: exibida e persistida, mas a autoridade continua no servidor (30s, SPEC-009); valores ≠ 30s ficam desabilitados com tooltip "em breve" até a SPEC-009 evolução aceitar `duration` na config. Nunca fingir que o servidor obedeceu.
 
@@ -148,7 +148,7 @@ FC real, kcal ao vivo (SPEC-016), pause real, música, duração configurável n
 
 1. Colocada lado a lado com `app-completo-mobile.png`, cada tela é reconhecível de imediato como a mesma tela (estrutura, cores, materiais, tipografia). Divergências intencionais listadas em §Desvios.
 2. `index.png` reproduzido em ≥ 900px; abaixo disso o Index vira a tela 1 mobile. As demais telas ficam ≤ 430px centralizadas em qualquer viewport.
-3. Steppers da pré-configuração funcionam e persistem; "Iniciar Exercício" chega ao Treino ao Vivo com câmera aberta e GetReady rodando.
+3. Steppers da pré-configuração funcionam e persistem; o CTA leva ao Treino ao Vivo com câmera aberta e GetReady rodando — e **só** com a câmera já aberta (T-120): antes disso ele liga a câmera e fica na pré-configuração.
 4. No Treino ao Vivo, reps/ângulo/tempo vêm dos dados reais da sessão; nenhum número simulado.
 5. Navegação por hash: back do navegador volta uma tela; refresh mantém a tela.
 6. Gates verdes: lint, typecheck, testes (os testes de `hud/` e `session/` existentes continuam passando ou são atualizados junto).
@@ -206,6 +206,31 @@ Terceira rodada de ajustes pedidos pelo Daniel depois de usar o app.
    linha separadora e de uma confirmação de dois toques ("Sair da conta neste aparelho?").
    A regra que fica: **num painel, o botão preenchido é a ação que a pessoa veio fazer; ação
    destrutiva não usa a forma do primário.**
+
+## Revisão 2026-08-06 — o CTA da pré-configuração tem dois degraus (T-120)
+
+Pedido do Daniel: **só se inicia o exercício com a câmera já ligada.**
+
+1. **O CTA é um botão com dois estados, não um atalho que faz duas coisas.** Com a câmera
+   desligada ele lê "Ligar câmera" (ícone de câmera) e só liga — a pessoa continua na
+   pré-configuração. Com a câmera pronta ele volta a ser "Iniciar Exercício ▶" e navega. O
+   estado intermediário ("Abrindo câmera…") é o único desabilitado: enquanto o navegador
+   decide a permissão, tocar de novo não reabre nada.
+   - O que se perdia antes: o toque pedia a câmera **e** navegava no mesmo instante, então o
+     treino começava com a pessoa lendo o diálogo de permissão, e enquadramento, espelhar,
+     zoom e o aviso de cena da T-085 — a razão de esta tela existir — passavam batidos. Com
+     permissão negada era pior: navegava igual, para um treino sem imagem nenhuma.
+   - `denied` e `error` continuam **clicáveis** e com o mesmo rótulo de `idle`: o motivo já
+     está escrito na capa da câmera, e o que resta ao botão é a única saída útil — tentar de
+     novo depois de liberar no navegador.
+2. **A ordem do portão de quota não mudou** (SPEC-016, critério 1): o limite continua sendo
+   verificado antes de qualquer coisa, inclusive antes de ligar a câmera. Quem já esgotou não
+   dá permissão de câmera para ouvir "não" em seguida.
+3. **O pill da janela deixou de prometer o que não acontece mais.** Era "A câmera abre aqui —
+   alinhe-se à guia" (descrição de uma janela vazia); virou "Ligue a câmera para se enquadrar",
+   que é o passo que falta.
+4. A regra vive numa função pura (`web/src/session/startGate.ts`), como o portão de partida da
+   T-069: é uma regra de ORDEM, e regra se testa com tabela de estados, não montando React.
 
 ## Desvios da referência (honestidade > fidelidade)
 
