@@ -5,6 +5,70 @@
 
 ---
 
+## 2026-08-05 (23) · T-106 — a flexão contava braço levantado: o porteiro de postura
+
+Teste em produção, no mesmo dia: *"dependendo da posição ele já contava, quando levantava ele
+contava, meio que parece que ele conta diferentes posições"*. Reproduzido no gerador antes de
+qualquer conserto: **pessoa em pé levantando e baixando os braços 10 vezes = 10 flexões
+contadas.**
+
+A causa é uma só, e é de desenho. A feature mede a altura do ombro sobre o pulso, e ela vale:
+
+- **+0,734 torsos** em pé com os braços baixos;
+- **+1,147 torsos** na prancha;
+- **−0,734 torsos** em pé com os braços no alto.
+
+Ou seja: em pé, baixar os braços é indistinguível de estar na prancha, e levantá-los é
+indistinguível de descer a flexão. A feature media a coisa certa e **nunca perguntava quem
+estava sendo medido**. O `ready_pose` sabia a diferença, mas ele só serve ao gate de prontidão
+(SPEC-004, ainda não ligado) — a FSM nunca o consultava.
+
+**O conserto: um porteiro de postura antes da FSM**, com duas perguntas escolhidas por medição,
+as duas razões no mesmo eixo (imunes à anisotropia do `[A/T-106]`):
+
+| situação | tronco `dx/dy` | mão↔chão | passa? |
+|---|---|---|---|
+| prancha | 2,46 | 0,13 | sim |
+| flexão no fundo | 3,86 | 0,18 | sim |
+| flexão de joelhos | 1,56 | 0,13 | sim |
+| em pé, braços baixos | 0,00 | 1,78 | **não** |
+| em pé, braços no alto | 0,00 | 3,78 | **não** |
+| agachado | 0,00 | 1,23 | **não** |
+
+Limiares em 1,2 e 0,5, no meio de uma folga de ordem de grandeza — a decisão não é apertada
+entre 1,1 e 1,3, é 0,0 contra 2,5, e é isso que a faz sobreviver a ruído e câmera torta.
+
+**Decisões do conserto:**
+
+- **Frame fora de posição congela E descarta a tentativa**, silenciosamente. Não é o mesmo que
+  `degraded` (dado ruim): quem se levantou não fez uma repetição incompleta, fez outra coisa —
+  e criticar a execução de quem está saindo do chão seria ruído. Entrou `frames_off_posture` no
+  `summary()`, separado de `frames_degraded`, porque é a primeira pergunta a fazer quando uma
+  sessão de flexão volta zerada.
+- **A referência da prancha só cresce com o porteiro aberto.** Sem isso, os frames em pé (0,73)
+  entrariam na mesma referência dos de prancha (1,15) e a profundidade passaria a ser medida
+  contra um corpo que ninguém fez.
+- **A referência passou a exigir dois frames seguidos** (`min` com o frame anterior). Um único
+  frame em que o modelo erra o ombro inflaria a prancha para sempre, e daí em diante nenhuma
+  flexão de verdade voltaria a marcar 1,0. O primeiro frame ainda vale por si: semear baixo é
+  inofensivo (a referência só cresce), semear alto é o que a persistência impede.
+- **Flexão de joelhos entrou no gerador** (`PushUpPose(on_knees=True)`). O porteiro usa como
+  "chão" o ponto mais baixo da perna — joelho ou tornozelo —, e essa promessa estava no
+  comentário sem fixture nenhuma por trás. Agora tem: 10/10 reps, zero frame fora de posição.
+- **O abdominal NÃO ganhou porteiro**, porque não tem o bug — e isso foi medido, não suposto: em
+  pé o joelho fica sempre abaixo do quadril, então a referência sai negativa (−0,52 em pé,
+  −0,32 agachado, −0,37 na marcha, contra o mínimo de +0,25) e a feature devolve zero. Inventar
+  um porteiro sem reprodução seria calibrar contra nada. O que entrou foi o **teste** que
+  transforma a proteção de acidente em invariante: quem trocar a referência do joelho descobre
+  no pytest, não em produção.
+
+**Verificação:** o caso relatado vai de 10 reps para 0; em pé parado, agachando e marchando
+também dão 0; e o caminho realista (chega em pé → 6 flexões → levanta) conta exatamente 6,
+tanto na FSM quanto pelo `evalctl` com calibração (10/10). Nenhum teste antigo mudou de
+resultado.
+
+---
+
 ## 2026-08-05 (22) · T-106/T-107 — flexão e abdominal, e a descoberta de que o agachamento não conta
 
 Dois exercícios de chão (SPEC-020 **Tier C**), a capacidade de motor que o Tier C exigia, e uma

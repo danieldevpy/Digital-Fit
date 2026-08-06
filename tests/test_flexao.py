@@ -21,11 +21,15 @@ from tests.synthetic_keypoints import (
     ELBOW_TOP,
     HIPS_PIKED,
     HIPS_SAGGED,
+    Pose,
     PushUpPose,
+    jumping_jack_poses,
     plank_pose,
     pushup_poses,
     sequence,
     session_poses,
+    squat_poses,
+    still_poses,
 )
 from workers.analysis_worker.exercises import (
     EXERCISES,
@@ -253,6 +257,116 @@ def test_desvio_pequeno_de_quadril_nao_reclama() -> None:
     _, eventos = analisar(sequence(pushup_poses(5, hip_offset=0.08)))
 
     assert codigos(eventos) == set()
+
+
+# --------------------------------------------------------------------------------------
+# Critério 5 — o porteiro de postura (regressão do bug relatado em produção)
+# --------------------------------------------------------------------------------------
+#
+# Relato de quem testou: "dependendo da posição ele já contava, quando levantava ele contava".
+# A causa: a altura do ombro sobre o pulso de quem está EM PÉ com os braços baixos é +0,73
+# torsos — quase idêntica à de uma prancha. Levantar e baixar os braços era, para a FSM,
+# descer e subir uma flexão. Estes testes reproduzem o relato e não deixam voltar.
+
+
+def test_pessoa_em_pe_levantando_os_bracos_nao_conta_flexao() -> None:
+    """O bug, exatamente como foi relatado. Antes do porteiro: 10 reps."""
+    analyzer, eventos = analisar(sequence(jumping_jack_poses(10)))
+
+    assert analyzer.rep_count == 0
+    assert do_tipo(eventos, RepDetected) == []
+
+
+def test_pessoa_em_pe_parada_nao_conta_flexao() -> None:
+    analyzer, _ = analisar(sequence(still_poses(120)))
+
+    assert analyzer.rep_count == 0
+    assert analyzer.summary()["frames_off_posture"] == 120
+
+
+def test_agachar_na_frente_da_camera_nao_conta_flexao() -> None:
+    analyzer, _ = analisar(sequence(squat_poses(10)))
+
+    assert analyzer.rep_count == 0
+
+
+def test_o_caminho_real_conta_exatamente_as_flexoes() -> None:
+    """Chega em pé, deita, treina, levanta — que é como toda sessão de verdade acontece.
+
+    O teste que amarra as duas pontas: o porteiro tem de recusar as duas partes em pé E deixar
+    a contagem do meio intacta. Um porteiro que só soubesse recusar passaria no teste anterior
+    e quebraria o produto.
+    """
+    poses = [*still_poses(30), *pushup_poses(6), *still_poses(30)]
+
+    analyzer, _ = analisar(sequence(poses))
+
+    assert analyzer.rep_count == 6
+    assert analyzer.summary()["frames_off_posture"] > 0
+
+
+def test_em_pe_nao_contamina_a_referencia_da_prancha() -> None:
+    """A referência só cresce com o porteiro aberto — senão o em pé fixa a prancha errada.
+
+    Sem esta regra, os frames em pé (altura 0,73) e os de prancha (1,15) entrariam na mesma
+    referência, e a profundidade de cada flexão passaria a ser medida contra um corpo que
+    ninguém fez.
+    """
+    so_flexao, _ = analisar(sequence(pushup_poses(6)))
+    depois_de_ficar_em_pe, _ = analisar(sequence([*still_poses(40), *pushup_poses(6)]))
+
+    assert depois_de_ficar_em_pe.rep_count == so_flexao.rep_count == 6
+
+
+def test_flexao_de_joelhos_conta():
+    """A progressão com que quase todo mundo começa não pode ser recusada pelo porteiro.
+
+    É o motivo de o "chão" ser o ponto mais baixo da PERNA (joelho ou tornozelo, o que estiver
+    mais embaixo) e não o tornozelo: de joelhos, o pé fica no ar, atrás.
+    """
+    analyzer, _ = analisar(sequence(pushup_poses(10, on_knees=True)))
+
+    assert analyzer.rep_count == 10
+    assert analyzer.summary()["frames_off_posture"] == 0
+
+
+def test_o_porteiro_separa_deitado_de_em_pe_com_ordem_de_grandeza() -> None:
+    """Os números que justificam os dois limiares, travados.
+
+    A folga é o que faz o porteiro sobreviver a ruído e a câmera torta: não é uma decisão
+    apertada entre 1,1 e 1,3, é 0,0 contra 2,5.
+    """
+    analyzer = PushUpAnalyzer()
+    limiares = PushUpThresholds()
+
+    prancha = analyzer.features(um_frame(plank_pose()))
+    em_pe = PushUpAnalyzer().features(normalize(sequence([Pose()]))[0])
+
+    assert prancha["on_floor"] is True
+    assert float(prancha["trunk_spread"]) > limiares.min_trunk_spread * 2
+    assert float(prancha["hands_to_ground"]) < limiares.max_hands_to_ground / 2
+
+    assert em_pe["on_floor"] is False
+    assert float(em_pe["trunk_spread"]) < 0.2
+    assert float(em_pe["hands_to_ground"]) > 1.0
+
+
+def test_um_frame_errado_do_modelo_nao_estraga_a_referencia() -> None:
+    """A referência exige dois frames seguidos, e é por isso.
+
+    Um único frame em que o modelo joga o ombro para longe inflaria a prancha para sempre — e
+    a partir dali nenhuma flexão de verdade voltaria a marcar profundidade 1,0.
+    """
+    analyzer = PushUpAnalyzer()
+    for frame in normalize(sequence(pushup_poses(2))):
+        feed(analyzer, frame)
+    referencia = analyzer._plank_height
+
+    # Um frame solto com o corpo "esticado" 40% além do que a pessoa consegue.
+    esticado = normalize(sequence([plank_pose()], torso=0.42))[0]
+    analyzer.features(esticado)
+
+    assert analyzer._plank_height == pytest.approx(referencia, rel=0.01)
 
 
 # --------------------------------------------------------------------------------------

@@ -273,6 +273,11 @@ class PushUpPose:
     elbow_angle: float = ELBOW_TOP
     #: Desvio perpendicular do quadril da linha ombro→tornozelo, em torsos. + = caindo.
     hip_offset: float = HIPS_ALIGNED
+    #: Flexão de joelhos — a progressão com que quase todo mundo começa. Quem toca o chão
+    #: passa a ser o JOELHO, e o pé sobe para trás; a linha do corpo vai do ombro ao joelho.
+    #: Existe como fixture porque o porteiro de postura da FSM promete aceitar esta variação,
+    #: e promessa sem fixture é chute (T-106).
+    on_knees: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -412,14 +417,15 @@ def _pushup_figure(
         base = (shoulder[0], shoulder[1] + a)
         elbow = (base[0] + h, base[1])
 
-    # Corpo em prancha: reta do ombro até o tornozelo, que fica quase no chão.
+    # Corpo em prancha: reta do ombro até o ponto de apoio, que fica quase no chão. No apoio
+    # de pés a linha vai até o tornozelo; de joelhos ela termina no JOELHO, e o pé sobe atrás.
     chao = wrist[1]
-    ankle_y = chao - _LAT_ANKLE_LIFT * torso
-    dy_corpo = ankle_y - shoulder[1]
+    corpo = torso + (_LAT_THIGH * torso if pose.on_knees else perna)
+    apoio_y = chao - _LAT_ANKLE_LIFT * torso
+    dy_corpo = apoio_y - shoulder[1]
     dx_corpo = math.sqrt(max(corpo**2 - dy_corpo**2, (0.3 * corpo) ** 2))
-    ankle = (shoulder[0] + dx_corpo, ankle_y)
 
-    eixo = (dx_corpo / corpo, dy_corpo / corpo)  # ombro → tornozelo, unitário
+    eixo = (dx_corpo / corpo, dy_corpo / corpo)  # ombro → apoio, unitário
     perpendicular = (-eixo[1], eixo[0])  # gira 90°: y+ = para o chão no trecho horizontal
     desvio = pose.hip_offset * torso
 
@@ -428,12 +434,20 @@ def _pushup_figure(
         shoulder[0] + eixo[0] * corpo * fracao_quadril + perpendicular[0] * desvio,
         shoulder[1] + eixo[1] * corpo * fracao_quadril + perpendicular[1] * desvio,
     )
-    # Joelho na reta quadril→tornozelo, na proporção coxa/perna.
-    fracao_joelho = _LAT_THIGH / (_LAT_THIGH + _LAT_SHIN)
-    knee = (
-        hip[0] + (ankle[0] - hip[0]) * fracao_joelho,
-        hip[1] + (ankle[1] - hip[1]) * fracao_joelho,
-    )
+    if pose.on_knees:
+        # O joelho é o apoio: fim da linha do corpo, no chão. A canela sobe para trás a 45°,
+        # que é como o pé fica numa flexão de joelhos.
+        knee = (shoulder[0] + eixo[0] * corpo, shoulder[1] + eixo[1] * corpo)
+        recuo = _LAT_SHIN * torso * math.cos(math.radians(45))
+        ankle = (knee[0] - recuo, knee[1] - recuo)
+    else:
+        ankle = (shoulder[0] + dx_corpo, apoio_y)
+        # Joelho na reta quadril→tornozelo, na proporção coxa/perna.
+        fracao_joelho = _LAT_THIGH / (_LAT_THIGH + _LAT_SHIN)
+        knee = (
+            hip[0] + (ankle[0] - hip[0]) * fracao_joelho,
+            hip[1] + (ankle[1] - hip[1]) * fracao_joelho,
+        )
     # Cabeça no prolongamento do tronco, para além do ombro.
     nose = (shoulder[0] - eixo[0] * _LAT_NECK * torso, shoulder[1] - eixo[1] * _LAT_NECK * torso)
 
@@ -625,9 +639,9 @@ def squat_poses(
     return [*poses, em_pe, em_pe]
 
 
-def plank_pose(*, hip_offset: float = HIPS_ALIGNED) -> PushUpPose:
+def plank_pose(*, hip_offset: float = HIPS_ALIGNED, on_knees: bool = False) -> PushUpPose:
     """Prancha alta: braço estendido, corpo alinhado. É a posição inicial da flexão."""
-    return PushUpPose(elbow_angle=ELBOW_TOP, hip_offset=hip_offset)
+    return PushUpPose(elbow_angle=ELBOW_TOP, hip_offset=hip_offset, on_knees=on_knees)
 
 
 def pushup_poses(
@@ -636,6 +650,7 @@ def pushup_poses(
     frames_per_rep: int = 15,
     amplitude: float = 1.0,
     hip_offset: float = HIPS_ALIGNED,
+    on_knees: bool = False,
 ) -> list[PushUpPose]:
     """Poses de `reps` flexões contínuas, interpoladas por cosseno (T-106).
 
@@ -646,7 +661,7 @@ def pushup_poses(
     `hip_offset` vale para a série inteira — quadril caindo é erro de postura sustentado, não
     de um frame.
     """
-    topo = plank_pose(hip_offset=hip_offset)
+    topo = plank_pose(hip_offset=hip_offset, on_knees=on_knees)
     poses: list[PushUpPose] = []
     for _rep in range(reps):
         for index in range(frames_per_rep):
@@ -655,6 +670,7 @@ def pushup_poses(
                 PushUpPose(
                     elbow_angle=ELBOW_TOP + (ELBOW_BOTTOM - ELBOW_TOP) * fraction,
                     hip_offset=hip_offset,
+                    on_knees=on_knees,
                 )
             )
     return [*poses, topo, topo]

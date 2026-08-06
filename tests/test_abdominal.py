@@ -17,10 +17,14 @@ from tests.synthetic_keypoints import (
     TRUNK_CRUNCH,
     TRUNK_FLAT,
     CrunchPose,
+    Pose,
     crunch_poses,
+    jumping_jack_poses,
     lying_pose,
     sequence,
     session_poses,
+    squat_poses,
+    still_poses,
 )
 from workers.analysis_worker.exercises import (
     EXERCISES,
@@ -288,6 +292,36 @@ def test_lift_nao_muda_com_a_posicao_no_quadro() -> None:
     meio = analyzer.features(um_frame(encolhido, center=(0.5, 0.55)))
 
     assert float(canto["lift"]) == pytest.approx(float(meio["lift"]), abs=0.01)
+
+
+@pytest.mark.parametrize(
+    ("rotulo", "poses"),
+    [
+        ("em pé parado", still_poses(120)),
+        ("em pé levantando os braços", jumping_jack_poses(10)),
+        ("agachando", squat_poses(10)),
+        (
+            "marcha, joelho alto",
+            [Pose(knee_angle=a) for _ in range(12) for a in (172, 120, 90, 120)],
+        ),
+    ],
+)
+def test_gente_em_pe_nunca_conta_abdominal(rotulo: str, poses: list) -> None:
+    """A mesma classe de erro que derrubou a flexão em produção — medida aqui, não suposta.
+
+    A flexão contava braço levantado como repetição porque a altura ombro→pulso de quem está em
+    pé é quase a de uma prancha, e precisou de um porteiro de postura explícito. O abdominal
+    **não** tem esse furo, e o motivo é geométrico: em pé o joelho fica sempre ABAIXO do
+    quadril, então a referência da contagem sai negativa (−0,52 em pé, −0,32 agachado, −0,37 na
+    marcha, contra o mínimo de +0,25) e a feature devolve zero.
+
+    Estes testes existem para transformar essa proteção de acidente em invariante: quem trocar
+    a referência do joelho por outra coisa descobre aqui, e não em produção.
+    """
+    analyzer, eventos = analisar(sequence(poses))
+
+    assert analyzer.rep_count == 0, rotulo
+    assert do_tipo(eventos, RepDetected) == [], rotulo
 
 
 def test_perna_esticada_nao_produz_medida() -> None:
