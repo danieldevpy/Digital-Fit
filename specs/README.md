@@ -31,6 +31,7 @@ Cada etapa do pipeline é uma **entidade** com duas fases:
 | [SPEC-020](SPEC-020-catalogo-categorias-trilhas.md) | Catálogo Expandido: categorias, trilhas, maturidade + roadmap de exercícios | Fase 5 |
 | [SPEC-021](SPEC-021-exercicios-isometricos.md) | Exercícios Isométricos (modalidade *hold*; habilita Tier B e "dia leve") | Fase 5 |
 | [SPEC-022](SPEC-022-treino-do-dia-personalizacao.md) | Treino do Dia & Personalização (objetivo, idade, IMC — assinante) | Fase 5 |
+| [SPEC-024](SPEC-024-historico-e-frescor.md) | Histórico como fonte única no cliente & contrato de frescor (Progresso, Analytics, Perfil) | Fase 5 (antes do M1) |
 
 ## Template
 

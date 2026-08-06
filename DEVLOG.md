@@ -5,6 +5,70 @@
 
 ---
 
+## 2026-08-06 (30) · SPEC-024 — o histórico tem três verdades e nenhuma acorda
+
+O Daniel: *"progresso e analytics… está na hora de ter uma utilidade maior e também sempre que
+você focar neles os dados estarem atualizados, isso eu digo para todas as páginas que têm dados
+e histórico, incluindo o perfil. Elas estão inúteis."*
+
+**A varredura confirmou as duas metades da queixa, e a segunda é pior que a primeira.**
+
+- *Inúteis*: `ProgressScreen.tsx:22` lê só `digitalfit.last_report` — **uma** sessão, do
+  `localStorage`. `AnalyticsScreen.tsx` não lê dado nenhum: é um card e três bullets de "em
+  breve". As duas telas foram escritas assim de propósito (a nota de cabeçalho invoca a régua
+  de honestidade da SPEC-014 §Desvios, e estava certa **na época**) — o que mudou é que o dado
+  passou a existir e ninguém voltou para ligá-lo.
+- *Desatualizados*: `AccountSheet.tsx:176` busca o histórico com guarda
+  `if (historyStatus !== 'idle') return`. Uma vez por login, **nunca mais**. Treinou, voltou no
+  Perfil, vê o número de antes; só logout ou F5 corrigem. E não existe um `visibilitychange` em
+  lugar nenhum de `web/src` — verificado por grep, não por memória.
+
+**A descoberta que muda o tamanho do trabalho**: `SessionResult.to_report()`
+(`server/api/models.py:539`) já devolve o relatório **inteiro** de até 50 sessões em
+`GET /api/sessions?mine` — `exercise`, `created_at`, `cadence_windows`, `rep_durations_ms`,
+`feedback_counts`, `scene_warning_counts`. Progresso e Analytics úteis não esperam backend
+novo; esperam alguém ler o que já desce pelo fio e é descartado na tela. Por isso a Fase
+Inicial da spec é **cliente puro**.
+
+**Decisões (e o que foi rejeitado):**
+
+- **Anônimo tem histórico local** (`digitalfit.history`, teto 50 = o `HISTORY_LIMIT` do
+  servidor). Escolha do Daniel entre as duas alternativas apresentadas; a outra era "só com
+  conta", mais simples e melhor funil, descartada porque hoje a maioria dos usuários é anônima
+  e as telas continuariam vazias para quase todo mundo. Teto igual ao do servidor de propósito:
+  dois tetos fariam a mesma pessoa ver históricos de tamanhos diferentes antes e depois do
+  cadastro.
+- **Merge por união de `session_id`, servidor vence — nunca soma.** Somar contaria em dobro
+  toda sessão feita logado. Um total desatualizado a pessoa desconfia; um total dobrado ela
+  acredita.
+- **Frescor por foco, não por timer.** Polling rejeitado: o dado só muda quando a própria
+  pessoa treina, e ela treina *neste* aparelho, onde o fim de sessão já é um fato conhecido —
+  um timer gastaria bateria e rede num app que já mantém câmera e WebSocket abertos para
+  descobrir o que o cliente acabou de fazer. Revalidar a cada render também rejeitado: põe o
+  gatilho na árvore do React em vez de num fato do usuário.
+- **Debounce de 30 s, exceto no fim de sessão** — ali existe fato novo, não suspeita.
+- **`last_report` não é fundido no histórico**: aquela chave guarda também se a folha estava
+  aberta no F5, que é estado de navegação. Fundir faria um dado de UI viajar dentro do dado de
+  treino.
+- **Gate de honestidade**: abaixo de 2 sessões do mesmo exercício, nenhuma tendência é
+  desenhada. Gráfico com um ponto não é gráfico — é a sugestão de uma tendência que ninguém
+  mediu. É a régua da SPEC-014 §Desvios aplicada a série temporal.
+- **Fuso**: dia-calendário de quem lê (como o `historyDate()` já faz), divergindo **de
+  propósito** do America/Sao_Paulo fixo que a SPEC-019 escolhe para o fogo. Aqui a pergunta é
+  "que dia era para mim"; lá é "o mesmo dia para todo mundo".
+
+**Posição no plano**: entra como **M0 da Fase 5, antes do M1**. O fogo/meta/XP do M1 são
+leituras do histórico — construir aquela UI sobre um dado que não atualiza seria pôr contador
+novo em cima de fundação torta. T-121…T-125, com T-123 paralela a T-122.
+
+**Pendências geradas**: nenhuma task nova fora do M0. T-055 (histórico diz qual exercício)
+ganhou relevância — ajuda o M0 e não o bloqueia. T-087 (adoção das sessões do aparelho no
+cadastro) é o que torna verdadeiro o CTA de conta que o rótulo "neste aparelho" oferece.
+
+**Status**: `draft`, aguardando revisão do Daniel. Nada implementado.
+
+---
+
 ## 2026-08-06 (28) · T-120 — o treino só começa com a câmera ligada
 
 Pedido direto do Daniel, em paralelo à SPEC-023. O CTA da pré-configuração fazia duas coisas
