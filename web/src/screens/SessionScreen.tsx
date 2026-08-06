@@ -25,8 +25,9 @@ import {
   setSeriesPreference,
 } from '../session/configPrefs'
 import { useCountdown } from '../session/countdown'
+import { estadoDoExemplo, temConta } from '../session/guideGate'
 import { ESTIMATED_LABEL, formatKcal, liveKcal } from '../session/kcal'
-import { exercisePreference } from '../session/preferences'
+import { exercisePreference, guideSeen } from '../session/preferences'
 import { useNow } from '../session/useNow'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
@@ -163,6 +164,15 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   const exerciseKey = mode === 'treino' && exerciseKeyLive ? exerciseKeyLive : exercisePreference()
   const exercise = getExercise(exerciseKey)
 
+  // O destaque do "ver exemplo" (ver `session/guideGate.ts`). Assinado do store, e não lido do
+  // token direto, para o destaque apagar sozinho no instante em que a pessoa entra pela folha
+  // de conta sem precisar sair da tela e voltar.
+  const accountStatus = useAccountStore((state) => state.status)
+  const { destacarLink } = estadoDoExemplo({
+    temConta: temConta(accountStatus),
+    jaViu: guideSeen(exerciseKey),
+  })
+
   const cameraReady = cameraStatus === 'ready'
   const now = useNow(sceneEntry !== null || feedbackEntry !== null)
   const coach = resolveCoachCard({
@@ -261,13 +271,17 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                 <ExerciseIcon exercise={exerciseKey} className="prep-cell__ex-icon" />
                 <p className="prep-cell__ex-name">{exercise.display_name}</p>
               </button>
-              {/* SPEC-015: o guia só aparece sozinho na primeira vez — depois disso só
-                  este link reabre o exemplo, sem repetir o funil. */}
+              {/* Para quem tem conta este link é o ÚNICO caminho até o exemplo (ver
+                  `session/guideGate.ts`), então ele não pode mais ser um texto de 9px que se
+                  perde na coluna. Vira chip com ícone; e enquanto o exemplo daquele exercício
+                  não tiver sido visto, respira algumas vezes e sossega — o destaque morre no
+                  toque, não no relógio, e nunca volta para o mesmo exercício. */}
               <button
                 type="button"
-                className="prep-cell__ex-guide"
+                className={`prep-cell__ex-guide ${destacarLink ? 'prep-cell__ex-guide--novo' : ''}`}
                 onClick={() => navigate({ screen: 'guia', exercise: exerciseKey })}
               >
+                <IconPlay className="prep-cell__ex-guide-icon" />
                 ver exemplo
               </button>
             </div>

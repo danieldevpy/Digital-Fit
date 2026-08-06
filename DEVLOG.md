@@ -5,6 +5,81 @@
 
 ---
 
+## 2026-08-06 (26) · O exemplo guiado passa a depender de quem é — e duas regressões das faixas
+
+### O exemplo por identidade, não por histórico
+
+A regra da SPEC-015 era "uma vez por exercício, para todo mundo". Ela tratava o exemplo como
+**onboarding** — algo que se consome e se encerra. Só que ele não é isso: ele é a instrução de
+ENQUADRAMENTO, e enquadramento errado não deixa a pessoa insegura, deixa a sessão zerada (a
+T-106 gastou uma task inteira nisso). "Já viu uma vez" nunca foi a mesma pergunta que "já sabe".
+
+O eixo virou a identidade (`session/guideGate.ts`):
+
+- **sem conta** → o exemplo abre toda vez que a pessoa TROCA de exercício;
+- **com conta** → nunca abre sozinho; o link "ver exemplo" se destaca enquanto aquele
+  exercício não tiver sido visto, e emudece depois.
+
+Decisões:
+
+- **Trocar de exercício, e não cada sessão.** O pedido original era "sempre que for treinar",
+  mas o app abre direto na pré-config — o gatilho teria que ir para o botão de play, virando
+  pedágio de todo treino. Fricção que a conta remove é o que a SPEC-011 recusa por escrito, e o
+  `preferences.ts` já dizia em comentário que isso seria "uma pequena punição por não se
+  cadastrar". Séries repetidas não passam pelo funil e continuam livres.
+- **As duas decisões saem da MESMA função.** Separadas, divergiriam até existir o absurdo — o
+  exemplo abre sozinho *e* o link pisca pedindo que o abram. Há um teste que varre as quatro
+  combinações só para provar que esse estado não é representável.
+- **Antes do `fetchMe`, quem responde é o refresh guardado.** O status nasce `unknown` e a
+  ponte `#/ex/<slug>` do site dispara o funil num efeito de boot. Esperar a rede ali abriria o
+  exemplo na cara de quem tem conta, vindo do site — o incômodo que a mudança existe para tirar.
+  Refresh vencido faz alguém deslogado perder o exemplo automático; é o erro barato dos dois,
+  porque o link continua na tela, destacado.
+- **O `guide_seen` continua sendo gravado.** Deixou de decidir a abertura para decidir o
+  destaque — inclusive para quem vira assinante depois: exercício que já viu como anônimo
+  nasce sem destaque.
+- **O link virou chip.** Era texto sublinhado de 9px; para quem tem conta ele agora é o ÚNICO
+  caminho até o exemplo, e o que ninguém enxerga não é um caminho. 74×36px com ícone. O
+  destaque respira 2,2s × **3 e para** — contagem finita porque animação infinita numa tela
+  onde se fica parado esperando a câmera vira tique, o oposto de "não invasivo".
+  `prefers-reduced-motion` recebe a borda acesa, sem pulso.
+
+### Duas regressões da entrada (25), achadas medindo no navegador
+
+1. **As fotos da Escolha não carregavam — nenhuma.** `loading="lazy"` herdado do card antigo:
+   dentro de um contêiner com `overflow-x: auto` o Chrome nunca dispara o carregamento
+   (`currentSrc` vazio, `complete: false`, com o card visível na tela). Provado nos dois
+   sentidos: imagem idêntica sem `lazy` carrega, e remover o atributo em runtime carrega na
+   hora. O `lazy` virou opt-in no `ExerciseDemo`, com a armadilha documentada; só a vitrine do
+   site liga, onde a rolagem é a do documento e o adiamento funciona de verdade.
+2. **A media query media a tela errada.** `@media (min-width: 700px)` para agrandar o card
+   casava com o MONITOR, não com o quadro: o app vive dentro do `.app__phone`, que é
+   `max-width: 430px` em qualquer tela. No desktop dava cards de 196px num quadro de 430px —
+   um layout que nenhum celular veria. Removida, com um comentário no lugar dizendo que o
+   instrumento correto seria container query.
+
+Medido depois das duas: 4/4 imagens carregadas, card de volta a 160px, e a Escolha inteira
+cabendo **sem rolagem** (800px de conteúdo em 800px visíveis, com 4 exercícios).
+
+Gates: `typecheck`, `lint`, `build` limpos; `vitest` 412/412 (+10 em `guideGate.test.ts`).
+
+Pendências geradas:
+
+- **A SPEC-015 agora contradiz o código.** Ela diz "o guia só aparece sozinho na primeira vez";
+  o código diz "depende de ter conta". O AGENTS manda comportamento nascer de spec — falta a
+  revisão da SPEC-015 (ou uma SPEC nova) para o texto voltar a valer.
+- **A rota de quem TEM conta não foi verificada ponta a ponta.** Sem backend local o `fetchMe`
+  falha e o status resolve para `anonymous` — comportamento correto, mas impede o teste real.
+  Cobertura hoje é só unitária (10 casos).
+- **O `ExercisePicker` troca de exercício sem passar pelo funil.** Hoje é inofensivo (fica
+  oculto na pré-config pelo `compactCover`, só aparece na capa do treino antes da câmera subir),
+  mas é uma segunda porta para a mesma decisão. Se um dia voltar a aparecer, o exemplo não abre.
+- **As fotos são 900×900 numa caixa 138×92**: com `contain` sobram 23px de vazio de cada lado.
+  `aspect-ratio: 1` resolveria (foto a 138×138, zero barra) ao custo de ~45px por card. Decisão
+  do Daniel, ainda não tomada.
+
+---
+
 ## 2026-08-05 (25) · T-091 (metade layout) — a Escolha vira faixas por categoria
 
 A tela Escolha empilhava um card de ~305px por exercício. Com dois exercícios aquilo cabia na
