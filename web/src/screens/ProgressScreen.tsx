@@ -14,13 +14,13 @@ import {
   porSemana,
   type ResumoSemana,
 } from '../history/aggregates'
+import { historyDate } from '../auth/accountSummary'
 import { useFreshHistory } from '../history/useFreshHistory'
 import { useHistoryStore } from '../history/store'
 import { reasonText } from '../report/reportSummary'
 import { getExercise } from '../session/catalog'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
-import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
 import { IconChart, IconCounter, IconPlay, IconPulse } from '../ui/icons'
 
@@ -31,11 +31,16 @@ function segundos(ms: number): string {
 const DIAS_DA_SEMANA = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D']
 
 export function ProgressScreen() {
-  const report = useSessionStore((state) => state.report)
   const sessions = useHistoryStore((state) => state.sessions)
   const source = useHistoryStore((state) => state.source)
   const loadError = useHistoryStore((state) => state.loadError)
   useFreshHistory()
+
+  // O último treino sai do histórico, e não mais do store de sessão (T-055). O `report` de lá
+  // é a sessão CORRENTE deste aparelho: quem entrasse na conta em outro celular tinha 50
+  // sessões na tela e nenhum "último treino", porque o `last_report` local estava vazio. O
+  // dono das sessões conhecidas é um só (SPEC-024 §1), e a lista já chega da mais recente.
+  const ultimo = sessions[0]
 
   const hoje = new Date()
   const dias = diasComTreino(sessions)
@@ -98,26 +103,29 @@ export function ProgressScreen() {
         <Semanas semanas={semanas} />
         <PorExercicio exercicios={exercicios} totalDeReps={repsTotais} />
 
-        {report && (
+        {ultimo && (
           <>
-            <p className="prog__section">Último treino</p>
+            <p className="prog__section">
+              Último treino
+              <span className="prog__section-note">{historyDate(ultimo.created_at)}</span>
+            </p>
             <div className="panel__card">
-              <p className="panel__card-title">{getExercise(report.exercise).display_name}</p>
-              <p className="panel__card-sub">{reasonText(report.reason)}</p>
+              <p className="panel__card-title">{getExercise(ultimo.exercise).display_name}</p>
+              <p className="panel__card-sub">{reasonText(ultimo.reason)}</p>
               <div className="panel__metrics">
                 <div className="panel__metric">
                   <IconCounter className="panel__metric-icon" />
-                  <p className="panel__metric-value tabular">{report.rep_count}</p>
+                  <p className="panel__metric-value tabular">{ultimo.rep_count}</p>
                   <p className="v2-label">repetições</p>
                 </div>
                 <div className="panel__metric">
                   <IconPulse className="panel__metric-icon" />
-                  <p className="panel__metric-value tabular">{report.cadence_rpm.toFixed(0)}</p>
+                  <p className="panel__metric-value tabular">{ultimo.cadence_rpm.toFixed(0)}</p>
                   <p className="v2-label">rep/min</p>
                 </div>
                 <div className="panel__metric">
                   <IconChart className="panel__metric-icon" />
-                  <p className="panel__metric-value tabular">{segundos(report.duration_ms)}</p>
+                  <p className="panel__metric-value tabular">{segundos(ultimo.duration_ms)}</p>
                   <p className="v2-label">duração</p>
                 </div>
               </div>

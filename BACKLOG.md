@@ -70,7 +70,7 @@
 | T-032 | Exercício 2: agachamento (novo módulo `exercises/squat.py`) | 007 | done — limiares calibrados no gerador; falta corpus de vídeo (T-053) |
 | T-053 | Corpus de agachamento + varredura dos limiares contra ele (hoje calibrados só no gerador sintético) | 012/007 | todo |
 | T-054 | `KNEES_INWARD` (valgo dinâmico) — a falha de agachamento que a câmera FRONTAL vê melhor que qualquer outra; exige parâmetro novo no gerador de poses | 007/012 | todo |
-| T-055 | Relatório e histórico mostram QUAL exercício foi feito (o dado já viaja ponta a ponta; nenhuma tela o desenha) | 013/010 | todo |
+| T-055 | Relatório e histórico mostram QUAL exercício foi feito (o dado já viaja ponta a ponta; nenhuma tela o desenha) | 013/010 | done (no M0.1) |
 | T-033 | Form score por rep (amplitude, simetria, estabilidade) | 007 | todo |
 | T-034 | Ferramenta de rotulagem do dataset + primeiro treino do classificador temporal | 010/007 | todo |
 | T-035 | Coach por voz (TTS dos feedbacks) | 008 | todo |
@@ -177,6 +177,7 @@ funcionalidade nova: são o mesmo dado, dito certo.
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-126 | O relatório e o Analytics param de falar em CAIXA ALTA: espelho de `Code` completo em `lib/events.ts` (seis códigos de execução faltavam desde o Tier C), catálogo de texto do feedback servido no `GET /api/config` a partir do mesmo YAML que o motor lê (SPEC-018 §C), e `textForCode` em três degraus — servidor, embutido completo, o próprio código. Ver Descoberta `[T-126]` | 008/018/010 | done |
+| T-055 | Relatório e histórico mostram QUAL exercício foi feito (o dado já viaja ponta a ponta; nenhuma tela o desenha) — e o "último treino" do Progresso passa a sair do store de histórico, que é o dono declarado na SPEC-024 §1 | 013/010/024 | done |
 
 ### M1 — "O fogo acende" (SPEC-019): streak + meta + XP funcionais de ponta a ponta
 

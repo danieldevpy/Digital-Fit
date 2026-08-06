@@ -581,6 +581,16 @@ a {
   text-align: center;
 }
 
+/* Nome do exercício acima do motivo de encerramento (T-055). Tem o peso do título e a cor do
+   texto normal: é a resposta a "que treino é este", e o motivo ("Série completa") é a legenda
+   dele — a hierarquia invertida faria o relatório parecer o de outra sessão. */
+.report__ex {
+  margin: 0 0 2px;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .report__title {
   margin: 0;
   color: var(--text-dim);
@@ -938,6 +948,19 @@ a {
 
 .account__item:last-child {
   border-bottom: none;
+}
+
+/* Exercício sobre a data, numa coluna só (T-055). Empilhado e não em linha porque a folha é
+   estreita: quatro campos lado a lado quebrariam o nome do exercício no meio. */
+.account__item-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.account__item-ex {
+  font-weight: 600;
 }
 
 .account__item-date {

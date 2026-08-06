@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { useHistoryStore } from '../history/store'
 import { useFreshHistory } from '../history/useFreshHistory'
 import { formatDuration } from '../report/sessionReport'
+import { getExercise } from '../session/catalog'
 import { useAccountStore } from '../store/account'
 import { BrandMark } from '../ui/BrandMark'
 import { displayName, historyDate, historyTotals, quotaNotice } from './accountSummary'
@@ -278,7 +279,15 @@ function Conta() {
           <ul className="account__list">
             {history.map((sessao) => (
               <li key={sessao.session_id} className="account__item">
-                <span className="account__item-date">{historyDate(sessao.created_at)}</span>
+                {/* Qual exercício, e não só quando (T-055). A lista dizia "12 reps" sem dizer
+                    de quê — legível enquanto havia um exercício, ilegível com quatro: 12
+                    flexões e 12 polichinelos são a mesma linha e treinos diferentes. */}
+                <span className="account__item-main">
+                  <span className="account__item-ex">
+                    {getExercise(sessao.exercise).display_name}
+                  </span>
+                  <span className="account__item-date">{historyDate(sessao.created_at)}</span>
+                </span>
                 <span className="account__item-reps tabular">{sessao.rep_count} reps</span>
                 <span className="account__item-time tabular">
                   {formatDuration(sessao.duration_ms)}

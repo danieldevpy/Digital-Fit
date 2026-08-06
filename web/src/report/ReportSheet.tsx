@@ -3,6 +3,7 @@
 // A SPEC-013 não define esta tela — ela é da SPEC-010. O visual segue os tokens da 013
 // mesmo assim (glass, accent, tabular-nums), porque um relatório com outra linguagem visual
 // pareceria outro aplicativo.
+import { getExercise } from '../session/catalog'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
 import { cadenceBars, improvements, reasonText, windowLabel } from './reportSummary'
@@ -48,6 +49,10 @@ export function ReportSheet() {
 
         {status === 'ready' && report && (
           <>
+            {/* Qual exercício foi feito (T-055). Era óbvio enquanto o polichinelo era o único
+                que contava; com quatro no ar, e com o relatório podendo ser reaberto do
+                Progresso e do Analytics, "Série completa · 12 repetições" não diz de quê. */}
+            <p className="report__ex">{getExercise(report.exercise).display_name}</p>
             <p className="report__title">{reasonText(report.reason)}</p>
             <p className="report__reps tabular">{report.rep_count}</p>
             <p className="report__hint">repetições</p>

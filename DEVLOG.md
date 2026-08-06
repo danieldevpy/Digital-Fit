@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-08-06 (37) · T-055 — o histórico diz qual exercício foi feito
+
+Task antiga (estava no backlog desde a Fase 2), destravada pelo mesmo motivo que as outras
+duas: com quatro exercícios contando, "12 reps" numa lista deixou de ser uma linha legível.
+
+**Três telas.**
+
+- **Relatório**: nome do exercício acima do motivo de encerramento. Faz mais falta agora do que
+  quando a task nasceu — o relatório pode ser reaberto do Progresso e do Analytics, longe do
+  treino que o gerou.
+- **Perfil**: cada linha do histórico ganha o exercício sobre a data, empilhados numa coluna.
+  Quatro campos lado a lado quebrariam o nome no meio numa folha estreita.
+- **Progresso**: o "último treino" passa a sair do **store de histórico**.
+
+**O último treino era a última brecha da SPEC-024 §1.** A T-124 manteve aquele card lendo o
+`report` do store de sessão, que é a sessão *corrente deste aparelho*. Quem entrasse na conta
+em outro celular via 50 sessões na tela e nenhum "último treino": o `last_report` local estava
+vazio. Agora é `sessions[0]` — a lista já chega ordenada da mais recente —, e o card ganhou a
+data, que antes seria redundante e agora é necessária.
+
+**Sem teste automatizado, e declarado.** As três mudanças são apresentação em componente React,
+e a suíte web roda sem DOM (`environment: 'node'`). O que dava para testar como regra já é
+testado: `getExercise` com slug desconhecido (T-074) e a ordem do histórico (T-121).
+
+**Gates.** `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`.
+
+**Pendências.** Verificação visual em navegador continua pendente desde a T-124/T-125 — e agora
+inclui a linha de duas alturas do Perfil e o nome no topo do relatório.
+
+---
+
 ## 2026-08-06 (36) · T-126 — o relatório para de falar em CAIXA ALTA
 
 Continuação do M0, olhando as telas novas com o catálogo de **hoje** em vez do de quando elas
