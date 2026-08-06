@@ -178,6 +178,7 @@ funcionalidade nova: são o mesmo dado, dito certo.
 |---|---|---|---|
 | T-126 | O relatório e o Analytics param de falar em CAIXA ALTA: espelho de `Code` completo em `lib/events.ts` (seis códigos de execução faltavam desde o Tier C), catálogo de texto do feedback servido no `GET /api/config` a partir do mesmo YAML que o motor lê (SPEC-018 §C), e `textForCode` em três degraus — servidor, embutido completo, o próprio código. Ver Descoberta `[T-126]` | 008/018/010 | done |
 | T-055 | Relatório e histórico mostram QUAL exercício foi feito (o dado já viaja ponta a ponta; nenhuma tela o desenha) — e o "último treino" do Progresso passa a sair do store de histórico, que é o dono declarado na SPEC-024 §1 | 013/010/024 | done |
+| T-127 | Rumo honesto por exercício: a tendência de uma correção só compara sessões que podiam tê-la cometido. Hoje `SQUAT_TOO_SHALLOW` aparece "diminuindo" quando a pessoa parou de agachar e passou a fazer flexão — a tela informa mudança de catálogo como se fosse mudança de corpo. Ver Descoberta `[T-127]` | 024 | done |
 
 ### M1 — "O fogo acende" (SPEC-019): streak + meta + XP funcionais de ponta a ponta
 
@@ -323,6 +324,15 @@ funcionalidade nova: são o mesmo dado, dito certo.
   espelho de `events.py` e ficou parado na Fase 0; o `Code` de lá cresceu, o de cá não. Um
   teste sobre o espelho não teria pego — os dois arquivos são listas separadas —, e é por isso
   que o gate da T-126 é do outro lado: todo código do contrato precisa ter texto.
+
+- **[T-127] A tendência de uma correção comparava metades do histórico inteiro, não do
+  exercício.** `contagens()` parte as sessões ao meio no tempo e compara a média por sessão das
+  duas metades. Com um exercício isso é honesto; com quatro, não: quem fez cinco agachamentos
+  em janeiro e cinco flexões em fevereiro lê "SQUAT_TOO_SHALLOW diminuindo" — e o que diminuiu
+  foi o agachamento, não o erro. A tela informava mudança de catálogo como se fosse mudança de
+  corpo, que é exatamente o tipo de número que a SPEC-014 §Desvios manda não mostrar. Fechada
+  na própria T-127; fica aqui porque a forma do erro se repete em qualquer agregação futura que
+  cruze exercícios (o XP da SPEC-019 e a comparação de cadência da SPEC-023 §6 são candidatas).
 
 - **[T-085] Os limiares de cena não têm corpus para calibrar — e o `evalctl` não os mede.**
   Os três valores (`LUZ_MINIMA`, `ESTOURO_MAXIMO`+`LUZ_CENTRO_MINIMA`, `DETALHE_MINIMO`) foram

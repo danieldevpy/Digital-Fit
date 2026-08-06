@@ -260,6 +260,57 @@ describe('correções e avisos', () => {
     expect(lista[0]).toMatchObject({ key: 'fora_de_quadro', total: 3, rumo: 'caindo' })
   })
 
+  // T-127: com quatro exercícios no ar, comparar metades do histórico INTEIRO faz a tela
+  // informar mudança de catálogo como se fosse mudança de corpo.
+  it('só compara sessões dos exercícios em que o aviso aparece', () => {
+    const lista = contagens(
+      [
+        // Quem agachou em agosto e trocou para flexão em setembro. A correção do agachamento
+        // não melhorou: ela parou de existir porque o exercício parou de acontecer.
+        sessao({ quando: new Date(2026, 7, 1), exercise: 'squat', feedback: { desce_mais: 4 } }),
+        sessao({ quando: new Date(2026, 7, 2), exercise: 'squat', feedback: { desce_mais: 4 } }),
+        sessao({ quando: new Date(2026, 8, 1), exercise: 'flexao', feedback: { quadril: 1 } }),
+        sessao({ quando: new Date(2026, 8, 2), exercise: 'flexao', feedback: { quadril: 1 } }),
+      ],
+      'feedback_counts',
+    )
+
+    // Antes desta task: 'caindo' — as duas flexões entravam como sessões sem a correção.
+    expect(lista.find((c) => c.key === 'desce_mais')?.rumo).toBe('estavel')
+    expect(lista.find((c) => c.key === 'quadril')?.rumo).toBe('estavel')
+  })
+
+  it('o exercício novo não dilui o rumo do antigo, mas o antigo continua sendo lido', () => {
+    const lista = contagens(
+      [
+        sessao({ quando: new Date(2026, 7, 1), exercise: 'squat', feedback: { desce_mais: 10 } }),
+        sessao({ quando: new Date(2026, 7, 3), exercise: 'flexao', feedback: { quadril: 5 } }),
+        sessao({ quando: new Date(2026, 7, 5), exercise: 'squat', feedback: { desce_mais: 2 } }),
+      ],
+      'feedback_counts',
+    )
+
+    // Duas sessões de agachamento, 10 → 2: melhorou de verdade, e a flexão do meio não conta.
+    expect(lista.find((c) => c.key === 'desce_mais')?.rumo).toBe('caindo')
+    // Uma flexão só: não há duas metades, e a tela não afirma nada (SPEC-024 §5).
+    expect(lista.find((c) => c.key === 'quadril')?.rumo).toBeNull()
+  })
+
+  it('aviso de cena que aparece em vários exercícios compara todos eles', () => {
+    const lista = contagens(
+      [
+        sessao({ quando: new Date(2026, 7, 1), exercise: 'squat', cena: { fora: 3 } }),
+        sessao({ quando: new Date(2026, 7, 2), exercise: 'flexao', cena: { fora: 3 } }),
+        sessao({ quando: new Date(2026, 7, 3), exercise: 'squat', cena: { fora: 1 } }),
+        sessao({ quando: new Date(2026, 7, 4), exercise: 'flexao', cena: { fora: 1 } }),
+      ],
+      'scene_warning_counts',
+    )
+
+    // Sair do quadro não é erro de exercício nenhum: o conjunto é observado, não declarado.
+    expect(lista[0]?.rumo).toBe('caindo')
+  })
+
   it('relatório antigo sem os campos não derruba a agregação', () => {
     const sem = { session_id: 's1', created_at: QUARTA.toISOString() } as SessionReport
     expect(contagens([sem], 'feedback_counts')).toEqual([])

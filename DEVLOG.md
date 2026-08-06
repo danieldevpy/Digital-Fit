@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-08-06 (38) · T-127 — o rumo de uma correção passa a comparar treinos comparáveis
+
+O terceiro achado de ler as telas do M0 com o catálogo de hoje. `contagens()` parte as sessões
+ao meio no tempo e compara a média por sessão das duas metades — honesto com um exercício,
+mentiroso com quatro.
+
+**O caso.** Quem agachou em agosto e trocou para flexão em setembro lia "desça mais no
+agachamento — **diminuindo** entre as sessões". Não diminuiu: as flexões entravam no
+denominador como sessões em que a correção não apareceu. A tela informava mudança de catálogo
+como se fosse mudança de corpo — exatamente o número que a SPEC-014 §Desvios manda não mostrar.
+
+**A regra nova.** O rumo de um aviso só compara sessões dos exercícios em que **aquele aviso já
+apareceu**. Duas consequências de desenho:
+
+- **O conjunto de exercícios é observado, não declarado.** Nada de um mapa "código → exercícios
+  que o emitem" no cliente: ele envelheceria a cada exercício novo, e o cliente não sabe (nem
+  deve saber) o que cada FSM emite. Ele lê o que o histórico mostra.
+- **Isso reaplica o gate de honestidade num escopo menor**, e de graça: com duas sessões de
+  agachamento e uma de flexão, o agachamento ganha rumo e a flexão não. Antes a flexão herdava
+  um rumo do tamanho da amostra alheia.
+
+**O total continua sendo do histórico inteiro.** Só o *rumo* é restrito: "quantas vezes isso me
+aconteceu" é uma pergunta sobre tudo o que fiz; "estou melhorando nisso" é uma pergunta sobre o
+exercício em que isso acontece.
+
+**Gates.** `npm run lint`, `npm run typecheck`, `npm run test` (490, +3), `npm run build`.
+
+**Pendências.** A forma deste erro se repete em qualquer agregação futura que cruze exercícios
+— registrado como Descoberta `[T-127]`, com o XP da SPEC-019 e a comparação de cadência da
+SPEC-023 §6 como os próximos candidatos.
+
+---
+
 ## 2026-08-06 (37) · T-055 — o histórico diz qual exercício foi feito
 
 Task antiga (estava no backlog desde a Fase 2), destravada pelo mesmo motivo que as outras

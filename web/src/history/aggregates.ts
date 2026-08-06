@@ -200,8 +200,9 @@ export interface Contagem {
   key: string
   total: number
   /**
-   * Para onde vai, comparando a metade mais recente do histórico com a mais antiga.
-   * `null` quando não há sessões suficientes para dizer — e aí a tela não diz.
+   * Para onde vai, comparando a metade mais recente com a mais antiga — **entre as sessões dos
+   * exercícios em que este aviso aparece**. `null` quando não há sessões suficientes para
+   * dizer, e aí a tela não diz.
    */
   rumo: Rumo | null
 }
@@ -211,36 +212,64 @@ type CampoDeContagem = 'feedback_counts' | 'scene_warning_counts'
 /**
  * Soma os contadores de todas as sessões, da mais frequente para a menos.
  *
- * O rumo compara a metade recente com a antiga **por sessão**, não por total absoluto: quem
- * treinou o dobro de vezes acumularia o dobro de correções sem ter piorado em nada.
+ * Duas regras sustentam o rumo, e as duas existem porque o número compara a pessoa com ela
+ * mesma:
+ *
+ * 1. **Por sessão, não por total** — quem treinou o dobro de vezes acumularia o dobro de
+ *    correções sem ter piorado em nada.
+ * 2. **Só entre sessões que podiam cometer aquele erro** (T-127). `SQUAT_TOO_SHALLOW` só nasce
+ *    em agachamento; contar as flexões do mês passado como "sessões sem a correção" faria a
+ *    tela dizer "diminuindo" para quem simplesmente trocou de exercício. Era invisível
+ *    enquanto o catálogo tinha um exercício que contava, e passou a mentir com quatro.
  */
 export function contagens(sessions: SessionReport[], campo: CampoDeContagem): Contagem[] {
   const ordenadas = [...sessions].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   )
-  const meio = Math.floor(ordenadas.length / 2)
-  const antigas = ordenadas.slice(0, meio)
-  const recentes = ordenadas.slice(meio)
 
   const totais = new Map<string, number>()
+  const exerciciosDaChave = new Map<string, Set<string>>()
   for (const sessao of ordenadas) {
     for (const [chave, valor] of Object.entries(sessao[campo] ?? {})) {
       totais.set(chave, (totais.get(chave) ?? 0) + valor)
+      const exercicios = exerciciosDaChave.get(chave) ?? new Set<string>()
+      exercicios.add(sessao.exercise)
+      exerciciosDaChave.set(chave, exercicios)
     }
   }
-
-  // Com menos de duas sessões não há duas metades para comparar (SPEC-024 §5).
-  const podeComparar = ordenadas.length >= MIN_PONTOS_TENDENCIA
 
   return [...totais.entries()]
     .map(([key, total]) => ({
       key,
       total,
-      rumo: podeComparar
-        ? rumo(mediaPorSessao(antigas, campo, key), mediaPorSessao(recentes, campo, key))
-        : null,
+      rumo: rumoDaChave(ordenadas, campo, key, exerciciosDaChave.get(key) ?? new Set()),
     }))
     .sort((a, b) => b.total - a.total || a.key.localeCompare(b.key))
+}
+
+/**
+ * O rumo de UM aviso, entre as sessões dos exercícios em que ele já apareceu.
+ *
+ * O conjunto de exercícios é **observado**, não declarado: o cliente não sabe (nem deve saber)
+ * quais códigos cada FSM emite — isso é do worker, e um mapa aqui envelheceria a cada exercício
+ * novo. Quem nunca cometeu o erro fica de fora do denominador, o que é o mesmo que dizer que a
+ * comparação é entre treinos comparáveis.
+ */
+function rumoDaChave(
+  ordenadas: SessionReport[],
+  campo: CampoDeContagem,
+  key: string,
+  exercicios: Set<string>,
+): Rumo | null {
+  const comparaveis = ordenadas.filter((sessao) => exercicios.has(sessao.exercise))
+  // Com menos de duas sessões não há duas metades para comparar (SPEC-024 §5).
+  if (comparaveis.length < MIN_PONTOS_TENDENCIA) return null
+
+  const meio = Math.floor(comparaveis.length / 2)
+  return rumo(
+    mediaPorSessao(comparaveis.slice(0, meio), campo, key),
+    mediaPorSessao(comparaveis.slice(meio), campo, key),
+  )
 }
 
 function mediaPorSessao(sessions: SessionReport[], campo: CampoDeContagem, key: string): number {
