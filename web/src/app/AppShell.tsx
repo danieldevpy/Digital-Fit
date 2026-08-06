@@ -4,6 +4,7 @@
 import { useEffect } from 'react'
 import { AccountSheet } from '../auth/AccountSheet'
 import { fetchMe } from '../auth/api'
+import { useHistoryStore } from '../history/store'
 import { ReportSheet } from '../report/ReportSheet'
 import { AnalyticsScreen } from '../screens/AnalyticsScreen'
 import { ChooseScreen } from '../screens/ChooseScreen'
@@ -38,6 +39,14 @@ export function AppShell() {
   // normal e silencioso — significa apenas "ninguém logado", que é o estado padrão do produto.
   useEffect(() => {
     void fetchMe().then((user) => useAccountStore.getState().setUser(user))
+  }, [])
+
+  // O que este aparelho treinou entra na tela ANTES de qualquer rede (T-121): é síncrono, sai
+  // do `localStorage` e é a única fonte de quem não tem conta. Quem tem conta vê isto no
+  // primeiro paint e o servidor corrige logo depois — nunca o contrário, que faria o número
+  // aparecer do nada alguns segundos após a tela.
+  useEffect(() => {
+    useHistoryStore.getState().hydrate()
   }, [])
 
   // Catálogo e capacidades do servidor (SPEC-018 / T-074). Sem `await` e sem tela de espera: o

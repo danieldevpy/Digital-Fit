@@ -5,6 +5,66 @@
 
 ---
 
+## 2026-08-06 (31) · T-121 — o histórico ganha dono, e o visitante ganha passado
+
+Primeira task do M0. Entra `web/src/history/` com quatro arquivos e sai a segunda verdade:
+`store/account.ts` não guarda mais `history`/`historyStatus`.
+
+**O que ficou onde, e por quê.**
+
+- `localHistory.ts` — `digitalfit.history`, teto `HISTORY_CAP = 50`. Todo acesso passa por
+  aqui pelo motivo do `auth/storage.ts`: o `localStorage` **falha de verdade** (Safari privado
+  lança ao escrever), e um `setItem` solto derrubaria o fim do treino por causa de um registro
+  de progresso. Teste cobre o caso (`readOnly: true` não lança).
+- `merge.ts` — puro, sem import de store nenhum. União por `session_id`, servidor vencendo,
+  ordenado por `created_at` desc, cortado no teto.
+- `store.ts` — zustand, dono das sessões conhecidas.
+- `refresh.ts` — a única porta para a rede. Fica fora do store porque o store guarda estado e
+  isto conhece **identidade**; sem essa fronteira um teste de merge precisaria de `fetch`.
+
+**Decisões.**
+
+- **`record` no `applyReport`, não numa tela.** É o único lugar por onde todo relatório
+  consolidado passa — `session.report.ready` e o repique do `waitForReport` chegam os dois
+  nele. Pôr numa tela faria o histórico do visitante depender de ele ter aberto o Perfil.
+  Efeito colateral: **o critério 1 da spec já está atendido nesta task**, sem esperar a T-122.
+  A sessão entra na lista no instante em que o relatório existe; o Perfil lê o store e sobe.
+- **`record` idempotente por `session_id`, substituindo.** O relatório chega duas vezes e as
+  duas entradas contariam o mesmo treino. Substitui em vez de ignorar porque a segunda versão
+  é a mais consolidada.
+- **`loadError` separado do `status`.** São duas perguntas — "tenho o que mostrar?" e "o que
+  mostro pode estar velho?" — e colapsá-las obrigaria a escolher entre esvaziar a tela e mentir
+  que está tudo fresco. `status: 'error'` só quando **não há nada** na tela; com dado, a falha
+  vira `loadError` e a lista fica. É o critério 5, já implementado e testado aqui.
+- **`startLoad` não mostra "carregando" em cima de dado bom** — metade do
+  stale-while-revalidate da T-122 já nasce aqui, porque é onde a máquina de estados mora.
+- **`setUser` e `reset` chamam `history.reset()`.** A regra ("trocar de identidade não mostra
+  as sessões de quem estava antes") continua sendo do store de conta mesmo com o dado tendo
+  mudado de casa. `reset` não apaga: recai no local, que é de quem usou **o aparelho**.
+- **A migração do `last_report` não sobrescreve** um histórico que já existe, e o `last_report`
+  continua existindo para o seu outro trabalho — lembrar se a folha estava aberta no F5.
+
+**O rótulo honesto, onde ele coube.** O Perfil do visitante é um formulário de login, e não
+virou painel: ganhou **uma linha** — "3 treinos guardados neste aparelho — limpar o navegador
+leva embora. Com conta, ficam." Ela é o CTA de conta mais verdadeiro que existe hoje, e é o
+único honesto enquanto a T-087 (adoção das sessões do aparelho no cadastro) não existir. O
+painel desses números é o Progresso, na T-124. No Perfil do logado, a linha "Mostrando o que
+está guardado neste aparelho" só aparece quando o servidor não respondeu.
+
+**Gates**: `npm run lint`, `npm run typecheck`, `npm run test` (443 testes, 42 arquivos — 38 nos
+novos e nos tocados), `uv run ruff check .` e `uv run pytest` verdes. Python não foi tocado;
+rodado para não confundir o estado desta task com o do T-108 em andamento (também verde).
+
+**Critérios da SPEC-024 nesta task**: 1 (teste em `store/session.test.ts` — a sessão entra na
+hora), 5 (`store.test.ts` — falha mantém a lista), 6 (`merge.test.ts` — conta uma vez), 9
+(tudo puro, sem rede e sem relógio de verdade), 10 (gates). Os critérios 2 e 3 são da T-122; o
+4 depende do Progresso (T-124) — o dado local existe e é testado, a tela ainda não o desenha.
+
+**Pendências geradas**: nenhuma task nova. Registrada uma Descoberta sobre sessões que só o
+aparelho tem quando há conta.
+
+---
+
 ## 2026-08-06 (30) · SPEC-024 — o histórico tem três verdades e nenhuma acorda
 
 O Daniel: *"progresso e analytics… está na hora de ter uma utilidade maior e também sempre que

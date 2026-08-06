@@ -2,13 +2,16 @@
 // funciona inteiro sem conta, e misturar os dois faria a tela de exercício depender de um
 // estado que ela não usa — exatamente o acoplamento que a spec evita ao dizer que o SaaS é
 // "adicionado por fora".
+//
+// **O histórico não mora mais aqui** (T-121): ele existe sem conta, e guardá-lo neste store
+// obrigava a tela de progresso do visitante a depender de um estado de autenticação que ela
+// não usa. O dono passou a ser o `history/store.ts`; o que sobrou aqui é identidade e quota.
 import { create } from 'zustand'
+import { useHistoryStore } from '../history/store'
 import type { AccountUser } from '../auth/api'
-import type { SessionReport } from '../report/sessionReport'
 import type { QuotaSnapshot } from '../session/quota'
 
 export type AccountStatus = 'unknown' | 'anonymous' | 'authenticated'
-export type HistoryStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface AccountState {
   status: AccountStatus
@@ -31,18 +34,12 @@ export interface AccountState {
   /** A última tentativa foi recusada pelo limite diário — a tela explica e oferece a saída. */
   quotaBlocked: boolean
 
-  history: SessionReport[]
-  historyStatus: HistoryStatus
-
   setUser: (user: AccountUser | null) => void
   openSheet: (open: boolean) => void
   setFormError: (message: string | null) => void
   setBusy: (busy: boolean) => void
   setQuota: (quota: QuotaSnapshot | null) => void
   blockByQuota: (quota?: QuotaSnapshot | null) => void
-  startHistory: () => void
-  applyHistory: (reports: SessionReport[]) => void
-  failHistory: () => void
   reset: () => void
 }
 
@@ -54,14 +51,17 @@ const DEFAULTS = {
   busy: false,
   quota: null,
   quotaBlocked: false,
-  history: [] as SessionReport[],
-  historyStatus: 'idle' as HistoryStatus,
 }
 
 export const useAccountStore = create<AccountState>((set) => ({
   ...DEFAULTS,
 
-  setUser: (user) =>
+  setUser: (user) => {
+    // O histórico do servidor era de quem estava antes. Trocar de identidade sem devolvê-lo ao
+    // que o APARELHO sabe mostraria as sessões da pessoa anterior por um instante — curto, mas
+    // errado. `reset` do histórico não apaga nada: ele recai no local, que é de todo mundo que
+    // usou este aparelho, e o `refreshHistory` traz as do servidor logo em seguida.
+    useHistoryStore.getState().reset()
     set({
       user,
       status: user ? 'authenticated' : 'anonymous',
@@ -72,11 +72,8 @@ export const useAccountStore = create<AccountState>((set) => ({
       // Herdar o contador faria a conta nova nascer esgotada por causa do visitante de antes.
       quota: null,
       quotaBlocked: false,
-      // O histórico é de quem está logado. Trocar de conta sem limpar mostraria as sessões
-      // da pessoa anterior por um instante — curto, mas errado.
-      history: [],
-      historyStatus: 'idle' as HistoryStatus,
-    }),
+    })
+  },
 
   openSheet: (sheetOpen) => set({ sheetOpen, formError: null }),
   setFormError: (formError) => set({ formError, busy: false }),
@@ -87,9 +84,8 @@ export const useAccountStore = create<AccountState>((set) => ({
 
   blockByQuota: (quota) => set({ quotaBlocked: true, sheetOpen: true, ...(quota ? { quota } : {}) }),
 
-  startHistory: () => set({ historyStatus: 'loading' }),
-  applyHistory: (history) => set({ history, historyStatus: 'ready' }),
-  failHistory: () => set({ historyStatus: 'error' }),
-
-  reset: () => set({ ...DEFAULTS, status: 'anonymous' }),
+  reset: () => {
+    useHistoryStore.getState().reset()
+    set({ ...DEFAULTS, status: 'anonymous' })
+  },
 }))

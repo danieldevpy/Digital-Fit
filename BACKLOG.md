@@ -163,7 +163,7 @@ sessões. T-055 (histórico diz qual exercício) ajuda o M0 e não o bloqueia.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-121 | Fundação `web/src/history/`: store dono das sessões conhecidas, merge por `session_id` com o servidor vencendo (nunca soma — contaria em dobro), histórico local do anônimo (`digitalfit.history`, teto 50 igual ao `HISTORY_LIMIT`) gravado no fim da sessão, migração do `last_report` existente. Perfil troca de fonte sem mudar o desenho e ganha o rótulo "neste aparelho" + CTA de conta quando a fonte é local | 024/011 | todo |
+| T-121 | Fundação `web/src/history/`: store dono das sessões conhecidas, merge por `session_id` com o servidor vencendo (nunca soma — contaria em dobro), histórico local do anônimo (`digitalfit.history`, teto 50 igual ao `HISTORY_LIMIT`) gravado no fim da sessão, migração do `last_report` existente. Perfil troca de fonte sem mudar o desenho e ganha o rótulo "neste aparelho" + CTA de conta quando a fonte é local | 024/011 | done |
 | T-122 | Contrato de frescor: revalida ao entrar na tela, ao a página voltar a ficar visível (`visibilitychange`) e **na hora** que uma sessão termina (este ignora o debounce); stale-while-revalidate, debounce de 30 s, `AbortController` contra resposta velha por cima de nova, falha mantém o dado anterior com aviso discreto. Depende de T-121 | 024/014 | todo |
 | T-123 | Agregações puras em `history/aggregates.ts` + fixtures de `SessionReport[]` (sem rede, sem relógio de verdade): dias ativos no fuso de quem lê, sessões/reps por semana, reps por exercício, cadência por exercício ao longo do tempo, dispersão de `rep_durations_ms`, `feedback_counts` e `scene_warning_counts` agregados, e o gate de honestidade (< 2 sessões do mesmo exercício ⇒ nenhuma tendência). Depende de T-121; paralela a T-122 | 024 | todo |
 | T-124 | Tela Progresso sobre as agregações: dias ativos do mês, sessões/reps das últimas 4 semanas, reps por exercício, última sessão em destaque. Sai o "em breve". Sem kcal e sem fogo — são SPEC-017/019. Depende de T-121+T-123 | 024/014 | todo |
@@ -290,6 +290,15 @@ sessões. T-055 (histórico diz qual exercício) ajuda o M0 e não o bloqueia.
   é capacidade que a **T-064** liga junto com o resto do Free×Assinatura. Registrado porque
   coluna que existe e não é lida apodrece — quem editar no painel não vai ver efeito nenhum, e
   vai concluir que o painel está quebrado.
+
+- **[T-121] Logado, o merge mostra sessões que o servidor não conhece — e nada as adota.** O
+  histórico do aparelho é mesclado ao do servidor mesmo com conta, e é o que a SPEC-024 pede
+  (critério 6 fala em dedup, não em descarte): quem treinou como visitante e depois criou conta
+  continua vendo o que treinou. Só que essas sessões nunca viram do servidor — se a pessoa
+  entrar em outro aparelho, elas não estão lá, e limpar o navegador as leva embora mesmo com
+  conta. **Quem fecha isso é a T-087** (`device_id` no register + backfill de
+  `SessionClaim.user`), que já está no M1. Registrado porque hoje o único aviso disso é a linha
+  "guardado neste aparelho" no Perfil do visitante — e ela some assim que a conta existe.
 
 - **[T-085] Os limiares de cena não têm corpus para calibrar — e o `evalctl` não os mede.**
   Os três valores (`LUZ_MINIMA`, `ESTOURO_MAXIMO`+`LUZ_CENTRO_MINIMA`, `DETALHE_MINIMO`) foram

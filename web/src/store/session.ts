@@ -1,5 +1,6 @@
 // Estado da sessão em um único store (convenções §Código).
 import { create } from 'zustand'
+import { useHistoryStore } from '../history/store'
 import { loadLastReport, markLastReportClosed, saveLastReport } from '../report/lastReport'
 import type {
   Mode,
@@ -387,6 +388,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   applyReport: (report) => {
     // Persistido com a folha aberta: quem der F5 com o relatório na tela o reencontra.
     saveLastReport(report, get().reportOpen)
+    // A sessão que acabou entra no histórico AQUI, e não numa tela (T-121). É o único lugar
+    // por onde todo relatório consolidado passa — o `session.report.ready` e o repique do
+    // `waitForReport` chegam os dois neste método —, e é o que faz o Progresso do visitante
+    // existir sem conta. O `record` é idempotente por `session_id`.
+    useHistoryStore.getState().record(report)
     set({ report, reportStatus: 'ready' })
   },
   failReport: () => set({ reportStatus: 'error' }),

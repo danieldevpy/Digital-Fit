@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { useHistoryStore } from '../history/store'
 import type { SessionReport } from '../report/sessionReport'
 import type { QuotaSnapshot } from '../session/quota'
 import { useAccountStore } from './account'
@@ -57,14 +58,17 @@ describe('estado da conta', () => {
   })
 
   it('trocar de conta não deixa o histórico da pessoa anterior na tela', () => {
-    useAccountStore.getState().applyHistory([RELATORIO])
+    // O histórico mudou de dono na T-121 (`history/store.ts`), mas a regra continua sendo do
+    // store de conta: quem troca de identidade não pode ver as sessões de quem estava antes.
+    useHistoryStore.getState().applyServer([RELATORIO])
     useAccountStore
       .getState()
       .setUser({ id: 2, email: 'c@d.com', name: '', is_admin: false, date_joined: '2026-07-29T10:00:00Z' })
 
-    expect(useAccountStore.getState().history).toEqual([])
+    expect(useHistoryStore.getState().sessions).toEqual([])
     // De volta a `idle` para a tela buscar de novo — em nome de quem entrou agora.
-    expect(useAccountStore.getState().historyStatus).toBe('idle')
+    expect(useHistoryStore.getState().status).toBe('idle')
+    expect(useHistoryStore.getState().source).toBe('local')
   })
 
   it('sair volta a ser visitante, não "não sei"', () => {
@@ -125,18 +129,14 @@ describe('quota diária', () => {
 })
 
 describe('histórico', () => {
-  it('percorre idle → loading → ready', () => {
-    expect(useAccountStore.getState().historyStatus).toBe('idle')
-    useAccountStore.getState().startHistory()
-    expect(useAccountStore.getState().historyStatus).toBe('loading')
-    useAccountStore.getState().applyHistory([RELATORIO])
-    expect(useAccountStore.getState().historyStatus).toBe('ready')
-    expect(useAccountStore.getState().history).toHaveLength(1)
-  })
-
-  it('falha não trava em "carregando"', () => {
-    useAccountStore.getState().startHistory()
-    useAccountStore.getState().failHistory()
-    expect(useAccountStore.getState().historyStatus).toBe('error')
+  // A máquina de estados do histórico mudou de arquivo na T-121 e é testada em
+  // `history/store.test.ts`. O que ficou sendo responsabilidade DESTE store é só a linha
+  // acima ("trocar de conta não deixa o histórico da pessoa anterior na tela"): o histórico
+  // existe sem conta, e por isso não mora mais aqui.
+  it('sair da conta devolve o histórico ao que o aparelho sabe', () => {
+    useHistoryStore.getState().applyServer([RELATORIO])
+    useAccountStore.getState().reset()
+    expect(useHistoryStore.getState().sessions).toEqual([])
+    expect(useHistoryStore.getState().source).toBe('local')
   })
 })

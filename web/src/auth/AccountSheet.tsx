@@ -5,12 +5,14 @@
 // logado vê o que treinou. Duas telas separadas obrigariam a navegar para descobrir em qual
 // dos dois estados se está.
 import { useEffect, useState } from 'react'
+import { refreshHistory } from '../history/refresh'
+import { useHistoryStore } from '../history/store'
 import { formatDuration } from '../report/sessionReport'
 import { useAccountStore } from '../store/account'
 import { BrandMark } from '../ui/BrandMark'
 import { displayName, historyDate, historyTotals, quotaNotice } from './accountSummary'
 import type { QuotaNotice } from './accountSummary'
-import { fetchHistory, login, logout, register } from './api'
+import { login, logout, register } from './api'
 
 /**
  * O sheet de limite da SPEC-016: contagem, hora em que renova e a saída.
@@ -72,6 +74,13 @@ function Entrada() {
   // está logo abaixo no formulário. Oferecer assinatura antes da conta seria pular o funil.
   const aviso = quotaNotice(quota, blocked)
 
+  // O que este aparelho já treinou (T-121). Uma linha, não um painel: o Progresso é a tela
+  // desses números (T-124), e aqui eles existem para dar MOTIVO ao formulário logo abaixo —
+  // "você já tem 3 treinos e eles somem se limpar o navegador" é o argumento verdadeiro para
+  // criar conta, e é o único CTA honesto enquanto a adoção das sessões do aparelho (T-087)
+  // não existir.
+  const guardadas = useHistoryStore((state) => state.sessions.length)
+
   const enviar = async (evento: React.FormEvent) => {
     evento.preventDefault()
     setBusy(true)
@@ -90,6 +99,14 @@ function Entrada() {
     <>
       <p className="account__title">{cadastro ? 'Criar conta' : 'Entrar'}</p>
       {aviso && <QuotaBlock notice={aviso} upsell={false} />}
+
+      {guardadas > 0 && (
+        <p className="account__hint">
+          <span className="tabular">{guardadas}</span>
+          {guardadas === 1 ? ' treino guardado' : ' treinos guardados'} neste aparelho — limpar
+          o navegador leva embora. Com conta, ficam.
+        </p>
+      )}
 
       <form className="account__form" onSubmit={enviar}>
         {cadastro && (
@@ -162,24 +179,26 @@ function Entrada() {
 
 function Conta() {
   const user = useAccountStore((state) => state.user)
-  const history = useAccountStore((state) => state.history)
-  const historyStatus = useAccountStore((state) => state.historyStatus)
+  // Do store de histórico, não do de conta (T-121): esta folha deixou de ser a única tela que
+  // sabe o que a pessoa treinou, e duas cópias da mesma lista divergem.
+  const history = useHistoryStore((state) => state.sessions)
+  const historyStatus = useHistoryStore((state) => state.status)
+  const source = useHistoryStore((state) => state.source)
   const quota = useAccountStore((state) => state.quota)
   const blocked = useAccountStore((state) => state.quotaBlocked)
-  const { openSheet, reset, startHistory, applyHistory, failHistory } = useAccountStore.getState()
+  const { openSheet, reset } = useAccountStore.getState()
 
   // Sair é a única ação destrutiva do app (leva embora o acesso e o histórico da tela). Ela
   // pede um segundo toque — não por burocracia, mas porque o toque errado aqui custa uma
   // sessão de login para desfazer (T-079).
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
 
+  // Abrir a folha é "ganhar foco" (SPEC-024 §2). Aqui ainda é uma carga por montagem; os
+  // outros dois gatilhos (página voltar a ficar visível, fim de sessão) e o debounce entram
+  // na T-122, e é por isso que o `refreshHistory` já é a única porta.
   useEffect(() => {
-    if (historyStatus !== 'idle') return
-    startHistory()
-    fetchHistory()
-      .then(applyHistory)
-      .catch(() => failHistory())
-  }, [historyStatus, startHistory, applyHistory, failHistory])
+    void refreshHistory()
+  }, [])
 
   const totais = historyTotals(history)
   const aviso = quotaNotice(quota, blocked)
@@ -233,6 +252,12 @@ function Conta() {
       {historyStatus === 'loading' && <p className="account__hint">Carregando…</p>}
       {historyStatus === 'error' && (
         <p className="account__hint">Não consegui carregar seu histórico agora.</p>
+      )}
+      {/* Logado, mas o servidor não respondeu: o que está na tela é o que ESTE aparelho
+          lembra. A lista continua — falha de rede não zera o progresso de ninguém (SPEC-024,
+          critério 5) — mas dizer de onde ela veio é o que separa "desatualizado" de "mentira". */}
+      {source === 'local' && history.length > 0 && (
+        <p className="account__hint">Mostrando o que está guardado neste aparelho.</p>
       )}
       {historyStatus === 'ready' && history.length === 0 && (
         <p className="account__hint">

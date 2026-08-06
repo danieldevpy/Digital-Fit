@@ -1,9 +1,18 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { installStorage, uninstallStorage } from '../auth/testStorage'
+import { useHistoryStore } from '../history/store'
 import { CLIENT_PUSH_TYPES, EventType } from '../lib/events'
+import type { SessionReport } from '../report/sessionReport'
 import { streamsFrames, useSessionStore } from './session'
 
 const TICKET = { sessionId: 'abc-123', exercise: 'jumping_jack', durationS: 30 }
+
+const RELATORIO = {
+  session_id: 'abc-123',
+  created_at: '2026-08-06T10:00:00Z',
+  rep_count: 12,
+} as SessionReport
 
 beforeEach(() => {
   useSessionStore.getState().resetSession()
@@ -147,5 +156,33 @@ describe('quando a captura deve parar de transmitir (T-077)', () => {
 
   it('não transmite antes de haver sessão', () => {
     expect(streamsFrames('idle')).toBe(false)
+  })
+})
+
+describe('o relatório que chega entra no histórico (T-121)', () => {
+  beforeEach(() => {
+    installStorage()
+    useHistoryStore.setState({
+      sessions: [],
+      status: 'idle',
+      source: 'local',
+      loadedAt: null,
+      loadError: false,
+    })
+  })
+
+  afterEach(uninstallStorage)
+
+  // Critério 1 da SPEC-024: treinar e o Perfil subir SEM recarregar. Antes desta task o
+  // histórico era buscado uma vez por login e a sessão nova não aparecia até um F5.
+  it('a sessão consolidada aparece no histórico na hora', () => {
+    useSessionStore.getState().applyReport(RELATORIO)
+    expect(useHistoryStore.getState().sessions.map((s) => s.session_id)).toEqual(['abc-123'])
+  })
+
+  it('o repique do `waitForReport` não conta o mesmo treino duas vezes', () => {
+    useSessionStore.getState().applyReport(RELATORIO)
+    useSessionStore.getState().applyReport(RELATORIO)
+    expect(useHistoryStore.getState().sessions).toHaveLength(1)
   })
 })
