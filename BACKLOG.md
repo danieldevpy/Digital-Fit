@@ -356,6 +356,15 @@ funcionalidade nova: são o mesmo dado, dito certo.
   na própria T-127; fica aqui porque a forma do erro se repete em qualquer agregação futura que
   cruze exercícios (o XP da SPEC-019 e a comparação de cadência da SPEC-023 §6 são candidatas).
 
+- **[scripts] A docstring do `admin_tools` manda usar um comando que o `prod.sh` não tem.**
+  Ela instrui `./scripts/prod.sh exec api python manage.py admin_tools <email> --panel-on`, e
+  `exec` não está no despacho do script — quem seguir a instrução em produção recebe "comando
+  desconhecido". Encontrado ao escrever o `manage.py plano` (DEVLOG 39), que resolveu o próprio
+  caso com um comando dedicado (`prod.sh plano`). Duas saídas, e a escolha não é óbvia: um
+  `exec` genérico faz a docstring virar verdade e serve a todo comando futuro, mas abre no
+  script uma porta para qualquer coisa — que é justamente o que a linha "Use SEMPRE o script"
+  existe para fechar. Enquanto não se decide, a instrução do `admin_tools` está errada.
+
 - **[T-085] Os limiares de cena não têm corpus para calibrar — e o `evalctl` não os mede.**
   Os três valores (`LUZ_MINIMA`, `ESTOURO_MAXIMO`+`LUZ_CENTRO_MINIMA`, `DETALHE_MINIMO`) foram
   ancorados nos 3 vídeos do `eval/corpus` — todos de boa luz — mais variantes SINTÉTICAS

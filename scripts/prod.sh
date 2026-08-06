@@ -290,6 +290,22 @@ cmd_up() {
   amarelo "server block de referencia: ./scripts/prod.sh nginx"
 }
 
+# Plano de uma conta, enquanto o checkout nao existe (T-036). A regra inteira mora no
+# `manage.py plano`, que e testado; aqui em cima so ha o caminho ate o container certo.
+#
+# Sem argumento nenhum imprime a ajuda do proprio comando, entao quem esqueceu a sintaxe
+# descobre no lugar onde esta, sem abrir arquivo.
+cmd_plano() {
+  carrega_ambiente --tolerante
+  shift || true
+  esta_rodando api || morre "a api nao esta de pe — rode './scripts/prod.sh up' antes"
+  if [[ $# -eq 0 ]]; then
+    compose exec -T api python manage.py plano --help
+    return
+  fi
+  compose exec -T api python manage.py plano "$@"
+}
+
 cmd_down()    { carrega_ambiente --tolerante; compose down; }
 cmd_ps()      { carrega_ambiente --tolerante; compose ps; }
 cmd_logs()    { carrega_ambiente --tolerante; shift || true; compose logs -f --tail 100 "$@"; }
@@ -437,6 +453,10 @@ Digital Fit — producao
   ./scripts/prod.sh secrets          preenche os segredos vazios do .env.prod
   ./scripts/prod.sh up               build + migrate + start
   ./scripts/prod.sh modelo           baixa o modelo de pose e religa o pose-worker
+  ./scripts/prod.sh plano <email>    mostra o plano da conta
+  ./scripts/prod.sh plano <email> --set subscriber [--dias N] [--sem-prazo]
+  ./scripts/prod.sh plano <email> --clear     volta ao plano default
+  ./scripts/prod.sh plano --list     planos que existem
   ./scripts/prod.sh nginx            server block de referencia
   ./scripts/prod.sh ps               estado dos servicos
   ./scripts/prod.sh logs [servico]   segue os logs
@@ -466,6 +486,7 @@ case "${1:-ajuda}" in
   logs)    cmd_logs "$@" ;;
   restart) cmd_restart "$@" ;;
   modelo)  cmd_modelo ;;
+  plano)   cmd_plano "$@" ;;
   nginx)   cmd_nginx ;;
   ajuda|help|-h|--help) cmd_ajuda ;;
   *) vermelho "comando desconhecido: $1"; echo; cmd_ajuda; exit 1 ;;

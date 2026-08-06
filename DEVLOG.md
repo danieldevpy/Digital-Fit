@@ -5,6 +5,69 @@
 
 ---
 
+## 2026-08-06 (39) · O plano de uma conta vira comando, e sai de dentro de um `.sh`
+
+Pedido do Daniel: o `scripts/activate-subscriber.sh` (commitado ontem, sem task) devia morrer e
+a função dele passar a viver dentro do `prod.sh`. Ele foi mais longe do que parecia.
+
+**O que o script fazia de errado.** Ele abria `docker compose exec -T api python manage.py
+shell` e mandava um bloco de Python por heredoc **não citado**. Duas consequências:
+
+- `print(f"✗ Erro: Usuário {$EMAIL} não encontrado")` virava, depois da expansão do shell,
+  `f"...{ana@exemplo.com}..."`. O Python lê isso como `ana @ exemplo.com` — o operador de
+  multiplicação de matriz — e levanta `NameError`. **Medido**, não deduzido: o caminho feliz
+  rodava normalmente; quem digitasse o e-mail errado é que recebia um traceback no lugar da
+  mensagem escrita justamente para esse caso.
+- `docker compose exec` **sem `-f docker-compose.prod.yml`**. Na VPS isso aponta para o
+  `docker-compose.yml` de desenvolvimento, cujos containers não estão de pé — e a ajuda do
+  próprio `prod.sh` já avisa em maiúsculas: *"Use SEMPRE o script, nao `docker compose -f …`
+  direto"*.
+
+Além disso: e-mail default embutido (`daniel@digitalfit.com`), plano fixo em `subscriber`,
+prazo fixo em 365 dias, e nenhuma forma de **ver** o plano de alguém ou de **desfazer**.
+
+**A regra saiu do shell e virou `manage.py plano`**, no mesmo padrão do `admin_tools` — que já
+era o precedente da casa para "mexer em conta pela linha de comando". O `prod.sh` ganhou
+`cmd_plano`, que só encontra o container certo e repassa os argumentos: a regra é testável e o
+script é encanamento.
+
+    ./scripts/prod.sh plano ana@exemplo.com                    # mostra
+    ./scripts/prod.sh plano ana@exemplo.com --set subscriber   # 365 dias
+    ./scripts/prod.sh plano ana@exemplo.com --clear            # volta ao default
+    ./scripts/prod.sh plano --list
+
+**Decisões.**
+
+- **Comando de manage, não função de shell.** Três coisas que o `.sh` não tinha como pagar: o
+  ORM valida (plano inexistente devolve a lista do que existe), dá para testar sem docker e sem
+  VPS, e roda igual em qualquer ambiente — quem escolhe é o `manage.py`.
+- **Ler é o modo default.** Sem `--set` e sem `--clear`, o comando **mostra** e não muda nada.
+  O script anterior só sabia escrever; a pergunta mais comum do suporte ("essa conta é
+  assinante?") não tinha resposta.
+- **Vencido é dito com todas as letras.** `capabilities_for` já rebaixa a conta vencida na
+  leitura, sem cron. Uma saída que só mostrasse a data deixaria quem lê achando o contrário.
+- **`--clear` existe porque desfazer tem de ser tão fácil quanto fazer.** Era a assimetria mais
+  cara do script antigo: promover custava um comando, despromover custava abrir o shell.
+- **O prazo continua sendo o `plan_until` que já existe.** Nenhuma coluna nova, nenhum job de
+  expiração — a decisão de quem rebaixa a conta vencida é da leitura, e continua sendo.
+
+**Gates.** `uv run ruff check .` e `ruff format --check` limpos; `uv run pytest` com **805
+passando** (+13, `tests/test_plano.py`), a mesma exceção de ambiente das entradas anteriores
+(`test_settings_leem_ambiente`, que falha por causa do override de banco que esta máquina
+exige e passa sozinho). `bash -n scripts/prod.sh` limpo e o caminho de recusa exercitado à mão:
+sem a api de pé, o comando morre com mensagem e código 1.
+
+**Pendências.**
+
+- **Não consegui exercitar o `cmd_plano` de ponta a ponta** — não há docker de pé nesta
+  máquina. O que foi verificado é a sintaxe, o despacho, a ajuda e a recusa; o `compose exec`
+  em si só o primeiro uso na VPS confirma.
+- **A docstring do `admin_tools` promete `./scripts/prod.sh exec api …`, que não existe.**
+  Encontrado ao procurar o precedente; não consertado, porque está fora do que foi pedido.
+  Vira Descoberta `[scripts]` no BACKLOG.
+
+---
+
 ## 2026-08-06 (38) · T-127 — o rumo de uma correção passa a comparar treinos comparáveis
 
 O terceiro achado de ler as telas do M0 com o catálogo de hoje. `contagens()` parte as sessões
