@@ -15,6 +15,7 @@ import {
   isExerciseKey,
   offersChoice,
 } from './catalog'
+import { liveKcal } from './kcal'
 import { fetchServerConfig, hydrateStoredConfig } from './serverConfig'
 
 function exercicioDoServidor(over: Partial<ServerExercise> = {}): ServerExercise {
@@ -28,6 +29,7 @@ function exercicioDoServidor(over: Partial<ServerExercise> = {}): ServerExercise
     demo_img: '/img/guia/marcha.jpg',
     dot_color: '#f59e0b',
     met: 3.8,
+    ref_cadence_rpm: 60,
     maturity: 'validado',
     guide_steps: [],
     ...over,
@@ -235,5 +237,72 @@ describe('a busca da configuração', () => {
     const enviados = (segunda.mock.calls[0]?.[1] as RequestInit).headers as Record<string, string>
     expect(enviados['If-None-Match']).toBe('"abc"')
     expect(Object.keys(currentCatalog())).toEqual(['marcha'])
+  })
+})
+
+// --------------------------------------------------------------------------------------
+// A fiação do kcal (T-128) — do payload do servidor até o número
+//
+// O `kcal.test.ts` cobre a fórmula com objetos montados à mão; estes cobrem o **caminho**:
+// `GET /api/config` → store → catálogo mesclado → `liveKcal`. É a parte que um teste de
+// fórmula não pega, e é exatamente onde a T-063 tinha o defeito — a conta estava certa, o
+// insumo é que não era o que a tela precisava.
+// --------------------------------------------------------------------------------------
+
+describe('kcal a partir do catálogo servido', () => {
+  it('a cadência de referência atravessa payload, store e catálogo até virar caloria', async () => {
+    const polichinelo = exercicioDoServidor({
+      slug: 'jumping_jack',
+      display_name: 'Polichinelo',
+      met: 8,
+      ref_cadence_rpm: 50,
+    })
+    useConfigStore.getState().apply(config([polichinelo]))
+
+    const info = getExercise('jumping_jack')
+
+    expect(info.met).toBe(8)
+    expect(info.ref_cadence_rpm).toBe(50)
+    // 25 repetições em 30 s é o ritmo de referência: 4,9 kcal.
+    expect(
+      liveKcal({
+        met: info.met,
+        refCadenceRpm: info.ref_cadence_rpm,
+        reps: 25,
+        elapsedS: 30,
+      }),
+    ).toBeCloseTo(4.9, 2)
+  })
+
+  it('sem servidor o embutido não tem cadência, e o card mostra `--`', () => {
+    // O catálogo em código não carrega MET nem cadência ("o servidor é quem sabe"), então o
+    // caminho degradado tem de terminar em `--` — e não num número inventado a partir de meio
+    // insumo, que é o modo silencioso de errar.
+    useConfigStore.getState().reset()
+    const info = getExercise('jumping_jack')
+
+    expect(info.ref_cadence_rpm).toBeUndefined()
+    expect(
+      liveKcal({
+        met: info.met,
+        refCadenceRpm: info.ref_cadence_rpm,
+        reps: 25,
+        elapsedS: 30,
+      }),
+    ).toBeNull()
+  })
+
+  it('exercício servido sem cadência não vira número: MET sozinho não basta', () => {
+    // O caso de um exercício novo cadastrado no painel com MET preenchido e cadência em 0 —
+    // que é o esquecimento que o teste do servidor (`test_todo_exercicio_tem_cadencia`) cobra
+    // do outro lado.
+    useConfigStore
+      .getState()
+      .apply(config([exercicioDoServidor({ slug: 'novo', met: 6, ref_cadence_rpm: 0 })]))
+    const info = getExercise('novo')
+
+    expect(
+      liveKcal({ met: info.met, refCadenceRpm: info.ref_cadence_rpm, reps: 20, elapsedS: 30 }),
+    ).toBeNull()
   })
 })

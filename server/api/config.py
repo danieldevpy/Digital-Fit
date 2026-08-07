@@ -245,6 +245,7 @@ def _read_snapshot_from_db() -> dict[str, Any]:
                 "scene_tip": ex.scene_tip,
                 "dot_color": ex.dot_color,
                 "met": float(ex.met),
+                "ref_cadence_rpm": ex.ref_cadence_rpm,
                 "maturity": ex.maturity,
                 "enabled": ex.enabled,
                 "min_plan": ex.min_plan.slug if ex.min_plan else None,

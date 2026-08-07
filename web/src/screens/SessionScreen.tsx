@@ -187,9 +187,18 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   const mostraAngulo = exercise.main_angle === 'arm_abduction' && armAngleDeg !== null
   const angulo = mostraAngulo ? `${Math.round(armAngleDeg)}°` : '--'
 
-  // Calorias ao vivo (SPEC-016, critério 3). O MET vem do catálogo servido; sem ele o card
-  // mostra `--`, que é o comportamento de antes desta task e continua sendo o honesto.
-  const kcal = formatKcal(liveKcal(exercise.met, durationS - secondsLeft))
+  // Calorias ao vivo (SPEC-016, critério 3). Quem manda no total são as **repetições** que o
+  // servidor contou (T-128); o tempo entra só para medir o ritmo, que dá o multiplicador. MET e
+  // cadência de referência vêm do catálogo servido — falta qualquer um dos dois e o card mostra
+  // `--`, que continua sendo a resposta honesta.
+  const kcal = formatKcal(
+    liveKcal({
+      met: exercise.met,
+      refCadenceRpm: exercise.ref_cadence_rpm,
+      reps: repCount,
+      elapsedS: durationS - secondsLeft,
+    }),
+  )
 
   const iniciar = () => {
     // Portão de quota (SPEC-016, critério 1): o limite tem de aparecer ANTES da câmera. Aqui

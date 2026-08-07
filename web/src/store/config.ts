@@ -25,6 +25,8 @@ export interface ServerExercise {
   scene_tip?: string
   dot_color: string
   met: number
+  /** Ritmo em que o `met` vale (rep/min). Sem ele o MET não vira caloria por repetição. */
+  ref_cadence_rpm: number
   maturity: string
   guide_steps: { img: string; text: string }[]
 }

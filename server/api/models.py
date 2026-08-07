@@ -237,6 +237,21 @@ class Exercise(models.Model):
     #: Insumo do kcal (SPEC-016/017): valor de tabela (Compendium), uma casa decimal, sem
     #: promessa de precisão individual.
     met = models.DecimalField(max_digits=4, decimal_places=1, default=0)
+    #: O ritmo em que o `met` acima vale, em repetições por minuto (SPEC-016, T-128).
+    #:
+    #: O MET de tabela não é um número solto: ele descreve o gasto **a uma intensidade**, e
+    #: para um exercício contado por repetição essa intensidade é uma cadência. Sem este campo
+    #: não dá para converter MET (por minuto) em caloria por repetição — e foi por não ter esta
+    #: coluna que a T-063 acabou faturando tempo de tela em vez de esforço.
+    #:
+    #: Fica aqui, e não como constante no cliente, pela mesma razão que o `met`: é propriedade
+    #: do movimento (20 rpm é rápido para agachamento e lento para polichinelo), e catálogo em
+    #: código é o `[A/T-051]` recomeçando. `0` = desconhecido, e aí o card mostra `--`.
+    ref_cadence_rpm = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name="cadência de referência (rep/min)",
+        help_text="Ritmo em que o MET acima vale. 0 = desconhecido (o app mostra '--').",
+    )
     #: Quão provado está (SPEC-020). Coluna aqui, **regra de visibilidade na T-090**: esta task
     #: só a carrega até o cliente. Nasce junto para não fazer duas migrations no mesmo modelo.
     maturity = models.CharField(max_length=12, choices=Maturity.choices, default=Maturity.BETA)

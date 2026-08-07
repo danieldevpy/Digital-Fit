@@ -257,11 +257,16 @@ class ExerciseAdmin(admin.ModelAdmin):
         (
             "Catálogo (SPEC-020)",
             {
-                "fields": ("met", "maturity", "min_plan"),
+                "fields": ("met", "ref_cadence_rpm", "maturity", "min_plan"),
                 "description": (
-                    "<b>MET</b> alimenta o kcal. <b>Maturidade</b> é o selo de qualidade: a "
-                    "regra de quem vê o quê entra na T-090 — hoje o campo só viaja até o "
-                    "cliente. <b>Plano mínimo</b> vazio = todo mundo vê."
+                    "<b>MET</b> e <b>cadência de referência</b> alimentam o kcal, e andam "
+                    "juntos: o MET de tabela vale a um ritmo, e é esse ritmo que o segundo "
+                    "campo declara. Mexer só num dos dois desregula a caloria — dobrar a "
+                    "cadência com o mesmo MET corta o gasto por repetição pela metade. "
+                    "Cadência <b>0</b> desliga o card de calorias (mostra '--'). "
+                    "<b>Maturidade</b> é o selo de qualidade: a regra de quem vê o quê entra "
+                    "na T-090 — hoje o campo só viaja até o cliente. <b>Plano mínimo</b> "
+                    "vazio = todo mundo vê."
                 ),
             },
         ),

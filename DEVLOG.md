@@ -5,6 +5,92 @@
 
 ---
 
+## 2026-08-07 (41) · T-128 — o kcal para de faturar tempo de tela
+
+Pedido do Daniel: *"quero que o kcal seja baseado nas repetições, porém se o ritmo for mais
+intenso ele ganha um multiplicador"*. É uma correção, não um enfeite — e o defeito era meu, da
+T-063.
+
+**O que estava errado.** A T-063 entregou a fórmula clássica do Compendium, `MET × 3,5 ×
+peso / 200 × minutos`, e ela está certa. O insumo é que não era o que a tela precisa: o número
+sobe com o **relógio**, não com o esforço. Medido lado a lado no catálogo real, a coluna
+"antes" é uma constante — 4,9 kcal em 30 s de polichinelo, tanto faz se a pessoa fez 40
+repetições ou ficou parada olhando a câmera. Num app cuja razão de existir é contar repetição
+por visão computacional, ignorar a contagem e faturar tempo de sessão é a mentira mais fácil de
+não perceber: ninguém compara duas sessões de 30 s lado a lado.
+
+**A spec foi corrigida antes do código** (AGENTS.md §Quando em dúvida). A SPEC-016 §Fase
+Inicial dizia "cálculo MET client-side"; passou a descrever a fórmula por repetição, e o
+critério 3 ganhou dois sub-critérios verificáveis — 3.1 "o número não anda sem repetição" e 3.2
+"ritmo acima da referência rende mais, dentro de faixa travada".
+
+```
+kcal_por_rep = (MET × 3,5 × peso / 200) / cadência_referência
+kcal         = reps × kcal_por_rep × m(cadência_medida)
+```
+
+**Decisões, e o que foi rejeitado:**
+
+- **A cadência de referência virou coluna (`Exercise.ref_cadence_rpm`), não constante no
+  cliente.** É o que faltava para a T-063 poder fazer a conta certa: o MET de tabela não é um
+  número solto, ele descreve gasto *a uma intensidade*, e sem saber qual não há como converter
+  "por minuto" em "por repetição". E é propriedade do movimento — 20 rpm é rápido para
+  agachamento e lento para polichinelo —, então um mapa em código seria o `[A/T-051]`
+  recomeçando, três semanas depois de a T-074 fechá-lo.
+- **Coluna e valores na mesma migration.** Uma cadência `0` não é estado neutro: `0` significa
+  desconhecido, e desconhecido apaga o card (`--`). Subir a coluna vazia e preencher depois
+  seria desligar o kcal do produto entre dois deploys.
+- **O multiplicador é modesto (K = 0,25) de propósito.** O ganho principal de quem acelera já
+  está contado antes dele: mais rápido = mais repetições = mais calorias, linearmente. Este
+  fator é só a perda de economia de movimento (mais aceleração e frenagem por repetição, menos
+  aproveitamento elástico). Um valor alto aqui contaria a velocidade duas vezes — foi a
+  primeira coisa que quase fiz.
+- **Duas defesas, não uma.** Trava em [0,9 – 1,3] **e** janela mínima de 6 s antes de a
+  cadência valer. Não são redundantes: a janela existe porque com 3 s decorridos uma repetição
+  a mais move a cadência em 20 rpm e o card ficaria piscando durante justamente o trecho em que
+  a pessoa se ajusta; a trava existe porque uma sequência de falsos positivos produziria um
+  pico. Medido: 120 reps em 10 s dá multiplicador bruto 4,35, travado em 1,30.
+- **Sem MET ou sem cadência, `--` — nunca cair de volta no cálculo por tempo.** O fallback
+  silencioso reintroduziria o defeito exatamente no caminho degradado, onde ninguém olha.
+- **Isto aproxima o kcal da regra da SPEC-014, não afasta.** Antes o único insumo era o relógio
+  do próprio cliente. Agora são três, e dois vêm do servidor: MET e cadência do catálogo, e as
+  repetições do `rep.detected` contado pelo analysis-worker. Só o peso continua premissa — e
+  segue marcado `estimado` na tela até a T-065.
+
+**Propriedade que amarra as duas versões:** no ritmo de referência a fórmula nova dá exatamente
+o mesmo número da antiga (25 polichinelos em 30 s = 50 rpm = 4,9 kcal). A mudança não reescala
+o produto; ela faz o número responder a quem está treinando. Tem teste dedicado.
+
+**Verificação medida** (fórmula rodada contra o `GET /api/config` do stack real, 70 kg):
+
+| Cenário | Antes (MET × min) | Agora (por rep) |
+|---|---|---|
+| parado 30 s, 0 polichinelos | 4,9 | **0,0** |
+| devagar: 15 em 30 s | 4,9 | 2,6 |
+| referência: 25 em 30 s | 4,9 | **4,9** |
+| intenso: 40 em 30 s | 4,9 | 9,0 |
+| agachamento: 10 em 30 s | 3,1 | 3,1 |
+| agachamento: 20 em 30 s | 3,1 | 7,7 |
+
+Catálogo servido depois da migration (`config_version` 8): polichinelo MET 8,0 @ 50 rpm =
+0,196 kcal/rep · agachamento 5,0 @ 20 = 0,306 · flexão 8,0 @ 25 = 0,392 · abdominal 3,8 @ 20 =
+0,233.
+
+Gates: `ruff` limpo, `pytest` 817 verdes, `npm run lint`/`typecheck`/`test` verdes (505),
+`makemigrations --check` sem drift.
+
+**Sem passada de navegador**, e diferente da T-063: a extensão do Chrome não estava conectada
+nesta sessão. A lacuna que ela cobriria — a fiação catálogo → tela — virou teste de integração
+em `serverConfig.test.ts`: payload do servidor → store → catálogo mesclado → `liveKcal`, os
+três caminhos (com cadência, sem servidor, e servido com cadência `0`). O que continua **não**
+observado ao vivo é o card subindo repetição a repetição num treino real; é o que vale olhar no
+próximo teste no celular.
+
+**Pendências:** as quatro cadências são premissa de tabela, não medição de bancada — entram
+como dado justamente para poderem ser corrigidas pelo painel quando o corpus da SPEC-012 tiver
+algo melhor a dizer. Um teste do servidor (`test_todo_exercicio_tem_cadencia_de_referencia`)
+cobra o par MET+cadência do catálogo inteiro, para exercício novo não nascer com o card mudo.
+
 ## 2026-08-06 (40) · T-042 — o gate de contagem, e por que ele não usa vídeo
 
 Pergunta do Daniel depois do caso da flexão: *"como posso blindar para que todo push ou deploy
@@ -714,6 +800,95 @@ permissão negada era pior: navegava igual, para uma tela de treino sem imagem n
 - Spec atualizada junto (AGENTS: a spec vence): SPEC-014 §3, critério 3 e Revisão 2026-08-06.
 
 ---
+
+## 2026-08-06 (27) · SPEC-023 e a Fase 6 — o treino ganha ritmo, e o lançamento ganha ordem
+
+Sessão de projeto, não de código. Entrada: dois áudios de uma conversa do Daniel com um amigo
+(19min30s + 4min18s), transcritos localmente. Saíram `docs/IDEIAS-2026-08-05-conversa.md`
+(a fonte, no papel que a rodada de 2026-07-30 teve para as SPEC-019…022), a **SPEC-023** e a
+**Fase 6** no BACKLOG (T-111…T-119 + o agrupamento dos blocos A/B).
+
+### A transcrição, e por que ela custou duas passadas
+
+O áudio está **clipado, não só ruidoso**: um ventilador soprava no microfone, a banda 0–60 Hz
+é a mais forte do arquivo (15–30 dB acima da fala), e ela saturou o pré-amplificador. Amostra
+mediana em 32.700 de 32.768; 38,5% no fundo de escala. Medições, para não repetir o caminho:
+
+- passa-alta + `afftdn` + `adeclip`: **empate** com o original — filtro remove ruído, não
+  devolve amplitude cortada no teto;
+- `large-v3` (modelo maior): **pior** que `large-v3-turbo` (1.152 × 1.428 caracteres no mesmo
+  trecho, mais uma frase alucinada). Modelo grande é mais cauteloso e desiste de trecho
+  ininteligível; em áudio destruído, arriscar recupera mais palavra aproveitável;
+- **desligar o VAD: +26%** de conteúdo. Era ele que marcava como silêncio os trechos falados
+  por cima do ventilador. Foi o único ganho real.
+
+A segunda passada não trouxe só volume: trouxe a analogia da pipoca inteira com os números
+certos, o diferencial "treinar com amigos" entre os dois planos pagos, e três ideias que a
+primeira tinha perdido por completo (§2.14, §2.16, §2.17 do documento).
+
+### SPEC-023 — as decisões, e o que foi rejeitado
+
+A frase que originou tudo: *"um aplicativo que não te apressa e também não te atrasa"*.
+
+- **Uma série É uma sessão.** Não foi decisão nova — a Evolução da SPEC-009 já dizia "cada
+  série é uma sessão do ponto de vista do admission control". A spec executa isso em vez de
+  brigar com ele. **Rejeitado**: encadear sessões de 30 s dentro de uma série (resetaria
+  baseline e estado da FSM a cada 30 s).
+- **O descanso não é sessão, não é evento, não existe no servidor.** Três motivos: não segura
+  slot de cloud (o semáforo protege inferência, e descanso não infere); repetição feita no
+  descanso não conta de graça, sem regra nova; e nenhuma tabela nova — o treino é a sequência
+  de `SessionResult` que produziu.
+- **O treino NÃO vira entidade persistida.** Só dois carimbos aditivos (`set_index`,
+  `set_total`), na natureza do `config_version` da T-075. **Rejeitado**: tabela `Treino` —
+  princípio de derivação da SPEC-019, não há fato aqui que não seja derivável.
+- **Teto de série sem coluna nova — e essa decisão foi CORRIGIDA no meio da sessão.** O
+  primeiro desenho criava `Plan.set_ceiling_s`, argumentando que a janela competitiva não pode
+  virar o teto de quem é lento. O argumento vale para o **`duration_s` do evento** e não vale
+  para a coluna: `session_max_s` (T-073) nunca foi a janela, é o teto do plano. Fui conferir o
+  modelo antes de fechar e a coluna proposta era redundante. Ficou o número que já existe —
+  `Plan.history_limit` é o precedente de coluna que nasce, ninguém lê e apodrece
+  (Descoberta `[T-073]`). O Free ter `session_max_s = 30` deixa de ser problema e vira o gate:
+  modo contado é benefício de plano pago, e o Free fica no modo livre, que é completo.
+- **Modo livre entra como teste de regressão, não como refatoração.** É o comportamento de
+  hoje; o que ele ganha é nome. Só o modo contado exige código novo.
+- **O gesto de prontidão é edge-only, e isso está declarado.** Durante o descanso não há
+  sessão nem worker, então quem detecta é o cliente — e no modo cloud o cliente não extrai
+  pose. Toque e temporizador são a saída universal; o gesto **acelera**, nunca é a única saída.
+- **Estar em posição ≠ estar pronto.** É por isso que o gesto vive aqui e o gate por pose
+  continua na SPEC-004/T-030: entre séries a pessoa já está no lugar certo e ainda está
+  recuperando o fôlego.
+- **`PROTOCOL_VERSION` não sobe**, com uma ressalva honesta que a SPEC-021 não precisou dar: lá
+  o aditivo era um *tipo* de evento (consumidor antigo ignora), aqui é um *valor novo num enum
+  existente*, que um `_as_enum` estrito recusaria. O que salva é a direção do risco —
+  `target_reached` só é produzido depois do deploy e replay antigo nunca o contém. Se algum
+  consumidor passar a ser versionado à parte, a linha vira dívida.
+
+### Fase 6 — a ordem, e a correção que fiz na ordem do Daniel
+
+Ele mesmo enunciou a sequência no áudio: *"base → conseguir a assinatura → agora eu tenho que
+manter as pessoas → depois os profissionais"*. A única troca que a Fase 6 faz é **retenção
+antes de assinatura** — ninguém assina um app que usou uma vez.
+
+O Bloco A não tem task nova: são T-104/T-108/T-109/T-110 agrupadas para dizer que vêm primeiro.
+Motivo escrito no backlog: hoje o catálogo tem **um** exercício que conta de verdade (o
+agachamento está no ar, `validado`, contando zero — Descoberta `[A/T-106]`), e cobrar por isso
+é o pior cenário possível.
+
+### Pendências geradas
+
+- **A SPEC-023 nasce `draft`** e espera revisão do Daniel, como as 019…022 esperaram.
+- **T-078 virou pré-requisito da T-112**: o `duration_ms` do relatório mistura dois relógios, e
+  com duração variável "tempo até a meta" é exatamente o número que ele erra. Deixou de ser
+  cosmético.
+- **Decisão comercial em aberto, bloqueando só a T-117**: um plano pago ou dois, e o preço
+  (R$ 15/20/30 foram todos ditos; prevalece 15/20). O trecho de preço é o mais afetado pelo
+  áudio ruim — vale conferir de ouvido em `~/Documentos/transcricoes/*— LIMPO.flac` antes de
+  fixar número em tela.
+- **"Quanto tempo você tem?" precisa entrar na SPEC-022** antes de ela ser implementada: o
+  motor pesa objetivo, idade e IMC e não tem tempo disponível, que é a variável mais decisiva
+  na prática e a mais barata de coletar.
+- Não commitei: a árvore tem trabalho de outra sessão em `workers/analysis_worker/` e
+  `eval/corpus/manifest.yaml` que não é meu.
 
 ## 2026-08-06 (26) · O exemplo guiado passa a depender de quem é — e duas regressões das faixas
 

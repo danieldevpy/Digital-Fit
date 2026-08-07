@@ -58,6 +58,12 @@ export interface ExerciseInfo {
   guide_steps: { img: string; text: string }[]
   /** Insumo do kcal (SPEC-016/017). `undefined` no embutido: o servidor é quem sabe. */
   met?: number
+  /**
+   * Ritmo em que o `met` vale, em rep/min (T-128). Anda **em par** com ele: o MET de tabela
+   * descreve o gasto a uma intensidade, e é este número que diz qual. Sozinho, o MET não vira
+   * caloria por repetição — vira `--`.
+   */
+  ref_cadence_rpm?: number
   /** Selo de qualidade (SPEC-020). Quem o usa na tela é a T-090/T-091, não esta task. */
   maturity?: string
 }
@@ -238,6 +244,7 @@ function daServidor(ex: ServerExercise): ExerciseInfo {
     dot_color: ex.dot_color,
     guide_steps: ex.guide_steps,
     met: ex.met,
+    ref_cadence_rpm: ex.ref_cadence_rpm,
     maturity: ex.maturity,
   }
 }

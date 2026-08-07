@@ -58,6 +58,27 @@ def test_met_veio_da_tabela_da_spec() -> None:
 
 
 @pytest.mark.django_db
+def test_todo_exercicio_tem_cadencia_de_referencia() -> None:
+    """MET sem cadência não vira caloria por repetição — vira `--` na tela (T-128).
+
+    Cobra o catálogo INTEIRO e não dois slugs: exercício novo entra pela `df-exercise` com MET
+    preenchido, e é exatamente aí que se esquece o par. O sintoma seria mudo: o card de
+    calorias simplesmente não apareceria naquele exercício.
+    """
+    sem_cadencia = [
+        e.slug for e in Exercise.objects.all() if e.met and not e.ref_cadence_rpm
+    ]
+
+    assert sem_cadencia == [], f"MET sem cadência de referência: {sem_cadencia}"
+
+
+@pytest.mark.django_db
+def test_cadencia_de_referencia_veio_da_migration() -> None:
+    assert Exercise.objects.get(slug="jumping_jack").ref_cadence_rpm == 50
+    assert Exercise.objects.get(slug="squat").ref_cadence_rpm == 20
+
+
+@pytest.mark.django_db
 def test_os_dois_primeiros_nascem_validado_por_decisao_declarada() -> None:
     """Grandfathering da SPEC-018: o critério de `validado` não foi medido para nenhum dos dois.
 
@@ -325,6 +346,8 @@ def test_payload_traz_met_e_maturity_para_a_fase_5(client) -> None:
 
     assert polichinelo["met"] == 8.0
     assert polichinelo["maturity"] == "validado"
+    # O par do MET (T-128). Sem ele no payload o cliente tem o numerador e não o denominador.
+    assert polichinelo["ref_cadence_rpm"] == 50
 
 
 # --------------------------------------------------------------------------------------

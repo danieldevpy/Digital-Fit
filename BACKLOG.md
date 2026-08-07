@@ -120,6 +120,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-084 | Probe honesto: capacidade medida por LATÊNCIA de inferência (mediana, aquecimento descartado, janela elástica 2–3s, rVFC + watchdog) em vez de frames/segundo de parede; fps da câmera vira sinal de cena separado; motivo da decisão exposto; contexto WebGL devolvido | 001 | done |
 | T-085 | Aviso de cena na pré-configuração (luz fraca, contraluz, falta de nitidez/lente suja): orienta, não bloqueia, e só nesta tela — reaproveita o pill da janela da câmera | 003/014 | done |
 | T-120 | O treino só começa com a câmera ligada: o CTA da pré-configuração vira dois degraus ("Ligar câmera" → "Iniciar Exercício"), regra pura em `session/startGate.ts`. Antes, um toque pedia permissão e navegava junto — o treino abria por cima do diálogo do navegador, e com permissão negada abria sem imagem | 014 | **feito** (2026-08-06) |
+| T-128 | Kcal por **repetição** com multiplicador de ritmo, no lugar do cálculo por tempo decorrido da T-063 (que cobrava o mesmo de quem treinava e de quem ficava parado); `Exercise.ref_cadence_rpm` vira dado do catálogo — correção da SPEC-016 §Fase Inicial | 016/018/007 | **feito** (2026-08-07) |
 
 ## Fase 5 — Engajamento & Catálogo (SPEC-019…022; o "foguinho" e a fábrica de exercícios)
 
@@ -228,6 +229,51 @@ funcionalidade nova: são o mesmo dado, dito certo.
 | T-108 | Corpus real de chão (≥ 8 vídeos por exercício, guia de gravação já escrito em `eval/corpus/README.md`) + varredura de limiares → promoção `beta → calibrado` de `flexao` e `abdominal`. É o T-053 do Tier C | 020/012 | **parcial** — a vista frontal saiu daqui (DEVLOG 29): de frente a flexão conta 52/50 e 50/50 onde contava 0/50, e o mesmo 0/50 estava valendo **em produção**. Falta o que dá nome à task: 8 vídeos por exercício com contagem própria. Sem eles não há promoção a `calibrado` (Descoberta `[A/T-108]`) |
 | T-109 | **Agachamento não conta em produção** (ver Descoberta `[A/T-106]`): trocar `hip_height` absoluto por razão sobre a altura de quadril da própria pessoa (o desenho da T-106), regravar as fixtures do gerador com proporções reais e revarrer os limiares. Não é polimento: hoje o exercício está no ar, `validado`, contando zero | 007/012/020 | **todo (alta)** |
 | T-110 | Espaço normalizado é anisotrópico (Descoberta `[A/T-106]`): levar largura/altura do frame no `pose.frame` e corrigir `x` na normalização, ou declarar por escrito que toda feature é razão no mesmo eixo. Mexe no contrato de eventos (AGENTS: `events.py` primeiro) e obriga a revarrer polichinelo e agachamento | 002/006 | todo |
+
+## Fase 6 — Lançamento rentável (SPEC-023 + a caixa registradora)
+
+Origem: `docs/IDEIAS-2026-08-05-conversa.md` (conversa de 2026-08-05). A sequência é a que o
+próprio Daniel enunciou no áudio — *"base → assinatura → agora eu tenho que manter as pessoas →
+depois os profissionais"* — com **retenção antes de assinatura**, porque ninguém assina um app
+que usou uma vez.
+
+Quatro blocos, cada um termina em produto funcional. O Bloco A não é polimento: hoje o
+catálogo tem **um** exercício que conta de verdade, e cobrar por isso é o pior cenário
+possível.
+
+### Bloco A — Fazer o que está no ar contar (pré-requisito comercial de tudo)
+
+Nada aqui é task nova: são T-104, T-108, T-109 e T-110, já no backlog acima, agrupadas para
+dizer que **elas vêm primeiro**. Fim do bloco: 4 exercícios que contam (polichinelo,
+agachamento, flexão, abdominal) e um comando que prova isso em número.
+
+### Bloco B — O motivo de voltar amanhã
+
+M0 (SPEC-024: T-121…T-125) e depois M1 da SPEC-019 (T-086, T-087, T-088), já detalhados na
+Fase 5. Pré-requisito **comercial** do pagamento, não técnico — e o M0 é pré-requisito
+**técnico** do M1: o fogo é uma leitura do histórico, que hoje não atualiza.
+
+### Bloco C — O motivo de pagar (SPEC-023)
+
+Raia contrato → worker → api → client; T-111 abre e as outras dependem dela.
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-111 | Contrato do treino (`events.py` primeiro, AGENTS): `mode`, `target_reps`, `set_index`, `set_total` aditivos em `session.started` + `SessionEndReason.TARGET_REACHED`; colunas aditivas no `SessionResult` e consolidação no report-builder. Sem bump de `PROTOCOL_VERSION` (justificado na SPEC-023 §Eventos, incluindo a ressalva do enum) | 023/002/010 | todo |
+| T-112 | Modo contado no analysis-worker: a meta encerra a série no frame da N-ésima rep (autoridade do servidor, como o timer da SPEC-009); teto por `ts` de frame, estouro termina em `completed` sem erro. Depende de T-111 e **de T-078** (o `duration_ms` mistura dois relógios, e "tempo até a meta" é exatamente o número que ele erra) | 023/007/009 | todo |
+| T-113 | Modo resolvido na admissão junto de quota/duração/countdown/cloud: meta e teto que valem são os do servidor (forjar o cliente não muda nada), e o teto é o `Plan.session_max_s` que já existe — **sem coluna nova** (SPEC-023 §4). Plano com `session_max_s = 30` recusa modo contado com motivo legível, em vez de cortar a série no meio. Depende de T-111 | 023/018/016 | todo |
+| T-114 | Cliente do treino: montador de plano de exercício único (N séries × meta × descanso), tela de descanso com contador e próximo item, HUD do modo contado (anel conta para cima, `7/15`, tempo decorrido no lugar do restante). O descanso é só cliente — não abre sessão, não segura slot. Depende de T-112/T-113 | 023/014 | todo |
+| T-115 | Gesto de prontidão (dois pulsos acima dos ombros por 1 s) encerra o descanso — **edge apenas**, com toque e temporizador como saída universal; fronteira com o gate por pose da SPEC-004/T-030 declarada em teste. Depende de T-114 | 023/004 | todo |
+| T-116 | Cadência vira o eixo de progresso: relatório da série mostra reps/min sempre e tempo até a meta no modo contado; comparação por exercício nas últimas 4 semanas como **derivação pura** sobre `SessionResult` (sem tabela, sem contador). Depende de T-111 | 023/010/017 | todo |
+
+### Bloco D — A caixa registradora
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-036 | Planos pagos + Stripe/Mercado Pago + LGPD (export/exclusão) — **PIX citado explicitamente** na conversa de 2026-08-05; `plan`/`plan_until` já existem desde T-073 | 011/016 | todo |
+| T-117 | Tela de planos em três colunas (Free · Plus · Premium) com o plano do meio como isca deliberada (`docs/IDEIAS…` §2.9) e trial completo por `plan_until`. O degrau do Premium é **social** ("treinar com amigos"), não volume — o conteúdo dele são T-118/T-119. Depende de T-036 e da decisão comercial de preço | 016/018 | todo |
+| T-118 | Convite de amigo: indicação (quem indica ganha mês/desconto) e convites de assinante (N por mês, acesso completo temporário a quem for convidado) | 016/011 | todo |
+| T-119 | Card compartilhável semanal (Canvas no cliente): resumo da semana com marca, para auto-divulgação (`docs/IDEIAS…` §2.5). Dado já existe; não depende de motor novo | 014/019 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
