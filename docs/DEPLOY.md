@@ -283,13 +283,31 @@ porque `VITE_API_URL` é gravada no bundle em build time e não dá para trocar 
 
 ## Painel de operação (SPEC-018)
 
-**Vem desligado.** Ligar é uma variável no `.env.prod`:
+**Vem desligado.** Ligar são duas linhas no `.env.prod` e um `./scripts/prod.sh nginx`:
 
 ```bash
 DJANGO_ENABLE_ADMIN=1
 DJANGO_ADMIN_PATH=um-caminho-so-seu/      # troque: /admin e /painel são os dois primeiros
-CSRF_TRUSTED_ORIGINS=https://treino.seudominio.com
 ```
+
+`CSRF_TRUSTED_ORIGINS` **é derivado do `DOMAIN`** e só precisa ser preenchido se o painel for
+responder em outro host. Deixado a mão, era a variável que ninguém descobria ter esquecido até
+o POST do login voltar `403` — atrás do proxy que termina TLS o Django compara o header
+`Origin` com essa lista.
+
+### O nginx precisa de dois `location` — e é aqui que isso costuma falhar
+
+Rode `./scripts/prod.sh nginx` de novo depois de ligar o painel: o bloco impresso passou a
+trazer os dois. Sem eles, tudo que não é `/api/`, `/healthz`, `/readyz` e `/ws/` cai no
+`location /` — ou seja, no **container do web**, que devolve o `index.html` do SPA para
+qualquer caminho desconhecido. Os dois sintomas:
+
+| falta | o que acontece |
+|---|---|
+| `location /um-caminho-so-seu/` | o painel "não existe": a URL abre a **landing do produto**, com status `200`. Não é 404, então não parece erro de rota |
+| `location /static/` | o painel abre inteiro, funcional e **sem estilo nenhum** — o navegador pediu CSS e recebeu `text/html`, e recusa aplicá-lo. É o sintoma que mais se confunde com "o tema não instalou" |
+
+`/static/` não colide com o cliente: o build do Vite publica em `/assets/`.
 
 Depois, a primeira conta de operador — não há painel onde criá-la:
 
@@ -311,19 +329,46 @@ Três coisas que valem saber:
 
 - **O gateway (`:8001`) nunca serve o painel**, mesmo que a variável vaze para ele: a trava é
   no processo (`server/core/admin_gate.py`), não na configuração.
-- **O CSS sai do próprio container** (whitenoise + `collectstatic` no build). Não é preciso
-  mexer no seu nginx para o painel ficar apresentável.
-- **Exponha-o com cuidado.** Restringir por IP no seu nginx é barato e vale a pena:
+- **O CSS sai do próprio container** (whitenoise + `collectstatic` no build da imagem). Você
+  não precisa servir arquivo nenhum, mas *precisa* rotear `/static/` até a api — é o bloco da
+  tabela acima. O `./scripts/prod.sh nginx` já o imprime.
+- **Exponha-o com cuidado.** Restringir por IP é barato e vale a pena — as duas linhas já vêm
+  comentadas no `location` do painel que o script imprime:
 
   ```nginx
-  location /um-caminho-so-seu/ {
-      allow 203.0.113.10;   # seu IP
-      deny all;
-      proxy_pass http://127.0.0.1:8000;
-      proxy_set_header Host $host;
-      proxy_set_header X-Forwarded-Proto $scheme;
-  }
+  allow 203.0.113.10;   # seu IP
+  deny all;
   ```
+
+### Conferindo depois do deploy
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://SEU-DOMINIO/um-caminho-so-seu/
+# 302 (manda para o login) — se vier 200, você está vendo a landing: falta o location
+
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' \
+  https://SEU-DOMINIO/static/painel/digitalfit.css
+# 200 text/css — se vier text/html, falta o location /static/ e o painel abrirá sem estilo
+```
+
+### O tema
+
+O painel usa **django-jazzmin** (AdminLTE 4 / Bootstrap 5) repintado com os tokens da SPEC-014
+— a mesma paleta, as mesmas fontes e o mesmo raio de canto do cliente. O que é dado
+(rótulos, ícones, ordem do menu) fica em `server/core/admin_theme.py`; o que é folha de estilo
+fica em `server/api/static/painel/digitalfit.css`. Trocar de tema não exige tocar em
+`api/admin.py`, e mexer no `api/admin.py` não exige tocar no tema.
+
+Para abrir o painel **na sua máquina**, sem Postgres e sem Docker:
+
+```bash
+cd server && env PYTHONPATH=.. DJANGO_ENABLE_ADMIN=1 DJANGO_DB_SQLITE=1 \
+  DJANGO_DB_SQLITE_PATH=../.painel-dev.sqlite3 DJANGO_CACHE_LOCMEM=1 \
+  CHANNEL_LAYER_IN_MEMORY=1 ../.venv/bin/python manage.py migrate
+```
+
+Depois `createsuperuser` com as mesmas variáveis e `runserver 8010` — é exatamente o que o
+alvo `painel` do `.claude/launch.json` faz.
 
 ## Limites conhecidos desta configuração
 

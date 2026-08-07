@@ -33,6 +33,7 @@ server = [
     # Servidor WSGI do `api` em producao. O gateway continua em uvicorn (ASGI): a divisao
     # WSGI/ASGI da ARCHITECTURE vale em producao tambem, nao so no compose de dev.
     "gunicorn>=23.0",
+    "django-jazzmin>=3.0.5",
 ]
 
 # Runtime de visao computacional do `pose-worker` (modo cloud, SPEC-005). Fica num extra

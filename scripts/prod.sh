@@ -96,6 +96,8 @@ carrega_ambiente() {
     export GATEWAY_WS_URL="wss://${DOMAIN}"
     export DJANGO_ALLOWED_HOSTS="${DOMAIN}"
     export CORS_ALLOWED_ORIGINS="https://${DOMAIN}"
+    export DJANGO_ADMIN_PATH="${DJANGO_ADMIN_PATH:-painel/}"
+    export CSRF_TRUSTED_ORIGINS="${CSRF_TRUSTED_ORIGINS:-https://${DOMAIN}}"
     return 0
   fi
 
@@ -160,6 +162,21 @@ carrega_ambiente() {
     export DJANGO_ALLOWED_HOSTS="$hosts"
     export CORS_ALLOWED_ORIGINS="$origens"
   fi
+
+  # Painel de operacao (SPEC-018). O caminho e normalizado aqui e nao no ponto de uso porque
+  # ele e escrito a mao no .env.prod e vai parar em DOIS lugares que precisam concordar: a
+  # rota do Django (`DJANGO_ADMIN_PATH`) e o `location` do nginx (`./scripts/prod.sh nginx`).
+  # Uma barra a mais num deles e um 404 que ninguem consegue explicar.
+  export DJANGO_ADMIN_PATH="${DJANGO_ADMIN_PATH:-painel/}"
+  ADMIN_PATH="${DJANGO_ADMIN_PATH#/}"
+  ADMIN_PATH="${ADMIN_PATH%/}/"
+  export ADMIN_PATH
+
+  # CSRF do painel: a QUINTA derivada do DOMAIN, pelo mesmo motivo das outras quatro.
+  # Mantida a mao, ela e a unica variavel que o operador so descobre que esqueceu no momento
+  # em que o POST do login volta 403 — atras do proxy que termina TLS, o Django compara o
+  # header `Origin` com esta lista. Preenchida no .env.prod, o valor de la vence.
+  export CSRF_TRUSTED_ORIGINS="${CSRF_TRUSTED_ORIGINS:-$CORS_ALLOWED_ORIGINS}"
 }
 
 # --------------------------------------------------------------------------------------
@@ -363,6 +380,47 @@ server {
         proxy_set_header Host \$host;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    # ------------------------------------------------------------------------------
+    # Painel de operacao (SPEC-018) — os DOIS blocos abaixo, sempre juntos
+    # ------------------------------------------------------------------------------
+    # Sem eles o painel nao existe neste dominio: tudo que nao casa com os blocos acima cai
+    # no \`location /\`, ou seja, no container do web — que devolve o index.html do SPA para
+    # QUALQUER caminho desconhecido. O sintoma nao e um 404: e a landing do produto abrindo
+    # em https://${DOMAIN}/${ADMIN_PATH}, com status 200.
+    #
+    # Com DJANGO_ENABLE_ADMIN=0 (o default) quem responde aqui e o proprio Django, com 404 —
+    # que e o comportamento certo e nao custa nada deixar configurado desde ja.
+    #
+    # Restringir por IP e barato e vale a pena: quem entra no painel le conta e sessao de
+    # todo mundo. Descomente as duas linhas e ponha o seu IP.
+    location = /${ADMIN_PATH%/} {
+        return 301 https://\$host/${ADMIN_PATH};
+    }
+
+    location /${ADMIN_PATH} {
+        # allow 203.0.113.10;   # seu IP
+        # deny all;
+        proxy_pass http://127.0.0.1:${API_PORT:-8000};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    # O CSS e o JS do painel, servidos pelo whitenoise DENTRO do container da api (o
+    # collectstatic roda no build da imagem). Este bloco e o que faz o whitenoise ser
+    # alcancado: sem ele /static/... tambem cai no container do web e volta um text/html,
+    # que o navegador recusa como folha de estilo. O painel abre inteiro, funcional e SEM
+    # ESTILO NENHUM — o sintoma mais confundido com "o tema nao instalou".
+    #
+    # Nao conflita com o cliente: o build do Vite publica em /assets/, nunca em /static/.
+    location /static/ {
+        proxy_pass http://127.0.0.1:${API_PORT:-8000};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # O whitenoise ja manda \`Cache-Control: max-age=60\` (sem hash no nome) ou um ano
+        # (com hash). Nao sobrescreva aqui: o hash e ele quem sabe.
     }
 
     location / {

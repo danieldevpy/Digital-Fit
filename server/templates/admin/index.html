@@ -1,0 +1,185 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static jazzmin painel %}
+
+{% comment %} Dashboard do painel de operação (SPEC-018, T-130).
+
+   Substitui o `admin/index.html` do jazzmin — quem faz este arquivo vencer é o `DIRS` do
+   TEMPLATES (ver `core/settings.py`), não a ordem de `INSTALLED_APPS`.
+
+   O que muda em relação ao de fábrica, e por quê: o índice do Django (e o do jazzmin) é uma
+   lista de links para tabelas. Ele responde "onde eu mudo X" e não responde nenhuma das
+   perguntas com que se ABRE um painel de operação — rodou hoje? quantas contas? o que está
+   no ar? o que eu mudei ontem já está valendo? A faixa de números em cima responde as
+   quatro; a lista de apps continua embaixo, íntegra e gerada pelo Django, para que um modelo
+   novo registrado em `api/admin.py` apareça aqui sem ninguém lembrar deste arquivo.
+
+   Acoplamento assumido: a coluna de "Recent actions" e a chamada a `get_side_menu` são do
+   jazzmin. Numa atualização dele, é o que pode precisar de conserto. {% endcomment %}
+
+{% block bodyclass %}{{ block.super }} dashboard{% endblock %}
+
+{% block content_title %}Painel de operação{% endblock %}
+
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+    {% painel_resumo as resumo %}
+
+    {% if resumo %}
+        <div class="col-12">
+            <div class="df-kpis">
+                <div class="df-kpi df-kpi--sessoes">
+                    <p class="df-kpi__label">Sessões hoje</p>
+                    <p class="df-kpi__value">{{ resumo.sessoes_hoje }}</p>
+                    <p class="df-kpi__hint">{{ resumo.reps_hoje }} repetições contadas (dia UTC)</p>
+                </div>
+
+                <div class="df-kpi">
+                    <p class="df-kpi__label">Contas ativas</p>
+                    <p class="df-kpi__value">{{ resumo.contas_ativas }}</p>
+                    <p class="df-kpi__hint">
+                        {% if resumo.novas_na_semana %}
+                            +{{ resumo.novas_na_semana }} nos últimos 7 dias
+                        {% else %}
+                            nenhuma nova nos últimos 7 dias
+                        {% endif %}
+                    </p>
+                </div>
+
+                <div class="df-kpi df-kpi--catalogo">
+                    <p class="df-kpi__label">Exercícios no ar</p>
+                    <p class="df-kpi__value">{{ resumo.exercicios_no_ar }}<span class="df-kpi__hint">/{{ resumo.exercicios_total }}</span></p>
+                    <p class="df-kpi__hint">
+                        {% if resumo.plano_default %}
+                            plano padrão: {{ resumo.plano_default.nome }}
+                        {% else %}
+                            sem plano padrão definido
+                        {% endif %}
+                    </p>
+                </div>
+
+                {% comment %} A versão da configuração é o que amarra "eu mudei" a "já está valendo": ela
+                   sobe a cada salvamento e é carimbada em cada sessão admitida (T-075). É a
+                   coluna `config_version` da lista de relatórios. {% endcomment %}
+                <div class="df-kpi df-kpi--config">
+                    <p class="df-kpi__label">Configuração</p>
+                    <p class="df-kpi__value">v{{ resumo.config.version|default:"—" }}</p>
+                    <p class="df-kpi__hint">
+                        {% if resumo.config %}
+                            sessão de {{ resumo.config.default_duration_s }}s ·
+                            {{ resumo.config.cloud_slots }} vaga(s) cloud
+                        {% else %}
+                            usando os defaults do código
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            {% if resumo.avisos %}
+                <div class="df-avisos">
+                    <p class="df-avisos__titulo">
+                        <i class="fas fa-triangle-exclamation"></i>
+                        Configurações que não dão erro — e mudam o resultado
+                    </p>
+                    <ul>
+                        {% for aviso in resumo.avisos %}<li>{{ aviso }}</li>{% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% get_side_menu using="app_list" as dashboard_list %}
+
+    <div class="col-lg-8 col-12">
+        {% for app in dashboard_list %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="m-0"><i class="{{ app.icon }} me-2"></i>{{ app.name }}</h5>
+                </div>
+                <div class="card-body py-1">
+                    {% for model in app.models %}
+                        <div class="df-atalho">
+                            <span class="df-atalho__icone"><i class="{{ model.icon }}"></i></span>
+                            <span>
+                                <span class="df-atalho__nome">
+                                    {% if model.url %}<a href="{{ model.url }}">{{ model.name }}</a>{% else %}{{ model.name }}{% endif %}
+                                </span>
+                                {% with descricao=model.model_str|para_que %}
+                                    {% if descricao %}<span class="df-atalho__desc">{{ descricao }}</span>{% endif %}
+                                {% endwith %}
+                            </span>
+                            <span class="df-atalho__acoes btn-group">
+                                {% if model.add_url %}
+                                    <a href="{{ model.add_url }}" class="btn btn-sm btn-secondary">Novo</a>
+                                {% endif %}
+                                {% if model.url %}
+                                    <a href="{{ model.url }}" class="btn btn-sm btn-primary">
+                                        {% if model.view_only %}Consultar{% else %}Abrir{% endif %}
+                                    </a>
+                                {% endif %}
+                            </span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="col-lg-4 col-12">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="m-0"><i class="fas fa-clock-rotate-left me-2"></i>O que mudou por último</h5>
+            </div>
+            <div class="card-body">
+                {% load log %}
+                {% get_admin_log 8 as admin_log for_user user %}
+                {% if not admin_log %}
+                    <p class="mb-0 text-secondary">Nada alterado por este operador ainda. O
+                    registro completo, de todo mundo, está em
+                    <a href="{% url 'admin:admin_logentry_changelist' %}">Auditoria</a>.</p>
+                {% else %}
+                    <ul class="list-unstyled mb-0">
+                        {% for entry in admin_log %}
+                            <li class="df-atalho">
+                                <span class="df-atalho__icone">
+                                    {% if entry.is_change %}<i class="fas fa-pen text-primary"></i>
+                                    {% elif entry.is_deletion %}<i class="fas fa-trash text-danger"></i>
+                                    {% elif entry.is_addition %}<i class="fas fa-plus text-success"></i>
+                                    {% endif %}
+                                </span>
+                                <span>
+                                    <span class="df-atalho__nome">
+                                        {% if entry.is_deletion or not entry.get_admin_url %}
+                                            {{ entry.object_repr }}
+                                        {% else %}
+                                            <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+                                        {% endif %}
+                                    </span>
+                                    <span class="df-atalho__desc">
+                                        {{ entry.model|default:"" }} · há {{ entry.action_time|timesince }}
+                                    </span>
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+
+        {% comment %} Duas coisas que o painel NÃO faz, ditas onde a pessoa vai procurá-las — em vez de
+           num README que ninguém abre com o suporte esperando resposta. {% endcomment %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="m-0"><i class="fas fa-terminal me-2"></i>Só por shell</h5>
+            </div>
+            <div class="card-body">
+                <p class="df-atalho__desc mb-2">Conceder acesso a este painel é a única escalada
+                que ele não faz sozinho (SPEC-018):</p>
+                <pre class="mb-3"><code>manage.py admin_tools &lt;email&gt; --panel-on</code></pre>
+                <p class="df-atalho__desc mb-2">Plano de uma conta, enquanto o checkout não existe:</p>
+                <pre class="mb-0"><code>manage.py plano &lt;email&gt; --set &lt;slug&gt;</code></pre>
+            </div>
+        </div>
+    </div>
+{% endblock %}

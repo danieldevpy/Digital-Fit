@@ -1,0 +1,16 @@
+<!-- A mesma marca do cliente (`IconLogo`, web/src/ui/icons.tsx), com o degradê azul→roxo da
+     SPEC-014. Geometria copiada traço a traço de propósito: a assinatura da T-081 é fixa por
+     decisão de produto, e um painel com "quase" a marca seria pior que um sem marca nenhuma. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -3 32 34" width="32" height="34" role="img" aria-label="Digital Fit">
+  <defs>
+    <linearGradient id="df" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4dd2ff" />
+      <stop offset="55%" stop-color="#4d8cff" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#df)" stroke-width="2.4" stroke-linecap="round">
+    <circle cx="12" cy="4.5" r="3" />
+    <path d="M12 8v7 M5 3l4 6 M19 3l-4 6 M12 15l-5 10 M12 15l5 10" />
+  </g>
+</svg>

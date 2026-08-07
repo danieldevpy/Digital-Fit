@@ -7,6 +7,25 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "painel",
+      "cwd": "server",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "PYTHONPATH=..",
+        "DJANGO_ENABLE_ADMIN=1",
+        "DJANGO_ADMIN_PATH=painel/",
+        "DJANGO_DB_SQLITE=1",
+        "DJANGO_DB_SQLITE_PATH=../.painel-dev.sqlite3",
+        "DJANGO_CACHE_LOCMEM=1",
+        "CHANNEL_LAYER_IN_MEMORY=1",
+        "../.venv/bin/python",
+        "manage.py",
+        "runserver",
+        "8010"
+      ],
+      "port": 8010
     }
   ]
 }

@@ -5,6 +5,91 @@
 
 ---
 
+## 2026-08-07 (43) · T-130 — o painel ganha pele, e passa a existir no domínio
+
+Pedido do Daniel: *"preciso que o admin da produção esteja com white noise, quero um admin
+personalizado pensado no caso de uso e já coloque jasmine como template e depois personalize
+com o mesmo estilo do front-end. Confira se está tudo configurado corretamente para que eu
+consiga acessar o admin pelo django e pelo domínio"*.
+
+**A descoberta que muda a ordem de importância do pedido.** O whitenoise estava configurado
+desde a T-072 — middleware, `collectstatic` no build da imagem, `CompressedStaticFilesStorage`.
+O que faltava era **alguém chegar até ele**. O `./scripts/prod.sh nginx` imprime um server
+block com quatro `location`: `/ws/`, o regex `^/(api/|healthz|readyz)`, e `/`. O caminho do
+painel e `/static/` não casam com nenhum dos três primeiros, então caem no `/` — o container do
+**web**, cujo nginx interno faz `try_files $uri $uri/ /index.html`. Consequência medida:
+
+| pedido | o que voltava |
+|---|---|
+| `https://dominio/painel/` | a **landing do produto**, com status `200`. Não 404 — não parece erro de rota |
+| `/static/painel/*.css` | `text/html`, que o navegador recusa como folha de estilo → painel **sem estilo nenhum** |
+
+Ou seja: o sintoma que motivou o pedido ("o admin da produção precisa estar com whitenoise")
+não era o whitenoise. Era o roteamento. Corrigido no gerador do bloco, não na documentação:
+`prod.sh nginx` passou a imprimir `location /<ADMIN_PATH>` (com o `301` do caminho sem barra
+final), `location /static/`, e as duas linhas de `allow`/`deny` já comentadas. Verificado
+ponta a ponta com um nginx de verdade na frente do processo: `/sala-de-maquinas` → 301,
+`/sala-de-maquinas/` → 302 para o login, CSS → `200 text/css`. `nginx -t` limpo.
+
+**CSRF_TRUSTED_ORIGINS virou a quinta derivada do `DOMAIN`.** Mantida a mão, era a única
+variável cujo esquecimento só aparece no momento do `403` do POST de login, atrás do proxy que
+termina TLS. Preenchida no `.env.prod`, o valor de lá continua vencendo.
+
+**O tema.** django-jazzmin (AdminLTE 4 + Bootstrap 5.3) com os tokens da SPEC-014 por cima —
+os mesmos `#05070d`, `#4d8cff`, `#8b5cf6`, Manrope/Space Grotesk, raio 16px do cliente. O
+grosso do CSS é sobrescrever as **variáveis** do Bootstrap, não classe por classe: assim pega
+componente que a folha nunca cita, inclusive os que o jazzmin ganhar numa atualização.
+
+**Decisões:**
+
+- **`jazzmin` antes de `django.contrib.admin` é o tema inteiro**, e falhar nisso não produz
+  erro nenhum — só a tela antiga de volta. Virou teste (`test_jazzmin_vem_antes_do_admin`).
+- **`changeform_format = "single"`, e não as abas de fábrica.** Os `fieldsets` deste projeto
+  carregam avisos que mudam a operação ("`daily_sessions = 1` no plano default desliga o
+  produto"). Aba é conteúdo atrás de um clique, e aviso escondido é aviso que não existe.
+- **`admin/includes/fieldset.html` foi copiado e corrigido.** O do jazzmin imprime a descrição
+  sem `|safe` (o do Django usa) e dentro do título, em itálico: a tela mostrava literalmente
+  `<b>Validade</b> vazia = sem prazo`. Agora a descrição é um bloco no corpo do card. É o único
+  arquivo do tema copiado inteiro, e está anotado como tal.
+- **O menu lateral continua sendo gerado pelo Django.** Montá-lo à mão daria os grupos
+  "Suporte / Configuração / Auditoria" na barra, ao preço de um modelo novo registrado em
+  `api/admin.py` não aparecer em lugar nenhum. A curadoria por caso de uso vive no dashboard,
+  onde ficar desatualizada não esconde nada.
+- **O dashboard responde as perguntas com que se ABRE um painel**, não "onde eu mudo X":
+  sessões e reps de hoje, contas ativas, exercícios no ar, versão da configuração valendo. Mais
+  uma faixa de avisos para o que é **silencioso** — exercício sem MET ou sem cadência (o card
+  de calorias mostra `--`, descoberta que a T-128 pagou), plano default ausente, `anon`
+  ausente. Consulta que falhar devolve `None` e a faixa some: P2 da SPEC-018 na forma "nenhum
+  número derruba o painel".
+- **`User.get_all_permissions()` precisou existir.** O jazzmin chama isso em toda página
+  (`utils.get_view_permissions`), e o modelo não tem `PermissionsMixin` por decisão da
+  SPEC-011 — o resultado era `AttributeError` na primeira tela depois do login. Implementado a
+  partir do **registro de apps**, não da tabela `auth_permission`: sem consulta por página, sem
+  depender do `post_migrate`, e impossível de divergir do `has_perm` logo acima.
+- **Rótulos em pt-BR por `verbose_name`** (migration `0015`, `AlterModelOptions` — não toca no
+  banco). "Session claims" e "Session results" vinham do vocabulário do event bus, não do de
+  quem atende suporte. `django.contrib.admin` virou `core.apps.PainelAdminConfig` só para o
+  grupo se chamar "Auditoria" em vez de "Administration".
+- **`DJANGO_DB_SQLITE_PATH`**: abre o painel na máquina de quem desenvolve sem Postgres. Em
+  memória não serviria — `runserver` é multithread, cada conexão ganharia um `:memory:` próprio
+  e o login voltaria para a tela de login sem erro no log. Alvo `painel` no `.claude/launch.json`.
+
+**Gates:** `ruff check` limpo, `ruff format --check` limpo, suíte inteira verde (829 testes),
+9 casos novos em `tests/test_admin_panel.py`. `collectstatic` roda (246 arquivos com o jazzmin
+dentro). `nginx -t` do bloco gerado, limpo.
+
+**Pendências:**
+
+- **O chrome do Django/jazzmin segue em inglês** ("Home", "Save", "Recent actions", "Log
+  entries") porque `USE_I18N = False`. Ligar traduz o painel inteiro de graça, mas também
+  traduz as mensagens dos `AUTH_PASSWORD_VALIDATORS`, que a API devolve em
+  `POST /api/auth/register` — é mudança de payload do produto, e por isso ficou fora desta
+  task. Decisão do Daniel.
+- Falta a passada em produção: `./scripts/prod.sh up` + `./scripts/prod.sh nginx`, colar o
+  bloco novo, recarregar o nginx e conferir os dois `curl` que a `docs/DEPLOY.md` agora traz.
+
+---
+
 ## 2026-08-07 (41) · T-128 — o kcal para de faturar tempo de tela
 
 Pedido do Daniel: *"quero que o kcal seja baseado nas repetições, porém se o ritmo for mais

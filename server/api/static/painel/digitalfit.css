@@ -1,0 +1,657 @@
+/* Painel de operação com a pele do produto (SPEC-018 + SPEC-014, T-130).
+
+   Os tokens do bloco `:root` são COPIADOS de `web/src/styles.css`, não reinterpretados. A
+   SPEC-014 diz que eles são vinculantes; aqui isso se traduz em: se a paleta do app mudar,
+   este arquivo muda junto, e a única coisa que impede a cópia de divergir em silêncio é ela
+   estar toda num bloco só, com esta nota em cima.
+
+   Ordem do carregamento (ver `jazzmin/templates/admin/base.html`): fontawesome → adminlte →
+   bootswatch → jazzmin/main.css → ESTE. Ou seja, aqui é a última palavra e quase nada precisa
+   de `!important` — o que precisa está marcado com o motivo.
+
+   As três folhas anteriores são Bootstrap 5.3, que expõe a paleta inteira em variáveis CSS.
+   Por isso o grosso do trabalho é o bloco "Bootstrap em Digital Fit" logo abaixo: sobrescrever
+   variável pega componente que este arquivo nunca cita, inclusive os que o jazzmin ganhar na
+   próxima versão. */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+/* ---------- tokens da SPEC-014 (cópia de web/src/styles.css) ---------- */
+
+:root {
+  --df-bg: #05070d;
+  --df-bg-glow: #0b101e;
+  --df-surface: rgba(13, 18, 32, 0.8);
+  --df-surface-solid: #0d1220;
+  --df-surface-border: rgba(255, 255, 255, 0.08);
+  --df-blue: #4d8cff;
+  --df-cyan: #4dd2ff;
+  --df-accent: #8b5cf6;
+  --df-accent-2: #a78bfa;
+  --df-hot: #f5a83d;
+  --df-live: #34d399;
+  --df-text: #ffffff;
+  --df-text-dim: rgba(255, 255, 255, 0.55);
+  --df-text-faint: rgba(255, 255, 255, 0.45);
+  --df-radius: 16px;
+
+  --df-font-ui: Manrope, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --df-font-num: 'Space Grotesk', Manrope, system-ui, monospace;
+}
+
+/* ---------- Bootstrap em Digital Fit ---------- */
+
+html[data-bs-theme='dark'] {
+  --bs-body-bg: var(--df-bg);
+  --bs-body-bg-rgb: 5, 7, 13;
+  --bs-body-color: rgba(255, 255, 255, 0.86);
+  --bs-body-color-rgb: 255, 255, 255;
+  --bs-body-font-family: var(--df-font-ui);
+  --bs-body-font-size: 0.9rem;
+
+  --bs-emphasis-color: var(--df-text);
+  --bs-secondary-color: var(--df-text-dim);
+  --bs-secondary-bg: #0a0f1b;
+  --bs-tertiary-bg: #070b14;
+  --bs-tertiary-color: var(--df-text-faint);
+
+  --bs-border-color: var(--df-surface-border);
+  --bs-border-color-translucent: var(--df-surface-border);
+  --bs-border-radius: 12px;
+  --bs-border-radius-sm: 9px;
+  --bs-border-radius-lg: var(--df-radius);
+
+  --bs-primary: var(--df-blue);
+  --bs-primary-rgb: 77, 140, 255;
+  --bs-primary-bg-subtle: rgba(77, 140, 255, 0.14);
+  --bs-primary-border-subtle: rgba(77, 140, 255, 0.4);
+  --bs-primary-text-emphasis: #a9c6ff;
+
+  --bs-secondary: #2a3550;
+  --bs-secondary-rgb: 42, 53, 80;
+  --bs-success: var(--df-live);
+  --bs-success-rgb: 52, 211, 153;
+  --bs-info: var(--df-cyan);
+  --bs-info-rgb: 77, 210, 255;
+  --bs-warning: var(--df-hot);
+  --bs-warning-rgb: 245, 168, 61;
+  --bs-danger: #f87171;
+  --bs-danger-rgb: 248, 113, 113;
+
+  --bs-link-color: var(--df-blue);
+  --bs-link-color-rgb: 77, 140, 255;
+  --bs-link-hover-color: var(--df-cyan);
+
+  --bs-code-color: var(--df-accent-2);
+  --bs-highlight-bg: rgba(139, 92, 246, 0.25);
+
+  --bs-form-control-bg: rgba(255, 255, 255, 0.04);
+  --bs-form-valid-color: var(--df-live);
+  --bs-form-invalid-color: #f87171;
+
+  color-scheme: dark;
+}
+
+/* Números sempre em Space Grotesk, como no app: contador, paginação, data, id de sessão. */
+.df-kpi__value,
+.paginator,
+.datetime,
+td.field-session_id,
+td.field-rep_count,
+td.field-config_version,
+td.field-daily_sessions,
+td.field-met {
+  font-family: var(--df-font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- fundo ---------- */
+
+/* Mesmo brilho da landing: um halo frio no alto, sobre o quase-preto. Fixo (não rola junto)
+   porque o painel tem listas longas — um gradiente que sobe com o scroll vira listra. */
+body {
+  background-color: var(--df-bg);
+  background-image: radial-gradient(
+    120% 60% at 50% -10%,
+    var(--df-bg-glow) 0%,
+    var(--df-bg) 60%
+  );
+  background-attachment: fixed;
+  font-family: var(--df-font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-wrapper,
+.app-main,
+.app-content {
+  background: transparent;
+}
+
+/* ---------- cabeçalho ---------- */
+
+.app-header {
+  background: rgba(8, 12, 22, 0.72) !important; /* vence `bg-body` do template */
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--df-surface-border) !important;
+}
+
+.app-header .nav-link {
+  color: var(--df-text-dim);
+  font-weight: 600;
+}
+
+.app-header .nav-link:hover,
+.app-header .nav-link:focus {
+  color: var(--df-text);
+}
+
+.app-header .form-control {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--df-surface-border);
+  color: var(--df-text);
+}
+
+/* ---------- barra lateral ---------- */
+
+.app-sidebar {
+  background: linear-gradient(180deg, #0a0f1c 0%, #06090f 100%) !important;
+  border-right: 1px solid var(--df-surface-border) !important;
+}
+
+.sidebar-brand {
+  border-bottom: 1px solid var(--df-surface-border);
+  padding: 10px 6px;
+}
+
+.sidebar-brand .brand-text {
+  font-weight: 800 !important; /* o template força `fw-light` na marca */
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+}
+
+.sidebar-brand .brand-image {
+  max-height: 30px;
+  width: auto;
+  box-shadow: none !important;
+}
+
+.app-sidebar .user-panel {
+  border-bottom: 1px solid var(--df-surface-border);
+  padding: 12px 8px;
+}
+
+.app-sidebar .user-panel .user-profile {
+  color: var(--df-accent-2);
+  font-size: 1.9rem;
+}
+
+.app-sidebar .sidebar-menu .nav-link {
+  border-radius: 10px;
+  color: var(--df-text-dim);
+  font-weight: 600;
+  margin: 1px 8px;
+}
+
+.app-sidebar .sidebar-menu .nav-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--df-text);
+}
+
+/* O item ativo repete o gradiente dos botões primários do app. */
+.app-sidebar .sidebar-menu .nav-link.active,
+.app-sidebar .sidebar-menu .nav-link.active:hover {
+  background: linear-gradient(135deg, var(--df-blue), var(--df-accent));
+  box-shadow: 0 6px 18px rgba(77, 140, 255, 0.28);
+  color: #fff;
+}
+
+.app-sidebar .sidebar-menu .nav-header {
+  color: var(--df-text-faint);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* ---------- títulos e trilha ---------- */
+
+.content-header h3,
+.content-header h1 {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.breadcrumb {
+  background: transparent;
+  font-size: 0.78rem;
+}
+
+.breadcrumb-item,
+.breadcrumb-item a {
+  color: var(--df-text-faint);
+}
+
+.breadcrumb-item.active {
+  color: var(--df-text-dim);
+}
+
+/* ---------- superfícies ---------- */
+
+.card,
+.inline-related fieldset,
+.module {
+  background: var(--df-surface);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--df-surface-border);
+  border-radius: var(--df-radius);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.card-header {
+  background: transparent;
+  border-bottom: 1px solid var(--df-surface-border);
+  font-weight: 700;
+}
+
+.card-footer {
+  background: transparent;
+  border-top: 1px solid var(--df-surface-border);
+}
+
+/* ---------- tabelas ---------- */
+
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-color: rgba(255, 255, 255, 0.86);
+  --bs-table-border-color: var(--df-surface-border);
+  --bs-table-hover-bg: rgba(77, 140, 255, 0.09);
+  --bs-table-hover-color: #fff;
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.025);
+}
+
+.table thead th,
+#result_list thead th {
+  border-bottom: 1px solid var(--df-surface-border);
+  color: var(--df-text-faint);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+#result_list thead th a {
+  color: inherit;
+}
+
+/* ---------- formulários ---------- */
+
+.form-control,
+.form-select,
+select:not(.form-select):not([multiple]),
+textarea,
+.vTextField {
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--df-surface-border);
+  border-radius: 10px;
+  color: var(--df-text);
+}
+
+.form-control:focus,
+.form-select:focus,
+select:not(.form-select):not([multiple]):focus,
+textarea:focus {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: var(--df-blue);
+  box-shadow: 0 0 0 3px rgba(77, 140, 255, 0.2);
+  color: var(--df-text);
+}
+
+.form-control::placeholder {
+  color: var(--df-text-faint);
+}
+
+label,
+.form-label {
+  color: var(--df-text-dim);
+  font-weight: 600;
+}
+
+/* O texto de ajuda deste painel não é enfeite: é onde estão os avisos de "isto desliga o
+   produto". Legível de propósito — o cinza de fábrica do admin some no fundo escuro. */
+.helptext,
+.help,
+.help-block,
+.form-text,
+.card-body > .description {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* A descrição do fieldset, movida do título para o corpo do card pelo
+   `templates/admin/includes/fieldset.html`. A barra roxa à esquerda é o que a separa dos
+   campos: é texto para LER antes de mexer, não rótulo de nada. */
+.card-body > .description {
+  border-left: 2px solid var(--df-accent);
+  margin-bottom: 18px;
+  max-width: 70ch;
+  padding: 2px 0 2px 12px;
+}
+
+.card-body > .description b,
+.card-body > .description strong {
+  color: var(--df-text);
+}
+
+.card-body > .description code,
+.help-block code {
+  background: rgba(139, 92, 246, 0.16);
+  border-radius: 5px;
+  color: var(--df-accent-2);
+  padding: 1px 5px;
+}
+
+.readonly {
+  color: var(--df-text-dim);
+}
+
+/* ---------- botões ---------- */
+
+.btn {
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.btn-primary,
+.btn-primary:focus,
+#jazzy-actions input[type='submit'],
+.submit-row input[type='submit'] {
+  background: linear-gradient(135deg, var(--df-blue), var(--df-accent));
+  border: 0;
+  box-shadow: 0 8px 20px rgba(77, 140, 255, 0.25);
+  color: #fff;
+}
+
+.btn-primary:hover,
+#jazzy-actions input[type='submit']:hover {
+  background: linear-gradient(135deg, var(--df-cyan), var(--df-accent-2));
+  color: #05070d;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--df-surface-border);
+  color: var(--df-text);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--df-text);
+}
+
+/* Apagar é o único botão que ganha cor quente: nesta tela ele remove conta e ficha de
+   exercício, e as duas coisas voltam só por backup — que a T-026 ainda não escreveu. */
+.btn-danger,
+.deletelink {
+  background: rgba(248, 113, 113, 0.16);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
+}
+
+.btn-danger:hover,
+.deletelink:hover {
+  background: rgba(248, 113, 113, 0.28);
+  color: #fff;
+}
+
+/* ---------- filtros, paginação, ações ---------- */
+
+#jazzy-actions {
+  background: var(--df-surface);
+  border: 1px solid var(--df-surface-border);
+  border-radius: 12px;
+}
+
+.paginator a,
+.paginator .this-page {
+  border-radius: 8px;
+}
+
+.badge {
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.callout {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--df-surface-border);
+  border-radius: 12px;
+  border-left-width: 3px;
+}
+
+.errorlist,
+.errornote,
+.text-red {
+  color: #fca5a5;
+}
+
+/* ---------- select2 (widgets de relacionado) ---------- */
+
+.select2-container--default .select2-selection--single,
+.select2-container--default .select2-selection--multiple {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--df-surface-border);
+  border-radius: 10px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+  color: var(--df-text);
+}
+
+/* ---------- login ---------- */
+
+/* Os dois `!important`: o template do jazzmin põe `bg-body-secondary` no próprio `<body>` da
+   tela de login, e classe utilitária do Bootstrap também é `!important`. Cor e imagem vão em
+   declarações separadas de propósito — no atalho `background:` a cor viraria `transparent`, e
+   sobraria só o gradiente pintando por cima de nada. */
+.login-page {
+  background-color: var(--df-bg) !important;
+  background-image: radial-gradient(
+    120% 70% at 50% -10%,
+    var(--df-bg-glow) 0%,
+    var(--df-bg) 60%
+  ) !important;
+  background-attachment: fixed;
+}
+
+.login-box {
+  max-width: 380px;
+  width: 100%;
+}
+
+.login-logo img {
+  filter: drop-shadow(0 8px 24px rgba(139, 92, 246, 0.45));
+  height: 56px;
+  width: auto;
+}
+
+.login-box .card {
+  border-radius: 20px;
+}
+
+.login-box-msg {
+  color: var(--df-text-dim);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.login-box .input-group-text {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--df-surface-border);
+  color: var(--df-text-faint);
+}
+
+/* ---------- rodapé ---------- */
+
+.app-footer {
+  background: transparent !important;
+  border-top: 1px solid var(--df-surface-border) !important;
+  color: var(--df-text-faint);
+}
+
+/* ---------- dashboard (server/templates/admin/index.html) ---------- */
+
+.df-kpis {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin-bottom: 18px;
+}
+
+.df-kpi {
+  background: var(--df-surface);
+  border: 1px solid var(--df-surface-border);
+  border-radius: var(--df-radius);
+  overflow: hidden;
+  padding: 14px 16px;
+  position: relative;
+}
+
+/* Um fio de cor no topo do cartão, na cor do que ele mede — é o que deixa a fileira legível
+   de relance, sem obrigar a ler os quatro rótulos. */
+.df-kpi::before {
+  background: linear-gradient(90deg, var(--df-blue), var(--df-accent));
+  content: '';
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.df-kpi--sessoes::before {
+  background: linear-gradient(90deg, var(--df-cyan), var(--df-blue));
+}
+
+.df-kpi--catalogo::before {
+  background: linear-gradient(90deg, var(--df-live), var(--df-cyan));
+}
+
+.df-kpi--config::before {
+  background: linear-gradient(90deg, var(--df-hot), var(--df-accent));
+}
+
+.df-kpi__label {
+  color: var(--df-text-faint);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.df-kpi__value {
+  color: var(--df-text);
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 6px 0 2px;
+}
+
+.df-kpi__hint {
+  color: var(--df-text-dim);
+  font-size: 0.76rem;
+  margin: 0;
+}
+
+.df-avisos {
+  background: rgba(245, 168, 61, 0.08);
+  border: 1px solid rgba(245, 168, 61, 0.35);
+  border-radius: 12px;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+}
+
+.df-avisos__titulo {
+  color: var(--df-hot);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.df-avisos ul {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.84rem;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.df-grupo__nome {
+  align-items: center;
+  color: var(--df-text-faint);
+  display: flex;
+  font-size: 0.66rem;
+  font-weight: 700;
+  gap: 8px;
+  letter-spacing: 0.16em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.df-grupo__nome::after {
+  background: var(--df-surface-border);
+  content: '';
+  flex: 1;
+  height: 1px;
+}
+
+.df-atalho {
+  align-items: center;
+  border-bottom: 1px solid var(--df-surface-border);
+  display: flex;
+  gap: 12px;
+  padding: 10px 2px;
+}
+
+.df-atalho:last-child {
+  border-bottom: 0;
+}
+
+.df-atalho__icone {
+  color: var(--df-accent-2);
+  flex: 0 0 20px;
+  text-align: center;
+}
+
+.df-atalho__nome {
+  font-weight: 700;
+}
+
+.df-atalho__desc {
+  color: var(--df-text-dim);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 400;
+}
+
+.df-atalho__acoes {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ---------- celular ----------
+   O painel é ferramenta de mesa, mas o pedido de suporte chega no celular. O mínimo é a
+   tabela poder rolar em vez de espremer a coluna do e-mail até virar uma letra por linha. */
+@media (max-width: 640px) {
+  #result_list,
+  .table-responsive {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .df-kpi__value {
+    font-size: 1.5rem;
+  }
+}

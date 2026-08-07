@@ -1,0 +1,74 @@
+{% load jazzmin %}
+{% comment %} Cópia do `admin/includes/fieldset.html` do jazzmin com UMA correção (T-130).
+
+   O original imprime a descrição do fieldset como `{{ fieldset.description }}`, sem `|safe`, e
+   dentro do `<strong>` do cabeçalho, em itálico e precedida de um travessão. Duas consequências
+   neste projeto:
+
+   1. **O HTML aparecia como texto.** As descrições de `api/admin.py` usam `<b>` e `<code>` (o
+      admin do Django as trata como confiáveis — o próprio `fieldset.html` dele usa `|safe`),
+      então a tela mostrava literalmente `<b>Validade</b> vazia = sem prazo`.
+   2. **Aviso vira legenda de título.** São parágrafos de 2 a 4 linhas dizendo o que quebra ao
+      salvar errado ("`daily_sessions = 1` no plano default desliga o produto"). Em itálico,
+      colados ao nome da seção, ninguém lê.
+
+   Aqui a descrição sai do título e vira um bloco próprio no topo do corpo do card, com a barra
+   roxa que o `digitalfit.css` desenha em `.card-body > .description`.
+
+   O RESTO do arquivo é do jazzmin, verbatim. Numa atualização dele, é o que precisa ser
+   comparado de novo. {% endcomment %}
+{% if card %}
+<div class="card {{ fieldset.classes|cut:"collapse" }}">
+    {% if card_header and fieldset.name %}
+        <div class="card-header">
+            <div class="card-title">
+                <strong>{{ fieldset.name }}</strong>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="p-5{% if fieldset.name %} card-body{% endif %}">
+        {% if fieldset.description %}
+            <div class="description">{{ fieldset.description|safe }}</div>
+        {% endif %}
+{% endif %}
+
+    {% for line in fieldset %}
+    <div class="form-group{% if line.fields|length == 1 and line.errors %} errors{% endif %}{% if not line.has_visible_field %} hidden{% endif %}{% for field in line %}{% if field.field.name %} field-{{ field.field.name }}{% endif %}{% endfor %}">
+        <div class="row">
+            {% for field in line %}
+                <label class="{% if not line.fields|length == 1 and forloop.counter != 1 %}col-auto {% else %}col-sm-3 {% endif %}text-start" for="id_{{ field.field.name }}">
+                    {{ field.field.label|capfirst }}
+                    {% if field.field.field.required %}
+                    <span class="text-red">* </span>
+                    {% endif %}
+                </label>
+                <div class="{% if not line.fields|length == 1 %} col-auto  fieldBox {% else %} col-sm-9 {% endif %}
+                             {% if field.field.name %} field-{{ field.field.name }}{% endif %}
+                             {% if not field.is_readonly and field.errors %} errors{% endif %}
+                             {% if field.field.is_hidden %} hidden {% endif %}
+                             {% if field.is_checkcard %} checkcard-row{% endif %}">
+                    {% if field.is_readonly %}
+                        <div class="readonly">{{ field.contents }}</div>
+                    {% else %}
+                        {{ field.field }}
+                    {% endif %}
+                    <div class="help-block red">
+                        {% if not line.fields|length == 1 and not field.is_readonly %}{{ field.errors }}{% endif %}
+                    </div>
+                    {% if field.field.help_text %}
+                        <div class="help-block">{{ field.field.help_text|safe }}</div>
+                    {% endif %}
+                    <div class="help-block text-red">
+                        {% if line.fields|length == 1 %}{{ line.errors }}{% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+{% if card %}
+    </div>
+</div>
+{% endif %}

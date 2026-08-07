@@ -164,6 +164,8 @@ class Plan(models.Model):
     class Meta:
         db_table = "plan"
         ordering = ["ordem", "slug"]
+        verbose_name = "plano"
+        verbose_name_plural = "planos"
 
     def __str__(self) -> str:
         return f"{self.nome} ({self.slug})"
@@ -259,6 +261,8 @@ class Exercise(models.Model):
     class Meta:
         db_table = "exercise"
         ordering = ["ordem", "slug"]
+        verbose_name = "exercício"
+        verbose_name_plural = "exercícios"
 
     def __str__(self) -> str:
         return f"{self.display_name} ({self.slug})"
@@ -297,6 +301,8 @@ class ExerciseGuideStep(models.Model):
     class Meta:
         db_table = "exercise_guide_step"
         ordering = ["ordem", "pk"]
+        verbose_name = "passo do guia"
+        verbose_name_plural = "passos do guia"
 
     def __str__(self) -> str:
         return f"{self.exercise.slug} #{self.ordem}"
@@ -438,22 +444,57 @@ class User(AbstractBaseUser):
 
     class Meta:
         db_table = "app_user"
+        verbose_name = "conta"
+        verbose_name_plural = "contas"
 
     def __str__(self) -> str:
         return self.email
 
-    # Os dois métodos abaixo são o contrato mínimo que o painel exige de um usuário, e são a
+    # Os três métodos abaixo são o contrato mínimo que o painel exige de um usuário, e são a
     # razão de `PermissionsMixin` continuar fora (SPEC-018): respondendo aqui, o `ModelBackend`
-    # nunca é consultado, e `auth_permission`/`auth_group` seguem como as tabelas vazias que a
-    # descoberta `[A/T-022]` registrou. Quem entra no painel enxerga tudo que está registrado;
-    # granularidade por modelo entra junto com o mixin, no dia em que houver mais de um perfil
-    # de operador — e não antes, porque permissão que ninguém diferencia é só cerimônia.
+    # nunca é consultado, e `auth_user_user_permissions`/`auth_user_groups` seguem como as
+    # tabelas vazias que a descoberta `[A/T-022]` registrou. Quem entra no painel enxerga tudo
+    # que está registrado; granularidade por modelo entra junto com o mixin, no dia em que
+    # houver mais de um perfil de operador — e não antes, porque permissão que ninguém
+    # diferencia é só cerimônia.
 
     def has_perm(self, perm: str, obj: object | None = None) -> bool:
         return self.is_active and self.is_staff
 
     def has_module_perms(self, app_label: str) -> bool:
         return self.is_active and self.is_staff
+
+    def get_all_permissions(self, obj: object | None = None) -> set[str]:
+        """A mesma resposta do `has_perm`, na forma de conjunto (T-130).
+
+        O admin do Django nunca chama isto — ele pergunta uma permissão por vez. Quem chama é o
+        tema do painel (jazzmin, `utils.get_view_permissions`), em toda página, para decidir
+        quais atalhos de modelo desenhar num menu. Sem o método a resposta seria `AttributeError`
+        na primeira tela depois do login, e não um menu a menos.
+
+        Devolver `set()` seria mais curto e estaria ERRADO da pior maneira: um atalho de modelo
+        configurado no menu simplesmente não apareceria, sem erro nenhum para investigar —
+        enquanto `has_perm` continuaria dizendo "pode" para o mesmo modelo. Duas respostas
+        diferentes para a mesma pergunta é exatamente o que este método existe para não criar.
+
+        O conjunto sai do registro de apps e **não** da tabela `auth_permission`: assim ele não
+        depende de o `post_migrate` ter rodado, não custa uma consulta por página, e não pode
+        divergir do `has_perm` acima.
+        """
+        if not (self.is_active and self.is_staff):
+            return set()
+
+        from django.apps import apps as registro_de_apps
+        from django.contrib.auth import get_permission_codename
+
+        permissoes: set[str] = set()
+        for modelo in registro_de_apps.get_models():
+            meta = modelo._meta
+            for acao in meta.default_permissions:
+                permissoes.add(f"{meta.app_label}.{get_permission_codename(acao, meta)}")
+            for codename, _rotulo in meta.permissions:
+                permissoes.add(f"{meta.app_label}.{codename}")
+        return permissoes
 
     def to_dict(self) -> dict[str, object]:
         """Corpo do `GET /api/me` e do bloco `user` das respostas de auth."""
@@ -491,6 +532,8 @@ class SessionClaim(models.Model):
     class Meta:
         db_table = "session_claim"
         ordering = ["-created_at"]
+        verbose_name = "dono de sessão"
+        verbose_name_plural = "donos de sessão"
 
     def __str__(self) -> str:
         return f"{self.session_id} · {self.user or 'anonimo'}"
@@ -541,6 +584,8 @@ class SessionResult(models.Model):
     class Meta:
         db_table = "session_result"
         ordering = ["-created_at"]
+        verbose_name = "treino realizado"
+        verbose_name_plural = "treinos realizados"
 
     def __str__(self) -> str:
         return f"{self.session_id} · {self.exercise} · {self.rep_count} reps"

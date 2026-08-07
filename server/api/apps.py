@@ -4,6 +4,9 @@ from django.apps import AppConfig
 class ApiConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "api"
+    #: Título do grupo no painel. Sem isto o Django escreve "Api", que é o nome do pacote
+    #: Python — informação de quem escreve o código, na tela de quem opera o produto.
+    verbose_name = "Digital Fit"
 
     def ready(self) -> None:
         """Liga a invalidação do snapshot de configuração (SPEC-018, T-073).

@@ -445,6 +445,7 @@ server = [
     { name = "channels" },
     { name = "channels-redis" },
     { name = "django" },
+    { name = "django-jazzmin" },
     { name = "djangorestframework" },
     { name = "djangorestframework-simplejwt" },
     { name = "gunicorn" },
@@ -470,6 +471,7 @@ requires-dist = [
     { name = "channels", marker = "extra == 'server'", specifier = ">=4.2" },
     { name = "channels-redis", marker = "extra == 'server'", specifier = ">=4.2" },
     { name = "django", marker = "extra == 'server'", specifier = ">=5.1,<6.0" },
+    { name = "django-jazzmin", marker = "extra == 'server'", specifier = ">=3.0.5" },
     { name = "djangorestframework", marker = "extra == 'server'", specifier = ">=3.15" },
     { name = "djangorestframework-simplejwt", marker = "extra == 'server'", specifier = ">=5.3" },
     { name = "gunicorn", marker = "extra == 'server'", specifier = ">=23.0" },
@@ -512,6 +514,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a9/26/889449d521ae508b26de715954faecd8bcf3f740affb81b2d146a83b42a5/django-5.2.16.tar.gz", hash = "sha256:59ea02020c3136fce14bef0bbece21a10a4febef5eed1c51c22ae468efa22200", size = 10890894, upload-time = "2026-07-07T13:52:17.005Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4e/13/1e5e3e4c15dcecb04281b3cb2a46a4670e1cef131068e202f6040df19224/django-5.2.16-py3-none-any.whl", hash = "sha256:04f354bf9d807a86ad1a8392fe3808d362358a8eafc322848e0e43e59b24371d", size = 8311943, upload-time = "2026-07-07T13:52:11.223Z" },
+]
+
+[[package]]
+name = "django-jazzmin"
+version = "3.0.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/15/e4/17cd62e80c4876088bc5f8bca24446586a62eca386c82755894408751a44/django_jazzmin-3.0.5.tar.gz", hash = "sha256:7e39b029bddbb60f3aaf9897bd009f39f8f2bdc8a7d86beed1e943706dd79692", size = 2509734, upload-time = "2026-06-25T21:05:52.699Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/23/40/892f4c922c92d0d2b8ca5f96f556c5dc04d19ea2ea717910d8bbf2dc23fc/django_jazzmin-3.0.5-py3-none-any.whl", hash = "sha256:578fb1fc0a1b7e3b8472d2692ace60b1584ccd937c3828e2c9a89bdf94067f94", size = 2581722, upload-time = "2026-06-25T21:05:50.948Z" },
 ]
 
 [[package]]

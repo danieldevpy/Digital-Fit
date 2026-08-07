@@ -8,6 +8,12 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+# Aparência do painel (jazzmin). Vive num módulo próprio porque é conteúdo — rótulo, ícone,
+# ordem de menu —, não configuração de infra: misturá-lo aqui faria este arquivo dobrar de
+# tamanho sem que nenhuma das duas coisas ficasse mais fácil de achar. O `noqa` é porque quem
+# lê os dois nomes é o jazzmin, pelo módulo de settings, e não este arquivo.
+from core.admin_theme import JAZZMIN_SETTINGS, JAZZMIN_UI_TWEAKS  # noqa: F401
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -50,7 +56,14 @@ INSTALLED_APPS = [
     # sessão não tem quem o emita, e a autenticação do produto continua sendo só JWT.
     "django.contrib.sessions",
     "django.contrib.messages",
-    "django.contrib.admin",
+    # ANTES do `django.contrib.admin`, e a ordem é a única coisa que faz o tema existir: o
+    # loader de templates de app varre `INSTALLED_APPS` na ordem, então quem vier primeiro
+    # responde por `admin/base.html`. Invertido, o Django serve os próprios templates e o
+    # jazzmin fica instalado, carregado e invisível — sem erro nenhum para explicar por quê.
+    "jazzmin",
+    # `core.apps.PainelAdminConfig` é o `django.contrib.admin` com outro rótulo de menu — ver
+    # o módulo. O app_label continua sendo `admin`, então nada de migration muda.
+    "core.apps.PainelAdminConfig",
     "django.contrib.staticfiles",
     "channels",
     "rest_framework",
@@ -94,7 +107,12 @@ ASGI_APPLICATION = "core.asgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        # O loader de diretório roda ANTES do de app, e é só por isso que
+        # `server/templates/admin/index.html` (o painel de números da T-130) vence o
+        # `admin/index.html` do jazzmin. Dentro de um app não venceria: `api` vem depois de
+        # `jazzmin` em `INSTALLED_APPS`, e mover o app para o topo da lista só para ganhar a
+        # disputa de template trocaria um problema por outro.
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         # Os dois processadores são exigência do painel (checks `admin.E402`/`admin.E403`):
         # sem eles o Django recusa subir, e a lista ficou vazia até a SPEC-018 porque não havia
@@ -126,8 +144,20 @@ DATABASES = {
 # `DJANGO_DB_SQLITE=1` troca o banco por SQLite em memoria; quem liga isso e o conftest do
 # pytest. Fica atras de variavel, e nao de um settings_test paralelo, para que o arquivo de
 # settings testado seja EXATAMENTE o que roda em producao.
+#
+# `DJANGO_DB_SQLITE_PATH` aponta o mesmo SQLite para um ARQUIVO, e existe para um caso só:
+# abrir o painel na máquina de quem desenvolve sem subir Postgres (ver o alvo `painel` do
+# `.claude/launch.json`). Em memória isso não funcionaria — o `runserver` é multithread e cada
+# conexão receberia um banco `:memory:` próprio, então o login gravaria a sessão num banco e a
+# requisição seguinte a procuraria em outro. O sintoma seria a tela de login voltando sozinha,
+# sem erro nenhum no log.
 if _env_bool("DJANGO_DB_SQLITE", False):
-    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.environ.get("DJANGO_DB_SQLITE_PATH") or ":memory:",
+        }
+    }
 
 # Barramento de eventos (Redis Streams). Consumido pelo gateway e pelos workers.
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")

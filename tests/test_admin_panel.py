@@ -374,3 +374,120 @@ def test_cadastro_pela_api_nao_concede_o_painel(client) -> None:
 def test_me_nao_conta_ao_cliente_quem_e_operador(client, operador) -> None:
     """`GET /api/me` é payload de produto; o cliente não tem tela que dependa do painel."""
     assert "is_staff" not in operador.to_dict()
+
+
+# --- o tema e o dashboard (T-130) ---------------------------------------------------------
+
+
+def test_jazzmin_vem_antes_do_admin_nos_installed_apps() -> None:
+    """A ordem É o tema (SPEC-018 / T-130).
+
+    O loader de templates de app varre `INSTALLED_APPS` na ordem, então quem vier primeiro
+    responde por `admin/base.html`. Invertido, o painel volta a ser o do Django com o jazzmin
+    instalado, carregado e **invisível** — nenhum erro, nenhum aviso, só a tela antiga de
+    volta. É a única forma de quebrar o tema inteiro sem nada aparecer no log.
+    """
+    apps = list(settings.INSTALLED_APPS)
+    admin = next(i for i, nome in enumerate(apps) if nome.split(".")[-1].endswith("AdminConfig"))
+
+    assert apps.index("jazzmin") < admin
+
+
+def test_dashboard_proprio_vence_o_do_tema() -> None:
+    """`server/templates/` na frente dos templates de app — senão o dashboard é o do jazzmin."""
+    from django.template.loader import get_template
+
+    origem = get_template("admin/index.html").origin.name
+
+    assert origem.endswith("server/templates/admin/index.html")
+    assert get_template("admin/includes/fieldset.html").origin.name.endswith(
+        "server/templates/admin/includes/fieldset.html"
+    )
+
+
+@pytest.mark.django_db
+def test_permissoes_respondem_o_mesmo_que_has_perm(operador, comum) -> None:
+    """`get_all_permissions` é a versão em conjunto do `has_perm` — e tem de concordar.
+
+    Quem chama é o tema, em toda página, para decidir quais atalhos de modelo desenhar. Se as
+    duas respostas divergirem, um atalho configurado no menu some sem erro nenhum enquanto o
+    `has_perm` continua dizendo "pode".
+    """
+    permissoes = operador.get_all_permissions()
+
+    assert "api.view_user" in permissoes
+    assert "api.change_plan" in permissoes
+    assert all(operador.has_perm(perm) for perm in permissoes)
+
+    # E o contrário: quem não entra no painel não tem nenhuma.
+    assert comum.get_all_permissions() == set()
+    operador.is_active = False
+    assert operador.get_all_permissions() == set()
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_dashboard_mostra_os_numeros_da_operacao(client, operador) -> None:
+    SessionResult.objects.create(
+        session_id="s-dash", exercise="jumping_jack", mode="edge", reason="timeout", rep_count=7
+    )
+    client.force_login(operador)
+
+    corpo = client.get(PAINEL).content.decode()
+
+    assert "Sessões hoje" in corpo
+    assert "7 repetições contadas" in corpo
+    # A faixa não é enfeite: é ela que diz sob qual configuração as sessões de hoje nasceram.
+    assert "Configuração" in corpo
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_dashboard_sobrevive_a_um_numero_que_nao_da_para_calcular(
+    client, operador, monkeypatch
+) -> None:
+    """P2 da SPEC-018 na forma "nenhum número derruba o painel".
+
+    O painel sem a faixa continua servindo para tudo que servia antes. Um painel que responde
+    500 na home não serve nem para consertar o que quebrou.
+    """
+    from api.templatetags import painel as tags
+
+    def explode() -> dict:
+        raise RuntimeError("banco fora")
+
+    monkeypatch.setattr(tags, "_resumo", explode)
+    client.force_login(operador)
+
+    resposta = client.get(PAINEL)
+
+    assert resposta.status_code == 200
+    assert "Sessões hoje" not in resposta.content.decode()
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_aviso_de_exercicio_sem_cadencia(client, operador) -> None:
+    """Cadência 0 desliga o card de calorias sem erro nenhum (T-128). O painel avisa."""
+    from api.models import Exercise
+
+    Exercise.objects.filter(enabled=True).update(ref_cadence_rpm=0)
+    client.force_login(operador)
+
+    corpo = client.get(PAINEL).content.decode()
+
+    assert "card de calorias mostra" in corpo
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_descricao_do_fieldset_chega_como_html(client, operador) -> None:
+    """As descrições de `api/admin.py` usam `<b>` e `<code>`, e o admin do Django as trata
+    como confiáveis. O template do tema as escapava: a tela mostrava a tag como texto, no
+    lugar exato onde o operador lê o que quebra ao salvar errado."""
+    client.force_login(operador)
+
+    corpo = client.get(f"{PAINEL}api/user/{operador.pk}/change/").content.decode()
+
+    assert "<b>Ferramentas de diagnóstico</b>" in corpo
+    assert "&lt;b&gt;Ferramentas" not in corpo
