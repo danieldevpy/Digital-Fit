@@ -1,25 +1,13 @@
 """Ajustes globais da suíte.
 
-Carregado antes de o pytest-django chamar `django.setup()`, que é o que torna possível
-escolher o banco aqui: depois do setup, `settings.DATABASES` já teria sido lido.
+**Banco, cache e painel NÃO são escolhidos aqui** — quem faz isso é `core/settings_test.py`,
+o `DJANGO_SETTINGS_MODULE` da suíte (`pyproject.toml`). Este arquivo já tentou fazê-lo com
+`os.environ.setdefault`, contando ser lido antes do `django.setup()` do pytest-django; neste
+ambiente ele não é, e a suíte inteira morria tentando Postgres e Redis. Ver a Descoberta
+`[A/T-072]` do BACKLOG e a T-076.
+
+O que sobra aqui é o que precisa de fixture: estado que muda ENTRE testes.
 """
-
-import os
-
-# Postgres não existe na máquina de teste nem na CI. Os testes que tocam o banco (SPEC-010)
-# rodam em SQLite em memória; o schema vem das MESMAS migrations que rodam em produção, então
-# uma migration quebrada continua quebrando o teste.
-os.environ.setdefault("DJANGO_DB_SQLITE", "1")
-
-# Cache em memória pelo mesmo motivo: o rate limit das rotas de auth (SPEC-011) usa o cache
-# do Django, e apontá-lo para Redis exigiria Redis no pytest. O contador continua sendo
-# exercitado de verdade — só não atravessa a rede.
-os.environ.setdefault("DJANGO_CACHE_LOCMEM", "1")
-
-# O painel (SPEC-018) NÃO é ligado por variável aqui de propósito: `DJANGO_ENABLE_ADMIN` é lida
-# na importação do settings, e esta conftest não roda antes dela (ver Descobertas do BACKLOG,
-# `[A/T-072]`). Os testes que precisam do painel montam a URLconf por
-# `@pytest.mark.urls("tests.urls_painel")`, que é explícito e não depende de ordem de import.
 
 import pytest
 

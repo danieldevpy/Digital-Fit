@@ -5,6 +5,69 @@
 
 ---
 
+## 2026-08-13 (44) · T-076 — o gate que dependia de alguém lembrar
+
+Abertura da corrida até o MVP (plano aprovado nesta data: Bloco A + M1 do engajamento +
+operação, pagamento por último). Etapa 0 é medir o estado real antes de mexer em qualquer
+coisa — e a primeira medição já cobrou uma dívida.
+
+**O estado como estava.** `uv run pytest`, sem variável nenhuma, **não roda**: a suíte inteira
+morre em `redis.exceptions` na coleta. Com `DJANGO_DB_SQLITE=1 DJANGO_CACHE_LOCMEM=1` na linha
+de comando, **823 passam e 1 falha** — `test_smoke.py::test_settings_leem_ambiente`, que afirma
+`ENGINE == postgresql` justamente enquanto a suíte roda em SQLite. Os dois sintomas são o mesmo
+defeito, descrito em duas Descobertas (`[A/T-072]` e `[A/T-106]`) e nunca fechado.
+
+**A causa.** `tests/conftest.py` fazia `os.environ.setdefault("DJANGO_DB_SQLITE", "1")` contando
+ser lido antes do `django.setup()`. O `pytest_load_initial_conftests` do pytest-django força a
+leitura do settings **antes** dos conftests, então as duas linhas chegavam tarde. O contorno
+virou hábito: quem rodava a suíte passava as variáveis na mão. *Gate que depende de alguém
+lembrar de uma variável não é gate* — e é sobre este que a corrida inteira se apoia.
+
+**A correção: `server/core/settings_test.py`.** Das duas saídas que a Descoberta propunha
+(`pytest-env` ou módulo de settings), a segunda não precisa de dependência nova e resolve por
+construção — o módulo **é** o que o Django importa, então o ambiente está ajustado antes de
+qualquer leitura, em qualquer ordem de import. Ele ajusta duas variáveis e faz
+`from core.settings import *`: o teste roda contra a configuração de verdade, e opção nova
+nasce valendo sem ninguém lembrar de copiar.
+
+**Decisões:**
+
+- **`setdefault`, não atribuição.** Quem quiser rodar a suíte contra Postgres de verdade
+  (`DJANGO_DB_SQLITE=0` na frente do comando) continua mandando. O módulo escolhe o default,
+  não sequestra a escolha.
+- **O teste contraditório passou a cobrar a REGRA, não o valor.** `test_settings_leem_ambiente`
+  agora importa `core.settings` num **subprocesso** com o ambiente controlado e verifica as duas
+  pontas: sem `DJANGO_DB_SQLITE` dá `postgresql` e o `REDIS_URL` do ambiente; com ela, `sqlite3`.
+  Em processo não teria como perguntar nada — `django.conf.settings` guarda uma cópia feita no
+  `setup()`, e a suíte já subiu em SQLite. O subprocesso é o recurso que o
+  `test_workers_nao_importam_django`, logo abaixo dele, já usava pelo mesmo motivo: a pergunta é
+  sobre o que acontece na **importação**.
+- **As variáveis da suíte são removidas do ambiente do subprocesso** (`DJANGO_DB_SQLITE`,
+  `DJANGO_CACHE_LOCMEM`, `DJANGO_DB_SQLITE_PATH`). Sem isso o teste do caminho de produção
+  herdaria o SQLite do processo pai — e passaria por engano, que é exatamente o erro que ele
+  existe para não repetir.
+- **A `conftest.py` ficou só com o que precisa de fixture** (a limpeza de cache do rate limit
+  entre testes). Escolha de banco e de cache saiu de lá, e o docstring que prometia uma ordem de
+  execução que não existe mais saiu junto.
+
+**Um achado de graça no mesmo caminho:** `ruff format --check .` acusava
+`tests/test_catalog_api.py` — e a CI **roda esse comando**. É a Descoberta `[T-075]` ("o
+repositório já anda fora do formatador") materializada num push que teria falhado. Formatado, e
+o repositório inteiro está limpo (152 arquivos).
+
+**Gates:** `ruff check` limpo, `ruff format --check` limpo, `pytest` **824 passando, zero
+falhas, sem uma única variável na linha de comando**. Web verde e intocado (45 arquivos, 513
+testes), rodado só para carimbar a linha de base da Etapa 0.
+
+**Pendências:**
+
+- Ninguém abriu o GitHub Actions nesta sessão (não há `gh` na máquina), então "a CI está verde"
+  segue sendo suposição — vale conferir junto com a T-027, que é onde o lado web entra na CI.
+- `web/public/img/herofamale.png` está sem versionar e sem task; ficou de fora dos commits desta
+  sessão por não pertencer a nenhuma.
+
+---
+
 ## 2026-08-07 (43) · T-130 — o painel ganha pele, e passa a existir no domínio
 
 Pedido do Daniel: *"preciso que o admin da produção esteja com white noise, quero um admin

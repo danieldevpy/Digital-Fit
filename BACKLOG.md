@@ -111,7 +111,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-064 | Modo Assinatura: duração configurável, modos de exercício, acúmulo de kcal, Modo Efeito — capacidades vêm do `Plan` da T-073 (a flag de plano deixa de ser desta task) | 016/018 | todo |
 | T-065 | Perfil físico (peso/altura), kcal MET real, IMC, série temporal de peso, Progresso realista | 017 | todo |
 | T-066 | GIF/vídeo de demonstração por exercício (Escolha + Guia) | 015 | todo |
-| T-076 | A suíte roda no Postgres do compose, não em SQLite: as variáveis da `conftest.py` não alcançam mais o settings (ver Descobertas `[A/T-072]`) — mover para `pytest-env` ou `core/settings_test.py`, e conferir o job Python da CI | — | todo |
+| T-076 | A suíte roda no Postgres do compose, não em SQLite: as variáveis da `conftest.py` não alcançam mais o settings (ver Descobertas `[A/T-072]`) — mover para `pytest-env` ou `core/settings_test.py`, e conferir o job Python da CI | — | **feito** (2026-08-13) — `core/settings_test.py` é o `DJANGO_SETTINGS_MODULE` da suíte; `pytest` roda sem variável na mão (824 verdes) e o smoke contraditório passou a cobrar a regra |
 | T-077 | Frame atrasado ressuscitava a sessão encerrada e o relatório fantasma sobrescrevia o bom (26 reps viraram 4 em produção): lápide no analysis-worker + cliente para de transmitir ao fim | 009/010 | done |
 | T-078 | `duration_ms` do relatório mistura dois relógios (`session.started` é do servidor, `session.calibrated` e frames são do navegador) — ver Descobertas `[A/T-077]` | 010 | todo |
 | T-079 | Perfil: histórico vira lista rolável de altura limitada (não come a tela) e o "Sair" deixa de disputar hierarquia com o "Fechar" — primário é fechar, sair é discreto e pede confirmação | 011/014 | done |
@@ -305,7 +305,10 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
   na linha de comando tudo passa **menos** `test_smoke.py::test_settings_leem_ambiente`, que
   afirma `ENGINE == postgresql` — ou seja, o teste e o conftest não podem estar certos ao mesmo
   tempo. Um dos dois está errado desde sempre; provavelmente o teste, que deveria checar a
-  *leitura* da variável e não o valor final.
+  *leitura* da variável e não o valor final. **Fechada pela T-076 em 2026-08-13**: o palpite
+  estava certo — era o teste. Ele agora importa `core.settings` num subprocesso com o ambiente
+  controlado e cobra as duas pontas da variável, e a escolha de banco/cache saiu da `conftest`
+  para o `core/settings_test.py`, que é o próprio `DJANGO_SETTINGS_MODULE` da suíte.
 
 - **[A/T-108] A régua de cena é estática por sessão, mas a vista da câmera só se conhece depois
   do primeiro frame no chão.** `scene_hints()` é lido **uma vez**, no `__post_init__` do
@@ -493,6 +496,12 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
   (que precisa da suíte como está para não confundir causa e efeito): ou as variáveis migram
   para o `[tool.pytest.ini_options]` via `pytest-env`, ou nasce um `core/settings_test.py`
   apontado por `DJANGO_SETTINGS_MODULE` no `pyproject.toml`. **Proposta: T-076.**
+  **Fechada em 2026-08-13 pela segunda saída** (`core/settings_test.py`), que não precisa de
+  dependência nova. O item (a) continua **sem resposta medida**: não há `gh` na máquina e a
+  sessão não abriu o Actions (`origin` é `github.com/danieldevpy/Digital-Fit`). O que dá para
+  dizer é que a pergunta perdeu o veneno — a suíte agora escolhe SQLite pelo próprio
+  `DJANGO_SETTINGS_MODULE`, então a CI passa a rodar o mesmo banco que a máquina de quem
+  desenvolve, com ou sem container de pé.
 - **[A/T-072] Teste de formulário não cobre tela de admin.** O `ContaCreateForm` instanciado à
   mão validava e salvava perfeitamente enquanto `GET /painel/api/user/add/` respondia **500**:
   os `add_fieldsets` pedem `usable_password`, campo que só existe em `AdminUserCreationForm`

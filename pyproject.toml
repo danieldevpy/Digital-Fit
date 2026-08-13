@@ -110,7 +110,9 @@ ignore = ["RUF002", "RUF003"]
 # server/ no path para que `core.settings` e `api.*` sejam importaveis;
 # raiz no path para `workers.*` e `eval.*`.
 pythonpath = [".", "server"]
-DJANGO_SETTINGS_MODULE = "core.settings"
+# `core.settings_test`, nao `core.settings`: e ele quem garante SQLite e cache em memoria ANTES
+# de o Django ler a configuracao. A conftest nao consegue (T-076) — ver o modulo.
+DJANGO_SETTINGS_MODULE = "core.settings_test"
 testpaths = ["tests"]
 addopts = "-q"
 asyncio_mode = "auto"

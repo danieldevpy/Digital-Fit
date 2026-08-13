@@ -65,9 +65,7 @@ def test_todo_exercicio_tem_cadencia_de_referencia() -> None:
     preenchido, e é exatamente aí que se esquece o par. O sintoma seria mudo: o card de
     calorias simplesmente não apareceria naquele exercício.
     """
-    sem_cadencia = [
-        e.slug for e in Exercise.objects.all() if e.met and not e.ref_cadence_rpm
-    ]
+    sem_cadencia = [e.slug for e in Exercise.objects.all() if e.met and not e.ref_cadence_rpm]
 
     assert sem_cadencia == [], f"MET sem cadência de referência: {sem_cadencia}"
 
