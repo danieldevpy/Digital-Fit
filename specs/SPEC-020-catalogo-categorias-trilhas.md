@@ -94,7 +94,16 @@ precisam de mais teste" usando o que a SPEC-012 já construiu:
 |---|---|---|
 | `beta` | limiares calibrados no gerador sintético (T-052); fixtures verdes | só contas com ferramentas de dev (`is_admin`) — nunca por plano |
 | `calibrado` | corpus real ≥ 8 vídeos rotulados no `evalctl`, erro ≤ ±1 rep/20; varredura de limiares registrada no DEVLOG | assinante, com selo **Laboratório 🧪** |
-| `validado` | calibrado **+** paridade edge×cloud×browser (fluxo T-040) **+** ≥ 1 semana em produção sem anomalia (taxa de sessões zero-rep do exercício < 20% — o sintoma medido em `[A/T-032]` de exercício errado/quebrado) | todo mundo; único nível que entra em trilha |
+| `validado` | calibrado **+** paridade edge×cloud×browser (fluxo T-040) **+** ≥ 1 semana em produção sem anomalia (< 20% das sessões **`completed`** contando zero — o sintoma medido em `[A/T-032]` de exercício errado/quebrado) | todo mundo; único nível que entra em trilha |
+
+**A taxa é sobre as sessões `completed`, e essa palavra é o critério inteiro** (T-133). Uma
+sessão morre por quatro motivos, e só `completed` significa que a análise correu até o fim:
+`no_data` (10 s sem frame), `aborted` e `timeout` dizem respeito a captura, desistência e TTL —
+nenhum dos três diz nada sobre contagem. A versão anterior desta linha dizia apenas "taxa de
+sessões zero-rep", e a leitura literal dela custou semanas: treze sessões de agachamento com
+zero repetição, **todas** `no_data`, foram lidas como "o exercício não conta" e geraram uma task
+de alta prioridade contra um bug que não existia. O `exercise_health` imprime as duas colunas
+lado a lado exatamente para que ninguém repita a soma.
 
 **Onde a maturidade mora, e como o plano a lê.** `Exercise.maturity` é coluna do catálogo
 (SPEC-018/T-074) e `Plan.min_maturity` é a capacidade que a lê — `validado` para anon e Free,
@@ -106,13 +115,21 @@ função que serve o `GET /api/config` **e** a admissão, para que não exista c
 
 ### Saúde do exercício (o instrumento que falta)
 
-`validado` exige "taxa de sessões zero-rep < 20% por uma semana" e **hoje ninguém mede isso** —
-é um critério mensurável sem instrumento, o que na prática faz a promoção virar opinião. Entra
-junto: `manage.py exercise_health [--dias N]`, que lê `SessionResult` e imprime, por exercício,
-total de sessões, taxa de zero-rep e cadência mediana. É a materialização do sintoma que o
-`[A/T-032]` descreveu (exercício errado ou quebrado aparece como sessão sem repetição) e serve
-tanto para promover quanto para **rebaixar**. Comando, não tela: é leitura de operador, roda no
-mesmo processo que já tem ORM, e não custa superfície de admin.
+`validado` exige "taxa de sessões zero-rep < 20% por uma semana" e por muito tempo **ninguém
+media isso** — um critério mensurável sem instrumento faz a promoção virar opinião, e foi assim
+que polichinelo e agachamento chegaram a `validado`. O instrumento existe desde a T-104:
+`manage.py exercise_health [--dias N]`, que lê `SessionResult` e imprime, por exercício, total
+de sessões, quantas chegaram a `completed`, quantas dessas contaram zero, a taxa, as `no_data`
+**em coluna separada** e a cadência mediana. É a materialização do sintoma que o `[A/T-032]`
+descreveu (exercício errado ou quebrado aparece como sessão sem repetição) e serve tanto para
+promover quanto para **rebaixar**. Comando, não tela: é leitura de operador, roda no mesmo
+processo que já tem ORM, e não custa superfície de admin — o painel mostra só o que exige ação,
+pela faixa de avisos do dashboard (T-130), lendo os mesmos números do mesmo módulo.
+
+Duas travas de leitura, aprendidas na T-133 e embutidas no comando: `no_data` fica fora da taxa,
+e abaixo de 5 sessões `completed` o comando **se recusa a dar veredito** (imprime `poucas`).
+Duas sessões com um zero dariam "50%", e rebaixar um exercício por causa disso seria decidir no
+ruído — a spec pede uma semana de produção, não duas sessões.
 
 O **Laboratório** transforma o assinante em beta tester voluntário — e em fonte de corpus: o
 dataset-writer já grava keypoints de toda sessão (SPEC-010), então cada sessão de Laboratório é

@@ -481,6 +481,44 @@ def test_aviso_de_exercicio_sem_cadencia(client, operador) -> None:
 
 @pytest.mark.django_db
 @pytest.mark.urls("tests.urls_painel")
+def test_aviso_de_exercicio_no_ar_contando_zero(client, operador) -> None:
+    """T-104: o exercício não quebra nada — devolve relatório vazio a quem treinou."""
+    for i in range(4):
+        SessionResult.objects.create(
+            session_id=f"s-zero-{i}",
+            exercise="squat",
+            mode="edge",
+            reason="completed",
+            rep_count=0,
+        )
+    SessionResult.objects.create(
+        session_id="s-conta", exercise="squat", mode="edge", reason="completed", rep_count=12
+    )
+    client.force_login(operador)
+
+    corpo = client.get(PAINEL).content.decode()
+
+    assert "contando zero repetição" in corpo
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
+def test_sessao_sem_frame_nao_vira_aviso_de_contagem(client, operador) -> None:
+    """`no_data` é captura, não contagem (T-133). Um painel que grita errado ensina o
+    operador a ignorar a faixa — que é o único lugar onde o grito certo vai aparecer."""
+    for i in range(10):
+        SessionResult.objects.create(
+            session_id=f"s-nd-{i}", exercise="squat", mode="edge", reason="no_data", rep_count=0
+        )
+    client.force_login(operador)
+
+    corpo = client.get(PAINEL).content.decode()
+
+    assert "contando zero repetição" not in corpo
+
+
+@pytest.mark.django_db
+@pytest.mark.urls("tests.urls_painel")
 def test_descricao_do_fieldset_chega_como_html(client, operador) -> None:
     """As descrições de `api/admin.py` usam `<b>` e `<code>`, e o admin do Django as trata
     como confiáveis. O template do tema as escapava: a tela mostrava a tag como texto, no

@@ -27,6 +27,7 @@ from django import template
 from django.db.models import Q, Sum
 from django.utils import timezone
 
+from api.exercise_health import JANELA_PADRAO_DIAS, LIMITE_ZERO, coletar
 from api.models import Exercise, Plan, SessionResult, SiteConfig, User
 
 logger = logging.getLogger(__name__)
@@ -115,7 +116,39 @@ def _avisos(plano_default: Plan | None, config: SiteConfig | None) -> list[str]:
             + ", ".join(sem_kcal)
         )
 
+    avisos.extend(_avisos_de_saude())
     return avisos
+
+
+def _avisos_de_saude() -> list[str]:
+    """Exercício no ar contando zero para gente de verdade (T-104 / SPEC-020).
+
+    Entra na faixa pelo mesmo critério dos outros avisos: é **silencioso**. Nada quebra, nada
+    responde erro — o exercício simplesmente devolve relatório vazio para quem treinou, e só
+    aparece aqui ou numa reclamação.
+
+    A regra é a do comando, e vem de lá para que os dois nunca discordem: a taxa é sobre as
+    sessões `completed`, e sessão sem frame (`no_data`) fica de fora. Somar as duas foi o que
+    fez o agachamento parecer quebrado por semanas (T-133) — e um painel que grita errado é
+    pior que um painel calado, porque ensina o operador a ignorar a faixa.
+    """
+    acima = [
+        exercicio
+        for exercicio in coletar(JANELA_PADRAO_DIAS)
+        if exercicio.enabled and exercicio.veredito == "atencao"
+    ]
+    if not acima:
+        return []
+    detalhes = ", ".join(
+        f"{e.display_name} ({e.zeradas}/{e.completas})"
+        for e in acima
+        # `taxa_zero` não é None aqui: o veredito `atencao` exige sessões completas.
+    )
+    return [
+        f"Exercício no ar com mais de {LIMITE_ZERO * 100:.0f}% das sessões completas contando "
+        f"zero repetição, nos últimos {JANELA_PADRAO_DIAS} dias: {detalhes}. "
+        "Detalhe por `manage.py exercise_health`."
+    ]
 
 
 #: Para que serve cada tela, na linguagem de quem abre o painel — "trocar a senha de alguém",

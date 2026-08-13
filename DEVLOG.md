@@ -5,6 +5,83 @@
 
 ---
 
+## 2026-08-13 (46) · T-104 — a promoção deixa de ser opinião
+
+O critério de `validado` da SPEC-020 é "< 20% de sessões zero-rep por uma semana", e até hoje
+ninguém media isso. Critério mensurável sem instrumento vira opinião — e foi por opinião que o
+polichinelo e o agachamento chegaram a `validado`.
+
+### A tabela, contra o banco de verdade
+
+```
+saude dos exercicios · ultimos 30 dia(s)
+exercicio               maturidade   sessoes  completas  zeradas    taxa   sem dado   cadencia  veredito
+Polichinelo             validado         211         17        2   11.8%  171 (81%)   50.0 rpm  ok
+Agachamento             validado          17          4        0    0.0%   13 (76%)   27.3 rpm  poucas (<5)
+Flexão de braço         beta              28         17        6   35.3%   11 (39%)   38.2 rpm  ATENCAO
+Abdominal               beta               0         --       --      --         --         --  sem sessao
+```
+
+Quatro coisas verdadeiras, na primeira execução:
+
+1. **A flexão em 35,3% é passado.** Os 6 zeros são de 2026-08-06, entre 04:05 e 04:27,
+   `config_version 7` — a janela da regressão da entrada 40, corrigida às 04:34. Na janela de
+   7 dias que a spec pede, a flexão dá **0,0% e `ok`**. A janela não é parâmetro de conforto:
+   é o que separa "está quebrado" de "esteve quebrado".
+2. **O agachamento não tem sessões suficientes para veredito**, e o comando diz isso em vez de
+   inventar um. Quatro sessões completas não sustentam promoção nem rebaixamento.
+3. **`no_data` domina** — 171 de 211 no polichinelo. O comando o mostra ao lado, nunca dentro
+   da taxa, e a legenda diz o que fazer com ele.
+4. **O abdominal está no ar sem nenhuma sessão real.** É a mesma dívida que o
+   `SEM_MATERIAL_REAL` do `test_corpus_regressao.py` declara, agora visível pelo lado da
+   produção também.
+
+### A palavra que virou o critério
+
+A SPEC-020 dizia "taxa de sessões zero-rep < 20%". A leitura literal disso é o que custou as
+semanas da T-133. A spec foi corrigida para dizer **`completed`**, com o motivo escrito: das
+quatro razões de fim, só ela significa que a análise correu até o fim. `no_data`, `aborted` e
+`timeout` falam de captura, desistência e TTL.
+
+Duas travas de leitura ficaram embutidas no comando, e são a parte que mais protege:
+
+- **`no_data` fora da taxa.** Tem teste próprio, e o docstring dele explica o caso do
+  agachamento — quem simplificar isso um dia vai encontrar a conta de volta.
+- **Abaixo de 5 sessões completas, sem veredito.** Duas sessões com um zero dariam "50%".
+  Rebaixar um exercício por isso é decidir no ruído, e a spec pede uma semana, não duas sessões.
+
+### Decisões
+
+- **A conta mora em `api/exercise_health.py`, não no comando.** O painel lê os mesmos números:
+  dois lugares calculando "taxa de zero-rep" acabariam discordando, e no dia em que
+  discordassem ninguém saberia qual acreditar.
+- **A faixa do painel só grita o que exige ação** — exercício **no ar** acima do limite. Um
+  painel que grita errado ensina o operador a ignorar a faixa, que é o único lugar onde o
+  grito certo vai aparecer. Tem teste dos dois lados: o caso que avisa, e o caso `no_data` que
+  não pode avisar.
+- **Exercício desligado continua na tabela.** Ele foi desligado justamente porque alguém viu um
+  número aqui; sumir com a linha apagaria a prova.
+- **Slug que saiu do catálogo também.** As sessões dele não sumiram do banco.
+- **`--json`** porque este número vai para o DEVLOG toda vez que alguém promover ou rebaixar.
+
+### Gates
+
+`ruff check` e `format --check` limpos; `pytest` com **844 passando** (+14). Rodado também
+contra o Postgres de dev pelo container (`docker compose exec api`), que é o uso real.
+
+### Pendências
+
+- **O veredito ainda não decide nada sozinho**, e é de propósito: promoção e rebaixamento
+  continuam sendo mudança de `maturity` no painel, por gente. Automatizar isso é a Evolução da
+  SPEC-020 e precisa de mais de uma semana de dado real antes de ser desenhado.
+- **Os números acima são de banco de desenvolvimento.** 171 `no_data` de polichinelo com 3,3 s
+  de média é assinatura de quem abre e fecha o app. O critério da SPEC-020 só passa a valer
+  quando o comando rodar contra produção — o que ainda depende do lançamento.
+- **`no_data` continua sem dono.** Agora ele é visível e nomeado, mas o que fazer quando um
+  usuário real cai nele (a tela mostra relatório vazio) não está desenhado em spec nenhuma.
+
+---
+
 ## 2026-08-13 (45) · T-133 — o agachamento nunca esteve quebrado
 
 Etapa 1.1 da corrida ao MVP: medir a contagem no caminho que o usuário usa, antes de mexer em
