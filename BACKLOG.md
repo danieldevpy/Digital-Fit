@@ -41,6 +41,7 @@
 | T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | done |
 | T-048 | Gate das ferramentas de dev: separadas da UI de produto, liberadas por conta (`is_admin`) para inspecionar produção | 012/011 | done |
 | T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness — dentro do gate da T-048, nunca na UI de produto | 012 | done — falta 1 passada manual (abrir um vídeo do corpus no navegador e exportar o JSON) |
+| T-129 | Modo gravação (`?record=1`, mesmo direito da T-048): origem de vídeo em arquivo liberada **com a interface do usuário comum** — sem chip de diagnóstico, sem gravador de fixtures, sem texto de erro de dev. Existia o par tudo-ou-nada (arquivo + diagnóstico na tela, ou nenhum dos dois) e gravar material do produto precisava do meio | 012/014 | **feito** (2026-08-07) |
 | T-041 | `evalctl replay --ws`: injetar keypoints gravados via gateway (integração + carga sintética) | 012 | todo |
 | T-049 | Preparação "3, 2, 1" configurável entre o corpo medido e a contagem valer (3s padrão, 5/10s ou desligado) | 004/013 | done |
 | T-047 | FSM inicia a fase pelo que observa, não assumindo `CLOSED` (perde a 1ª rep quando a captura começa com a pessoa aberta — ver Descobertas) | 007/004 | done |

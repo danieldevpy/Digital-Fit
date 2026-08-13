@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { FixtureControls } from '../dev/FixtureControls'
 import { VideoSourceControl } from '../dev/VideoSourceControl'
-import { useDevTools } from '../dev/gate'
+import { useDevTools, useRecordMode } from '../dev/gate'
 import { CountdownSetting } from '../hud/CountdownSetting'
 import { ExercisePicker } from '../hud/ExercisePicker'
 import { GetReady } from '../hud/GetReady'
@@ -58,6 +58,9 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
   const setCameraControls = useSessionStore((state) => state.setCameraControls)
   // Ferramentas de diagnóstico: build de dev, ou conta com `is_admin` (T-048).
   const devTools = useDevTools()
+  // Modo gravação (T-129): mesmo direito, sem diagnóstico nenhum na tela — só a origem em
+  // arquivo continua acessível. Os dois nunca estão ligados ao mesmo tempo (ver `gate.ts`).
+  const recordMode = useRecordMode()
 
   const { start, stop, startFile, setZoom } = useCamera(videoRef)
   useEdgePipeline(videoRef, canvasRef, cameraStatus === 'ready')
@@ -113,6 +116,17 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
           {devTools && !compactCover && (
             <div className="stage__dev stage__dev--cover">
               <VideoSourceControl />
+            </div>
+          )}
+
+          {/* Modo gravação (T-129). Aqui dentro da capa de propósito, e também na capa compacta
+              da pré-configuração — que é justamente a tela que se quer gravar: escolher o
+              arquivo é a alternativa a "Ligar câmera", e é este o momento em que ela existe.
+              Carregado o vídeo, `cameraStatus` vira `ready`, a capa inteira sai da tela e não
+              sobra nenhum vestígio do modo na imagem gravada. */}
+          {recordMode && (
+            <div className="stage__dev stage__dev--cover stage__dev--rec">
+              <VideoSourceControl variant="record" />
             </div>
           )}
         </div>

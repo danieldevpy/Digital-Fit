@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { devToolsAllowed } from './gate'
+import { devToolsAllowed, recordModeAllowed } from './gate'
 
 const VISITANTE = { isDevBuild: false, isAdmin: false, search: '' }
 
@@ -42,5 +42,48 @@ describe('o ?dev= modifica, nunca concede', () => {
   it('sem o parâmetro, quem decide são as duas fontes de direito', () => {
     expect(devToolsAllowed({ isDevBuild: false, isAdmin: true, search: '?mode=edge' })).toBe(true)
     expect(devToolsAllowed({ ...VISITANTE, search: '?mode=edge' })).toBe(false)
+  })
+})
+
+describe('modo gravação (?record=1)', () => {
+  const ADMIN = { isDevBuild: false, isAdmin: true, search: '' }
+
+  it('o admin ganha a origem em arquivo', () => {
+    expect(recordModeAllowed({ ...ADMIN, search: '?record=1' })).toBe(true)
+  })
+
+  it('e perde o diagnóstico junto — é o ponto do modo', () => {
+    expect(devToolsAllowed({ ...ADMIN, search: '?record=1' })).toBe(false)
+  })
+
+  it('o build de dev também grava, sem precisar de conta', () => {
+    expect(recordModeAllowed({ isDevBuild: true, isAdmin: false, search: '?record=1' })).toBe(true)
+    expect(devToolsAllowed({ isDevBuild: true, isAdmin: false, search: '?record=1' })).toBe(false)
+  })
+
+  it('não promove ninguém: `?record=1` sem direito é inerte', () => {
+    expect(recordModeAllowed({ ...VISITANTE, search: '?record=1' })).toBe(false)
+    expect(devToolsAllowed({ ...VISITANTE, search: '?record=1' })).toBe(false)
+  })
+
+  it('sem o parâmetro não liga sozinho, nem para o admin', () => {
+    expect(recordModeAllowed(ADMIN)).toBe(false)
+    expect(recordModeAllowed({ ...ADMIN, search: '?mode=edge' })).toBe(false)
+  })
+
+  it('`?record=0` é a ausência do modo', () => {
+    expect(recordModeAllowed({ ...ADMIN, search: '?record=0' })).toBe(false)
+    expect(devToolsAllowed({ ...ADMIN, search: '?record=0' })).toBe(true)
+  })
+
+  it('`?dev=0` continua sendo o desligador geral — nem o botão de arquivo sobra', () => {
+    expect(recordModeAllowed({ ...ADMIN, search: '?record=1&dev=0' })).toBe(false)
+  })
+
+  it('nunca os dois ao mesmo tempo: gravando, a tela é a do usuário comum', () => {
+    for (const search of ['?record=1', '?record=1&dev=1', '?record=true&mode=cloud']) {
+      expect(devToolsAllowed({ ...ADMIN, search })).toBe(false)
+      expect(recordModeAllowed({ ...ADMIN, search })).toBe(true)
+    }
   })
 })

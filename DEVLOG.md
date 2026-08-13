@@ -90,6 +90,59 @@ dentro). `nginx -t` do bloco gerado, limpo.
 
 ---
 
+## 2026-08-07 (42) · T-129 — gravar o produto sem gravar o diagnóstico
+
+Pedido do Daniel: *"quero adicionar uma flag enquanto estiver como adm que é 'record' aonde eu
+consigo upar video mas continuar com o design de interface do usuario, sem log e tal"*.
+
+**O que faltava.** Duas coisas estavam coladas desde a T-040/T-048, e nunca havia razão para
+que estivessem: a **origem de vídeo em arquivo** e o **diagnóstico na tela** viviam atrás do
+mesmo booleano. Ligado (`is_admin` ou build de dev), dá para entrar com um mp4 — e vem junto o
+chip com `pose gpu · 24.1fps · 33 lm`, o botão de gravar fixture, o "baixar json" e o texto de
+erro que manda rodar `docker compose up`. Desligado (`?dev=0`), a tela é exatamente a do
+produto — e só a câmera entra. Para filmar material do app com um vídeo controlado, era preciso
+o meio, que não existia.
+
+**A terceira posição do gate.** `?record=1` concede a origem em arquivo e **retira** o
+diagnóstico. Duas linhas em `dev/gate.ts`, e nenhuma delas em componente:
+
+```
+devToolsAllowed   → false quando ?record=1 (mesmo para admin)
+recordModeAllowed → is_admin || build de dev, e só com ?record=1 na URL
+```
+
+**Decisões:**
+
+- **O corte mora no gate, não no JSX.** Esconder o chip no `CameraView` e deixar o texto "suba
+  a stack (`docker compose up`)" vazar pelo aviso de gateway fechado seria a mesma tela vazando
+  por outro buraco — e esse texto já é decidido por `devTools`. Uma fonte, um corte.
+- **Modifica, nunca concede** — a regra da T-048 vale igual. `?record=1` na mão de um visitante
+  é inerte, porque a permissão continua sendo `is_admin`, que só o `manage.py admin_tools`
+  concede (nenhuma rota da API aceita o campo).
+- **`?dev=0` continua sendo o desligador geral**, inclusive sobre o `record`: quem pede a tela
+  limpa de verdade não quer nem o botão de escolher arquivo no meio dela.
+- **O botão vive dentro da capa da câmera, e some sozinho.** Escolher o arquivo é a alternativa
+  a "Ligar câmera", e é ali o único momento em que a escolha existe. Carregado o vídeo,
+  `startFile` põe `cameraStatus = 'ready'`, a capa inteira sai da tela — **a gravação não tem
+  um único frame com vestígio do modo**. Foi por isso que ele não virou um pill flutuante sobre
+  o palco: qualquer coisa ancorada no palco apareceria no material.
+- **Aparece também na capa compacta da pré-configuração**, ao contrário do controle de dev, que
+  é excluído lá (`!compactCover`). A pré-config é justamente a tela que se quer gravar; excluí-la
+  seria excluir o caso de uso.
+- **Sem componente novo.** O `VideoSourceControl` ganhou `variant="record"`, que esconde o nome
+  do arquivo e o "baixar json" — os dois são diagnóstico — e reusa o container `stage__dev` para
+  herdar o desespelhamento e o posicionamento por tela que já estavam afinados; o modificador
+  `--rec` só tira a pílula preta.
+
+**Gates:** `npm run lint`, `npm run typecheck`, `npm run test` (45 arquivos, 513 testes) verdes.
+Nada de Python foi tocado. 9 casos novos em `dev/gate.test.ts`, incluindo o que impede a
+regressão que interessa: **nunca os dois modos ao mesmo tempo**.
+
+**Pendências:** falta a passada manual no celular — abrir `?record=1` logado como admin, entrar
+com um mp4 e conferir que a gravação de tela não mostra nada fora do produto.
+
+---
+
 ## 2026-08-07 (41) · T-128 — o kcal para de faturar tempo de tela
 
 Pedido do Daniel: *"quero que o kcal seja baseado nas repetições, porém se o ritmo for mais

@@ -8,7 +8,15 @@ import { useSessionStore } from '../store/session'
 import { buildParityResult, downloadParityResult } from './parityExport'
 import { ACCEPTED_TYPES, shortName } from './videoSource'
 
-export function VideoSourceControl() {
+interface VideoSourceControlProps {
+  /**
+   * `record` (T-129): só o botão de escolher o arquivo. O nome do arquivo e o "baixar json" são
+   * diagnóstico — numa gravação eles são exatamente o que não pode aparecer na tela.
+   */
+  variant?: 'dev' | 'record'
+}
+
+export function VideoSourceControl({ variant = 'dev' }: VideoSourceControlProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const cameraControls = useSessionStore((state) => state.cameraControls)
   const videoSource = useSessionStore((state) => state.videoSource)
@@ -48,12 +56,12 @@ export function VideoSourceControl() {
         style={{ display: 'none' }}
       />
       <button type="button" className="stage__dev-stop" onClick={() => inputRef.current?.click()}>
-        vídeo
+        {variant === 'record' ? 'usar vídeo do arquivo' : 'vídeo'}
       </button>
-      {videoSource === 'file' && videoFileName && (
+      {variant === 'dev' && videoSource === 'file' && videoFileName && (
         <span title={videoFileName}>arq {shortName(videoFileName)}</span>
       )}
-      {report && videoSource === 'file' && (
+      {variant === 'dev' && report && videoSource === 'file' && (
         <button type="button" className="stage__dev-stop" onClick={exportar}>
           baixar json
         </button>

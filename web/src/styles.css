@@ -269,6 +269,16 @@ a {
   margin-top: 14px;
 }
 
+/* Modo gravação (T-129): sem a pílula escura do chip de diagnóstico. Ela é legítima quando o
+   que está na tela é diagnóstico; aqui o que está na tela é o produto, e um retângulo preto
+   sobre a capa seria a única coisa fora do lugar na hora de gravar. */
+.stage__dev--rec {
+  background: none;
+  backdrop-filter: none;
+  padding: 0;
+  margin-top: 10px;
+}
+
 .stage__dev-stop,
 .stage__dev-rec {
   color: var(--accent-2);
