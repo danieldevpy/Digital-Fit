@@ -5,6 +5,134 @@
 
 ---
 
+## 2026-08-13 (45) · T-133 — o agachamento nunca esteve quebrado
+
+Etapa 1.1 da corrida ao MVP: medir a contagem no caminho que o usuário usa, antes de mexer em
+limiar nenhum. O item era bloqueante de propósito — a T-109 estava marcada **alta** com a
+descrição "agachamento não conta em produção", e mexer no `squat.py` sem medir seria chute.
+
+**A medição desmontou a premissa.** O agachamento conta. Sempre contou.
+
+### As três pernas, no mesmo vídeo
+
+| perna | o que ela prova | agachamento |
+|---|---|---|
+| bancada (`evalctl`, vídeo inteiro de 36 s) | a FSM | **18/18** |
+| **stack real** (admissão + WS + janela de 30 s) | o caminho | **15** |
+| navegador (sessão **#220**, 2026-08-05) | a extração WASM | **15** |
+
+O 18 → 15 é o teto de 30 s comendo os últimos 6 s do vídeo, não erro de contagem.
+
+E a terceira linha não é aproximação. A sessão #220 do banco e o replay de hoje batem em tudo:
+
+| | #220 (navegador, 08-05) | #247 (stack, hoje) |
+|---|---|---|
+| reps | 15 | 15 |
+| `cadence_windows` | `[1,2,3,2,3,2,2]` | `[1,2,3,2,3,2,2]` |
+| `scene_warning_counts` | `{"TOO_FAR": 17}` | `{"TOO_FAR": 17}` |
+| `duration_ms` | 33002 | 33010 |
+
+Uma perna usa MediaPipe WASM no navegador, a outra usa keypoints extraídos pelo MediaPipe do
+Python. Chegam ao mesmo lugar, janela por janela. **A paridade das três pernas está fechada
+para o agachamento** — e ela nunca tinha sido medida porque o instrumento previsto exigia
+alguém abrir um navegador.
+
+### De onde veio o "0 em produção"
+
+Do banco, lido errado. As 13 sessões de agachamento com zero repetição são **todas**
+`reason: no_data` — o servidor fecha a sessão quando passa 10 s sem frame (SPEC-009, critério
+4). Elas são de 2026-07-29/30, antes de existir vídeo de agachamento no corpus. `no_data` não
+é "contou zero": é "parou de chegar frame".
+
+Quebrando por motivo, o quadro muda de assunto:
+
+| exercício | `completed` | zeros entre os `completed` | `no_data` |
+|---|---|---|---|
+| squat | 2 | **0** | 13 |
+| jumping_jack | 15 | 2 | 169 |
+| flexao | 13 | 6 | 11 |
+
+Os 6 zeros da flexão são de 2026-08-06 entre 04:05 e 04:27, `config_version 7` — a janela exata
+da regressão que a entrada 40 descreve, corrigida às 04:34 (a sessão seguinte conta 20) e hoje
+protegida pelo `test_corpus_regressao.py`. **Nenhum dos quatro exercícios tem contagem quebrada
+em aberto.**
+
+Aviso honesto sobre esses números: é banco de desenvolvimento. 169 `no_data` de polichinelo com
+3,3 s de média é a assinatura de alguém abrindo e fechando o app, não de usuários. As linhas
+`completed` são análises de verdade; as taxas, não.
+
+### O instrumento (T-133): `evalctl stack`
+
+A T-040 desenhou a terceira perna como um arquivo exportado pelo painel de dev — manual por
+construção. A pendência ficou aberta semanas, e nesse meio-tempo uma afirmação errada
+envelheceu no manifest e virou task de alta prioridade.
+
+O que a passada manual prova é a **extração** (WASM × Python). O **caminho** — admissão,
+WebSocket, msgpack, preparação, teto de 30 s, relógio do servidor — não precisa de navegador:
+basta empurrar uma fixture de keypoints pelo mesmo cano. É o que o comando faz, e é a única
+das três pernas que dá para automatizar.
+
+```
+uv run python -m eval.evalctl stack eval/fixtures/<fixture>.json --api http://localhost:8090
+```
+
+O corpus inteiro pela stack, hoje:
+
+| fixture | rótulo | bancada | stack | motivo |
+|---|---|---|---|---|
+| agachamento-…-v1 | 18 | 18 | 15 | completed |
+| flexão-frente-50-…-v1 | 50 | 52 | 37 | completed |
+| flexão-frente-50-…-v2 | 50 | 50 | 21 | completed |
+| polichinelo-01 | 20 | 20 | 19 | completed |
+| polichinelo-02 | 15 | 13 | 10 | **no_data** |
+| polichinelo-03 | 21 | 19 | 16 | **no_data** |
+
+Os dois `no_data` são o mesmo fenômeno das sessões de julho, reproduzido de propósito: os
+vídeos têm 12 s e 20 s, acabam antes do teto de 30 s, e a sessão morre de silêncio. É a prova
+direta de que `no_data` e "contou zero" são coisas diferentes — aqui o `no_data` veio com 10 e
+16 reps contadas.
+
+### Decisões
+
+- **A Descoberta `[A/T-106]` foi marcada REFUTADA, com o motivo escrito.** A medição original
+  era honesta; a conclusão não seguia dela. Os "três vídeos do corpus" eram de **polichinelo**
+  — gente em pé o tempo todo — e a descida foi extrapolada pela proporção do boneco sintético.
+  Apagar a descoberta esconderia o erro de método, que é a parte que vale.
+- **A T-109 foi rebaixada de alta para média, e mudou de descrição.** O que sobra de real é a
+  margem: a pessoa medida desce a 50,7% da altura de quadril em pé, o limiar abre em 54,1% —
+  **3,4 pontos**. Quem parar no paralelo conta 0. Continua valendo trocar o absoluto por razão,
+  mas isso é robustez, não conserto, e não se mexe antes da T-108 dar corpus para revarrer.
+- **A T-104 ganhou um requisito.** `exercise_health` tem de quebrar por `reason`. "Taxa de
+  zero-rep" somando `no_data` com `completed` de contagem zero é exatamente a métrica que fez o
+  agachamento parecer quebrado — e é o critério de `validado` da SPEC-020, que ficaria medindo
+  conexão em vez de contagem.
+- **O comando não entra na CI.** Precisa da stack de pé; é medição de integração, de quem está
+  investigando. O gate barato continua sendo o `test_corpus_regressao.py`.
+
+### Gates
+
+`ruff check` e `ruff format --check` limpos. `pytest` com **830 passando** (+6), sem variável de
+ambiente na mão — a T-076 continua valendo. `websockets` entrou no extra `eval` do
+`pyproject.toml`, com import tardio em `eval/stack.py` para não pesar em quem só roda
+`evalctl run`.
+
+### Pendências
+
+- **A passada manual do navegador continua pendente**, agora com o escopo certo: ela mede
+  extração, não caminho. A extensão do Chrome não estava pareada nesta sessão
+  (`list_connected_browsers` devolveu vazio), então a perna do navegador aqui é o registro
+  **histórico** da sessão #220 — que bate exatamente, mas é de 2026-08-05, `config_version 6`.
+  O replay de hoje sob `config_version 8` dá o mesmo 15, então não há regressão entre as duas.
+- **O `TOO_FAR` do agachamento merece olhar.** 17 avisos de cena e 9 feedbacks emitidos numa
+  sessão que contou certo: para caber o corpo inteiro num agachamento a pessoa **precisa** ficar
+  longe, e o porteiro de cena chama isso de erro. Não bloqueia a contagem, mas é conselho
+  impossível de seguir aparecendo na tela de quem fez tudo certo.
+- **`no_data` é a maior massa de sessões do banco (193 de 246)** e ninguém sabe o que ele
+  significa para um usuário de verdade. É pergunta para a T-104 responder com dado de produção.
+- `web/public/img/herofamale.png` continua sem task e fora dos commits.
+
+---
+
 ## 2026-08-13 (44) · T-076 — o gate que dependia de alguém lembrar
 
 Abertura da corrida até o MVP (plano aprovado nesta data: Bloco A + M1 do engajamento +

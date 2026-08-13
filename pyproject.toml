@@ -58,6 +58,9 @@ dataset = [
 eval = [
     "mediapipe>=0.10.14",
     "opencv-python-headless>=4.10",
+    # Cliente WebSocket do `evalctl stack` (T-133), que toca uma fixture pela stack de pe. O
+    # import e tardio em `eval/stack.py`: quem so roda `evalctl run` nao precisa disto.
+    "websockets>=13.0",
 ]
 
 [dependency-groups]

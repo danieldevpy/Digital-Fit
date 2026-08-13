@@ -140,4 +140,14 @@
     # Medido em 2026-08-06 pelo pipeline real: em pe 1,330 torsos, fundo 0,675, razao 0,507.
     # O limiar `agachado` (0,72) exige descer a 54,1% da altura de quadril em pe; esta pessoa
     # desce a 50,7%. Conta, com 3,4 pontos de margem — quem parar acima do paralelo conta 0.
-    conhecido: 18/18 pelo evalctl; 0 em producao pelo navegador (mesma sessao, ver DEVLOG)
+    #
+    # CORRIGIDO em 2026-08-13 (T-133). A linha anterior dizia "0 em producao pelo navegador
+    # (mesma sessao)", e era leitura errada do banco: as 13 sessoes de agachamento com zero
+    # sao TODAS `reason: no_data` (frames pararam de chegar; SPEC-009, criterio 4), de
+    # 2026-07-29/30 — antes de existir video de agachamento no corpus. A unica sessao de
+    # navegador que chegou a `completed` foi a #220, de 2026-08-05, e contou 15.
+    #
+    # As tres pernas batem neste video, na mesma janela de 30s:
+    #   bancada (video inteiro, 36s): 18 · stack real (janela de 30s): 15 · navegador: 15
+    # A diferenca 18 -> 15 e o teto de 30s comendo os ultimos 6s, nao erro de contagem.
+    conhecido: 18/18 pelo evalctl; 15 na janela real de 30s, iguais no navegador e na stack

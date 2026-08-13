@@ -40,7 +40,7 @@
 | T-021 | dataset-writer: Parquet por sessão + schema documentado | 010 | done |
 | T-022 | Auth JWT + trial anônimo (3/dia por device) + histórico do usuário | 011 | done |
 | T-048 | Gate das ferramentas de dev: separadas da UI de produto, liberadas por conta (`is_admin`) para inspecionar produção | 012/011 | done |
-| T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness — dentro do gate da T-048, nunca na UI de produto | 012 | done — falta 1 passada manual (abrir um vídeo do corpus no navegador e exportar o JSON) |
+| T-040 | Fonte de vídeo na UI web (upload → `<video>` → caminho edge) + paridade edge×cloud×harness — dentro do gate da T-048, nunca na UI de produto | 012 | done — a passada manual do navegador continua pendente **como medida de extração**; a do caminho foi automatizada pela T-133 |
 | T-129 | Modo gravação (`?record=1`, mesmo direito da T-048): origem de vídeo em arquivo liberada **com a interface do usuário comum** — sem chip de diagnóstico, sem gravador de fixtures, sem texto de erro de dev. Existia o par tudo-ou-nada (arquivo + diagnóstico na tela, ou nenhum dos dois) e gravar material do produto precisava do meio | 012/014 | **feito** (2026-08-07) |
 | T-041 | `evalctl replay --ws`: injetar keypoints gravados via gateway (integração + carga sintética) | 012 | todo |
 | T-049 | Preparação "3, 2, 1" configurável entre o corpo medido e a contagem valer (3s padrão, 5/10s ou desligado) | 004/013 | done |
@@ -203,7 +203,7 @@ funcionalidade nova: são o mesmo dado, dito certo.
 | T-094 | Exercício: elevação de joelhos (`high_knees`) — parametrização da feature da marcha com limiar alto + cadência | 020/007/012 | todo |
 | T-095 | Exercício: agachamento sumô (`sumo_squat`) — altura de quadril do `squat` + `ankle_spread` largo na baseline | 020/007/012 | todo |
 | T-096 | Corpus real do Lote 1 + varredura de limiares (promoção `beta → calibrado`, ≥8 vídeos por exercício; fatiável em uma task por exercício, como o T-053 fez com o squat) | 020/012 | todo |
-| T-104 | `manage.py exercise_health [--dias N]`: taxa de sessões zero-rep, total e cadência mediana por exercício — o instrumento que falta para promover ou rebaixar maturidade (critério de `validado`), materializa o sintoma do `[A/T-032]`; exercício sem sessão imprime `--` | 020/012 | todo |
+| T-104 | `manage.py exercise_health [--dias N]`: taxa de sessões zero-rep, total e cadência mediana por exercício — o instrumento que falta para promover ou rebaixar maturidade (critério de `validado`), materializa o sintoma do `[A/T-032]`; exercício sem sessão imprime `--`. **Quebrar por `reason` é requisito, não enfeite** (T-133): "zero-rep" hoje soma `no_data` (frames pararam de chegar) com `completed` de contagem zero, e são doenças diferentes — a primeira é conexão/câmera, a segunda é FSM. Foi essa soma que fez o agachamento parecer quebrado por semanas | 020/012 | todo |
 | T-097 | Trilha Fundamentos: modelos `Trilha`/`TrilhaItem` (admin SPEC-018), `clean()` que aceita passo `calibrado`/`validado` e recusa `beta`, progresso derivado de `SessionResult` (3 sessões válidas destravam o passo seguinte), seção da trilha no topo da Escolha — depende de T-096 (Lote 1 em `calibrado`) para abrir mais que 2 passos | 020 | todo |
 
 ### M3 — "O dia leve" (SPEC-021): modalidade hold + wall sit
@@ -229,7 +229,8 @@ funcionalidade nova: são o mesmo dado, dito certo.
 | T-106 | Flexão de braço (`flexao`): FSM lateral com profundidade medida como fração da **própria prancha** da pessoa + sinais `PUSHUP_TOO_SHALLOW`/`HIPS_SAGGING`/`HIPS_PIKED`; traz junto a capacidade que o Tier C exigia — `Posture` no `scene_hints()` e validação de cena que mede a extensão do corpo no eixo certo (SPEC-003 evolução) — e o campo `scene_tip` por exercício, porque a frase fixa do Guia ("celular na vertical") é falsa para chão. Nasce `beta` | 020/003/007/012 | **feito** (2026-08-05) |
 | T-107 | Abdominal (`abdominal`): FSM lateral com a subida do ombro medida em alturas de joelho (referência sem memória, estável no primeiro frame) + sinais `CRUNCH_TOO_SHALLOW`/`CRUNCH_TOO_FAST`. Nasce `beta` | 020/007/012 | **feito** (2026-08-05) |
 | T-108 | Corpus real de chão (≥ 8 vídeos por exercício, guia de gravação já escrito em `eval/corpus/README.md`) + varredura de limiares → promoção `beta → calibrado` de `flexao` e `abdominal`. É o T-053 do Tier C | 020/012 | **parcial** — a vista frontal saiu daqui (DEVLOG 29): de frente a flexão conta 52/50 e 50/50 onde contava 0/50, e o mesmo 0/50 estava valendo **em produção**. Falta o que dá nome à task: 8 vídeos por exercício com contagem própria. Sem eles não há promoção a `calibrado` (Descoberta `[A/T-108]`) |
-| T-109 | **Agachamento não conta em produção** (ver Descoberta `[A/T-106]`): trocar `hip_height` absoluto por razão sobre a altura de quadril da própria pessoa (o desenho da T-106), regravar as fixtures do gerador com proporções reais e revarrer os limiares. Não é polimento: hoje o exercício está no ar, `validado`, contando zero | 007/012/020 | **todo (alta)** |
+| T-109 | ~~Agachamento não conta em produção~~ — **a premissa era falsa** (T-133, 2026-08-13): o agachamento conta nas três pernas, e os zeros do banco eram `no_data`. O que **sobra** de real e continua valendo é a margem: a pessoa medida desce a 50,7% e o limiar abre em 54,1% — **3,4 pontos**, e quem parar no paralelo conta 0. Trocar `hip_height` absoluto por razão sobre a altura de quadril da própria pessoa continua sendo o desenho certo, mas é **margem de robustez, não conserto de bug**, e não se mexe nele antes da T-108 dar corpus de agachamento para revarrer | 007/012/020 | **todo (média)** — rebaixada de alta |
+| T-133 | `evalctl stack <fixture>`: toca keypoints conhecidos pela stack no ar (admissão real, WebSocket real, msgpack, janela de 30 s) e diz quantas reps a **sessão de verdade** contou. É a perna que faltava entre a bancada (prova a FSM) e o navegador (prova a extração) — e a única das três que dá para automatizar | 012/009 | **feito** (2026-08-13) |
 | T-110 | Espaço normalizado é anisotrópico (Descoberta `[A/T-106]`): levar largura/altura do frame no `pose.frame` e corrigir `x` na normalização, ou declarar por escrito que toda feature é razão no mesmo eixo. Mexe no contrato de eventos (AGENTS: `events.py` primeiro) e obriga a revarrer polichinelo e agachamento | 002/006 | todo |
 
 ## Fase 6 — Lançamento rentável (SPEC-023 + a caixa registradora)
@@ -289,6 +290,16 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
   `[A/T-032]` descreveu e que o `manage.py exercise_health` (T-104) existe para pegar: sessão sem
   repetição. Task T-109. **A lição foi absorvida pela T-106/T-107**: feature de exercício novo é
   razão entre duas medidas do mesmo corpo, nunca constante em torsos vinda do gerador.
+  **REFUTADA em 2026-08-13 (T-133), e vale ler por quê.** A medição acima é honesta e a conclusão
+  não segue dela: os "três vídeos do corpus" eram de **polichinelo**, gente em pé o tempo todo, e
+  a descida foi *extrapolada* pela proporção do boneco. Com vídeo de agachamento de verdade a
+  pessoa desce a 50,7% da altura de quadril em pé e o limiar (54,1%) abre. Medido nas três pernas
+  no mesmo vídeo: bancada 18/18, stack real 15 na janela de 30 s, navegador 15 (sessão #220 de
+  2026-08-05). E as 13 sessões de agachamento com zero no banco são **todas** `reason: no_data` —
+  frames que pararam de chegar —, não contagem zero. Extrapolar de um exercício para outro criou
+  uma task de alta prioridade (T-109) contra um bug que não existe. A lição de método: *medir o
+  exercício que se quer afirmar, e separar `no_data` de `completed com 0 reps` antes de chamar
+  qualquer coisa de falha de contagem.*
 - **[A/T-106] O espaço normalizado do MediaPipe é anisotrópico, e ninguém tinha notado.** `x` é
   dividido pela largura do frame e `y` pela altura, então uma distância horizontal e uma vertical
   do mesmo tamanho real têm valores diferentes — e a diferença é a proporção do vídeo. Medido no
@@ -955,6 +966,13 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
   grandeza acima do resto da bancada e não cabe na T-042 (eval em CI) como está escrita.
   Enquanto for manual, vale a regra: rodar a passada do navegador **antes de mexer em
   normalização, filtro ou FSM**, porque é a única medida do que o usuário realmente executa.
+  **Continua verdadeiro, e a T-133 mostrou que estava respondendo à pergunta errada.** A perna
+  manual é a da *extração* (MediaPipe WASM × Python). A do *caminho* — admissão, WebSocket,
+  msgpack, janela de 30 s, relógio do servidor — não precisa de navegador nenhum: basta empurrar
+  uma fixture de keypoints pelo mesmo cano (`evalctl stack`). Foram semanas esperando uma passada
+  manual para responder algo que uma fixture respondia sozinha, e nesse meio-tempo uma afirmação
+  errada sobre o agachamento virou task de alta prioridade. Quando uma medição depender de alguém
+  lembrar de fazê-la, vale perguntar antes qual parte dela realmente exige a mão humana.
 - **[A/T-040] Vídeo maior que 30 s é cortado pelo servidor, não pelo cliente.** A sessão tem
   duração fixa (SPEC-009) e o timer é autoritativo: um arquivo de 45 s vira uma sessão de 30 s
   e o resto do arquivo não é contado. Para o corpus atual (28–29 s) não muda nada, mas quem

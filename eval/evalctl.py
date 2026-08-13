@@ -309,6 +309,13 @@ def cmd_parity(args: argparse.Namespace) -> int:
     return 0 if resultado.passed else 1
 
 
+def _cmd_stack(args: argparse.Namespace) -> int:
+    """Import tardio: `eval.stack` puxa `websockets`, e quem só roda `evalctl run` não precisa."""
+    from eval.stack import cmd_stack
+
+    return cmd_stack(args)
+
+
 def cmd_fetch_model(args: argparse.Namespace) -> int:
     """Baixa o modelo de pose. Passo explícito: a bancada nunca sai buscando rede sozinha."""
     from eval.sources import MODEL_URL, download_model
@@ -373,6 +380,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON exportado pelo painel de dev do cliente (T-040): entra como 3a perna",
     )
     paridade.set_defaults(func=cmd_parity)
+
+    # A perna que faltava e que DÁ para automatizar (T-133): keypoints prontos entrando pela
+    # admissão real, WebSocket real e janela de 30 s real. O `--browser` do `parity` continua
+    # sendo a perna da extração; esta é a do caminho.
+    pilha = subcomandos.add_parser(
+        "stack",
+        help="toca uma fixture de keypoints pela stack no ar (precisa de docker compose up)",
+    )
+    pilha.add_argument("fixture", help="arquivo de eval/fixtures/")
+    pilha.add_argument("--api", default="http://localhost:8000", help="base da API")
+    pilha.add_argument("--exercise", default=None, help="slug; o padrao e o da fixture")
+    pilha.add_argument(
+        "--countdown-s", type=int, default=3, help="preparacao pedida na admissao (T-049)"
+    )
+    pilha.add_argument("--device", default="evalctl-stack", help="X-Device-Id do pedido")
+    pilha.add_argument("--report", default=None, help="grava o resultado em JSON")
+    pilha.add_argument("--quiet", action="store_true", help="sem saida no stdout")
+    pilha.set_defaults(func=_cmd_stack)
 
     fetch = subcomandos.add_parser(
         "fetch-model", help="baixa o modelo pose_landmarker_lite.task (uma vez)"
