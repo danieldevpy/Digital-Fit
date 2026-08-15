@@ -113,7 +113,7 @@ Réplica fiel do protótipo Claude Design "Evolução UI v2" + `referencias/app-
 | T-066 | GIF/vídeo de demonstração por exercício (Escolha + Guia) | 015 | todo |
 | T-076 | A suíte roda no Postgres do compose, não em SQLite: as variáveis da `conftest.py` não alcançam mais o settings (ver Descobertas `[A/T-072]`) — mover para `pytest-env` ou `core/settings_test.py`, e conferir o job Python da CI | — | **feito** (2026-08-13) — `core/settings_test.py` é o `DJANGO_SETTINGS_MODULE` da suíte; `pytest` roda sem variável na mão (824 verdes) e o smoke contraditório passou a cobrar a regra |
 | T-077 | Frame atrasado ressuscitava a sessão encerrada e o relatório fantasma sobrescrevia o bom (26 reps viraram 4 em produção): lápide no analysis-worker + cliente para de transmitir ao fim | 009/010 | done |
-| T-078 | `duration_ms` do relatório mistura dois relógios (`session.started` é do servidor, `session.calibrated` e frames são do navegador) — ver Descobertas `[A/T-077]` | 010 | todo |
+| T-078 | `duration_ms` do relatório mistura dois relógios (`session.started` é do servidor, `session.calibrated` e frames são do navegador) — ver Descobertas `[A/T-077]` | 010 | **feito** (2026-08-15) — o `session.started` saiu da linha do tempo que mede a duração (o `source` não separava: os dois são `SYSTEM`), e a duração passou por um teto de plausibilidade tirado da própria sessão. Medido: com 30 dias de desvio a duração dava 2.592.000.000 ms; agora dá 30.000. Destrava a T-112 |
 | T-079 | Perfil: histórico vira lista rolável de altura limitada (não come a tela) e o "Sair" deixa de disputar hierarquia com o "Fechar" — primário é fechar, sair é discreto e pede confirmação | 011/014 | done |
 | T-080 | Pré-configuração de borda a borda: a câmera passa a ocupar a tela inteira, com a janela nítida na largura de hoje e o entorno em desfoque escuro sob os cards, que não saem do lugar | 014 | done |
 | T-081 | Assinatura "Digital Fit" discreta em todas as telas do app (escolha, guia, pré-config, treino, progresso, analytics, perfil, relatório) | 014 | done |
@@ -539,6 +539,13 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
   relatório não seguiu o próprio conselho. Conserto provável: derivar duração só de `ts` da mesma
   origem (ou do relógio do servidor, carimbado no `session.completed`) e sanear o valor antes de
   gravar. **Proposta: T-078.**
+  **FECHADA em 2026-08-15 (T-078)**, pelas duas vias que a proposta previa. Uma correção da
+  proposta: `source` **não** serve de discriminante — `session.started` (API) e
+  `session.completed` (analysis-worker) são ambos `Source.SYSTEM`, e quem separa os relógios é
+  *quem publica*. O `session.completed` também não precisou sair da conta: ele carrega o `ts` do
+  último frame, e só cai no relógio do servidor quando não houve frame nenhum — caso em que a
+  calibração também não aconteceu e a duração já era zero. Medido no teste: 30 dias de desvio
+  produziam 2.592.000.000 ms de duração.
 
 - **[A/T-072] A suíte NÃO roda em SQLite em memória — roda no Postgres do compose.** A
   `tests/conftest.py` promete, no próprio docstring, ser "carregada antes de o pytest-django

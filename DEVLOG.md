@@ -5,6 +5,81 @@
 
 ---
 
+## 2026-08-15 (52) · T-078 — o relatório para de subtrair um relógio do outro
+
+A Descoberta `[A/T-077]` estava aberta desde julho, e não é cosmética: além de errar a duração
+em silêncio, ela **matava o report-builder** com `DataError: integer out of range` quando o
+desvio passava dos 24,8 dias em que o `PositiveIntegerField` estoura. Também é pré-requisito da
+T-112 — "tempo até a meta" é exatamente o número que ela erra.
+
+### O que estava misturado
+
+`buffer.last_ts` era o `max` do `ts` de **todos** os eventos, e a duração saía de
+`last_ts − started_ms`. Só que `started_ms` vem do `session.calibrated` (relógio do **cliente**,
+`ts` do frame) e um dos eventos do balde vem da API:
+
+| evento | quem publica | relógio |
+|---|---|---|
+| `session.started` | `api/sessions.py` | **servidor** |
+| `session.calibrated`, `rep.detected`, `feedback.issued`, `scene.warning` | analysis-worker | cliente (`ts` do frame) |
+| `session.completed` | analysis-worker | cliente — `estado.last_ts` |
+
+Medido no teste, com um celular 30 dias atrasado em relação ao servidor: a duração de uma sessão
+normal de 30 s saía **2.592.000.000 ms**. Depois da correção, 30.000.
+
+### A hipótese da Descoberta que estava errada
+
+A proposta original sugeria usar a origem do evento para separar. Não funciona: `session.started`
+e `session.completed` são **ambos `Source.SYSTEM`** — o `source` diz "não veio de um humano", não
+diz de qual relógio. O que separa é *quem publica*, e isso não está no envelope.
+
+Então virou uma lista nomeada de um item só (`_EVENTOS_DO_RELOGIO_DO_SERVIDOR`), com um teste que
+quebra se um segundo evento da API entrar no stream sem alguém revisar a lista. É a trava que
+importa: o bug voltaria calado no dia em que a API publicasse qualquer outra coisa.
+
+O `session.completed` **não** precisou sair da conta, e vale dizer por quê: ele usa o `ts` do
+último frame e só cai no relógio do servidor quando não houve frame nenhum — e nesse caso a
+calibração também não aconteceu, então a duração já era zero por outro caminho.
+
+### O teto, e por que ele grava zero em vez do teto
+
+A exclusão resolve o desalinhamento entre servidor e cliente. Sobra o resíduo: o relógio do
+**próprio cliente** andando no meio da sessão (troca de fuso, NTP, hora ajustada à mão) — o
+comentário do `SessionState` já avisava disso, e o relatório não seguia o próprio conselho.
+
+O teto sai da **própria sessão**: o `session.started` já carrega `duration_s`, resolvido pela API
+a partir do plano (SPEC-018). Sessão de 30 s que reporta 10 minutos é implausível; a mesma
+duração numa sessão admitida como 600 s é honesta. Sem `session.started` (builder que subiu no
+meio), cai num teto absoluto de 6 h — muito abaixo dos 24,8 dias do estouro e muito acima de
+qualquer treino.
+
+Acima do teto grava **zero, não o teto**. Gravar o teto seria inventar um tempo que ninguém
+treinou, e a cadência derivada dele mentiria com cara de número medido. Zero já significa "não
+sei" neste campo, o `cadence_rpm` e as janelas saem zerados junto — e o log diz o resto, com os
+dois timestamps.
+
+### Gates
+
+`ruff check` e `format --check` limpos; `pytest` **963 passando** (+7 sobre os 956 da T-089).
+`web/` não foi tocado.
+
+**Os testes foram conferidos contra a ausência do conserto**: revertendo só a linha da exclusão,
+dois deles falham e o log imprime os 2.592.000.000 ms. Teste de regressão que passa com e sem o
+conserto não é teste de regressão.
+
+### Pendências
+
+- **Nenhum relatório já gravado foi corrigido.** As sessões com duração torta que existam no
+  banco continuam lá; recalcular exigiria replay do stream, e os eventos não são retidos por
+  tanto tempo. Quem for olhar histórico antigo precisa saber disso.
+- **O teto de 6 h é generoso demais para o produto de hoje** (sessões de 30 s). Foi escolhido
+  para não recusar sessão honesta de uma configuração futura; se o `Plan.session_max_s` continuar
+  em 600 s, dá para apertar bastante — mas apertar sem necessidade é criar um jeito novo de
+  perder dado bom.
+- **A T-112 pode andar.** Era a única dependência dela além da T-111.
+
+---
+
 ## 2026-08-15 (51) · T-089 — as conquistas, e a única que pode ser perdida
 
 Última do M1. Catálogo de 7 predicados puros, lista no `GET /api/engagement`, galeria no painel

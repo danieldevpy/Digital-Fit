@@ -475,3 +475,198 @@ def test_relatorio_ainda_nao_pronto_responde_pending(client):
 
     assert resposta.status_code == 404
     assert resposta.json()["pending"] is True
+
+
+# ======================================================================================
+# Os dois relógios (T-078 / Descoberta [A/T-077]).
+# ======================================================================================
+
+#: Um celular adiantado 30 dias. Acima dos 24,8 dias em que `PositiveIntegerField` estoura —
+#: é o cenário que matou o processo com `DataError: integer out of range`.
+_ADIANTADO_MS = 30 * 24 * 60 * 60 * 1000
+
+
+def _sessao_com_relogios(desvio_do_servidor_ms: int) -> ReportAccumulator:
+    """Sessão normal de 30 s, com o `session.started` da API num relógio deslocado.
+
+    É o desenho real: `api/sessions.py` publica `session.started` com o relógio do SERVIDOR, e
+    todo o resto sai do analysis-worker com o `ts` do frame (relógio do cliente).
+    """
+    acc = ReportAccumulator()
+    acc.push(
+        evento(
+            SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
+            ts=BASE_TS + desvio_do_servidor_ms,
+        )
+    )
+    acc.push(
+        evento(
+            SessionCalibrated(
+                torso=0.3, shoulder_width=0.2, shoulder_span=1.5, wrist_rest_y=0.8, samples=30
+            ),
+            ts=BASE_TS,
+            seq=1,
+        )
+    )
+    for i in range(20):
+        acc.push(
+            evento(
+                RepDetected(rep_count=i + 1, phase=Phase.REST, duration_ms=1500),
+                ts=BASE_TS + 1500 * (i + 1),
+                seq=2 + i,
+            )
+        )
+    return acc
+
+
+def test_o_relogio_do_servidor_nao_entra_na_duracao() -> None:
+    """O caso que a Descoberta `[A/T-077]` descreve, medido.
+
+    Antes da T-078 o `session.started` entrava no mesmo `last_ts` dos eventos de frame, e a
+    duração virava a diferença entre dois relógios. Com 30 dias de desvio ela estourava o
+    `PositiveIntegerField` e matava o report-builder.
+    """
+    acc = _sessao_com_relogios(_ADIANTADO_MS)
+
+    relatorio = acc.push(
+        evento(
+            SessionCompleted(reason=SessionEndReason.COMPLETED, rep_count=20),
+            ts=BASE_TS + 30_000,
+            seq=99,
+        )
+    )
+
+    assert relatorio is not None
+    assert relatorio.duration_ms == 30_000
+    assert relatorio.cadence_rpm == pytest.approx(40.0)
+
+
+def test_o_desvio_do_servidor_nao_muda_nada_no_caminho_feliz() -> None:
+    """Servidor e cliente em sincronia dão o MESMO número de sempre — a correção não pode ter
+    mexido no caso normal, que é a razão de este teste existir ao lado do de cima."""
+    alinhado = _sessao_com_relogios(0)
+    adiantado = _sessao_com_relogios(_ADIANTADO_MS)
+    atrasado = _sessao_com_relogios(-_ADIANTADO_MS)
+
+    fim = evento(
+        SessionCompleted(reason=SessionEndReason.COMPLETED, rep_count=20),
+        ts=BASE_TS + 30_000,
+        seq=99,
+    )
+
+    duracoes = {acc.push(fim).duration_ms for acc in (alinhado, adiantado, atrasado)}
+
+    assert duracoes == {30_000}
+
+
+def test_duracao_implausivel_vira_zero_em_vez_de_derrubar_o_processo() -> None:
+    """Relógio do CLIENTE andando no meio da sessão — o resíduo que a exclusão não cobre.
+
+    Zero, e não o teto: gravar o teto seria inventar um tempo que ninguém treinou, e a cadência
+    derivada dele mentiria com cara de número medido.
+    """
+    acc = ReportAccumulator()
+    acc.push(
+        evento(SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30), ts=BASE_TS)
+    )
+    acc.push(
+        evento(
+            SessionCalibrated(
+                torso=0.3, shoulder_width=0.2, shoulder_span=1.5, wrist_rest_y=0.8, samples=30
+            ),
+            ts=BASE_TS,
+            seq=1,
+        )
+    )
+    # O celular pulou 30 dias entre a calibração e o fim.
+    relatorio = acc.push(
+        evento(
+            SessionCompleted(reason=SessionEndReason.COMPLETED, rep_count=20),
+            ts=BASE_TS + _ADIANTADO_MS,
+            seq=2,
+        )
+    )
+
+    assert relatorio.duration_ms == 0
+    assert relatorio.cadence_rpm == 0.0
+    assert relatorio.cadence_windows == []
+
+
+def test_o_teto_sai_da_duracao_ADMITIDA_quando_ela_existe() -> None:
+    """Sessão de 30 s que reporta 10 minutos é implausível; a mesma duração numa sessão que a
+    API admitiu como 600 s é honesta. O teto vem da sessão, não de um palpite."""
+
+    def sessao(duration_s: int, fim_offset_ms: int):
+        acc = ReportAccumulator()
+        acc.push(
+            evento(
+                SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=duration_s),
+                ts=BASE_TS,
+            )
+        )
+        acc.push(
+            evento(
+                SessionCalibrated(
+                    torso=0.3, shoulder_width=0.2, shoulder_span=1.5, wrist_rest_y=0.8, samples=30
+                ),
+                ts=BASE_TS,
+                seq=1,
+            )
+        )
+        return acc.push(
+            evento(
+                SessionCompleted(reason=SessionEndReason.COMPLETED, rep_count=5),
+                ts=BASE_TS + fim_offset_ms,
+                seq=2,
+            )
+        )
+
+    dez_minutos = 10 * 60_000
+
+    assert sessao(30, dez_minutos).duration_ms == 0
+    assert sessao(600, dez_minutos).duration_ms == dez_minutos
+
+
+def test_sem_session_started_o_teto_cai_no_absoluto() -> None:
+    """Builder que subiu no meio da sessão não sabe a duração admitida — e não pode recusar uma
+    sessão honesta por causa disso, nem aceitar 30 dias."""
+
+    def sessao(fim_offset_ms: int):
+        acc = ReportAccumulator()
+        acc.push(
+            evento(
+                SessionCalibrated(
+                    torso=0.3, shoulder_width=0.2, shoulder_span=1.5, wrist_rest_y=0.8, samples=30
+                ),
+                ts=BASE_TS,
+                seq=1,
+            )
+        )
+        return acc.push(
+            evento(
+                SessionCompleted(reason=SessionEndReason.COMPLETED, rep_count=5),
+                ts=BASE_TS + fim_offset_ms,
+                seq=2,
+            )
+        )
+
+    uma_hora = 60 * 60_000
+
+    assert sessao(uma_hora).duration_ms == uma_hora
+    assert sessao(_ADIANTADO_MS).duration_ms == 0
+
+
+def test_a_duracao_cabe_no_campo_do_postgres() -> None:
+    """A guarda que fecha o `DataError` da Descoberta: qualquer saída cabe num
+    `PositiveIntegerField` (2³¹ − 1)."""
+    from workers.report_builder.builder import TETO_DE_DURACAO_MS
+
+    assert TETO_DE_DURACAO_MS < 2**31 - 1
+
+
+def test_so_o_session_started_carrega_o_relogio_do_servidor() -> None:
+    """Trava de manutenção: um evento novo publicado pela API entraria calado na linha do tempo
+    do cliente e traria a T-078 de volta. Este teste obriga a revisar a lista."""
+    from workers.report_builder.builder import _EVENTOS_DO_RELOGIO_DO_SERVIDOR
+
+    assert set(_EVENTOS_DO_RELOGIO_DO_SERVIDOR) == {EventType.SESSION_STARTED}

@@ -12,6 +12,20 @@ por `events.analysis`, ele não entra no relatório — entra no backlog como ev
 Tempo: todos os instantes vêm do `ts` do envelope, que na saída da análise é o `ts` do frame
 que originou o evento (relógio do cliente). Dentro de uma sessão isso é consistente, que é o
 que importa para medir cadência; comparar sessões pelo relógio absoluto seria outra conversa.
+
+## Dois relógios, e por que só um conta o tempo (T-078)
+
+"Todos os instantes vêm do frame" era **falso para um evento**, e o parágrafo acima escondia a
+exceção: o `session.started` é publicado pela **API** (`api/sessions.py`), com o relógio do
+servidor. Ele entrava no mesmo `last_ts` dos eventos derivados de frame, e a duração saía de uma
+subtração entre relógios diferentes — errada em silêncio quando o celular estava adiantado, e
+capaz de estourar o `PositiveIntegerField` (2³¹ ms ≈ 24,8 dias) e **matar o processo** com
+`DataError: integer out of range`. Descoberta `[A/T-077]`, vista de verdade.
+
+O `source` do envelope **não** separa os dois: `session.started` (API) e `session.completed`
+(analysis-worker) são ambos `Source.SYSTEM`. O que os separa é quem publica — e a lista de quem
+publica com o relógio do servidor tem um item só, nomeado em `_EVENTOS_DO_RELOGIO_DO_SERVIDOR`.
+Há teste que quebra se um segundo entrar no stream sem passar por lá.
 """
 
 from __future__ import annotations
@@ -32,7 +46,13 @@ from workers.shared.events import (
     SessionStarted,
 )
 
-__all__ = ["CADENCE_WINDOW_MS", "ReportAccumulator", "SessionReport"]
+__all__ = [
+    "CADENCE_WINDOW_MS",
+    "FOLGA_DE_DURACAO_MS",
+    "TETO_DE_DURACAO_MS",
+    "ReportAccumulator",
+    "SessionReport",
+]
 
 logger = logging.getLogger("report-builder")
 
@@ -42,6 +62,30 @@ CADENCE_WINDOW_MS = 5_000
 #: Teto de sessões acompanhadas ao mesmo tempo. Existe para o builder não virar um vazamento
 #: de memória quando uma sessão nunca fecha: sem isso, cada sessão órfã ficaria para sempre.
 MAX_SESSIONS = 512
+
+#: Eventos que carregam o relógio do **servidor**, e por isso não entram na linha do tempo que
+#: mede a duração (T-078).
+#:
+#: Um item, e é o `session.started` da API. `session.completed` NÃO está aqui de propósito: ele
+#: sai do analysis-worker com o `ts` do último frame — só cai no relógio do servidor quando não
+#: houve frame nenhum, e nesse caso a calibração também não aconteceu e a duração já é zero.
+_EVENTOS_DO_RELOGIO_DO_SERVIDOR = frozenset({EventType.SESSION_STARTED})
+
+#: Folga sobre a duração admitida, para o teto de plausibilidade não recusar sessão honesta.
+#:
+#: O fim é decidido pelo timer autoritativo do analysis-worker (SPEC-009), mas o `ts` do último
+#: frame pode chegar um pouco depois do prazo, e o countdown de preparação entra na conta em
+#: algumas rotas. Um minuto cobre tudo isso com sobra e continua a três ordens de grandeza do
+#: que um relógio torto produz.
+FOLGA_DE_DURACAO_MS = 60_000
+
+#: Teto absoluto, para quando a duração admitida não é conhecida — sessão cujo `session.started`
+#: o builder não viu (subiu no meio), ou evento anterior à T-075.
+#:
+#: Seis horas: qualquer sessão real deste produto dura 30 s, e a maior que a validação do `Plan`
+#: aceita são 600 s. O número não precisa ser justo; precisa ser MUITO menor que os 24,8 dias em
+#: que o `PositiveIntegerField` estoura, e MUITO maior que qualquer treino.
+TETO_DE_DURACAO_MS = 6 * 60 * 60 * 1_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,7 +140,12 @@ class _SessionBuffer:
     #: Instante em que o exercício passou a valer (`session.calibrated`). `None` enquanto a
     #: sessão está em preparação — e uma sessão que termina assim teve duração efetiva zero.
     started_ms: int | None = None
+    #: Último instante visto **na linha do tempo do cliente** (frames). O `session.started` da
+    #: API não entra aqui: ele é do relógio do servidor, e misturar os dois é a T-078.
     last_ts: int = 0
+    #: Duração admitida pela API (`session.started`), em segundos. `0` = não sei — e aí o teto
+    #: de plausibilidade cai no absoluto em vez de num número inventado para esta sessão.
+    duration_s: int = 0
     #: Última vez que esta sessão deu sinal, no **relógio do servidor** — e por isso separado
     #: do `last_ts`, que é o relógio do cliente. Só o servidor pode dizer "faz cinco minutos
     #: que não chega nada": comparar `ts` do cliente com o agora do servidor evacuaria na hora
@@ -156,7 +205,9 @@ class ReportAccumulator:
             return self._fechar(envelope)
 
         buffer = self._buffer(envelope.session_id)
-        buffer.last_ts = max(buffer.last_ts, envelope.ts)
+        # A linha do tempo que mede a duração só avança com evento do relógio do cliente (T-078).
+        if envelope.type not in _EVENTOS_DO_RELOGIO_DO_SERVIDOR:
+            buffer.last_ts = max(buffer.last_ts, envelope.ts)
         if now_ms is not None:
             buffer.last_seen_ms = now_ms
 
@@ -166,6 +217,7 @@ class ReportAccumulator:
                 buffer.exercise = dados.exercise
                 buffer.mode = dados.mode.value
                 buffer.config_version = dados.config_version
+                buffer.duration_s = dados.duration_s
             case EventType.SESSION_CALIBRATED:
                 dados_cal = SessionCalibrated.from_data(envelope.data)
                 buffer.calibration_samples = dados_cal.samples
@@ -210,7 +262,12 @@ class ReportAccumulator:
         )
 
         fim = max(envelope.ts, buffer.last_ts)
-        duracao = max(0, fim - buffer.started_ms) if buffer.started_ms is not None else 0
+        duracao = _duracao(
+            started_ms=buffer.started_ms,
+            fim_ms=fim,
+            duration_s=buffer.duration_s,
+            session_id=envelope.session_id,
+        )
         # O total vem do evento de fim, não da contagem de `rep.detected` vistos: assim um
         # builder que subiu no meio da sessão ainda reporta o número certo — só o gráfico sai
         # incompleto, e isso é visível.
@@ -248,6 +305,40 @@ class ReportAccumulator:
             for session_id, buffer in self._sessions.items()
             if buffer.last_seen_ms and now_ms - buffer.last_seen_ms >= max_age_ms
         ]
+
+
+def _duracao(*, started_ms: int | None, fim_ms: int, duration_s: int, session_id: str) -> int:
+    """Duração efetiva, ou `0` quando o relógio não merece crédito (T-078).
+
+    Duas guardas, e a segunda é a que impede um `DataError` de matar o processo:
+
+    1. Sem calibração não houve exercício — a sessão terminou em preparação, e zero é o número
+       certo, não um contorno.
+    2. Acima do teto de plausibilidade, o relógio do cliente andou no meio da sessão (troca de
+       fuso, sincronização de NTP, hora ajustada à mão). Aí **zero, e não o teto**: gravar o
+       teto seria inventar um tempo que ninguém treinou, e a cadência derivada dele mentiria com
+       cara de número medido. Zero já significa "não sei" neste campo, e o log diz o resto.
+
+    O teto sai da própria sessão quando ela o declarou (`duration_s` do `session.started`, que a
+    API resolve pelo plano), e do absoluto quando não — nunca de um palpite sobre o exercício.
+    """
+    if started_ms is None:
+        return 0
+
+    duracao = max(0, fim_ms - started_ms)
+    teto = duration_s * 1_000 + FOLGA_DE_DURACAO_MS if duration_s > 0 else TETO_DE_DURACAO_MS
+    if duracao > teto:
+        logger.warning(
+            "duracao implausivel em %s: %s ms (teto %s ms, calibracao %s, fim %s) — "
+            "relogio do cliente andou no meio da sessao; gravando 0",
+            session_id,
+            duracao,
+            teto,
+            started_ms,
+            fim_ms,
+        )
+        return 0
+    return duracao
 
 
 def _cadencia_rpm(reps: int, duracao_ms: int) -> float:
