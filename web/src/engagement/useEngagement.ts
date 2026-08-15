@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { useHistoryStore } from '../history/store'
 import { useFreshHistory } from '../history/useFreshHistory'
 import { useAccountStore } from '../store/account'
+import type { Achievement } from './api'
 import { diaDoFogo, fogoLocal } from './fire'
 import { refreshEngagement, useEngagementStore } from './store'
 
@@ -34,6 +35,14 @@ export interface EngagementView {
   protections: { used: number; total: number } | null
   /** Ainda não chegou nada do servidor para quem tem conta — a tela mostra `--`. */
   pending: boolean
+  /**
+   * Catálogo inteiro de conquistas, com `earned` em cada uma (T-089).
+   *
+   * **Vazio para o visitante**, e não um catálogo todo bloqueado: conquistas são do servidor
+   * (§Planos diz "básicas" para o Free e nada para o anônimo), e desenhar a vitrine para quem
+   * não pode ganhar nenhuma seria uma promessa que a conta é que cumpre.
+   */
+  achievements: Achievement[]
 }
 
 const VISITANTE_SEM_TREINO: EngagementView = {
@@ -48,6 +57,7 @@ const VISITANTE_SEM_TREINO: EngagementView = {
   level: null,
   protections: null,
   pending: false,
+  achievements: [],
 }
 
 /**
@@ -108,5 +118,6 @@ export function useEngagement(hoje: string = diaDoFogo(new Date()) ?? ''): Engag
       total: doServidor.protections_month,
     },
     pending: false,
+    achievements: doServidor.achievements ?? [],
   }
 }

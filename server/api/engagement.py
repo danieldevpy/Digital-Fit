@@ -40,13 +40,14 @@ escolheu.
 from __future__ import annotations
 
 import bisect
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
 __all__ = [
+    "ACHIEVEMENTS",
     "FUSO_DO_FOGO",
     "HOLD_VALIDO_MS",
     "LEVELS",
@@ -60,11 +61,15 @@ __all__ = [
     "XP_POR_REP",
     "XP_SESSAO_VALIDA",
     "XP_TETO_REPS",
+    "Agregados",
+    "Conquista",
     "Engajamento",
     "Nivel",
     "Sessao",
     "StreakInfo",
+    "catalogo_de_conquistas",
     "chave_de_cache",
+    "conquistas",
     "decomposicao_de_xp",
     "dia_sp",
     "dias_ativos",
@@ -376,6 +381,120 @@ def nivel(xp: int) -> Nivel:
 
 
 @dataclass(frozen=True, slots=True)
+class Agregados:
+    """O que os predicados de conquista leem (SPEC-019 §Conquistas).
+
+    Um objeto e não os `Sessao` crus porque os predicados são **puros e baratos por
+    construção**: cada um é uma comparação, e nenhum pode varrer a lista de sessões por conta
+    própria. Sem esta fronteira, uma conquista nova acrescentaria uma passada sobre o histórico
+    inteiro sem ninguém notar — e são todas calculadas a cada leitura.
+    """
+
+    sessoes_validas: int = 0
+    melhor_streak: int = 0
+    reps_totais: int = 0
+    #: Maior acumulado num MESMO exercício. `centena` pergunta por exercício, não no total.
+    reps_no_melhor_exercicio: int = 0
+    sessoes_limpas: int = 0
+    #: Maior sequência de dias seguidos batendo a meta. Ver a nota em `ACHIEVEMENTS`.
+    melhor_sequencia_de_meta: int = 0
+    #: `True` quando o catálogo já traz categoria por exercício (SPEC-020/T-090). Enquanto for
+    #: `False`, as conquistas que dependem dela ficam desligadas em vez de nascerem falsas.
+    tem_categorias: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class Conquista:
+    """Uma conquista do catálogo. Sem tabela: a lista de alguém é `conquistas(agregados)`."""
+
+    slug: str
+    nome: str
+    descricao: str
+    predicado: Callable[[Agregados], bool]
+
+    def to_dict(self, *, ganha: bool) -> dict[str, Any]:
+        return {
+            "slug": self.slug,
+            "name": self.nome,
+            "description": self.descricao,
+            "earned": ganha,
+        }
+
+
+#: Catálogo v1 (SPEC-019 §Conquistas). **Em código, não em tabela**: um predicado é lógica, e
+#: lógica criada por formulário não tem teste nem fixture (mesmo argumento da SPEC-018 P3 para
+#: limiar de FSM).
+#:
+#: A ordem é a de exibição na galeria, e vai do fácil ao difícil de propósito: uma vitrine que
+#: abrisse com `milheiro` apagado diria a quem acabou de chegar que o jogo não é para ela.
+#:
+#: **Sobre `semana-cheia`**: o predicado lê a meta, que é campo mutável do perfil. A spec o
+#: nomeia assim ("a meta ... vale como gatilho da conquista `semana-cheia`"), e por isso ele
+#: está aqui — mas isso torna esta a única conquista **revogável** do catálogo: subir a meta de
+#: casual para intenso pode apagá-la. Registrado como Descoberta `[T-089]`.
+ACHIEVEMENTS: tuple[Conquista, ...] = (
+    Conquista(
+        "primeira-sessao",
+        "Primeira sessão",
+        "Você treinou com o Digital Fit pela primeira vez.",
+        lambda a: a.sessoes_validas >= 1,
+    ),
+    Conquista(
+        "fogo-7",
+        "Uma semana de fogo",
+        "7 dias seguidos treinando.",
+        lambda a: a.melhor_streak >= 7,
+    ),
+    Conquista(
+        "semana-cheia",
+        "Semana cheia",
+        "Você bateu sua meta diária 7 dias seguidos.",
+        lambda a: a.melhor_sequencia_de_meta >= 7,
+    ),
+    Conquista(
+        "centena",
+        "Centena",
+        "100 repetições acumuladas num mesmo exercício.",
+        lambda a: a.reps_no_melhor_exercicio >= 100,
+    ),
+    Conquista(
+        "sem-reparo",
+        "Sem reparo",
+        "10 sessões sem uma correção sequer.",
+        lambda a: a.sessoes_limpas >= 10,
+    ),
+    Conquista(
+        "fogo-30",
+        "Um mês de fogo",
+        "30 dias seguidos treinando.",
+        lambda a: a.melhor_streak >= 30,
+    ),
+    Conquista(
+        "milheiro",
+        "Milheiro",
+        "1000 repetições no total.",
+        lambda a: a.reps_totais >= 1000,
+    ),
+)
+
+
+def conquistas(agregados: Agregados) -> list[str]:
+    """Os slugs que esta pessoa já tem. Derivado, sem tabela e sem "notificado em"."""
+    return [c.slug for c in ACHIEVEMENTS if c.predicado(agregados)]
+
+
+def catalogo_de_conquistas(agregados: Agregados) -> list[dict[str, Any]]:
+    """O catálogo **inteiro**, cada uma dizendo se foi ganha.
+
+    Inteiro e não só as ganhas: a galeria do Perfil desenha as bloqueadas apagadas, e é isso que
+    transforma a tela num objetivo em vez de um troféu. Mandar só as ganhas obrigaria o cliente
+    a ter a lista completa escrita nele — e aí o catálogo estaria em dois lugares.
+    """
+    ganhas = set(conquistas(agregados))
+    return [c.to_dict(ganha=c.slug in ganhas) for c in ACHIEVEMENTS]
+
+
+@dataclass(frozen=True, slots=True)
 class Engajamento:
     """Corpo do `GET /api/engagement`, já derivado."""
 
@@ -390,14 +509,12 @@ class Engajamento:
     meta_batida_hoje: bool
     xp: int
     nivel: Nivel
+    #: Catálogo INTEIRO, cada uma dizendo se foi ganha — a galeria desenha as bloqueadas
+    #: apagadas, e é isso que transforma a tela num objetivo em vez de um troféu (T-089).
+    conquistas: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        """Chaves em inglês, como todo corpo de API deste projeto (`to_report`, `to_dict`).
-
-        **`achievements` não está aqui**, e a ausência é deliberada: o catálogo de conquistas é a
-        T-089. Uma lista vazia seria pior que a ausência — o cliente a leria como "esta pessoa
-        não conquistou nada", que é uma afirmação, e falsa. Chave nova é aditiva.
-        """
+        """Chaves em inglês, como todo corpo de API deste projeto (`to_report`, `to_dict`)."""
         return {
             "streak": self.streak,
             "best_streak": self.melhor_streak,
@@ -411,7 +528,51 @@ class Engajamento:
             "xp": self.xp,
             "xp_formula_v": XP_FORMULA_V,
             "level": self.nivel.to_dict(),
+            "achievements": self.conquistas,
         }
+
+
+def _melhor_sequencia_de_meta(por_dia: Mapping[date, int], alvo: int) -> int:
+    """Maior corrida de dias seguidos em que a meta foi batida.
+
+    Sem proteção: aqui não há perdão nenhum a conceder — a conquista é sobre ter feito, não
+    sobre não ter faltado. Proteção existe para o fogo, que mede *voltar*.
+    """
+    batidos = sorted(dia for dia, quantas in por_dia.items() if quantas >= alvo)
+    melhor = 0
+    corrente = 0
+    anterior: date | None = None
+    for dia in batidos:
+        corrente = (
+            corrente + 1 if anterior is not None and dia - anterior == timedelta(days=1) else 1
+        )
+        melhor = max(melhor, corrente)
+        anterior = dia
+    return melhor
+
+
+def _agregar(validas: list[Sessao], *, melhor_streak: int, alvo: int) -> Agregados:
+    """Uma passada só sobre as sessões válidas, alimentando todos os predicados."""
+    por_exercicio: dict[str, int] = {}
+    por_dia: dict[date, int] = {}
+    reps_totais = 0
+    limpas = 0
+
+    for sessao in validas:
+        reps_totais += sessao.rep_count
+        por_exercicio[sessao.exercise] = por_exercicio.get(sessao.exercise, 0) + sessao.rep_count
+        por_dia[sessao.dia] = por_dia.get(sessao.dia, 0) + 1
+        if sessao.limpa:
+            limpas += 1
+
+    return Agregados(
+        sessoes_validas=len(validas),
+        melhor_streak=melhor_streak,
+        reps_totais=reps_totais,
+        reps_no_melhor_exercicio=max(por_exercicio.values(), default=0),
+        sessoes_limpas=limpas,
+        melhor_sequencia_de_meta=_melhor_sequencia_de_meta(por_dia, alvo),
+    )
 
 
 def resumo(
@@ -436,6 +597,7 @@ def resumo(
     info = streak(dias, hoje, protecoes_mes, protecoes_historicas=protecoes_historicas)
     alvo = METAS.get(meta, METAS[META_PADRAO])
     pontos = sum(xp_da_sessao(s, _scoring_de(s, scoring_por_slug)) for s in validas)
+    ganhas = catalogo_de_conquistas(_agregar(validas, melhor_streak=info.melhor, alvo=alvo))
 
     return Engajamento(
         streak=info.corrente,
@@ -449,6 +611,7 @@ def resumo(
         meta_batida_hoje=hoje_validas >= alvo,
         xp=pontos,
         nivel=nivel(pontos),
+        conquistas=ganhas,
     )
 
 

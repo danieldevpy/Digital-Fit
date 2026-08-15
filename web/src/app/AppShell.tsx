@@ -7,6 +7,7 @@ import { fetchMe } from '../auth/api'
 import { refreshHistory } from '../history/refresh'
 import { useHistoryStore } from '../history/store'
 import { ReportSheet } from '../report/ReportSheet'
+import { AchievementToast } from '../engagement/AchievementToast'
 import { EngagementSheet } from '../engagement/EngagementSheet'
 import { AnalyticsScreen } from '../screens/AnalyticsScreen'
 import { ChooseScreen } from '../screens/ChooseScreen'
@@ -132,6 +133,7 @@ export function AppShell() {
       <ReportSheet />
       <AccountSheet />
       <EngagementSheet />
+      <AchievementToast />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { updateProfile } from '../auth/api'
 import { useHistoryStore } from '../history/store'
 import { useAccountStore } from '../store/account'
+import { AchievementGallery } from './AchievementGallery'
 import { gradeDoMes, INICIAIS_DA_SEMANA } from './calendar'
 import { diaDoFogo } from './fire'
 import { refreshEngagement, useEngagementStore } from './store'
@@ -192,6 +193,10 @@ export function EngagementSheet() {
             </span>
           </p>
         )}
+
+        {/* A galeria é a "galeria do Perfil" que a spec pede: o Perfil abre ESTE painel, e
+            duplicá-la nos dois lugares criaria duas telas para manter iguais. */}
+        <AchievementGallery lista={view.achievements} />
 
         {user !== null && <SeletorDeMeta atual={user.daily_goal} />}
       </div>

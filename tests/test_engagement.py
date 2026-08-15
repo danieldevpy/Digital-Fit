@@ -431,13 +431,15 @@ def test_o_corpo_carrega_a_versao_da_formula_de_xp() -> None:
     assert corpo["xp_formula_v"] == XP_FORMULA_V
 
 
-def test_o_corpo_nao_promete_conquistas_que_ainda_nao_existem() -> None:
-    """`achievements` é a T-089. Lista vazia seria uma afirmação — e falsa."""
+def test_o_corpo_traz_o_catalogo_de_conquistas() -> None:
+    """Escrito na T-086 afirmando o CONTRÁRIO — que a chave não existia —, porque naquele dia o
+    catálogo não existia e uma lista vazia seria lida como "não conquistou nada". A T-089 trouxe
+    o catálogo, e o teste virou junto: a chave agora tem de estar lá, e cheia."""
     hoje = date(2026, 8, 15)
 
     corpo = resumo([sessao_em(hoje)], hoje=hoje, protecoes_mes=1).to_dict()
 
-    assert "achievements" not in corpo
+    assert len(corpo["achievements"]) == len(eng.ACHIEVEMENTS)
 
 
 # ======================================================================================
@@ -490,3 +492,126 @@ def test_o_modulo_puro_nao_importa_django() -> None:
 
     assert "import django" not in fonte
     assert "from django" not in fonte
+
+
+# ======================================================================================
+# Conquistas v1 (§Conquistas / T-089) — predicados puros sobre agregados.
+# ======================================================================================
+
+
+def conquistas_de(sessoes, *, hoje: date, meta: str = "casual") -> set[str]:
+    """Os slugs ganhos, pelo caminho de verdade (o `resumo`), e não pelo predicado solto."""
+    corpo = resumo(sessoes, hoje=hoje, protecoes_mes=0, meta=meta).to_dict()
+    return {c["slug"] for c in corpo["achievements"] if c["earned"]}
+
+
+def test_o_catalogo_vem_inteiro_com_earned_em_cada_uma() -> None:
+    """A galeria desenha as bloqueadas apagadas — mandar só as ganhas obrigaria o cliente a ter
+    a lista completa escrita nele, e aí o catálogo estaria em dois lugares."""
+    hoje = date(2026, 8, 15)
+
+    corpo = resumo([sessao_em(hoje)], hoje=hoje, protecoes_mes=0).to_dict()
+
+    assert len(corpo["achievements"]) == len(eng.ACHIEVEMENTS)
+    assert {c["earned"] for c in corpo["achievements"]} == {True, False}
+    primeira = corpo["achievements"][0]
+    assert set(primeira) == {"slug", "name", "description", "earned"}
+
+
+def test_primeira_sessao() -> None:
+    hoje = date(2026, 8, 15)
+
+    assert conquistas_de([], hoje=hoje) == set()
+    assert "primeira-sessao" in conquistas_de([sessao_em(hoje)], hoje=hoje)
+
+
+def test_sessao_zerada_nao_desbloqueia_a_primeira_sessao() -> None:
+    """Abrir a câmera por 30 s não é ter treinado — a mesma regra que protege o fogo."""
+    hoje = date(2026, 8, 15)
+    vazia = Sessao(created_at=datetime(2026, 8, 15, 15, tzinfo=UTC), rep_count=0)
+
+    assert conquistas_de([vazia], hoje=hoje) == set()
+
+
+def test_fogo_7_e_fogo_30_saem_da_melhor_sequencia() -> None:
+    hoje = date(2026, 8, 15)
+    sete = [sessao_em(hoje - timedelta(days=n)) for n in range(7)]
+    seis = sete[:-1]
+
+    assert "fogo-7" not in conquistas_de(seis, hoje=hoje)
+    assert "fogo-7" in conquistas_de(sete, hoje=hoje)
+    assert "fogo-30" not in conquistas_de(sete, hoje=hoje)
+
+
+def test_centena_e_por_exercicio_e_milheiro_e_no_total() -> None:
+    """`centena` pergunta "100 num MESMO exercício"; somar tudo daria a conquista a quem fez 50
+    de cada — que é outra coisa, e mais fácil."""
+    hoje = date(2026, 8, 15)
+    espalhado = [
+        sessao_em(hoje, reps=60, exercicio="squat"),
+        sessao_em(hoje - timedelta(days=1), reps=60, exercicio="flexao"),
+    ]
+    concentrado = [
+        sessao_em(hoje, reps=60, exercicio="squat"),
+        sessao_em(hoje - timedelta(days=1), reps=60, exercicio="squat"),
+    ]
+
+    assert "centena" not in conquistas_de(espalhado, hoje=hoje)
+    assert "centena" in conquistas_de(concentrado, hoje=hoje)
+    # 120 reps no total, longe do milheiro.
+    assert "milheiro" not in conquistas_de(concentrado, hoje=hoje)
+
+
+def test_milheiro() -> None:
+    hoje = date(2026, 8, 15)
+    muitas = [sessao_em(hoje - timedelta(days=n), reps=100) for n in range(10)]
+
+    assert "milheiro" in conquistas_de(muitas, hoje=hoje)
+
+
+def test_sem_reparo_conta_dez_sessoes_limpas() -> None:
+    hoje = date(2026, 8, 15)
+    nove = [sessao_em(hoje - timedelta(days=n), limpa=True) for n in range(9)]
+    dez = [sessao_em(hoje - timedelta(days=n), limpa=True) for n in range(10)]
+    dez_sujas = [sessao_em(hoje - timedelta(days=n), limpa=False) for n in range(10)]
+
+    assert "sem-reparo" not in conquistas_de(nove, hoje=hoje)
+    assert "sem-reparo" in conquistas_de(dez, hoje=hoje)
+    assert "sem-reparo" not in conquistas_de(dez_sujas, hoje=hoje)
+
+
+def test_semana_cheia_olha_a_meta_e_nao_o_fogo() -> None:
+    """Sete dias seguidos com UMA sessão batem a meta casual e não a intensa. É a diferença
+    entre "voltou" (fogo) e "quanto" (meta)."""
+    hoje = date(2026, 8, 15)
+    sete_dias_uma_sessao = [sessao_em(hoje - timedelta(days=n)) for n in range(7)]
+
+    assert "semana-cheia" in conquistas_de(sete_dias_uma_sessao, hoje=hoje, meta="casual")
+    assert "semana-cheia" not in conquistas_de(sete_dias_uma_sessao, hoje=hoje, meta="intenso")
+
+
+def test_semana_cheia_exige_dias_SEGUIDOS() -> None:
+    hoje = date(2026, 8, 15)
+    # Sete dias batendo a meta, mas com um buraco no meio.
+    com_buraco = [sessao_em(hoje - timedelta(days=n)) for n in (0, 1, 2, 4, 5, 6, 7)]
+
+    assert "semana-cheia" not in conquistas_de(com_buraco, hoje=hoje)
+
+
+def test_a_ordem_do_catalogo_vai_do_facil_ao_dificil() -> None:
+    """A galeria segue esta ordem, e ela é escolha de produto: abrir com `milheiro` apagado
+    diria a quem acabou de chegar que o jogo não é para ela."""
+    slugs = [c.slug for c in eng.ACHIEVEMENTS]
+
+    assert slugs[0] == "primeira-sessao"
+    assert slugs.index("fogo-7") < slugs.index("fogo-30")
+    assert slugs[-1] == "milheiro"
+
+
+def test_todo_slug_do_catalogo_e_unico_e_tem_texto() -> None:
+    """Slug repetido faria a galeria desenhar duas células com a mesma chave; descrição vazia
+    deixaria a bloqueada sem dizer o que fazer para ganhá-la."""
+    slugs = [c.slug for c in eng.ACHIEVEMENTS]
+
+    assert len(slugs) == len(set(slugs))
+    assert all(c.nome and c.descricao for c in eng.ACHIEVEMENTS)

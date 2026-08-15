@@ -13,11 +13,20 @@ export interface EngagementLevel {
 }
 
 /**
- * Corpo do `GET /api/engagement`.
+ * Uma conquista do catálogo do servidor (SPEC-019 §Conquistas / T-089).
  *
- * **Não tem `achievements`**: o catálogo de conquistas é a T-089, e o servidor omite a chave em
- * vez de mandar lista vazia — vazio seria lido como "não conquistou nada", que é uma afirmação.
+ * Nome e descrição vêm de lá, e não de um mapa no bundle: o catálogo é código do servidor
+ * (`ACHIEVEMENTS`), e espelhá-lo aqui recriaria o `[A/T-051]` — conquista que existe de um lado
+ * e não do outro.
  */
+export interface Achievement {
+  slug: string
+  name: string
+  description: string
+  earned: boolean
+}
+
+/** Corpo do `GET /api/engagement`. */
 export interface Engagement {
   streak: number
   best_streak: number
@@ -31,6 +40,8 @@ export interface Engagement {
   xp: number
   xp_formula_v: number
   level: EngagementLevel
+  /** O catálogo **inteiro**: a galeria desenha as bloqueadas apagadas. */
+  achievements: Achievement[]
 }
 
 /** `null` quando não há conta (401) ou a rede falhou — quem chama decide o que mostrar. */

@@ -17,6 +17,7 @@ const PAYLOAD: Engagement = {
   xp: 120,
   xp_formula_v: 1,
   level: { number: 2, xp_min: 100, xp_next: 300, progress: 0.1 },
+  achievements: [],
 }
 
 const USUARIO = {

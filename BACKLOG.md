@@ -190,7 +190,7 @@ funcionalidade nova: são o mesmo dado, dito certo.
 | T-086 | Módulo `engagement.py` puro (streak com proteções/mês no fuso SP + piso que impede downgrade de encurtar sequência antiga, XP v1 versionado só sobre `SessionResult`, níveis; `scoring` entra por parâmetro) + fixtures de datas + `GET /api/engagement` com cache `df:eng:{user}:{data_sp}` (TTL até a virada em SP, invalidado por `post_save` de `SessionResult` e `User`) + campo `daily_goal` no perfil | 019 | **feito** (2026-08-15) — a SPEC-019 foi corrigida em dois pontos que decidiam produto: a fórmula do downgrade (`max(plano_atual, plano_free)` encurtava o fogo justamente de quem foi rebaixado — 10 dias viravam 7) e a proteção que só valia "no meio" da sequência (que dava de graça o reacender pago). `achievements` fica fora do payload até a T-089 — lista vazia seria uma afirmação falsa |
 | T-087 | Adoção de sessões do aparelho no cadastro: `device_id` no register, backfill de `SessionClaim.user` — fogo e histórico sobrevivem à criação de conta | 019/011 | **feito** (2026-08-15) — critério de aceite 5 da SPEC-019 verde ponta a ponta; fecha a Descoberta `[T-121]`. As três fronteiras da spec (só no registro, só claims órfãs, idempotente) têm teste cada uma |
 | T-088 | UI do engajamento: chip do fogo + anel de meta na Início, painel (sheet) com calendário do mês, seção no Perfil, decomposição "+XP" no relatório; fogo fantasma local do anônimo com rótulo honesto e CTA de conta | 019/014 | **feito** (2026-08-15) — a decomposição de XP sai do **servidor** (`decomposicao_de_xp`), não de um espelho da fórmula em TS: `XP_FORMULA_V` existe porque a fórmula muda, e nenhum teste compara as duas linguagens. A galeria de conquistas fica para a T-089 |
-| T-089 | Conquistas v1: catálogo em código (predicados puros), lista no `GET /api/engagement`, toast de nova conquista por diff local, galeria no Perfil | 019 | todo |
+| T-089 | Conquistas v1: catálogo em código (predicados puros), lista no `GET /api/engagement`, toast de nova conquista por diff local, galeria no Perfil | 019 | **feito** (2026-08-15) — fecha o **M1**. Catálogo de 7 predicados puros em `engagement.ACHIEVEMENTS`, servido inteiro (com `earned`) para a galeria desenhar as bloqueadas. Gerou a Descoberta `[T-089]`: `semana-cheia` é revogável porque lê a meta, que é mutável |
 
 ### M2 — "O catálogo cresce" (SPEC-020): categorias, 4 exercícios novos, primeira trilha
 
@@ -279,6 +279,20 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
 | T-119 | Card compartilhável semanal (Canvas no cliente): resumo da semana com marca, para auto-divulgação (`docs/IDEIAS…` §2.5). Dado já existe; não depende de motor novo | 014/019 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-089] `semana-cheia` é a única conquista REVOGÁVEL, e a spec não percebeu.** O predicado é
+  "meta batida 7 dias seguidos", e a meta é campo mutável do perfil — então subir de `casual`
+  para `intenso` pode **apagar** uma conquista já mostrada, e descer de `intenso` para `casual`
+  pode concedê-la retroativamente. É exatamente o argumento que a própria SPEC-019 §XP usa para
+  tirar o bônus de meta batida da fórmula de XP (*"quem estava em intenso e muda para casual faria
+  todos os dias passados virarem meta batida de uma vez"*) — o raciocínio foi aplicado ao XP e
+  não à conquista, que a mesma spec ainda nomeia como "gatilho" da meta. Implementada como a spec
+  manda, e o efeito é real: perder um troféu por mudar de configuração é pior que nunca tê-lo
+  ganho. Três saídas possíveis, nenhuma escolhida ainda: (a) trocar o predicado por um limiar
+  fixo independente da meta (derivável e estável, mas deixa de ser "sua meta"); (b) persistir
+  conquistas ganhas — o primeiro estado não-derivável desta spec, mesmo custo que o "reacender";
+  (c) declarar por escrito que a galeria é um retrato de *agora*, não um histórico. A (c) é a
+  única que não custa código, e é a que precisa de decisão de produto.
 
 - **[T-086] `manage.py` não roda da raiz do repositório — e o erro culpa o app errado.** Qualquer
   comando (`makemigrations`, `migrate`, `shell`) invocado como `python server/manage.py ...` morre

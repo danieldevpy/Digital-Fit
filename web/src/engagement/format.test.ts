@@ -15,6 +15,7 @@ const BASE: EngagementView = {
   level: 2,
   protections: { used: 0, total: 1 },
   pending: false,
+  achievements: [],
 }
 
 describe('fireLabel', () => {

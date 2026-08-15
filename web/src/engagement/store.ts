@@ -9,7 +9,8 @@
 // este último ignorando o debounce, porque ali existe um fato novo e não uma suspeita.
 import { create } from 'zustand'
 import { useAccountStore } from '../store/account'
-import type { Engagement } from './api'
+import { novasConquistas } from './achievements'
+import type { Achievement, Engagement } from './api'
 import { fetchEngagement } from './api'
 
 /** Mesma janela do histórico, e pelo mesmo motivo: foco é barato de ganhar. */
@@ -21,7 +22,19 @@ export interface EngagementState {
   loading: boolean
   /** Painel aberto pelo toque no chip. Sheet e não rota, como a AccountSheet (SPEC-019). */
   sheetOpen: boolean
+  /**
+   * Conquistas ganhas que ainda não foram avisadas (T-089).
+   *
+   * A fila mora **aqui, e não num efeito do toast**, porque o diff pertence ao instante em que
+   * o dado chega: o toast pode nem estar montado (o painel fechado, outra tela aberta) e a
+   * conquista não pode se perder por causa disso. É também o que a regra `set-state-in-effect`
+   * do lint cobra — e ela está certa: escrever no `localStorage` é sincronizar com sistema
+   * externo, e isso não é trabalho de renderização.
+   */
+  novas: Achievement[]
   apply: (data: Engagement, at?: number) => void
+  /** O toast consumiu a primeira da fila. */
+  dispensarNova: () => void
   start: () => void
   fail: () => void
   openSheet: (open: boolean) => void
@@ -34,14 +47,22 @@ export const useEngagementStore = create<EngagementState>((set) => ({
   loadedAt: null,
   loading: false,
   sheetOpen: false,
-  apply: (data, at = Date.now()) => set({ data, loadedAt: at, loading: false }),
+  novas: [],
+  apply: (data, at = Date.now()) =>
+    set((estado) => ({
+      data,
+      loadedAt: at,
+      loading: false,
+      novas: [...estado.novas, ...novasConquistas(data.achievements ?? [])],
+    })),
+  dispensarNova: () => set((estado) => ({ novas: estado.novas.slice(1) })),
   start: () => set({ loading: true }),
   // Falha mantém o dado anterior: número certo e velho é melhor que tela vazia (SPEC-024 §2).
   fail: () => set({ loading: false }),
   openSheet: (sheetOpen) => set({ sheetOpen }),
   // O painel NÃO fecha aqui: trocar de conta com o painel aberto deve trocar o conteúdo, não
   // sumir com a tela debaixo do dedo de quem acabou de se cadastrar.
-  reset: () => set({ data: null, loadedAt: null, loading: false }),
+  reset: () => set({ data: null, loadedAt: null, loading: false, novas: [] }),
 }))
 
 export function engagementIsFresh(agora: number = Date.now()): boolean {

@@ -5,6 +5,85 @@
 
 ---
 
+## 2026-08-15 (51) · T-089 — as conquistas, e a única que pode ser perdida
+
+Última do M1. Catálogo de 7 predicados puros, lista no `GET /api/engagement`, galeria no painel
+e aviso de conquista nova por diff local. **O M1 fecha aqui** — o fogo acende, sobrevive ao
+cadastro, aparece na tela e agora premia.
+
+### A conquista que pode ser tirada de volta
+
+`semana-cheia` é "meta batida 7 dias seguidos", e a meta é campo **mutável** do perfil. A
+consequência: subir de `casual` para `intenso` pode **apagar** uma conquista já mostrada; descer
+faz o contrário, concede retroativamente.
+
+O incômodo é que a SPEC-019 já tinha feito exatamente este raciocínio — na §XP, para tirar o
+bônus de meta batida da fórmula:
+
+> *"Quem estava em `intenso` e muda para `casual` faria todos os dias passados virarem 'meta
+> batida' de uma vez, e o XP saltaria retroativamente"*
+
+O argumento foi aplicado ao XP e não à conquista, que a mesma spec continua nomeando como
+"gatilho" da meta. Implementei como a spec manda — não é ambiguidade, é uma escolha explícita
+dela — e registrei a Descoberta `[T-089]` com as três saídas possíveis. **Perder um troféu por
+mudar de configuração é pior que nunca tê-lo ganho**, e a saída mais barata (declarar que a
+galeria é um retrato de agora, não um histórico) não custa código, só decisão.
+
+### O primeiro acesso não dispara sete avisos
+
+O detalhe que mais moldou o código do cliente. O servidor não guarda "notificado em" — a spec
+recusa a tabela —, então o aviso é um diff contra o `localStorage`. Ingenuamente, quem já
+treinava antes desta task abriria o app e receberia **sete toasts de uma vez**, alguns de
+conquistas ganhas meses atrás.
+
+A primeira leitura marca tudo como visto **em silêncio**. É a mesma escolha do `guide_seen`: a
+marca existe para não repetir, não para celebrar retroativamente. Tem teste, e tem o irmão dele:
+armazenamento quebrado (Safari privado) degrada para *"tudo visto"*, nunca para *"tudo novo"* —
+sete avisos por causa de um storage indisponível seria pior que aviso nenhum.
+
+### Decisões
+
+- **O catálogo é do servidor, inteiro, com `earned` em cada linha.** Mandar só as ganhas
+  obrigaria o cliente a ter a lista completa escrita nele — e aí o catálogo estaria em dois
+  lugares, que é o `[A/T-051]` de sempre. A galeria desenha as bloqueadas apagadas mas
+  **legíveis**: esconder o que falta faria da tela um troféu, e a mecânica existe para ser um
+  objetivo.
+- **`centena` é por exercício, `milheiro` é no total**, e há teste separando os dois: somar tudo
+  daria a "centena" a quem fez 50 de cada, que é outra coisa e mais fácil.
+- **`Agregados` é um objeto, e não a lista de sessões.** Predicado que pudesse varrer o histórico
+  por conta própria acrescentaria uma passada por conquista nova, sem ninguém notar — e todas são
+  calculadas a cada leitura. Uma passada só, em `_agregar`.
+- **O diff das conquistas mudou de lugar durante a implementação.** Nasceu num `useEffect` do
+  toast e o lint reprovou (`set-state-in-effect`). A regra estava certa por um motivo melhor que
+  o dela: o diff pertence ao **instante em que o dado chega**, não à renderização — com o toast
+  desmontado (painel fechado, outra tela), a conquista se perderia. Foi para o store.
+- **A galeria mora no painel, e o Perfil abre o painel.** A spec pede "galeria no Perfil";
+  desenhá-la nos dois lugares criaria duas telas para manter iguais.
+- **Ordem do catálogo é do fácil ao difícil**, com teste. Uma vitrine que abrisse com `milheiro`
+  apagado diria a quem acabou de chegar que o jogo não é para ela.
+
+### Gates
+
+`ruff check` e `format --check` limpos; `pytest` **956 passando** (+11 sobre os 945 da T-088).
+Web: `lint` sem warnings, `tsc -b` limpo, **567 testes** (+9), `npm run build` OK.
+
+### Pendências
+
+- **A Descoberta `[T-089]` precisa de decisão de produto** antes de alguém ganhar e perder uma
+  `semana-cheia` de verdade. Hoje ninguém tem 7 dias de histórico em produção — a janela para
+  decidir barato é agora.
+- **A galeria não foi verificada no navegador**, porque ela só existe para quem tem conta e isso
+  exige a stack inteira de pé. Coberta pelos testes dos dois lados; o que foi medido no navegador
+  na T-088 foi o caminho do visitante, que não tem conquista.
+- **Conquistas por categoria de exercício continuam de fora**, como a spec prevê: dependem da
+  SPEC-020 dar categoria ao catálogo (T-090). O campo `tem_categorias` existe em `Agregados` e
+  está sempre `False` — é o gancho, não a implementação.
+- **`sem-reparo` conta sessões limpas de qualquer tamanho.** Dez sessões de uma repetição limpa
+  valem tanto quanto dez de trinta. Não é errado pela spec, mas é farmável.
+- `web/public/img/herofamale.png` segue sem task e fora dos commits (sétima entrada seguida).
+
+---
+
 ## 2026-08-15 (50) · T-088 — o fogo aparece, e sabe de quem é o número
 
 Terceira do M1. As duas anteriores puseram o fogo no servidor e o fizeram sobreviver ao
