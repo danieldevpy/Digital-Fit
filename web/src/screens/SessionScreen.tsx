@@ -8,6 +8,8 @@
 // na própria tela como "estimado" (SPEC-016, critério 3).
 import { useEffect, useState } from 'react'
 import { CameraView } from '../capture/CameraView'
+import { FireChip } from '../engagement/FireChip'
+import { useEngagementStore } from '../engagement/store'
 import { CountdownSetting } from '../hud/CountdownSetting'
 import { TimerRing } from '../hud/TimerRing'
 import { ZoomControl } from '../hud/ZoomControl'
@@ -147,6 +149,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   const sceneEntry = useSessionStore((state) => state.sceneEntry)
   const sceneAdvice = useSessionStore((state) => state.sceneAdvice)
   const feedbackEntry = useSessionStore((state) => state.feedbackEntry)
+  const abrirEngajamento = useEngagementStore((state) => state.openSheet)
   const { secondsLeft, durationS } = useCountdown()
 
   const [series, setSeries] = useState(seriesPreference)
@@ -275,6 +278,9 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
           <header className="prep__head">
             <h1 className="prep__title">Pré-configuração</h1>
             <p className="prep__sub">Vamos preparar seu treino</p>
+            {/* O fogo mora na Início (SPEC-019 §Superfícies): é a tela em que se chega ao
+                abrir o app, e o motivo de voltar amanhã tem de estar onde se chega. */}
+            <FireChip onOpen={() => abrirEngajamento(true)} />
           </header>
 
           <div className="prep__side prep__side--left">

@@ -5,6 +5,7 @@
 // logado vê o que treinou. Duas telas separadas obrigariam a navegar para descobrir em qual
 // dos dois estados se está.
 import { useState } from 'react'
+import { EngagementSection } from '../engagement/EngagementSection'
 import { useHistoryStore } from '../history/store'
 import { useFreshHistory } from '../history/useFreshHistory'
 import { formatDuration } from '../report/sessionReport'
@@ -225,6 +226,8 @@ function Conta() {
       )}
 
       {aviso && <QuotaBlock notice={aviso} upsell />}
+
+      <EngagementSection />
 
       <div className="account__totals">
         <div className="account__total">

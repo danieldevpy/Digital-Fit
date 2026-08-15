@@ -65,6 +65,7 @@ __all__ = [
     "Sessao",
     "StreakInfo",
     "chave_de_cache",
+    "decomposicao_de_xp",
     "dia_sp",
     "dias_ativos",
     "nivel",
@@ -309,6 +310,31 @@ def xp_da_sessao(sessao: Sessao, scoring: str = SCORING_REPS) -> int:
 
 def xp_total(sessoes: Iterable[Sessao], scoring_por_slug: Mapping[str, str] | None = None) -> int:
     return sum(xp_da_sessao(s, _scoring_de(s, scoring_por_slug)) for s in sessoes)
+
+
+def decomposicao_de_xp(sessao: Sessao, scoring: str = SCORING_REPS) -> dict[str, Any]:
+    """A conta do XP desta sessão, parcela a parcela (SPEC-019 §Superfícies).
+
+    O relatório mostra "+38 · sessão 10 · reps 18 · limpa 10", e é **onde o bônus de forma
+    ensina que forma vale ponto**. A decomposição sai daqui, do mesmo lugar que soma o total,
+    porque a alternativa era um espelho da fórmula em TypeScript — e a fórmula é *versionada*
+    (`XP_FORMULA_V`), o que garante que um dia ela muda e que um dia só um dos dois lados é
+    corrigido. É o `[A/T-051]` esperando para acontecer, com pontos em vez de exercícios.
+
+    Sessão inválida devolve tudo zerado em vez de `None`: a linha some da tela por decisão de
+    quem desenha, não por ausência de campo.
+    """
+    valida = sessao_valida(sessao, scoring)
+    base = XP_SESSAO_VALIDA if valida else 0
+    reps = min(sessao.rep_count * XP_POR_REP, XP_TETO_REPS) if valida else 0
+    limpa = XP_EXECUCAO_LIMPA if valida and sessao.limpa else 0
+    return {
+        "total": base + reps + limpa,
+        "session": base,
+        "reps": reps,
+        "clean": limpa,
+        "formula_v": XP_FORMULA_V,
+    }
 
 
 @dataclass(frozen=True, slots=True)

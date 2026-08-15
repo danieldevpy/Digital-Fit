@@ -35,6 +35,27 @@ export interface SessionReport {
    */
   config_version: number
   created_at: string
+  /**
+   * Decomposição do XP desta sessão (SPEC-019 §XP / T-088).
+   *
+   * **Opcional porque só existe para quem tem conta**: XP não se aplica ao visitante (§Planos),
+   * e a view omite a chave em vez de mandar zeros — zero seria lido como "não valeu nada", que
+   * é uma afirmação, e falsa.
+   *
+   * Vem do servidor e não é recalculado aqui de propósito: a fórmula é versionada, um espelho
+   * em TypeScript ficaria para trás no dia em que ela mudasse, e nenhum teste compara as duas
+   * linguagens. Ver `engagement/XpLine.tsx`.
+   */
+  xp?: XpBreakdown
+}
+
+export interface XpBreakdown {
+  total: number
+  session: number
+  reps: number
+  clean: number
+  /** Versão da fórmula que produziu estes números (`XP_FORMULA_V`). */
+  formula_v: number
 }
 
 export class ReportError extends Error {

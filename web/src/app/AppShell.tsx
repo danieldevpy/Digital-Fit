@@ -7,6 +7,7 @@ import { fetchMe } from '../auth/api'
 import { refreshHistory } from '../history/refresh'
 import { useHistoryStore } from '../history/store'
 import { ReportSheet } from '../report/ReportSheet'
+import { EngagementSheet } from '../engagement/EngagementSheet'
 import { AnalyticsScreen } from '../screens/AnalyticsScreen'
 import { ChooseScreen } from '../screens/ChooseScreen'
 import { chooseExercise } from '../screens/funnel'
@@ -130,6 +131,7 @@ export function AppShell() {
       {/* Por último no DOM de propósito: cobrem a tela inteira quando aparecem. */}
       <ReportSheet />
       <AccountSheet />
+      <EngagementSheet />
     </div>
   )
 }

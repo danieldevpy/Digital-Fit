@@ -336,3 +336,55 @@ def test_o_vocabulario_da_meta_nao_diverge_entre_modelo_e_derivacao() -> None:
     corrigida. Este teste é o que transforma esse dia num teste vermelho.
     """
     assert set(DailyGoal.values) == set(eng.METAS)
+
+
+# ======================================================================================
+# A decomposição de XP no relatório (T-088 / SPEC-019 §Superfícies).
+# ======================================================================================
+
+
+def test_o_relatorio_de_quem_tem_conta_traz_a_decomposicao_do_xp(client, usuario) -> None:
+    """A linha "+38 · sessão 10 · reps 18 · limpa 10" é onde o bônus de forma ENSINA que forma
+    vale ponto. O número sai do servidor porque a fórmula é versionada — um espelho em
+    TypeScript ficaria para trás no dia em que ela mudasse, e nenhum teste compara linguagens."""
+    resultado = treino(usuario, dias_atras=0, reps=18, limpa=True)
+
+    corpo = client.get(f"/api/sessions/{resultado.session_id}/report", **autorizacao(client)).json()
+
+    assert corpo["xp"] == {
+        "total": 38,
+        "session": 10,
+        "reps": 18,
+        "clean": 10,
+        "formula_v": eng.XP_FORMULA_V,
+    }
+
+
+def test_treino_com_correcao_perde_o_bonus_de_limpeza(client, usuario) -> None:
+    resultado = treino(usuario, dias_atras=0, reps=18, limpa=False)
+
+    corpo = client.get(f"/api/sessions/{resultado.session_id}/report", **autorizacao(client)).json()
+
+    assert corpo["xp"]["clean"] == 0
+    assert corpo["xp"]["total"] == 28
+
+
+def test_o_visitante_nao_recebe_xp_no_relatorio(client, db) -> None:
+    """XP não existe para quem não tem conta (§Planos). A chave some — e não vem zerada, que
+    o cliente leria como "não valeu nada"."""
+    SessionClaim.objects.create(session_id="anon-1", user=None, device_id="dev-x")
+    SessionResult.objects.create(
+        session_id="anon-1", exercise="squat", mode="edge", reason="completed", rep_count=12
+    )
+
+    corpo = client.get("/api/sessions/anon-1/report").json()
+
+    assert "xp" not in corpo
+
+
+def test_o_historico_traz_o_xp_de_cada_sessao(client, usuario) -> None:
+    treino(usuario, dias_atras=0, reps=5)
+
+    corpo = client.get("/api/sessions?mine", **autorizacao(client)).json()
+
+    assert corpo["results"][0]["xp"]["total"] == 25

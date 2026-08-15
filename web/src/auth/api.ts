@@ -155,6 +155,31 @@ export function register(
   return autenticar('/api/auth/register', { email, password, name }, fetchImpl, deviceHeaders())
 }
 
+/**
+ * Edita o perfil (T-086). Hoje só a meta diária; peso e altura entram na SPEC-017.
+ *
+ * Devolve o usuário atualizado — a resposta do `PATCH` é o mesmo corpo do `GET /api/me`, então
+ * quem chama não precisa de uma segunda requisição para saber o que ficou gravado.
+ */
+export async function updateProfile(
+  campos: { daily_goal?: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AccountUser> {
+  const resposta = await authedFetch(
+    '/api/me',
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(campos),
+    },
+    fetchImpl,
+  )
+  if (!resposta.ok) {
+    throw new AuthError(await detalhe(resposta, 'Não foi possível salvar.'), resposta.status)
+  }
+  return (await resposta.json()) as AccountUser
+}
+
 /** Quem está logado. `null` quando ninguém — inclusive quando o refresh já não vale. */
 export async function fetchMe(fetchImpl: typeof fetch = fetch): Promise<AccountUser | null> {
   let resposta: Response

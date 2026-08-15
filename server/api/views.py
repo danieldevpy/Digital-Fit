@@ -310,7 +310,8 @@ def _historico(request: Request) -> Response:
     resultados = SessionResult.objects.filter(session_id__in=ids)
     # A ordem vem do `SessionResult` (`-created_at`): o relatorio e o que a tela mostra, e a
     # sessao sem relatorio (abortada antes do primeiro frame) nao tem o que exibir.
-    return Response({"count": len(resultados), "results": [r.to_report() for r in resultados]})
+    corpos = [engagement_cache.com_xp(r.to_report()) for r in resultados]
+    return Response({"count": len(corpos), "results": corpos})
 
 
 @api_view(["GET"])
@@ -363,4 +364,10 @@ def session_report(request: Request, session_id: str) -> Response:
             {"detail": "relatorio ainda nao disponivel", "pending": True, "session_id": session_id},
             status=404,
         )
-    return Response(resultado.to_report())
+
+    corpo = resultado.to_report()
+    if usuario is not None:
+        # XP so existe para quem tem conta (SPEC-019 §Planos). O visitante recebe o relatorio
+        # como sempre recebeu — e nao um `xp` zerado, que ele leria como "nao valeu nada".
+        corpo = engagement_cache.com_xp(corpo)
+    return Response(corpo)

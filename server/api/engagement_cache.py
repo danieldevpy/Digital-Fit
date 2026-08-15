@@ -23,6 +23,7 @@ from api import engagement as regra
 from api.config import capabilities_for
 
 __all__ = [
+    "com_xp",
     "invalidar_por_resultado",
     "invalidar_por_usuario",
     "payload_de",
@@ -99,6 +100,32 @@ def payload_de(usuario) -> dict[str, Any]:
     except Exception:
         logger.warning("falha ao gravar o engajamento no cache", exc_info=True)
     return corpo
+
+
+def com_xp(relatorio: dict[str, Any]) -> dict[str, Any]:
+    """Acrescenta a decomposição de XP a um corpo de `to_report()` (SPEC-019 §Superfícies).
+
+    **Enriquecimento na view, e não dentro de `to_report()`**, por duas razões que se somam:
+
+    1. `to_report()` é o payload **replay-derivável** da SPEC-010 — o que sai dos eventos, e
+       nada além. XP é leitura de produto sobre esse fato, e mora do lado de quem lê.
+    2. XP não existe para o visitante (§Planos: anônimo não tem XP nem nível). Quem chama isto
+       é a view, que sabe se há conta; `to_report()` não sabe e não deve saber.
+
+    A chave é aditiva: cliente que não a conhece continua lendo o relatório como antes.
+    """
+    return {
+        **relatorio,
+        "xp": regra.decomposicao_de_xp(
+            regra.Sessao(
+                created_at=timezone.now(),  # não entra na conta do XP; só o construtor exige
+                exercise=str(relatorio.get("exercise", "")),
+                rep_count=int(relatorio.get("rep_count", 0)),
+                feedback_counts=relatorio.get("feedback_counts") or {},
+                scene_warning_counts=relatorio.get("scene_warning_counts") or {},
+            )
+        ),
+    }
 
 
 def invalidar_por_resultado(instance=None, **_kwargs) -> None:

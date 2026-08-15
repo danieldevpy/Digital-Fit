@@ -3704,3 +3704,341 @@ a {
   flex: none;
   font: 700 1rem var(--font-num);
 }
+
+/* ---------- engajamento: fogo, meta, painel (SPEC-019 / T-088) ---------- */
+
+/* O chip fica no canto do cabeçalho da Início. `absolute` porque o `.prep__head` é
+   centralizado e um flex ali empurraria o título para fora do eixo da tela. */
+.fire-chip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: var(--surface-hud);
+  backdrop-filter: var(--glass-blur);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+/* Aceso ganha a cor quente e a borda; apagado fica discreto — o fogo tem de PARECER
+   diferente de longe, não só contar outro número. */
+.fire-chip--lit {
+  border-color: rgba(245, 168, 61, 0.45);
+  color: var(--text);
+}
+
+.fire-chip__flame {
+  font-size: 0.875rem;
+  line-height: 1;
+  /* Sem sequência a chama fica cinza: emoji colorido ao lado de "0" prometeria o que não há. */
+  filter: grayscale(1) opacity(0.5);
+}
+
+.fire-chip--lit .fire-chip__flame {
+  filter: none;
+}
+
+.fire-chip__num {
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.fire-chip__ring {
+  width: 20px;
+  height: 20px;
+  transform: rotate(-90deg);
+}
+
+.fire-chip__ring-bg,
+.fire-chip__ring-fg {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.fire-chip__ring-bg {
+  stroke: rgba(255, 255, 255, 0.14);
+}
+
+.fire-chip__ring-fg {
+  stroke: var(--live);
+  transition: stroke-dasharray 0.4s;
+}
+
+/* O ponto do fogo fantasma. Pequeno de propósito: o aviso inteiro mora no painel, aqui é só
+   o sinal de que existe um. */
+.fire-chip__ghost {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.eng__hero {
+  text-align: center;
+  padding: 4px 0 10px;
+}
+
+.eng__flame {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.eng__streak {
+  margin: 2px 0 0;
+  font: 700 2.75rem var(--font-num);
+  color: var(--hot);
+}
+
+.eng__streak-label {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.8125rem;
+}
+
+.eng__best {
+  margin: 6px 0 0;
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+
+.eng__ghost {
+  border: 1px solid rgba(245, 168, 61, 0.35);
+  border-radius: var(--radius);
+  background: rgba(245, 168, 61, 0.08);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.eng__ghost-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+.eng__ghost-text {
+  margin: 4px 0 10px;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.eng__ghost-cta {
+  width: 100%;
+  padding: 9px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent-deep), var(--blue));
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.eng__cal-week,
+.eng__cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.eng__cal-weekday {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
+.eng__cal-grid {
+  margin-top: 4px;
+}
+
+.eng__cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-faint);
+  font: 600 0.6875rem var(--font-num);
+}
+
+.eng__cal-day--empty {
+  background: none;
+}
+
+.eng__cal-day--on {
+  background: rgba(245, 168, 61, 0.22);
+  color: var(--text);
+}
+
+/* Dia que ainda não chegou não é dia perdido — some quase por completo em vez de parecer
+   uma falha já cometida. */
+.eng__cal-day--future {
+  opacity: 0.28;
+}
+
+.eng__cal-day--today {
+  outline: 1px solid var(--blue);
+}
+
+.eng__cal-total {
+  margin: 8px 0 0;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.eng__row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.eng__stat {
+  flex: 1;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 10px;
+  text-align: center;
+}
+
+.eng__stat-val {
+  margin: 4px 0 0;
+  font: 700 1.25rem var(--font-num);
+}
+
+.eng__prot {
+  margin: 10px 0 0;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+  text-align: center;
+}
+
+.eng__goal {
+  margin-top: 14px;
+}
+
+.eng__goal-opts {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.eng__goal-opt {
+  flex: 1;
+  padding: 8px 4px;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.eng__goal-opt--on {
+  border-color: var(--blue);
+  color: var(--text);
+}
+
+.eng__goal-name {
+  display: block;
+  font-weight: 700;
+  font-size: 0.8125rem;
+}
+
+.eng__goal-alvo {
+  display: block;
+  font-size: 0.625rem;
+  color: var(--text-faint);
+}
+
+.eng__erro {
+  margin: 6px 0 0;
+  color: #ff8a8a;
+  font-size: 0.75rem;
+}
+
+/* Seção do Perfil: quatro números numa faixa clicável que leva ao painel. */
+.account__eng {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 10px 6px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.account__eng-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account__eng-value {
+  font: 700 1.0625rem var(--font-num);
+  color: var(--text);
+}
+
+.account__eng-label {
+  color: var(--text-faint);
+  font-size: 0.625rem;
+}
+
+/* A linha "+XP" do relatório. */
+.report__xp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 6px 0 0;
+}
+
+.report__xp-total {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent-2);
+}
+
+.report__xp-parts {
+  display: flex;
+  gap: 8px;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+}
+
+/* Telas estreitas (≤360px, Android de entrada): o chip e o título disputam a mesma linha e a
+   400px sobra folga, mas a 320 o texto passa por baixo do chip. Medido no navegador: −14px de
+   sobreposição. Encolhem os dois — o chip perde peso, não perde o anel, porque a meta é
+   metade da informação que ele carrega. */
+@media (max-width: 360px) {
+  .fire-chip {
+    top: 10px;
+    right: 10px;
+    gap: 4px;
+    padding: 4px 8px 4px 6px;
+  }
+
+  .fire-chip__num {
+    font-size: 0.8125rem;
+  }
+
+  .fire-chip__ring {
+    width: 16px;
+    height: 16px;
+  }
+
+  .prep__title {
+    font-size: 0.9375rem;
+  }
+}

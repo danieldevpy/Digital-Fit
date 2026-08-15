@@ -5,6 +5,113 @@
 
 ---
 
+## 2026-08-15 (50) · T-088 — o fogo aparece, e sabe de quem é o número
+
+Terceira do M1. As duas anteriores puseram o fogo no servidor e o fizeram sobreviver ao
+cadastro; esta o põe na tela. Fecha o marco em produto funcional — chip na Início, painel com
+calendário, seção no Perfil, "+XP" no relatório e o fogo fantasma do visitante.
+
+### A regra que desenhou o código todo
+
+O critério de aceite 8 é curto e decide a arquitetura: *"anônimo nunca vê número do servidor;
+logado nunca vê número calculado no cliente"*. A escolha entre as duas fontes acontece **uma
+vez**, no `useEngagement`, e chip, painel e Perfil recebem o mesmo objeto sem saber de onde veio.
+Componente que decidisse sozinho acabaria decidindo diferente — e a divergência apareceria como
+dois números de fogo na mesma tela.
+
+Duas consequências que valem estar escritas:
+
+- **Logado sem resposta do servidor mostra `--`, não cai no fantasma.** Seria tentador: o
+  histórico está ali, a função existe. Mas seria o número do cliente na tela de quem tem conta,
+  que é literalmente o que o critério proíbe.
+- **Medido no navegador: com visitante, nenhuma requisição a `/api/engagement` sai.** A rede
+  confirma o que o código promete — o anônimo não recebe zeros do servidor porque nem pergunta.
+
+### A decomposição do "+XP" vem do servidor, e isso não é preguiça
+
+A tentação era espelhar a fórmula em TypeScript: são três constantes. Mas a fórmula é
+**versionada** (`XP_FORMULA_V`), o que é outra maneira de dizer que ela vai mudar — e no dia da
+mudança um dos dois lados ficaria para trás, em silêncio, porque nenhum teste compara Python com
+TypeScript. É o `[A/T-051]` de novo, com pontos no lugar de exercícios.
+
+Então nasceu `decomposicao_de_xp` no mesmo módulo que soma o total, e o relatório passa a trazer
+`xp: {total, session, reps, clean, formula_v}`.
+
+**O enriquecimento mora na view, não no `to_report()`**, por duas razões que se somam: aquele
+payload é o replay-derivável da SPEC-010 (o que sai dos eventos, e nada além), e XP não existe
+para o visitante (§Planos). A view sabe se há conta; o modelo não sabe e não deve saber. Visitante
+recebe o relatório sem a chave — e não com zeros, que ele leria como "não valeu nada".
+
+### O fogo fantasma, e o fuso que quase estragou tudo
+
+O visitante deriva o fogo do `localStorage` que a T-121 já mantinha. Com **zero proteções**
+(§Planos), a regra do servidor colapsa em "dias seguidos terminando hoje ou ontem" — então não há
+espelho da mecânica de proteção no cliente, só a versão degenerada dela.
+
+O detalhe que exigiu cuidado é o fuso. `history/aggregates.diaLocal` usa o fuso de quem lê, e
+está certo lá ("que dia foi para mim"). Aqui a pergunta é outra: *que dia o servidor vai dizer
+que foi*, porque este número tem de bater com o da conta no instante seguinte ao cadastro. Um
+fogo fantasma de 3 que virasse 2 assim que a conta existe destruiria a confiança na mecânica no
+primeiro contato — e por culpa de um fuso, não de um treino. `engagement/fire.ts` usa
+America/Sao_Paulo fixo, igual ao servidor.
+
+O calendário do painel herda a mesma disciplina: usa `diasAtivos` (SP + sessão válida) e **não**
+`diasComTreino` (fuso local + qualquer sessão). O docstring da segunda já avisava do risco; o
+calendário é a explicação visual do fogo, e um dia aceso na grade que não conta para a sequência
+seria uma contradição na mesma tela, sem nada explicando.
+
+### Medido no navegador
+
+Verificado com histórico local semeado (sessões em D, D-1, D-2 e D-4):
+
+| o que | resultado |
+|---|---|
+| chip | `🔥 3` — o D-4 fica de fora, porque visitante não tem proteção |
+| anel da meta | cheio (1/1) |
+| calendário | 4 dias acesos, hoje marcado, 16 dias futuros apagados |
+| painel do visitante | aviso "vive só neste aparelho" + CTA, **sem** XP, nível ou seletor de meta |
+
+**Um bug de layout apareceu na medição e foi corrigido**: a 320 px o chip passava por baixo do
+título (−14 px de sobreposição). Media query a ≤360 px encolhe chip e título; refeita a conta,
+sobra folga em todas as larguras medidas — 320 (12 px), 360 (32 px), 375 (13 px), 430 (41 px).
+O anel **não** foi sacrificado no aperto: a meta é metade da informação que o chip carrega.
+
+### Decisões
+
+- **`--` e não `0` enquanto o servidor não respondeu**, e as regras de texto moram em
+  `format.ts`, fora dos `.tsx`. São regras de honestidade (SPEC-014), não desenho: num arquivo
+  próprio elas têm teste e não dependem de renderizar componente.
+- **O rótulo do fantasma também vai no `aria-label`.** O ponto cinza do chip não existe para
+  quem não vê a tela, e "3 dias seguidos" sem a ressalva seria uma promessa falsa em áudio.
+- **Parcela zerada some da linha de XP.** "limpa +0" não é informação, é ruído com cara de
+  repreensão — a ausência do bônus comunica sem apontar o dedo.
+- **A galeria de conquistas do Perfil não foi desenhada.** A mesma linha da spec a pede, mas o
+  catálogo de predicados é a T-089: uma vitrine vazia diria "você não conquistou nada" sobre uma
+  mecânica que ainda não foi ligada.
+- **`refreshEngagement` sem conta zera o store**, em vez de só não buscar: um payload sobrando
+  ali seria o fogo de outra pessoa esperando para aparecer depois de um logout.
+
+### Gates
+
+`ruff check` e `format --check` limpos; `pytest` **945 passando** (+4 sobre os 941 da T-087).
+Web: `lint` **sem warnings**, `tsc -b` limpo, **558 testes** (+37), `npm run build` OK.
+Verificação no navegador por JS (screenshot trava neste ambiente, quirk conhecido).
+
+### Pendências
+
+- **O caminho de quem tem conta não foi verificado no navegador** — exigiria a stack inteira de
+  pé (Postgres, Redis, Django) e o dev server do web sozinho não a tem. Está coberto ponta a
+  ponta pelos testes de API, e o que foi medido no navegador foi o caminho do visitante.
+- **O calendário do logado lê o histórico, que o servidor corta em 50 sessões** (`HISTORY_LIMIT`).
+  Para a grade de um mês isso basta hoje; para quem treinar duas vezes por dia por um mês, não.
+  O fogo em si não sofre — ele vem do `GET /api/engagement`, que lê todas as datas.
+- **Nível continua sem nome.** A tela mostra "Nível 2". A spec pede nomes "definidos com o
+  produto", e continua valendo o pedido da entrada 48.
+- **Nenhum toast de nova conquista**, porque não há conquista (T-089).
+- `web/public/img/herofamale.png` segue sem task e fora dos commits (sexta entrada seguida).
+
+---
+
 ## 2026-08-15 (49) · T-087 — a conta deixa de custar o histórico
 
 Segunda do M1, e a que torna a T-086 honesta: sem ela, o fogo derivado do servidor **recomeça do

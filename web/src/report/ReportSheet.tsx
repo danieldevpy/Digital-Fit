@@ -6,6 +6,7 @@
 import { getExercise } from '../session/catalog'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
+import { XpLine } from '../engagement/XpLine'
 import { cadenceBars, improvements, reasonText, windowLabel } from './reportSummary'
 import { formatDuration } from './sessionReport'
 
@@ -56,6 +57,8 @@ export function ReportSheet() {
             <p className="report__title">{reasonText(report.reason)}</p>
             <p className="report__reps tabular">{report.rep_count}</p>
             <p className="report__hint">repetições</p>
+
+            <XpLine xp={report.xp} />
 
             <div className="report__stats">
               <div className="report__stat">
