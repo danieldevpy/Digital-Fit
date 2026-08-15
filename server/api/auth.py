@@ -31,7 +31,7 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from api.models import User
+from api.models import DailyGoal, User
 
 __all__ = ["AuthThrottle", "login", "me", "refresh", "register", "tokens_for"]
 
@@ -163,10 +163,52 @@ def refresh(request: Request) -> Response:
     return Response({"access": str(token.access_token)})
 
 
-@api_view(["GET"])
+@api_view(["GET", "PATCH"])
 def me(request: Request) -> Response:
-    """`GET /api/me` — quem está logado. 401 quando não há ninguém."""
+    """`GET /api/me` — quem está logado. `PATCH` edita o perfil. 401 quando não há ninguém.
+
+    O `PATCH` nasce com **um** campo, `daily_goal` (SPEC-019): a meta é escolha do usuário e
+    precisa de uma rota para mudar. Mesma URL do `GET` porque é o mesmo recurso — abrir um
+    `/api/me/goal` daria a cada campo do perfil um endereço próprio, e o perfil ainda vai ganhar
+    peso e altura (SPEC-017) e objetivo (SPEC-022).
+
+    Só o que está na lista é aceito. Um `PATCH` genérico sobre o modelo deixaria `is_admin` e
+    `plan` a um campo de distância de serem editáveis pelo dono da conta.
+    """
     usuario = request.user
     if usuario is None or not usuario.is_authenticated:
         return Response({"detail": "autenticacao necessaria"}, status=401)
+
+    if request.method == "PATCH":
+        try:
+            _atualizar_perfil(usuario, request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
     return Response(usuario.to_dict())
+
+
+def _atualizar_perfil(usuario: User, dados: Any) -> None:
+    """Aplica os campos editáveis do perfil. Levanta `ValueError` no que não serve."""
+    if not isinstance(dados, dict):
+        raise ValueError("corpo deve ser objeto JSON")
+
+    campos: list[str] = []
+
+    if "daily_goal" in dados:
+        meta = dados.get("daily_goal")
+        if meta not in DailyGoal.values:
+            aceitos = ", ".join(DailyGoal.values)
+            raise ValueError(f"meta invalida: {meta!r}. Use um de: {aceitos}.")
+        usuario.daily_goal = meta
+        campos.append("daily_goal")
+
+    if not campos:
+        # Corpo sem nenhum campo conhecido é engano de quem chama — provavelmente um nome
+        # errado. Responder 200 faria a tela mostrar "salvo" sobre uma gravação que não houve.
+        raise ValueError("nenhum campo editavel no corpo")
+
+    # `update_fields` para não reescrever a linha inteira: o `post_save` que invalida o cache de
+    # engajamento dispara igual, e uma escrita menor não pisa em campo que outra requisição
+    # tenha mudado no meio.
+    usuario.save(update_fields=campos)

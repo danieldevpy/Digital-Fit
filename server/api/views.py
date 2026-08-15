@@ -13,6 +13,7 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from api import engagement_cache
 from api import quota as quota_rule
 from api.config import capabilities_for, config_etag, config_payload, exercises_for
 from api.models import SessionClaim, SessionResult
@@ -310,6 +311,27 @@ def _historico(request: Request) -> Response:
     # A ordem vem do `SessionResult` (`-created_at`): o relatorio e o que a tela mostra, e a
     # sessao sem relatorio (abortada antes do primeiro frame) nao tem o que exibir.
     return Response({"count": len(resultados), "results": [r.to_report() for r in resultados]})
+
+
+@api_view(["GET"])
+def engagement(request: Request) -> Response:
+    """`GET /api/engagement` — fogo, meta, XP e nivel do usuario logado (SPEC-019).
+
+    **401 para anonimo, e nao um corpo com zeros** (criterio de aceite 8): o visitante tem fogo
+    fantasma, derivado no proprio aparelho e rotulado como local (T-088). Um payload de servidor
+    cheio de zeros seria indistinguivel de "voce nunca treinou" para um cliente descuidado — e a
+    spec pede exatamente o contrario, que ninguem confunda o local com o do servidor.
+    """
+    usuario = _usuario(request)
+    if usuario is None:
+        return Response({"detail": "autenticacao necessaria"}, status=401)
+
+    resposta = Response(engagement_cache.payload_de(usuario))
+    # O corpo vira sozinho a meia-noite de Sao Paulo e a cada sessao concluida. Deixar um proxy
+    # guardando isto poria o fogo de ontem na tela de hoje — o mesmo bug que a data na chave do
+    # Redis existe para evitar, so que fora do nosso alcance para invalidar.
+    resposta["Cache-Control"] = "no-store"
+    return resposta
 
 
 @api_view(["GET"])

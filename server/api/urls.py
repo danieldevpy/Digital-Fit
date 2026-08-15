@@ -16,6 +16,9 @@ urlpatterns = [
     # Separada do `/api/config` de proposito: aquela resposta e cacheada por ETag, e esta muda
     # a cada sessao (ver `views.quota`).
     path("api/quota", views.quota, name="quota"),
+    # Separada do `/api/me` pelo mesmo motivo da quota: aquele corpo e o perfil (muda quando
+    # alguem edita), este e uma derivacao do historico que vira sozinha a meia-noite.
+    path("api/engagement", views.engagement, name="engagement"),
     path("api/sessions", views.sessions, name="sessions"),
     path("api/sessions/<str:session_id>/report", views.session_report, name="session-report"),
 ]

@@ -9,7 +9,7 @@ class ApiConfig(AppConfig):
     verbose_name = "Digital Fit"
 
     def ready(self) -> None:
-        """Liga a invalidação do snapshot de configuração (SPEC-018, T-073).
+        """Liga as invalidações de cache: configuração (SPEC-018, T-073) e engajamento (T-086).
 
         Em `ready` e não na importação do `models.py` porque é aqui que o Django garante que o
         app é carregado uma vez só — conectar signal no módulo os duplicaria sob autoreload, e o
@@ -19,7 +19,17 @@ class ApiConfig(AppConfig):
         from django.db.models.signals import post_delete, post_save
 
         from api.config import invalidate_snapshot
-        from api.models import Exercise, ExerciseGuideStep, Plan, SiteConfig
+        from api.engagement_cache import invalidar_por_resultado, invalidar_por_usuario
+        from api.models import Exercise, ExerciseGuideStep, Plan, SessionResult, SiteConfig, User
+
+        # SPEC-019: o corpo do `GET /api/engagement` muda por duas escritas — relatório novo (o
+        # report-builder roda como comando do Django, então o signal dispara no processo certo e
+        # o Redis é o mesmo) e edição da conta (meta diária, plano). A terceira coisa que o muda
+        # é a meia-noite, e essa não tem signal: quem cuida dela é a data na chave do cache.
+        post_save.connect(
+            invalidar_por_resultado, sender=SessionResult, dispatch_uid="df-eng-result"
+        )
+        post_save.connect(invalidar_por_usuario, sender=User, dispatch_uid="df-eng-user")
 
         # `ExerciseGuideStep` entra na lista porque os passos viajam **dentro** do exercício no
         # `GET /api/config`: editar um passo sem invalidar deixaria o Guia servindo o texto

@@ -27,9 +27,21 @@ O que isso compra, na prática:
 | **Sessão válida** | `SessionResult` com `rep_count ≥ 1`. Sessão com zero reps não conta para nada desta spec — senão abrir a câmera por 30 s vira fazenda de fogo. (Quando a SPEC-021 existir: exercício de modalidade *hold* é válido com `hold_valid_ms ≥ 10_000`.) |
 | **Dia ativo** | dia-calendário com ≥ 1 sessão válida. |
 | **Fogo (streak)** | número de dias ativos consecutivos terminando hoje ou ontem. Terminou anteontem = fogo apagado (0). |
-| **Proteção** | dia falho "perdoado" no meio de uma sequência. Direito **derivado por regra**, não item de inventário: até N dias falhos perdoados por mês-calendário (N vem do plano; ver §Planos e §Downgrade). Dois dias falhos seguidos consomem duas proteções — se houver. |
+| **Proteção** | dia falho "perdoado" dentro de uma sequência, **inclusive o mais recente** (ver a nota abaixo). Direito **derivado por regra**, não item de inventário: até N dias falhos perdoados por mês-calendário (N vem do plano; ver §Planos e §Downgrade). Dois dias falhos seguidos consomem duas proteções — se houver. |
 | **Meta diária** | alvo pessoal de sessões válidas por dia: casual = 1, regular = 2, intenso = 4. Escolha do usuário, gratuita. |
 | **XP** | pontos por sessão válida, fórmula versionada em código (§XP). |
+
+**A proteção cobre o dia falho da ponta** (correção de 2026-08-15, T-086). Este parágrafo dizia
+"no meio de uma sequência", e a palavra decidia comportamento. Quem treinou seg/ter/qua e faltou
+na quinta abriria o app na sexta e veria fogo **0** — para vê-lo voltar a 4 só depois de treinar
+de novo. Uma proteção que age apenas olhando para trás é invisível no único momento em que
+importa, e o efeito dela é indistinguível do **reacender**, que esta mesma spec deixou como
+mecânica *paga* na Fase Evolução. Dar de graça, por ambiguidade de redação, a mecânica que se
+pretende vender é pior que o caso de borda que a redação queria evitar. O critério de aceite 4 já
+dizia o certo sem a ressalva ("dia falho com proteção disponível não apaga o fogo"), e é ele que
+vale. Duas consequências ficam declaradas: **hoje nunca é dia falho** (o dia não acabou — cobrar
+proteção às 00h01 puniria um treino que ainda pode acontecer às 22h), e **o dia protegido não
+entra na contagem** (ele não foi treinado, apenas não interrompeu; o fogo conta dias *ativos*).
 
 **Meta ≠ fogo, de propósito.** No Duolingo a ofensiva exige a meta batida; aqui o fogo acende
 com **uma** sessão válida, qualquer que seja a meta. Motivo: exercício físico tem dia de corpo
@@ -139,11 +151,22 @@ vence, as proteções caem de 2 para 1, um dia falho que já estava perdoado dei
 **fogo de 40 dias vira 12** — na hora exata em que a pessoa está decidindo se renova. Não é um
 bug de cálculo; é churn produzido pela mecânica de retenção.
 
-Regra: a derivação usa `protecoes = max(plano_atual, plano_free)` para dias **fora do mês
+Regra: a derivação usa `protecoes = max(plano_atual, teto_do_catalogo)` para dias **fora do mês
 corrente**. No mês corrente vale o plano de agora (o benefício some para frente, que é o que
 "assinatura acabou" deve significar); para trás, o perdão já concedido não é retirado. É uma
 linha na função pura, não custa tabela, e mantém a propriedade de recomputabilidade — o resultado
 só depende de (datas, hoje, plano), todos disponíveis.
+
+**A fórmula dizia `max(plano_atual, plano_free)` e estava errada** (correção de 2026-08-15,
+T-086). Para quem foi rebaixado de assinante para free, `plano_atual` **é** free: `max(1, 1) = 1`,
+e o fogo de 40 dias vira 12 do mesmo jeito. A fórmula falhava exatamente no caso que esta seção
+existe para proteger, e contradizia o critério de aceite 10 — era a única frase da seção que
+discordava do resto dela. O teto do catálogo (hoje 2, a assinatura) é o piso histórico.
+
+O conserto tem um custo, e ele é assumido: quem **nunca** assinou também recebe o teto para trás.
+Sem histórico de plano por data — rejeitado acima, para não transformar plano em série temporal —
+não há como distinguir "tinha direito" de "não tinha". Das duas imprecisões possíveis, esta erra
+para o lado de não apagar fogo de ninguém, que é o lado que esta seção inteira escolheu.
 
 Rejeitado: guardar histórico de plano por data (transformaria plano em série temporal por causa
 de um caso de borda) e antecipar a tabela `streak_amnesty` (é a mecânica de resgate pago, e ela

@@ -5,6 +5,126 @@
 
 ---
 
+## 2026-08-15 (48) · T-086 — o fogo, e as duas palavras que decidiam produto
+
+Primeira task do M1 (SPEC-019) e abertura do Bloco B. O Bloco A ficou travado em gravação
+(T-108/T-109 esperam vídeo), e o M0 já fechou o pré-requisito técnico: o fogo é uma leitura do
+histórico, e o histórico passou a atualizar na T-121…T-125.
+
+A task era pequena no papel — uma função pura, uma rota, uma coluna. Mas a spec **se contradizia
+em dois pontos**, e os dois decidem o número que aparece na tela.
+
+### 1. `max(plano_atual, plano_free)` protegia todo mundo, menos quem ela existia para proteger
+
+A §Downgrade da SPEC-019 é uma seção inteira sobre um problema real: no dia em que a assinatura
+vence, as proteções caem de 2 para 1, um dia falho que já estava perdoado deixa de estar, e um
+fogo longo encurta **na hora exata em que a pessoa está decidindo se renova**. Não é bug de
+cálculo; é churn produzido pela mecânica de retenção.
+
+A fórmula que a seção prescrevia não faz isso. Para quem foi rebaixado, `plano_atual` **é** free:
+`max(1, 1) = 1`. Medido na fixture da sequência de 10 dias que atravessa julho gastando duas
+proteções lá:
+
+| piso histórico | fogo corrente |
+|---|---|
+| teto do catálogo (2) | **10** |
+| a fórmula da spec (1) | **7** |
+
+Sete. A fórmula era a única frase daquela seção que discordava do resto dela — e do critério de
+aceite 10, que diz com todas as letras que isso não pode acontecer.
+
+Corrigido para `max(plano_atual, teto_do_catalogo)`, com o custo escrito na spec: quem **nunca**
+assinou também recebe o teto para trás. Sem histórico de plano por data — que a própria spec
+rejeitou, para não transformar plano em série temporal — não há como distinguir "tinha direito"
+de "não tinha". Das duas imprecisões possíveis, esta erra para o lado de não apagar fogo de
+ninguém, que é o lado que a seção inteira escolheu.
+
+### 2. "no meio de uma sequência" dava de graça a mecânica que se pretende vender
+
+O §Vocabulário definia proteção como "dia falho perdoado **no meio** de uma sequência". Lida ao
+pé da letra, a proteção só age entre dois dias treinados — e aí ela é **invisível no único
+momento em que importa**: quem treinou seg/ter/qua e faltou na quinta abre o app na sexta e vê
+fogo **0**. Só depois de treinar de novo ele volta a 4.
+
+Isso não é proteção, é ressurreição retroativa. E ressurreição é exatamente o **reacender**, que
+a mesma spec pôs atrás de pagamento na Fase Evolução. Dar de graça, por ambiguidade de redação,
+a mecânica que se pretende vender é pior que o caso de borda que a redação queria evitar.
+
+O critério de aceite 4 já dizia o certo sem a ressalva ("dia falho com proteção disponível não
+apaga o fogo"), e é ele que valeu. Decisão levada ao Daniel antes de codar, e confirmada.
+
+Duas consequências ficaram declaradas na spec e em teste:
+
+- **Hoje nunca é dia falho.** O dia não acabou; cobrar proteção às 00h01 puniria um treino que
+  ainda pode acontecer às 22h.
+- **O dia protegido não entra na contagem.** Ele não foi treinado, apenas não interrompeu — o
+  fogo conta dias *ativos*, e a spec diz "dias ativos consecutivos".
+
+### O que ficou de fora, e por quê
+
+**`achievements` não está no payload.** O catálogo de conquistas é a T-089. Uma lista vazia seria
+pior que a ausência: o cliente a leria como "esta pessoa não conquistou nada", que é uma
+afirmação — e falsa. Chave nova é aditiva, entra sem quebrar ninguém.
+
+**Nível não tem nome.** A spec diz "nomes definidos com o produto"; inventar copy dentro de uma
+task de derivação seria decidir produto por conveniência. A tela mostra "Nível 3" até alguém
+batizar.
+
+**O ramo `hold` existe escrito e testado**, e nenhum exercício o alcança: a coluna
+`hold_valid_ms` chega na T-098. É o que o `scoring` por parâmetro compra — no dia do wall sit
+muda o mapa que a view passa, não a regra.
+
+### Decisões
+
+- **`engagement.py` não importa Django, e tem teste que cobra isso.** A promessa da spec é que
+  "recalcular do zero dá o mesmo resultado", e uma função que lê o relógio por dentro não pode
+  provar isso. `hoje` é parâmetro; as fixtures são listas de datas escritas à mão.
+- **A metade com I/O virou `engagement_cache.py`, e não o fim do `views.py`.** Os signals são
+  ligados no `AppConfig.ready()`, e importar `api.views` de lá arrasta `api.sessions` →
+  `workers.analysis_worker` para dentro do *startup* do Django — descoberto na cara dura: o
+  `makemigrations` quebrou com `ModuleNotFoundError: No module named 'workers'`. Engajamento não
+  tem nada que ver com o registro de FSMs.
+- **A consulta não usa `HISTORY_LIMIT`.** O histórico mostra as 50 últimas; o fogo precisa de
+  todas as datas. Cortar em 50 encurtaria a sequência de quem treina todo dia — exatamente quem
+  a mecânica existe para premiar. Tem teste com 60 dias.
+- **A data vai na chave do cache**, como a spec exige. O payload muda **sozinho** à meia-noite,
+  sem escrita nenhuma para disparar signal; uma chave sem data serviria o fogo de ontem até a
+  pessoa treinar de novo, ou seja, exatamente até deixar de precisar da informação.
+- **Invalidar por `SessionResult` custa uma consulta**, porque o relatório **não sabe de quem é**
+  — e não pode saber, senão deixa de ser derivável por replay (SPEC-010). O dono vive no
+  `SessionClaim`. É uma vez por sessão, no processo do report-builder, fora do hot path.
+  Confirmado que o caminho real dispara: `update_or_create` chama `.save()`.
+- **`PATCH /api/me` com lista de campos permitidos**, não `PATCH` genérico sobre o modelo — que
+  deixaria `is_admin` e `plan` a um campo de distância de serem editáveis pelo dono da conta.
+  Corpo sem campo conhecido responde 400: 200 faria a tela dizer "salvo" sobre nada.
+- **Anônimo recebe 401, não um corpo de zeros.** Zeros do servidor seriam indistinguíveis de
+  "nunca treinou" para um cliente descuidado, e a spec pede o contrário — que ninguém confunda o
+  fogo fantasma local com o do servidor.
+
+### Gates
+
+`ruff check` e `format --check` limpos; `pytest` **925 passando** (+64 sobre os 861 da T-110),
+zero falhas. `web/` não foi tocado. Dez dos onze critérios de aceite têm teste próprio; o 5 é da
+T-087.
+
+### Pendências
+
+- **O critério 5 não foi verificado e não podia ser**: "cadastro com device_id que tem sessões
+  anônimas já nasce com o fogo" é a T-087. Enquanto ela não chega, existe teste declarando o
+  estado de hoje — sessão anônima do mesmo aparelho **não** entra no fogo de quem tem conta.
+  Junto com a Descoberta `[T-121]`, é a próxima da fila.
+- **Nada disso está na tela.** Chip, anel, painel e "+XP" no relatório são a T-088; o
+  `GET /api/engagement` responde e ninguém o chama ainda.
+- **`LEVELS` acima do quinto degrau é invenção minha** seguindo o espaçamento da spec, e o nome
+  de cada nível não existe. Vale revisar com o produto antes da T-088 desenhar a barra.
+- **O piso histórico de proteções é constante em código** (`PROTECOES_TETO = 2`), e não uma
+  consulta ao maior `streak_protections_month` do banco. De propósito: o valor de um plano **de
+  hoje** não pode decidir o perdão de um mês que já passou. Se algum dia nascer um plano com 3,
+  esta constante precisa subir junto — e é o tipo de coisa que se esquece.
+- `web/public/img/herofamale.png` segue sem task e fora dos commits (quarta entrada seguida).
+
+---
+
 ## 2026-08-15 (47) · T-110 — o vídeo parou de opinar sobre o corpo
 
 Última perna do Bloco A que dava para executar sem gravação nova (T-108 e T-109 esperam vídeo).

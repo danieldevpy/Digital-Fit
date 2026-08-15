@@ -187,7 +187,7 @@ funcionalidade nova: são o mesmo dado, dito certo.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-086 | Módulo `engagement.py` puro (streak com proteções/mês no fuso SP + piso que impede downgrade de encurtar sequência antiga, XP v1 versionado só sobre `SessionResult`, níveis; `scoring` entra por parâmetro) + fixtures de datas + `GET /api/engagement` com cache `df:eng:{user}:{data_sp}` (TTL até a virada em SP, invalidado por `post_save` de `SessionResult` e `User`) + campo `daily_goal` no perfil | 019 | todo |
+| T-086 | Módulo `engagement.py` puro (streak com proteções/mês no fuso SP + piso que impede downgrade de encurtar sequência antiga, XP v1 versionado só sobre `SessionResult`, níveis; `scoring` entra por parâmetro) + fixtures de datas + `GET /api/engagement` com cache `df:eng:{user}:{data_sp}` (TTL até a virada em SP, invalidado por `post_save` de `SessionResult` e `User`) + campo `daily_goal` no perfil | 019 | **feito** (2026-08-15) — a SPEC-019 foi corrigida em dois pontos que decidiam produto: a fórmula do downgrade (`max(plano_atual, plano_free)` encurtava o fogo justamente de quem foi rebaixado — 10 dias viravam 7) e a proteção que só valia "no meio" da sequência (que dava de graça o reacender pago). `achievements` fica fora do payload até a T-089 — lista vazia seria uma afirmação falsa |
 | T-087 | Adoção de sessões do aparelho no cadastro: `device_id` no register, backfill de `SessionClaim.user` — fogo e histórico sobrevivem à criação de conta | 019/011 | todo |
 | T-088 | UI do engajamento: chip do fogo + anel de meta na Início, painel (sheet) com calendário do mês, seção no Perfil, decomposição "+XP" no relatório; fogo fantasma local do anônimo com rótulo honesto e CTA de conta | 019/014 | todo |
 | T-089 | Conquistas v1: catálogo em código (predicados puros), lista no `GET /api/engagement`, toast de nova conquista por diff local, galeria no Perfil | 019 | todo |
@@ -279,6 +279,25 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
 | T-119 | Card compartilhável semanal (Canvas no cliente): resumo da semana com marca, para auto-divulgação (`docs/IDEIAS…` §2.5). Dado já existe; não depende de motor novo | 014/019 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-086] `manage.py` não roda da raiz do repositório — e o erro culpa o app errado.** Qualquer
+  comando (`makemigrations`, `migrate`, `shell`) invocado como `python server/manage.py ...` morre
+  com `ModuleNotFoundError: No module named 'workers'`, porque `api/sessions.py` importa o
+  registro de FSMs no topo e só a raiz do repo tem `workers/` no path. O `pytest` não sofre
+  (`pythonpath = [".", "server"]` no `pyproject.toml`) e o container não sofre (o `WORKDIR` é a
+  raiz), então a pedra fica exatamente no caminho de quem roda um comando à mão na máquina — e o
+  contorno é um `PYTHONPATH="$PWD"` que ninguém adivinha pela mensagem de erro. Conserto provável:
+  ajustar o `sys.path` no próprio `manage.py`, como o `pyproject` já faz para a suíte. Não entrou
+  na T-086 porque é ferramenta, não engajamento.
+
+- **[T-086] O piso histórico de proteções é constante e o catálogo de planos é tabela.**
+  `engagement.PROTECOES_TETO = 2` é o teto que o §Downgrade usa para não retirar perdão já
+  concedido, e ele **não** consulta o maior `streak_protections_month` do banco — de propósito: o
+  valor de um plano de hoje não pode decidir o perdão de um mês que já passou. A consequência é
+  que um plano novo com 3 proteções, criado no painel, deixaria a constante desatualizada em
+  silêncio, e o sintoma seria um fogo antigo mais curto do que deveria. Não há teste que ligue as
+  duas coisas, e não dá para haver sem escolher entre as duas naturezas. Registrado para que a
+  decisão seja consciente no dia em que um plano novo nascer.
 
 - **[A/T-106] O agachamento não conta repetição nenhuma em gente de verdade — medido.** O limiar
   de `agachado` é `hip_height < 0.72` torsos, calibrado contra o boneco sintético, que diz que

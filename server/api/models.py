@@ -29,6 +29,7 @@ from django.db import models
 __all__ = [
     "MATURITY_RANK",
     "Category",
+    "DailyGoal",
     "Exercise",
     "ExerciseGuideStep",
     "MainAngle",
@@ -85,6 +86,25 @@ class Category(models.TextChoices):
     FORCA = "forca", "Força"
     CORE = "core", "Core"
     MOBILIDADE = "mobilidade", "Mobilidade"
+
+
+class DailyGoal(models.TextChoices):
+    """Quanto a pessoa quer treinar por dia (SPEC-019 §Vocabulário).
+
+    Escolha do usuário e **gratuita**: a meta mede *quanto*, o fogo mede *voltar*. As duas não
+    se amarram de propósito — quem pôs "intenso" e fez uma sessão mantém o fogo e vê a meta
+    incompleta, porque exercício físico tem dia de corpo cansado e uma meta ambiciosa não pode
+    queimar a constância.
+
+    Os rótulos citam o número, mas quem **decide** o número é `engagement.METAS`: o alvo é
+    vocabulário da derivação, não configuração de banco. Um teste cobra que os dois conjuntos de
+    chaves não divirjam — se alguém acrescentar um nível aqui e esquecer lá, a meta cairia
+    silenciosamente no default.
+    """
+
+    CASUAL = "casual", "Casual (1 sessão por dia)"
+    REGULAR = "regular", "Regular (2 sessões por dia)"
+    INTENSO = "intenso", "Intenso (4 sessões por dia)"
 
 
 class MainAngle(models.TextChoices):
@@ -437,6 +457,15 @@ class User(AbstractBaseUser):
     #: lugar onde o plano é decidido, e o dia em que ele não rodasse ninguém notaria.
     plan_until = models.DateTimeField(null=True, blank=True)
 
+    #: Meta diária de sessões válidas (SPEC-019). Mora no `User` e não no `Plan` porque é
+    #: escolha de quem treina, não capacidade comprada — e é de graça em todo plano.
+    daily_goal = models.CharField(
+        max_length=12,
+        choices=DailyGoal.choices,
+        default=DailyGoal.CASUAL,
+        verbose_name="meta diária",
+    )
+
     objects = UserManager()
 
     USERNAME_FIELD = "email"
@@ -503,6 +532,7 @@ class User(AbstractBaseUser):
             "email": self.email,
             "name": self.name,
             "is_admin": self.is_admin,
+            "daily_goal": self.daily_goal,
             "date_joined": self.date_joined.isoformat(),
         }
 
