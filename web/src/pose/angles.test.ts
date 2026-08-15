@@ -113,6 +113,63 @@ describe('paridade com a FSM do worker', () => {
   })
 })
 
+// T-110: o espaço normalizado deixou de herdar o formato do vídeo. O HUD é espelho do
+// worker, então tem de fazer a MESMA correção — senão quem filma em retrato vê na tela um
+// ângulo que o servidor não reconhece.
+describe('isotropia (T-110)', () => {
+  /** Simula o mesmo corpo filmado num quadro de aspecto `aspect`. */
+  function filmar(tuples: number[][], aspect: number): Landmark[] {
+    return tuples.map((t) => ({
+      x: 0.5 + (t[0]! - 0.5) / aspect,
+      y: t[1]!,
+      z: t[2]!,
+      visibility: t[3],
+    }))
+  }
+
+  // Paisagem e retrato reais do corpus (`eval/corpus/`).
+  const ASPECTOS = [854 / 480, 576 / 1024]
+
+  it.each(ASPECTOS)('o ângulo não muda com o formato do quadro (aspecto %f)', (aspect) => {
+    const samples = cases[0]!.samples
+    const quadrado = createArmAngleTracker()
+    const filmado = createArmAngleTracker()
+
+    for (const s of samples) {
+      const esperado = quadrado.push(toLandmarks(s.landmarks), s.ts, 1)
+      const obtido = filmado.push(filmar(s.landmarks, aspect), s.ts, aspect)
+      expect(obtido).toBeCloseTo(esperado!, 6)
+    }
+  })
+
+  it('sem o aspecto o ângulo erra muito — é por isso que ele é passado', () => {
+    const samples = cases[0]!.samples
+    const quadrado = createArmAngleTracker()
+    const distorcido = createArmAngleTracker()
+
+    const deltas = samples.map((s) => {
+      const esperado = quadrado.push(toLandmarks(s.landmarks), s.ts, 1)!
+      // O mesmo corpo em retrato, mas sem contar ao tracker que o quadro é retrato.
+      const obtido = distorcido.push(filmar(s.landmarks, 576 / 1024), s.ts)!
+      return Math.abs(obtido - esperado)
+    })
+
+    expect(Math.max(...deltas)).toBeGreaterThan(MAX_DELTA_DEGREES)
+  })
+
+  it('aspecto omitido é o comportamento anterior à task, bit a bit', () => {
+    const samples = cases[0]!.samples
+    const semAspecto = createArmAngleTracker()
+    const comUm = createArmAngleTracker()
+
+    for (const s of samples) {
+      const a = semAspecto.push(toLandmarks(s.landmarks), s.ts)
+      const b = comUm.push(toLandmarks(s.landmarks), s.ts, 1)
+      expect(a).toBe(b)
+    }
+  })
+})
+
 describe('createArmAngleTracker', () => {
   it('devolve null com pose incompleta', () => {
     expect(createArmAngleTracker().push([], 1000)).toBeNull()

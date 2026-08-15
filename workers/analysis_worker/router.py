@@ -297,7 +297,16 @@ class AnalysisRouter:
         estado.frames += 1
 
         norm = estado.normalizer.push(
-            RawFrame(ts=envelope.ts, seq=envelope.seq, landmarks=payload.landmarks)
+            RawFrame(
+                ts=envelope.ts,
+                seq=envelope.seq,
+                landmarks=payload.landmarks,
+                # T-110: as dimensões do frame de origem atravessam o contrato e chegam aqui.
+                # Cliente que não as declara continua caindo no espaço isotrópico por omissão,
+                # que é como o worker se comportava antes desta task.
+                width=payload.width,
+                height=payload.height,
+            )
         )
 
         # Cena primeiro: um frame ruim ainda deve avisar o usuário, mesmo que a FSM congele

@@ -133,7 +133,10 @@ class PoseRouter:
         # imagem foi capturada, não quando o servidor terminou de processá-la.
         return [
             make_envelope(
-                PoseFrame(landmarks=landmarks),
+                # As dimensões vêm do próprio `frame.raw` (T-110): são as do JPEG que o cliente
+                # mandou, e portanto exatamente as que o MediaPipe usou para dividir `x` e `y`.
+                # O modo cloud não precisou de campo novo no cliente — o dado já viajava.
+                PoseFrame(landmarks=landmarks, width=frame.width, height=frame.height),
                 session_id=envelope.session_id,
                 ts=envelope.ts,
                 seq=envelope.seq,

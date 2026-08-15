@@ -162,10 +162,16 @@ class MediaPipeExtractor:
         poses = getattr(resultado, "pose_landmarks", None)
         if not poses:
             return None
+        # As dimensões do frame que o modelo acabou de ver (T-110). Vêm da imagem, e não de
+        # metadado do arquivo, porque é por elas que o MediaPipe dividiu `x` e `y` — se algum
+        # dia entrar um redimensionamento no caminho, o número certo continua sendo este.
+        altura, largura = image.shape[:2]
         return RawFrame(
             ts=ts_ms,
             seq=seq,
             landmarks=[[marco.x, marco.y, marco.z, marco.visibility] for marco in poses[0]],
+            width=int(largura),
+            height=int(altura),
         )
 
     def close(self) -> None:

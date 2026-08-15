@@ -53,12 +53,28 @@ FIXTURES = Path(__file__).resolve().parent.parent / "eval" / "fixtures"
 #: social com cortes de câmera e fala, sem série contínua. O manifest já diz que ela serve como
 #: teste de robustez de feature e não para acurácia; carimbar o zero que ela dá hoje seria
 #: transformar um número ruim em contrato.
+#: **T-110 mudou um número, e só um.** Ao corrigir a anisotropia do espaço normalizado, cinco
+#: das seis contagens ficaram idênticas — polichinelo nas três orientações e agachamento. A
+#: flexão v2 caiu de 50 para 43, e a queda é a medida ficando honesta, não regredindo:
+#:
+#: - A pessoa da v2 para o cotovelo em **91,9°** (paralelo). A v1, que não mudou, desce a 55,2°.
+#: - O espaço distorcido lia esse mesmo fundo como 76,6° e o deixava passar como flexão inteira.
+#: - As 7 repetições que saíram da contagem **viraram 7 `PUSHUP_TOO_SHALLOW`** — não sumiram
+#:   caladas, viraram a crítica que a pessoa precisava ouvir.
+#: - Nenhum limiar foi tocado para chegar aqui. Retunar `frontal_down_depth` de 0,63 para 0,74
+#:   devolveria o 50, mas 0,74 **é** o limiar de "rasa demais": seria apagar a crítica para
+#:   salvar a contagem, ajustando a um rótulo que a Descoberta `[A/T-108]` já declarou
+#:   não-confiável (o "50" veio do título do vídeo, não de alguém contando).
+#:
+#: O aval independente da correção não vem de rótulo nenhum: braço travado no topo é ~180° por
+#: anatomia, e a leitura vai de 164,7°→171,2° (v1) e 170,9°→174,5° (v2). A correção move as
+#: quatro medidas na direção de uma verdade conhecida de antemão.
 CONTAGENS = {
     "polichinelo-01": 20,
     "polichinelo-02": 13,
     "polichinelo-03": 19,
     "flexão-frente-50-repetições-v1": 52,
-    "flexão-frente-50-repetições-v2": 50,
+    "flexão-frente-50-repetições-v2": 43,
     "agachamento-frente-aprox-18-repetiçẽos-v1": 18,
 }
 
@@ -120,6 +136,27 @@ def test_a_divida_declarada_nao_cresce_sozinha() -> None:
     assert not (SEM_MATERIAL_REAL & coberto), (
         f"exercicio com fixture ainda listado como sem material real: "
         f"{sorted(SEM_MATERIAL_REAL & coberto)}"
+    )
+
+
+def test_toda_fixture_declara_as_dimensoes_do_frame() -> None:
+    """Fixture sem `width`/`height` é medida no espaço anisotrópico — e em silêncio (T-110).
+
+    A ausência das dimensões é tratada como "espaço isotrópico" em todo o pipeline, que é o
+    que mantém compatibilidade com produtor antigo. O efeito colateral é que apagar os dois
+    campos de uma fixture **não quebra nada**: o teste acima continua verde, medindo a coisa
+    errada. Este teste é o que torna esse apagão visível.
+    """
+    sem_dimensao = []
+    for caminho_fixture in sorted(FIXTURES.glob("*.json")):
+        fixture = load_fixture(caminho_fixture)
+        if fixture.width is None or fixture.height is None:
+            sem_dimensao.append(caminho_fixture.name)
+
+    assert not sem_dimensao, (
+        f"fixtures sem width/height: {sem_dimensao}. Sem as dimensões do frame de origem, a "
+        "normalização não consegue pôr x e y na mesma moeda e a contagem volta a herdar o "
+        "formato do vídeo (T-110). Pegue a resolução do mp4 original e declare-a na fixture."
     )
 
 

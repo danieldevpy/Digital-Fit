@@ -65,6 +65,9 @@ PAYLOADS = [
     SessionStarted(exercise="squat", mode=Mode.CLOUD, duration_s=45, config_version=7),
     PoseFrame(landmarks=landmarks()),
     PoseFrame(landmarks=landmarks(0.2), degraded=True, norm={"torso": 1.0}),
+    # Com as dimensões do frame (T-110): o round-trip prova que elas atravessam msgpack, que é
+    # por onde a normalização vai recebê-las.
+    PoseFrame(landmarks=landmarks(0.3), width=576, height=1024),
     ExercisePhase(phase=Phase.PEAK),
     RepDetected(rep_count=7, phase=Phase.REST, duration_ms=820),
     QualitySignal(code=Code.ARMS_TOO_LOW, value=88.4, rep_index=7),
@@ -212,6 +215,45 @@ def test_pose_frame_omite_campos_opcionais_quando_vazios() -> None:
     data = PoseFrame(landmarks=landmarks()).to_data()
 
     assert set(data) == {"landmarks"}
+
+
+def test_pose_frame_sem_dimensoes_continua_com_o_payload_de_antes() -> None:
+    """A T-110 é aditiva: produtor que não declara dimensão manda exatamente o que mandava.
+
+    É o que justifica não subir o `PROTOCOL_VERSION` — cliente antigo e servidor novo (e o
+    contrário) continuam se entendendo, e o campo ausente tem significado definido
+    ("trate como isotrópico", que é o comportamento anterior).
+    """
+    data = PoseFrame(landmarks=landmarks(), degraded=True).to_data()
+
+    assert "width" not in data
+    assert "height" not in data
+    assert PoseFrame.from_data(data).aspect is None
+
+
+def test_pose_frame_recusa_dimensao_pela_metade() -> None:
+    """Uma dimensão sozinha não define aspecto nenhum, e aceitá-la seria pior que recusar:
+    produziria um frame que se diz medido sem estar."""
+    data = PoseFrame(landmarks=landmarks()).to_data() | {"width": 576}
+
+    with pytest.raises(EventValidationError, match="juntos ou ausentes"):
+        PoseFrame.from_data(data)
+
+
+@pytest.mark.parametrize("dimensoes", [(0, 1024), (576, 0), (-576, 1024)])
+def test_pose_frame_recusa_dimensao_nao_positiva(dimensoes: tuple[int, int]) -> None:
+    largura, altura = dimensoes
+    data = PoseFrame(landmarks=landmarks()).to_data() | {"width": largura, "height": altura}
+
+    with pytest.raises(EventValidationError, match="dimensoes invalidas"):
+        PoseFrame.from_data(data)
+
+
+def test_pose_frame_calcula_o_aspecto() -> None:
+    assert PoseFrame(landmarks=landmarks(), width=854, height=480).aspect == pytest.approx(
+        854 / 480
+    )
+    assert PoseFrame(landmarks=landmarks(), width=576, height=1024).aspect == pytest.approx(0.5625)
 
 
 def test_payload_sem_campo_obrigatorio_e_rejeitado() -> None:

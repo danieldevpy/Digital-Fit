@@ -531,6 +531,20 @@ class PoseFrame:
     `norm` é preenchido pela normalização (SPEC-006) **no mesmo evento** — keypoints
     canônicos não criam tipo novo. `degraded` marca frame com âncoras pouco visíveis: a FSM
     congela em vez de contar (SPEC-006/007).
+
+    **`width`/`height` são as dimensões do frame de onde estes landmarks saíram** (T-110), e
+    existem porque `x` é dividido pela largura e `y` pela altura: sem elas, o espaço 0–1 é
+    anisotrópico e uma distância horizontal não é comparável a uma vertical. Medido: a mesma
+    largura de ombros lê 0,348 torsos em paisagem (854×480) e 1,168 em retrato (576×1024).
+    Quem corrige é a normalização (SPEC-006); aqui só trafegam.
+
+    **São por frame, não por sessão, de propósito**: o celular gira no meio do treino, e o
+    aspecto muda com ele. Carimbar a dimensão na abertura da sessão seria assumir que ninguém
+    vira o aparelho.
+
+    Ausentes ⇒ a normalização trata o espaço como isotrópico, que é exatamente o
+    comportamento anterior a esta task. É o que mantém fixture antiga e cliente antigo
+    lendo o mesmo número de sempre — por isso o campo é aditivo e o `PROTOCOL_VERSION` não sobe.
     """
 
     TYPE: ClassVar[EventType] = EventType.POSE_FRAME
@@ -538,6 +552,15 @@ class PoseFrame:
     landmarks: list[list[float]]
     norm: dict[str, Any] | None = None
     degraded: bool = False
+    width: int | None = None
+    height: int | None = None
+
+    @property
+    def aspect(self) -> float | None:
+        """Largura ÷ altura, ou `None` quando o produtor não declarou as dimensões."""
+        if self.width is None or self.height is None:
+            return None
+        return self.width / self.height
 
     def to_data(self) -> dict[str, Any]:
         data: dict[str, Any] = {"landmarks": self.landmarks}
@@ -545,6 +568,11 @@ class PoseFrame:
             data["degraded"] = True
         if self.norm is not None:
             data["norm"] = self.norm
+        # Só viajam quando existem: frame sem dimensão declarada continua com o payload de
+        # antes, byte a byte.
+        if self.width is not None and self.height is not None:
+            data["width"] = self.width
+            data["height"] = self.height
         return data
 
     @classmethod
@@ -560,10 +588,26 @@ class PoseFrame:
                 raise EventValidationError(
                     f"landmark {index} deve ser [x, y, z, visibility], recebido {point!r}"
                 )
+        # As duas dimensões andam juntas: uma sozinha não define aspecto nenhum, e aceitá-la
+        # em silêncio produziria um frame que se diz medido sem estar.
+        bruto_w, bruto_h = data.get("width"), data.get("height")
+        if (bruto_w is None) != (bruto_h is None):
+            raise EventValidationError(
+                "width e height devem vir juntos ou ausentes — sozinhos nao definem aspecto"
+            )
+        width = height = None
+        if bruto_w is not None:
+            width = _as_int(bruto_w, "width")
+            height = _as_int(bruto_h, "height")
+            if width <= 0 or height <= 0:
+                raise EventValidationError(f"dimensoes invalidas: {width}x{height}")
+
         return cls(
             landmarks=[[float(value) for value in point] for point in landmarks],
             norm=data.get("norm"),
             degraded=bool(data.get("degraded", False)),
+            width=width,
+            height=height,
         )
 
 

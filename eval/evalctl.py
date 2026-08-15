@@ -142,6 +142,10 @@ def _write_fixture(
     """Exporta os keypoints do vídeo como fixture de nível 1 (SPEC-012, critério 3)."""
     from workers.shared.keypoints import KeypointFixture, save_fixture
 
+    # Dimensões do frame extraído (T-110): todas iguais dentro de um arquivo, então a do
+    # primeiro frame vale para a fixture inteira. Sem elas a fixture voltaria a ser medida no
+    # espaço anisotrópico — e `test_toda_fixture_declara_as_dimensoes_do_frame` cobra isso.
+    primeiro = keypoints[0] if keypoints else None
     fixture = KeypointFixture(
         label=item.path.stem,
         frames=keypoints,
@@ -151,6 +155,8 @@ def _write_fixture(
         fps=target_fps,
         notes=f"extraido de {item.path.name} por evalctl",
         conditions=dict(item.conditions or {}),
+        width=getattr(primeiro, "width", None),
+        height=getattr(primeiro, "height", None),
     )
     return save_fixture(Path(directory) / f"{item.path.stem}.json", fixture)
 

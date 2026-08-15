@@ -6,6 +6,8 @@
  "source": "file",
  "fps": 15.0,
  "notes": "extraido de agachamento-frente-aprox-18-repetiçẽos-v1.mp4 por evalctl",
+ "width": 720,
+ "height": 1280,
  "conditions": {
   "orientacao": "retrato",
   "resolucao": "720x1280",

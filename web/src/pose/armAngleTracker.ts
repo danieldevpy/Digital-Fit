@@ -1,7 +1,11 @@
 // Ângulo do braço ao vivo, com o MESMO pré-processamento do worker.
 //
 // Espelha a ordem de `Normalizer.push` (workers/shared/normalize.py):
-//   torso_raw → escala suavizada → recentragem no quadril → One Euro → ângulo
+//   aspecto → torso_raw → escala suavizada → recentragem no quadril → One Euro → ângulo
+//
+// O passo do aspecto é a T-110: `x` vem dividido pela largura do frame e `y` pela altura, e
+// sem pôr os dois na mesma moeda o ângulo herda o formato do vídeo. A ordem importa — o
+// aspecto entra ANTES do torso, senão a escala sairia medida no espaço errado.
 //
 // Só as 4 articulações que a fórmula usa passam pelo filtro. Isso não é um
 // atalho: o One Euro tem estado independente por canal, então filtrar 12
@@ -31,8 +35,14 @@ export const NORM_PARAMS = {
 const MIN_TORSO = 1e-3
 
 export interface ArmAngleTracker {
-  /** `tsMs` em epoch ms; devolve o ângulo em graus ou `null` se a pose não serve. */
-  push(landmarks: readonly Landmark[], tsMs: number): number | null
+  /**
+   * `tsMs` em epoch ms; devolve o ângulo em graus ou `null` se a pose não serve.
+   *
+   * `aspect` é largura ÷ altura do frame de onde os landmarks saíram (T-110). Omitido, o
+   * espaço é tratado como isotrópico — o comportamento anterior à task, e o que mantém a
+   * fixture de paridade sintética válida.
+   */
+  push(landmarks: readonly Landmark[], tsMs: number, aspect?: number): number | null
   reset(): void
 }
 
@@ -49,16 +59,34 @@ export function createArmAngleTracker(): ArmAngleTracker {
   })
 
   return {
-    push(landmarks, tsMs) {
-      const leftShoulder = landmarks[LEFT_SHOULDER]
-      const rightShoulder = landmarks[RIGHT_SHOULDER]
-      const leftWrist = landmarks[LEFT_WRIST]
-      const rightWrist = landmarks[RIGHT_WRIST]
-      const leftHip = landmarks[LEFT_HIP]
-      const rightHip = landmarks[RIGHT_HIP]
-      if (!leftShoulder || !rightShoulder || !leftWrist || !rightWrist || !leftHip || !rightHip) {
+    push(landmarks, tsMs, aspect = 1) {
+      const raw = {
+        leftShoulder: landmarks[LEFT_SHOULDER],
+        rightShoulder: landmarks[RIGHT_SHOULDER],
+        leftWrist: landmarks[LEFT_WRIST],
+        rightWrist: landmarks[RIGHT_WRIST],
+        leftHip: landmarks[LEFT_HIP],
+        rightHip: landmarks[RIGHT_HIP],
+      }
+      if (
+        !raw.leftShoulder ||
+        !raw.rightShoulder ||
+        !raw.leftWrist ||
+        !raw.rightWrist ||
+        !raw.leftHip ||
+        !raw.rightHip
+      ) {
         return null
       }
+
+      // Isotropia (T-110), antes de qualquer medida — igual ao `Normalizer.push` do worker.
+      const iso = (p: Landmark): Landmark => ({ ...p, x: p.x * aspect })
+      const leftShoulder = iso(raw.leftShoulder)
+      const rightShoulder = iso(raw.rightShoulder)
+      const leftWrist = iso(raw.leftWrist)
+      const rightWrist = iso(raw.rightWrist)
+      const leftHip = iso(raw.leftHip)
+      const rightHip = iso(raw.rightHip)
 
       const t = tsMs / 1000
 

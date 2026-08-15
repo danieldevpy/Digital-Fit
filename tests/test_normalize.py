@@ -358,3 +358,109 @@ def test_torso_colapsado_nao_explode_as_coordenadas() -> None:
     frame = normalize([RawFrame(ts=1000, seq=0, landmarks=landmarks)])[0]
 
     assert np.all(np.isfinite(frame.points))
+
+
+# --------------------------------------------------------------------------------------
+# Isotropia — o espaço normalizado deixa de herdar o formato do vídeo (T-110)
+# --------------------------------------------------------------------------------------
+
+
+def filmar(frames: list[RawFrame], *, largura: int, altura: int) -> list[RawFrame]:
+    """Simula o MESMO corpo filmado num quadro de outro formato.
+
+    As figuras sintéticas nascem num espaço em que `x` e `y` têm a mesma unidade — é o que um
+    quadro quadrado produziria. O MediaPipe divide `x` pela largura e `y` pela altura, então
+    num quadro de aspecto `A` a mesma coordenada horizontal volta dividida por `A`. É essa
+    divisão que esta função aplica, e é ela que a normalização tem de desfazer.
+
+    O corpo é mantido centrado em 0,5 para os landmarks continuarem dentro do quadro; o
+    deslocamento em si é irrelevante, porque a normalização recentra no quadril.
+    """
+    aspecto = largura / altura
+    saida = []
+    for frame in frames:
+        pontos = [[0.5 + (p[0] - 0.5) / aspecto, p[1], p[2], p[3]] for p in frame.landmarks]
+        saida.append(
+            RawFrame(ts=frame.ts, seq=frame.seq, landmarks=pontos, width=largura, height=altura)
+        )
+    return saida
+
+
+#: Paisagem e retrato reais do corpus (`eval/corpus/`), mais um quadrado de controle.
+FORMATOS = [(854, 480), (576, 1024), (1000, 1000)]
+
+
+@pytest.mark.parametrize("largura,altura", FORMATOS)
+def test_o_mesmo_corpo_normaliza_igual_em_qualquer_formato_de_quadro(
+    largura: int, altura: int
+) -> None:
+    """O critério da T-110: o formato do vídeo sai da conta.
+
+    Antes desta task, a MESMA largura de ombros lia 0,348 torsos em paisagem (854×480) e
+    1,168 em retrato (576×1024) — medido no corpus. Duas pessoas idênticas em quadros
+    diferentes eram corpos diferentes para a FSM.
+    """
+    poses = jumping_jack_poses(2)
+    quadrado = normalize(sequence(poses), params=SEM_FILTRO)
+    filmado = normalize(filmar(sequence(poses), largura=largura, altura=altura), params=SEM_FILTRO)
+
+    for esperado, obtido in zip(quadrado, filmado, strict=True):
+        np.testing.assert_allclose(obtido.points, esperado.points, atol=1e-9)
+
+
+@pytest.mark.parametrize("largura,altura", FORMATOS)
+def test_features_que_misturam_eixos_sobrevivem_ao_formato(largura: int, altura: int) -> None:
+    """O ângulo é a feature que a Descoberta `[A/T-106]` tinha dado como salva, e não estava.
+
+    `ankle_spread` é razão de dois horizontais e de fato escapa sozinho. Já `arm_angle` é
+    `atan2(dx, dy)` — mistura os eixos por construção, e nenhuma redação de spec o salvaria.
+    É por isso que a T-110 corrigiu o espaço em vez de declarar a regra no papel.
+    """
+    poses = jumping_jack_poses(2)
+    quadrado = normalize(sequence(poses), params=SEM_FILTRO)
+    filmado = normalize(filmar(sequence(poses), largura=largura, altura=altura), params=SEM_FILTRO)
+
+    for esperado, obtido in zip(quadrado, filmado, strict=True):
+        assert arm_angle(obtido) == pytest.approx(arm_angle(esperado), abs=1e-6)
+        assert ankle_spread(obtido) == pytest.approx(ankle_spread(esperado), abs=1e-9)
+
+
+def test_sem_as_dimensoes_o_angulo_ainda_herda_o_formato() -> None:
+    """O contraprova: é o campo novo que resolve, não um acaso do gerador.
+
+    Sem `width`/`height` a normalização não tem como saber que o quadro é retrato, e o ângulo
+    de braço erra — muito. Este teste existe para que apagar as dimensões de uma fixture ou
+    de um cliente falhe aqui, e não silenciosamente na contagem de alguém.
+    """
+    poses = jumping_jack_poses(1)
+    quadrado = normalize(sequence(poses), params=SEM_FILTRO)
+    sem_dimensao = [
+        RawFrame(ts=f.ts, seq=f.seq, landmarks=f.landmarks)
+        for f in filmar(sequence(poses), largura=576, altura=1024)
+    ]
+    distorcido = normalize(sem_dimensao, params=SEM_FILTRO)
+
+    maior_erro = max(
+        abs(arm_angle(a) - arm_angle(b)) for a, b in zip(quadrado, distorcido, strict=True)
+    )
+    assert maior_erro > 10.0, (
+        f"o maior erro de ângulo foi {maior_erro:.1f}°: se ficou pequeno, o gerador deixou de "
+        "produzir movimento nos dois eixos e este teste parou de provar o que promete"
+    )
+
+
+def test_frame_sem_dimensoes_mantem_o_comportamento_anterior() -> None:
+    """Compatibilidade: produtor antigo continua lendo o que sempre leu, bit a bit."""
+    frames = sequence(jumping_jack_poses(1))
+
+    antes = normalize(frames, params=SEM_FILTRO)
+    com_quadrado = normalize(
+        [
+            RawFrame(ts=f.ts, seq=f.seq, landmarks=f.landmarks, width=1000, height=1000)
+            for f in frames
+        ],
+        params=SEM_FILTRO,
+    )
+
+    for a, b in zip(antes, com_quadrado, strict=True):
+        np.testing.assert_array_equal(a.points, b.points)

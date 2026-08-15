@@ -6,6 +6,8 @@
  "source": "file",
  "fps": 15.0,
  "notes": "extraido de flexão-frente-50-repetições-v2.mp4 por evalctl",
+ "width": 576,
+ "height": 1024,
  "conditions": {
   "orientacao": "retrato",
   "resolucao": "576x1024",

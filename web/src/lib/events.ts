@@ -213,6 +213,19 @@ export interface PoseFrameData {
   landmarks: LandmarkTuple[]
   norm?: Record<string, unknown>
   degraded?: boolean
+  /**
+   * Dimensões do frame de onde estes landmarks saíram (T-110).
+   *
+   * O MediaPipe divide `x` pela largura e `y` pela altura, então sem elas o servidor não tem
+   * como saber que uma distância horizontal e uma vertical estão em moedas diferentes. Medido
+   * no corpus: a mesma largura de ombros lia 0,348 torsos em paisagem e 1,168 em retrato.
+   *
+   * Vão **em todo frame**, e não uma vez por sessão, porque o aparelho gira no meio do treino.
+   * Omiti-las é permitido pelo contrato (o servidor trata como isotrópico, o comportamento
+   * anterior à T-110) — mas o produto sempre as manda.
+   */
+  width?: number
+  height?: number
 }
 
 export interface ExercisePhaseData {

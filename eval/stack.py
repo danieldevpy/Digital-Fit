@@ -102,13 +102,30 @@ class StackResult:
         }
 
 
-def build_frame_envelope(session_id: str, seq: int, ts_ms: int, landmarks: Any) -> dict[str, Any]:
+def build_frame_envelope(
+    session_id: str,
+    seq: int,
+    ts_ms: int,
+    landmarks: Any,
+    *,
+    width: int | None = None,
+    height: int | None = None,
+) -> dict[str, Any]:
     """Envelope de `pose.frame` idêntico ao que o cliente monta (`web/src/lib/events.ts`).
 
     Puro de propósito: é a única parte deste módulo que dá para testar sem stack de pé, e é
     também a que erra silenciosamente — foi mandar isto como texto em vez de msgpack que fez a
     primeira medição devolver zero evento e parecer, por um instante, um bug do servidor.
+
+    `width`/`height` (T-110) andam juntos com os landmarks porque a perna da stack só vale se
+    mandar o que o navegador manda: sem eles esta medição rodaria no espaço anisotrópico
+    enquanto o produto roda no corrigido, e a paridade das três pernas — que é a razão de este
+    módulo existir (T-133) — mediria duas coisas diferentes.
     """
+    data: dict[str, Any] = {"landmarks": landmarks}
+    if width is not None and height is not None:
+        data["width"] = width
+        data["height"] = height
     return {
         "v": PROTOCOL_VERSION,
         "type": EventType.POSE_FRAME.value,
@@ -116,7 +133,7 @@ def build_frame_envelope(session_id: str, seq: int, ts_ms: int, landmarks: Any) 
         "ts": ts_ms,
         "seq": seq,
         "source": Source.EDGE.value,
-        "data": {"landmarks": landmarks},
+        "data": data,
     }
 
 
@@ -203,7 +220,12 @@ async def replay_fixture(
                 if fim.is_set():
                     break
                 envelope = build_frame_envelope(
-                    session_id, indice, int(time.time() * 1000), quadro.landmarks
+                    session_id,
+                    indice,
+                    int(time.time() * 1000),
+                    quadro.landmarks,
+                    width=quadro.width,
+                    height=quadro.height,
                 )
                 try:
                     await ws.send(msgpack.packb(envelope, use_bin_type=True))

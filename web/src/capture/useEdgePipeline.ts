@@ -124,7 +124,16 @@ export function useEdgePipeline(
               ts: tick.ts,
               seq: getSequencer().next(),
               source: Source.EDGE,
-              data: { landmarks: toLandmarkTuples(landmarks) },
+              // `videoWidth`/`videoHeight` são as dimensões do frame que o landmarker
+              // acabou de ver — o mesmo `video` que entrou em `detectPose`. É por elas que
+              // o MediaPipe dividiu `x` e `y`, e sem elas o servidor não consegue pôr os
+              // dois eixos na mesma moeda (T-110). Vão em todo frame porque o aparelho
+              // pode girar no meio do treino.
+              data: {
+                landmarks: toLandmarkTuples(landmarks),
+                width: video.videoWidth,
+                height: video.videoHeight,
+              },
             }),
           )
           // O countdown da tela ancora no primeiro frame porque é aí que o timer
@@ -135,7 +144,14 @@ export function useEdgePipeline(
 
       // Ângulo ao vivo (T-044): calculado a cada frame para o filtro não perder
       // amostra, mas publicado no máximo a 10Hz — a spec não quer número piscando.
-      const angle = angleTracker.push(landmarks, tick.ts)
+      // O mesmo aspecto que viajou no `pose.frame`: se o HUD medisse no espaço distorcido
+      // enquanto o servidor mede no corrigido, os dois números divergiriam na tela de quem
+      // filma em retrato — e o ângulo do HUD é justamente o espelho do worker (T-044/T-110).
+      const angle = angleTracker.push(
+        landmarks,
+        tick.ts,
+        video.videoHeight > 0 ? video.videoWidth / video.videoHeight : 1,
+      )
       if (angle !== null && tick.ts - lastAngleAt >= ANGLE_MIN_INTERVAL_MS) {
         lastAngleAt = tick.ts
         useSessionStore.getState().setArmAngleDeg(angle)

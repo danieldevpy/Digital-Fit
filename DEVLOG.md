@@ -5,6 +5,126 @@
 
 ---
 
+## 2026-08-15 (47) · T-110 — o vídeo parou de opinar sobre o corpo
+
+Última perna do Bloco A que dava para executar sem gravação nova (T-108 e T-109 esperam vídeo).
+A Descoberta `[A/T-106]` estava aberta desde a flexão: `x` é dividido pela largura do frame e
+`y` pela altura, então uma distância horizontal e uma vertical do mesmo tamanho real saem com
+números diferentes — e a diferença é o formato do vídeo.
+
+### A parte da Descoberta que estava errada
+
+A medição dela estava certa. A conclusão, não: *"os dois exercícios existentes escapam por
+acidente feliz"*. `ankle_spread` (razão de dois horizontais) e `hip_height` (um vertical sobre
+o torso) escapam mesmo. Mas ninguém olhou os **ângulos**:
+
+| feature | conta | mistura eixos? |
+|---|---|---|
+| `arm_angle` (polichinelo) | `atan2(dx, dy)` | **sim** |
+| `knee_angle` (agachamento) | `hypot(ax, ay)` | **sim** |
+| `elbow_angle` (flexão) | `hypot` dos dois lados | **sim** |
+| `shoulder_to_torso` (decisor de vista da flexão) | `hypot` ÷ `hypot` | **sim** |
+
+Os três primeiros carregam limiar. E o quarto tem um comentário no código dizendo *"não herda
+formato de vídeo nem distância de câmera"* — que era falso.
+
+Isso fecha por si a segunda saída que a task oferecia ("declarar por escrito que toda feature é
+razão no mesmo eixo"): **nenhuma redação salva um ângulo**. Ângulo é mistura de eixos por
+definição. Sobrou uma saída só, e é a certa.
+
+### A correção, e por que `x` vira altura e não o contrário
+
+`x *= largura ÷ altura` põe os dois eixos em unidades de **altura de frame**. Poderia ser o
+inverso (`y` para largura) — o resultado normalizado é idêntico, porque tudo é dividido pelo
+torso depois. A diferença aparece em `torso`, que sai em unidades de frame e **é a régua de
+distância da SPEC-003**. Tronco de gente em pé é quase todo `y`; convertendo nessa direção, a
+régua quase não se move:
+
+```
+fixture                                    torso hoje  torso T-110   delta   avisos de cena
+polichinelo-01                                 0.2253       0.2253    0.0%   idênticos
+polichinelo-03                                 0.1189       0.1188   -0.1%   idênticos {TOO_FAR: 10}
+agachamento-frente-…-v1                        0.1262       0.1262   -0.0%   idênticos {TOO_FAR: 18}
+flexão-frente-50-…-v2                          0.1913       0.1876   -1.9%   idênticos {OUT_OF_FRAME: 46}
+```
+
+Máximo 1,9%, e **zero mudança de aviso de cena nos seis vídeos**. A escolha de direção se pagou
+exatamente onde eu tinha medo dela.
+
+### A revarredura que a task pedia voltou limpa
+
+| fixture | antes | depois |
+|---|---|---|
+| polichinelo-01 (paisagem 854×480) | 20 | **20** |
+| polichinelo-02 (retrato) | 13 | **13** |
+| polichinelo-03 (retrato) | 19 | **19** |
+| agachamento (retrato) | 18 | **18** |
+| flexão v1 (retrato) | 52 | **52** |
+| flexão v2 (retrato) | 50 | **43** |
+
+E a convergência que era o objetivo: a mesma largura de ombros lia **0,348** torsos em paisagem
+e **0,898–1,168** em retrato — espalhamento 3,4×. Agora lê **0,619 / 0,658 / 0,504**.
+
+### O único número que mudou, e por que ele não foi "consertado"
+
+A flexão v2 caiu 7 repetições. A tentação era retunar `frontal_down_depth` de 0,63 para 0,74 —
+a varredura mostra que isso devolve o 50 exato. Não fiz, por três razões que se somam:
+
+1. **0,74 *é* `frontal_shallow_depth`**, o limiar de "rasa demais". Mover a contagem para lá é
+   apagar a crítica para salvar o número.
+2. **O rótulo "50" não vale.** Veio do título do vídeo de rede social, e a Descoberta
+   `[A/T-108]` já declarou isso. Ajustar limiar contra ele é ajuste ao ruído.
+3. **A pessoa da v2 realmente não desce.** Fundo mediano de cotovelo: **91,9°** (paralelo).
+   A v1, que não mudou de contagem, desce a 55,2°. No espaço distorcido a mesma v2 lia 76,6° —
+   o retrato esticava a componente horizontal e fazia a flexão parecer mais funda do que era.
+
+E as 7 repetições não sumiram caladas: viraram **7 `PUSHUP_TOO_SHALLOW`**. Saíram da contagem e
+entraram na crítica, que é onde pertenciam.
+
+**O aval da correção não vem de rótulo nenhum.** Braço travado no topo é ~180° por anatomia,
+não por opinião. A leitura vai de 164,7° → **171,2°** (v1) e 170,9° → **174,5°** (v2). Quatro
+medidas, todas andando na direção de uma verdade conhecida de antemão. É a única evidência
+disponível que não depende de ninguém ter contado certo.
+
+### Decisões
+
+- **`width`/`height` por frame, não por sessão.** O aparelho gira no meio do treino. Carimbar a
+  dimensão no `session.started` seria assumir que ninguém vira o celular.
+- **Os dois juntos ou nenhum.** Uma dimensão sozinha não define aspecto; aceitá-la produziria um
+  frame que se diz medido sem estar.
+- **Ausência significa isotrópico**, e é isso que dispensa o bump de `PROTOCOL_VERSION`: cliente
+  antigo com servidor novo (e o contrário) continuam se entendendo, e fixture velha continua
+  dando o número velho. Tem teste dos dois lados.
+- **As dimensões saíram de `conditions` para o topo da fixture.** Elas já existiam em
+  `conditions.video` no gravador do navegador — mas `conditions` é campo livre por contrato
+  (SPEC-012), e derivar geometria de campo livre é acidente esperando acontecer.
+- **O HUD do cliente corrige junto.** O ângulo ao vivo (T-044) é espelho declarado da FSM; se o
+  servidor corrigisse e ele não, quem filma em retrato veria na tela um número que o servidor
+  não reconhece. O teste de isotropia do lado TS é o que trava isso.
+- **`evalctl stack` manda as dimensões.** Sem isso a perna da stack (T-133) voltaria a medir num
+  espaço diferente do navegador — as três pernas mediriam duas coisas.
+
+### Gates
+
+`ruff check` e `format --check` limpos (157 arquivos); `pytest` **861 passando** (+17 sobre os
+844 da T-104), zero falhas, sem variável na linha de comando. Web: `lint` limpo, `tsc -b` limpo,
+**519 testes** (+6). Rodado em worktree isolado (`spec-006/t-110-espaco-isotropico`), a pedido.
+
+### Pendências
+
+- **Nenhum vídeo de gente foi filmado em paisagem além do `polichinelo-01`.** A convergência foi
+  medida com uma amostra de paisagem só. Ela é forte (3,4× → 1,3×) mas um segundo vídeo em
+  paisagem, de outro exercício, seria a confirmação honesta. Entra junto com a T-108.
+- **A flexão continua `beta`, e agora com um motivo a mais**: a v2 mostra que a contagem dela é
+  sensível ao limiar de profundidade em quem faz repetição rasa. Isso não se resolve sem os 8
+  vídeos rotulados da T-108 — e quando resolver, a varredura tem de ser refeita **neste** espaço.
+- **A T-109 não foi reaberta.** A margem de 3,4 pontos do agachamento que ela descreve foi medida
+  no espaço antigo; a correção mexe em `hip_height` pela via do `torso` (≤ 1,9%), o que não muda
+  a ordem de grandeza. Continua esperando corpus, como a própria linha dela diz.
+- `web/public/img/herofamale.png` segue sem task e fora dos commits (terceira entrada seguida).
+
+---
+
 ## 2026-08-13 (46) · T-104 — a promoção deixa de ser opinião
 
 O critério de `validado` da SPEC-020 é "< 20% de sessões zero-rep por uma semana", e até hoje

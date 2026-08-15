@@ -9,6 +9,22 @@ Converte `pose.frame` cru em keypoints **canônicos**: invariantes a posição d
 
 ### Escopo / Comportamento
 
+0. **Isotropia** (T-110): `x` chega dividido pela **largura** do frame e `y` pela **altura**,
+   então os dois eixos não são comparáveis. Multiplicar `x` por `largura ÷ altura` põe ambos em
+   unidades de **altura de frame**. As dimensões viajam no `pose.frame` (SPEC-002); ausentes, o
+   espaço é tratado como isotrópico — que é o comportamento anterior a esta task e o que mantém
+   fixture e cliente antigos válidos.
+
+   Converte-se `x` para a moeda de `y`, e não o contrário, porque `torso` sai daqui em unidades
+   de frame e é a régua de distância da SPEC-003: um tronco de pessoa em pé é quase todo `y`, e
+   nessa direção a régua praticamente não se move (medido no corpus: ≤ 1,9%, com os avisos de
+   cena idênticos nos seis vídeos).
+
+   **Por que corrigir o espaço e não apenas exigir features de eixo único**: a alternativa
+   considerada era declarar que toda feature é razão no mesmo eixo. Ela não fecha — ângulo é
+   `atan2(dx, dy)` por definição, e `arm_angle` (polichinelo), `knee_angle` (agachamento) e
+   `elbow_angle` (flexão) misturam os eixos por construção. Nenhuma regra de redação salva um
+   ângulo; só a correção do espaço salva.
 1. **Recentragem**: origem no ponto médio dos quadris (landmarks 23/24).
 2. **Escala**: dividir pela distância ombro-médio→quadril-médio (torso = 1.0). Usa baseline da SPEC-004 quando disponível; senão, valor instantâneo.
 3. **Suavização**: One Euro Filter por coordenada (β e mincutoff únicos globais na fase inicial).
@@ -24,6 +40,9 @@ Interpolação de frames perdidos, rotação para alinhar eixo do corpo, filtros
 1. Mesma sequência com pessoa a 2m e a 4m → features (SPEC-007) diferem < 5%.
 2. Jitter (desvio-padrão de landmark parado) reduz ≥ 60% após filtro, sem atraso perceptível (> 1 frame) em movimento rápido.
 3. Função pura: `normalize(frames_in) -> frames_out` coberta por testes com fixtures.
+4. **O mesmo corpo filmado em paisagem e em retrato normaliza igual** (T-110): keypoints
+   idênticos e features idênticas, incluindo as que misturam eixos. Medido antes da correção: a
+   mesma largura de ombros lia 0,348 torsos em 854×480 e 1,168 em 576×1024 (razão 3,4×).
 
 ## Fase Evolução
 

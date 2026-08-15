@@ -46,7 +46,7 @@ Fonte da verdade: `workers/shared/events.py`. O código manda; esta tabela é vi
 |---|---|---|---|
 | `session.capability` | cliente | `pose.frames` | `mode, probe_fps, webgl, ua` |
 | `session.started` | api | `pose.frames` | `exercise, mode, duration_s` |
-| `pose.frame` | cliente (edge) / pose-worker (cloud) | `pose.frames` | `landmarks[33]`, `norm?`, `degraded?` |
+| `pose.frame` | cliente (edge) / pose-worker (cloud) | `pose.frames` | `landmarks[33]`, `norm?`, `degraded?`, `width?`+`height?` |
 | `exercise.phase` | analysis-worker | `events.analysis` | `phase: rest\|peak` (par neutro, T-050) |
 | `rep.detected` | analysis-worker | `events.analysis` | `rep_count, phase, duration_ms` |
 | `quality.signal` | analysis-worker | `events.analysis` | `code, value?, rep_index?` |
@@ -62,6 +62,15 @@ Fonte da verdade: `workers/shared/events.py`. O código manda; esta tabela é vi
   MessagePack do WebSocket — nunca espalhado em colunas.
 - O gateway empurra ao cliente apenas `CLIENT_PUSH_TYPES` (fase, rep, cena, feedback, fim):
   `pose.frame` nunca volta e `quality.signal` é insumo interno do feedback engine.
+- `width`/`height` do `pose.frame` (T-110) são as dimensões do frame de onde os landmarks
+  saíram, e existem porque `x` vem dividido pela largura e `y` pela altura — sem elas o espaço
+  normalizado herda o formato do vídeo (SPEC-006, item 0). São **aditivos e opcionais**: vêm os
+  dois ou nenhum (um sozinho é rejeitado), e a ausência significa "trate como isotrópico", que
+  é o comportamento anterior. Por isso **não** houve bump de `PROTOCOL_VERSION`: cliente antigo
+  com servidor novo, e o contrário, continuam se entendendo.
+- Eles viajam **por frame**, e não uma vez na abertura da sessão, porque o aparelho pode girar
+  no meio do treino — carimbar a dimensão no `session.started` seria assumir que ninguém vira o
+  celular.
 - Medido: `pose.frame` com 33 landmarks = ~1,3 KB ⇒ ~20 KB/s a 15 fps (dentro do orçamento
   de banda edge do `ARCHITECTURE.md` §4).
 - Fora da v1, por fase: `frame.raw` (T-015/SPEC-005), `session.report.ready` (T-020/SPEC-010),

@@ -6,6 +6,8 @@
  "source": "file",
  "fps": 15.0,
  "notes": "extraido de polichinelo-01.mp4 por evalctl",
+ "width": 854,
+ "height": 480,
  "conditions": {
   "orientacao": "paisagem",
   "resolucao": "854x480",

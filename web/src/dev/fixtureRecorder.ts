@@ -32,6 +32,14 @@ export interface KeypointFixture {
   source: string
   fps: number | null
   notes: string | null
+  /**
+   * Dimensões do frame de origem (T-110) — a normalização precisa delas para pôr `x` e `y`
+   * na mesma moeda. Já viviam dentro de `conditions.video`, mas ali são contexto de
+   * gravação: `conditions` é campo livre por contrato (SPEC-012) e ninguém deve derivar
+   * geometria dele. No topo, elas são schema, e o gate do corpus as cobra.
+   */
+  width: number | null
+  height: number | null
   /** Campo livre do schema: onde cabe o contexto do device sem inventar chave. */
   conditions: Record<string, unknown>
   frames: FixtureFrame[]
@@ -129,6 +137,8 @@ export function createFixtureRecorder(sessionId: string, exercise = 'jumping_jac
         source: 'camera',
         fps,
         notes: meta.notes ?? null,
+        width: video?.width ?? null,
+        height: video?.height ?? null,
         conditions: {
           session_id: sessionId,
           recorded_at: new Date().toISOString(),

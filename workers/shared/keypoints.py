@@ -14,8 +14,14 @@ Formato (`schema: 1`)::
       "source": "file",
       "fps": 15.0,
       "notes": "gravado a 2.5 m, luz boa",
+      "width": 576,
+      "height": 1024,
       "frames": [{"ts": 1722100000123, "seq": 0, "landmarks": [[x, y, z, v], ... 33]}]
     }
+
+`width`/`height` (T-110) são as dimensões do frame de origem: sem elas a normalização não
+consegue pôr `x` e `y` na mesma moeda. Opcionais — fixture sem dimensão continua carregando,
+tratada como espaço isotrópico.
 
 `landmarks` são os **crus** (0–1 no frame), nunca os normalizados: normalização é código que
 muda, e uma fixture existe para medir mudança de código. Coordenadas com 5 decimais — precisão
@@ -55,6 +61,15 @@ class KeypointFixture:
     notes: str | None = None
     schema: int = SCHEMA_VERSION
     conditions: dict[str, Any] = field(default_factory=dict)
+    #: Dimensões do frame de origem (T-110) — a normalização precisa delas para pôr `x` e `y`
+    #: na mesma moeda. Ficam no topo, e não por frame, porque um arquivo tem uma resolução só;
+    #: é a sessão ao vivo que pode girar o aparelho no meio, e lá elas viajam no `pose.frame`.
+    #:
+    #: **Não** são lidas de `conditions.resolucao`: os nomes em `conditions` são livres por
+    #: contrato (SPEC-012), e derivar geometria de um campo de texto livre é acidente esperando
+    #: acontecer. Ausentes ⇒ espaço isotrópico, o comportamento anterior à T-110.
+    width: int | None = None
+    height: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -65,6 +80,8 @@ class KeypointFixture:
             "source": self.source,
             "fps": self.fps,
             "notes": self.notes,
+            "width": self.width,
+            "height": self.height,
             "conditions": self.conditions,
             "frames": [
                 {
@@ -84,9 +101,19 @@ class KeypointFixture:
         schema = int(raw.get("schema", 0))
         if schema != SCHEMA_VERSION:
             raise ValueError(f"fixture de keypoints com schema {schema}, esperado {SCHEMA_VERSION}")
+        largura = int(raw["width"]) if raw.get("width") is not None else None
+        altura = int(raw["height"]) if raw.get("height") is not None else None
         try:
             frames = [
-                RawFrame(ts=int(item["ts"]), seq=int(item["seq"]), landmarks=item["landmarks"])
+                RawFrame(
+                    ts=int(item["ts"]),
+                    seq=int(item["seq"]),
+                    landmarks=item["landmarks"],
+                    # O frame pode trazer a sua própria dimensão (sessão gravada no navegador,
+                    # onde o aparelho gira); o topo é o padrão de quem não traz.
+                    width=int(item["width"]) if item.get("width") is not None else largura,
+                    height=int(item["height"]) if item.get("height") is not None else altura,
+                )
                 for item in raw["frames"]
             ]
         except (KeyError, TypeError) as exc:
@@ -103,6 +130,8 @@ class KeypointFixture:
             notes=raw.get("notes"),
             schema=schema,
             conditions=dict(raw.get("conditions") or {}),
+            width=largura,
+            height=altura,
         )
 
 

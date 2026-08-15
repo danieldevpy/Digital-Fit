@@ -231,7 +231,7 @@ funcionalidade nova: são o mesmo dado, dito certo.
 | T-108 | Corpus real de chão (≥ 8 vídeos por exercício, guia de gravação já escrito em `eval/corpus/README.md`) + varredura de limiares → promoção `beta → calibrado` de `flexao` e `abdominal`. É o T-053 do Tier C | 020/012 | **parcial** — a vista frontal saiu daqui (DEVLOG 29): de frente a flexão conta 52/50 e 50/50 onde contava 0/50, e o mesmo 0/50 estava valendo **em produção**. Falta o que dá nome à task: 8 vídeos por exercício com contagem própria. Sem eles não há promoção a `calibrado` (Descoberta `[A/T-108]`) |
 | T-109 | ~~Agachamento não conta em produção~~ — **a premissa era falsa** (T-133, 2026-08-13): o agachamento conta nas três pernas, e os zeros do banco eram `no_data`. O que **sobra** de real e continua valendo é a margem: a pessoa medida desce a 50,7% e o limiar abre em 54,1% — **3,4 pontos**, e quem parar no paralelo conta 0. Trocar `hip_height` absoluto por razão sobre a altura de quadril da própria pessoa continua sendo o desenho certo, mas é **margem de robustez, não conserto de bug**, e não se mexe nele antes da T-108 dar corpus de agachamento para revarrer | 007/012/020 | **todo (média)** — rebaixada de alta |
 | T-133 | `evalctl stack <fixture>`: toca keypoints conhecidos pela stack no ar (admissão real, WebSocket real, msgpack, janela de 30 s) e diz quantas reps a **sessão de verdade** contou. É a perna que faltava entre a bancada (prova a FSM) e o navegador (prova a extração) — e a única das três que dá para automatizar | 012/009 | **feito** (2026-08-13) |
-| T-110 | Espaço normalizado é anisotrópico (Descoberta `[A/T-106]`): levar largura/altura do frame no `pose.frame` e corrigir `x` na normalização, ou declarar por escrito que toda feature é razão no mesmo eixo. Mexe no contrato de eventos (AGENTS: `events.py` primeiro) e obriga a revarrer polichinelo e agachamento | 002/006 | todo |
+| T-110 | Espaço normalizado é anisotrópico (Descoberta `[A/T-106]`): levar largura/altura do frame no `pose.frame` e corrigir `x` na normalização, ou declarar por escrito que toda feature é razão no mesmo eixo. Mexe no contrato de eventos (AGENTS: `events.py` primeiro) e obriga a revarrer polichinelo e agachamento | 002/006 | **feito** (2026-08-15) — a segunda saída foi **refutada por medição**: ângulo é `atan2(dx, dy)` e mistura os eixos por construção, então nenhuma redação salvaria `arm_angle`/`knee_angle`/`elbow_angle`. A revarredura pedida voltou **limpa** (polichinelo 20/13/19 e agachamento 18, idênticos); mudou só a flexão v2, 50 → 43, com as 7 reps virando `PUSHUP_TOO_SHALLOW` — sem tocar em limiar nenhum |
 
 ## Fase 6 — Lançamento rentável (SPEC-023 + a caixa registradora)
 
@@ -309,6 +309,15 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
   horizontais e `hip_height` de um vertical por um torso quase vertical —, mas qualquer feature
   que misture os eixos herda o formato do vídeo. Num corpo **deitado** isso deixa de ser
   acidente: o torso é horizontal e o movimento é vertical. Task T-110.
+  **Fechada pela T-110 em 2026-08-15, e a parte errada da Descoberta é a que mais ensina.** A
+  medição do espalhamento estava certa (3,4× entre paisagem e retrato; 0,619 contra 0,504–0,658
+  depois da correção). O que estava errado era o alívio: *"os dois exercícios existentes escapam
+  por acidente feliz"*. `ankle_spread` e `hip_height` de fato escapam — mas `arm_angle` é
+  `atan2(dx, dy)`, `knee_angle` e `elbow_angle` são `hypot` de dois eixos, e **os três já
+  herdavam o formato do vídeo desde sempre**. A Descoberta olhou as features nomeadas como
+  razões e não olhou as nomeadas como ângulos. *Lição de método: ao classificar features por
+  "mistura eixos ou não", ângulo é sempre mistura — a pergunta certa não é o nome da grandeza,
+  é quais coordenadas entram na conta.*
 - **[A/T-106] A suíte não roda sem variável de ambiente na mão, e um teste é contraditório com o
   `conftest`.** `tests/conftest.py` faz `os.environ.setdefault("DJANGO_DB_SQLITE", ...)` contando
   ser lido antes do `django.setup()` do pytest-django; neste ambiente isso não acontece e a suíte

@@ -6,6 +6,9 @@ Tudo depois daqui raciocina em **torsos** (distância ombro-médio → quadril-m
 
 Pipeline por frame:
 
+0. **Isotropia** (T-110): `x` vem dividido pela largura do frame e `y` pela altura, então os
+   dois eixos não são comparáveis até `x` ser convertido para a mesma moeda. Sem as dimensões
+   do frame, o espaço é tratado como já era — anisotrópico.
 1. **Escala**: comprimento do torso, suavizado (usa `Baseline` da SPEC-004 quando existir).
 2. **Recentragem**: origem no ponto médio dos quadris (landmarks 23/24).
 3. **Suavização**: One Euro Filter por coordenada, já em torsos — assim os parâmetros do
@@ -116,11 +119,25 @@ class Baseline:
 
 @dataclass(frozen=True, slots=True)
 class RawFrame:
-    """Entrada: um `pose.frame` cru — 33 landmarks `[x, y, z, visibility]`, 0–1 no frame."""
+    """Entrada: um `pose.frame` cru — 33 landmarks `[x, y, z, visibility]`, 0–1 no frame.
+
+    `width`/`height` são as dimensões do frame de origem (T-110). Espelham os campos de mesmo
+    nome no `PoseFrame` de `events.py`, que é quem os transporta. Ausentes ⇒ espaço tratado
+    como isotrópico, o comportamento anterior à T-110.
+    """
 
     ts: int
     seq: int
     landmarks: Sequence[Sequence[float]]
+    width: int | None = None
+    height: int | None = None
+
+    @property
+    def aspect(self) -> float | None:
+        """Largura ÷ altura, ou `None` quando o produtor não declarou as dimensões."""
+        if self.width is None or self.height is None:
+            return None
+        return self.width / self.height
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,9 +203,28 @@ class Normalizer:
         if landmarks.shape != (33, 4):
             raise ValueError(f"landmarks devem ser 33x4, recebido {landmarks.shape}")
 
-        coords = landmarks[:, :3]
+        coords = landmarks[:, :3].copy()
         visibility = landmarks[:, 3].copy()
         t = frame.ts / 1000.0
+
+        # ------------------------------------------------------------------ isotropia (T-110)
+        # O MediaPipe divide `x` pela LARGURA e `y` pela ALTURA do frame. Duas distâncias reais
+        # do mesmo tamanho, uma na horizontal e outra na vertical, saem com números diferentes —
+        # e a diferença é o formato do vídeo. Multiplicar `x` por largura/altura põe os dois
+        # eixos na mesma moeda (a altura do frame), e a partir daqui distância é distância.
+        #
+        # Medido no corpus: a mesma largura de ombros lia 0,348 torsos em paisagem (854×480) e
+        # 0,898–1,168 em retrato (576×1024) — espalhamento de 3,4×. Corrigida, 0,504–0,658.
+        #
+        # **Converter `x` para altura de frame, e não o contrário**, mantém `torso` quase intacto
+        # para quem está em pé (o tronco é quase todo `y`), que é a moeda em que a validação de
+        # distância da SPEC-003 foi calibrada.
+        #
+        # `z` fica de fora: ele não é comparável a nenhum dos dois eixos, e nenhuma feature o
+        # usa — "o eixo Z mente" (`context/conventions.md`).
+        aspect = frame.aspect
+        if aspect is not None and aspect != 1.0:
+            coords[:, 0] *= aspect
 
         hip_mid = (coords[_LEFT_HIP] + coords[_RIGHT_HIP]) / 2.0
         shoulder_mid = (coords[_LEFT_SHOULDER] + coords[_RIGHT_SHOULDER]) / 2.0

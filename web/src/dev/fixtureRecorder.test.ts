@@ -73,10 +73,31 @@ describe('schema de workers/shared/keypoints.py', () => {
         'source',
         'fps',
         'notes',
+        // T-110: sem elas a normalização mede no espaço anisotrópico, e o gate do corpus
+        // (`test_toda_fixture_declara_as_dimensoes_do_frame`) recusa a fixture.
+        'width',
+        'height',
         'conditions',
         'frames',
       ].sort(),
     )
+  })
+
+  it('leva as dimensões do vídeo para o topo, não só para conditions (T-110)', () => {
+    const recorder = record(2)
+    recorder.setContext({ video: { width: 576, height: 1024 } })
+
+    const fixture = recorder.build(META)
+
+    expect(fixture.width).toBe(576)
+    expect(fixture.height).toBe(1024)
+  })
+
+  it('sem contexto de vídeo, declara null em vez de inventar dimensão', () => {
+    const fixture = record(2).build(META)
+
+    expect(fixture.width).toBeNull()
+    expect(fixture.height).toBeNull()
   })
 
   it('cada frame é {ts, seq, landmarks} — nada de envelope', () => {
