@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { authedFetch, fetchHistory, fetchMe, login, logout, refreshAccess, register } from './api'
-import { deviceId, identityHeaders, storeTokens, storedTokens } from './storage'
+import { deviceId, identityHeaders, rememberDeviceId, storeTokens, storedTokens } from './storage'
 import { installStorage, uninstallStorage } from './testStorage'
 
 afterEach(uninstallStorage)
@@ -20,7 +20,14 @@ function fetchSequence(...respostas: Array<{ status?: number; body?: unknown }>)
   return { impl: impl as unknown as typeof fetch, chamadas }
 }
 
-const USUARIO = { id: 1, email: 'a@b.com', name: 'Ana', date_joined: '2026-07-29T10:00:00Z' }
+const USUARIO = {
+  id: 1,
+  email: 'a@b.com',
+  name: 'Ana',
+  is_admin: false,
+  daily_goal: 'casual',
+  date_joined: '2026-07-29T10:00:00Z',
+}
 
 describe('refreshAccess', () => {
   it('sem refresh guardado nem tenta a rede', async () => {
@@ -151,6 +158,38 @@ describe('login e cadastro', () => {
 
     const corpo = JSON.parse(chamadas[0]?.[1]?.body as string)
     expect(corpo).toEqual({ email: 'a@b.com', password: 'segredo', name: 'Ana' })
+  })
+
+  it('cadastro leva o aparelho junto, para o servidor adotar as sessões de visitante', async () => {
+    // T-087: sem este cabeçalho o cadastro funciona e o histórico fica para trás — que é
+    // exatamente a dor que o CTA de conta promete evitar.
+    installStorage()
+    rememberDeviceId('dev-abc12345')
+    const { impl, chamadas } = fetchSequence({
+      status: 201,
+      body: { user: USUARIO, access: 'a.1', refresh: 'r.1', adopted_sessions: 4 },
+    })
+
+    const sessao = await register('a@b.com', 'segredo', 'Ana', impl)
+
+    const cabecalhos = chamadas[0]?.[1]?.headers as Record<string, string>
+    expect(cabecalhos['X-Device-Id']).toBe('dev-abc12345')
+    // O access velho NÃO vai junto: quem se cadastra não está logado.
+    expect(cabecalhos.Authorization).toBeUndefined()
+    expect(sessao.adopted_sessions).toBe(4)
+  })
+
+  it('cadastro sem aparelho guardado não inventa cabeçalho', async () => {
+    installStorage()
+    const { impl, chamadas } = fetchSequence({
+      status: 201,
+      body: { user: USUARIO, access: 'a.1', refresh: 'r.1' },
+    })
+
+    await register('a@b.com', 'segredo', 'Ana', impl)
+
+    const cabecalhos = chamadas[0]?.[1]?.headers as Record<string, string>
+    expect(cabecalhos['X-Device-Id']).toBeUndefined()
   })
 
   it('e-mail já cadastrado vira a mensagem do servidor', async () => {

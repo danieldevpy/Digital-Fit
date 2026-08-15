@@ -31,9 +31,18 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from api.models import DailyGoal, User
+from api import quota
+from api.models import DailyGoal, SessionClaim, User
 
-__all__ = ["AuthThrottle", "login", "me", "refresh", "register", "tokens_for"]
+__all__ = [
+    "AuthThrottle",
+    "adotar_sessoes_do_aparelho",
+    "login",
+    "me",
+    "refresh",
+    "register",
+    "tokens_for",
+]
 
 logger = logging.getLogger("api")
 
@@ -87,17 +96,52 @@ def tokens_for(usuario: User) -> dict[str, str]:
     return {"access": str(refresh_token.access_token), "refresh": str(refresh_token)}
 
 
-def _sessao_aberta(usuario: User, status: int) -> Response:
-    return Response({"user": usuario.to_dict(), **tokens_for(usuario)}, status=status)
+def _sessao_aberta(usuario: User, status: int, **extra: Any) -> Response:
+    return Response({"user": usuario.to_dict(), **tokens_for(usuario), **extra}, status=status)
+
+
+def adotar_sessoes_do_aparelho(usuario: User, device_id: str) -> int:
+    """Passa as sessões órfãs deste aparelho para a conta recém-criada (SPEC-019 §Anônimo).
+
+    É o que torna literal a promessa do README — *"a conta serve para guardar o histórico"*. Como
+    o fogo é **derivado** das claims (SPEC-019), adotar a claim adota a sequência junto: quem
+    treinou quatro dias como visitante e cria conta no quinto não recomeça do zero. Sem isto, a
+    dor de perder a sequência seria causada exatamente pela ação que o app pediu.
+
+    As três fronteiras da spec, e as três estão nesta função:
+
+    - **Só claims órfãs.** O filtro `user__isnull=True` é o que impede um aparelho já adotado por
+      uma conta de ser reivindicado por outra: o segundo a se cadastrar no mesmo celular não leva
+      nada. Sem ele, dois cadastros disputariam as mesmas sessões — e o último ganharia.
+    - **Uma vez, por construção.** Depois de rodar não há mais claim órfã daquele aparelho, então
+      repetir é idempotente sem precisar de flag nem de tabela de controle.
+    - **Só no registro.** Não existe rota que chame isto depois; não é um botão "importar
+      aparelho". Quem quiser essa função vai ter de escrevê-la, e aí revisar estas fronteiras.
+
+    `update()` e não um laço com `save()`: é um `UPDATE` só, no índice de `device_id`, e não
+    dispara `post_save` de `SessionClaim` — o que não custa nada porque não há signal nessa
+    tabela. O cache de engajamento da conta também não precisa de limpeza: a conta nasceu nesta
+    mesma requisição, e ninguém leu o engajamento dela antes desta linha.
+
+    Limitação aceita e documentada na spec: aparelho compartilhado adota sessões de outra pessoa.
+    É o mesmo furo — e a mesma aceitação — do trial por device-id (SPEC-011). Fechá-lo exigiria
+    fingerprinting, que é o que este projeto decidiu não fazer.
+    """
+    if not device_id:
+        return 0
+    return SessionClaim.objects.filter(user__isnull=True, device_id=device_id).update(user=usuario)
 
 
 @api_view(["POST"])
 @throttle_classes([AuthThrottle])
 def register(request: Request) -> Response:
-    """`POST /api/auth/register` — cria a conta e já devolve os tokens.
+    """`POST /api/auth/register` — cria a conta, adota o aparelho e já devolve os tokens.
 
     Já devolve logado de propósito: obrigar um `login` logo depois do cadastro é um passo a
     mais no funil que não protege nada.
+
+    O `X-Device-Id` é o **mesmo cabeçalho** do trial, e é lido aqui sem gerar um novo: o cadastro
+    não é o lugar de batizar aparelho nenhum. Ver `adotar_sessoes_do_aparelho`.
     """
     try:
         dados = Credentials.parse(request.data, com_nome=True)
@@ -120,7 +164,11 @@ def register(request: Request) -> Response:
             {"detail": "Já existe uma conta com este e-mail. Tente entrar."}, status=409
         )
 
-    return _sessao_aberta(usuario, 201)
+    adotadas = adotar_sessoes_do_aparelho(usuario, quota.device_id_declarado(request.headers))
+    # O número volta no corpo para que a tela possa confirmar a promessa que o CTA fez ("crie
+    # uma conta para não perder seu fogo"). Zero é resposta legítima — quem cria conta antes de
+    # treinar não perdeu nada —, e é por isso que o campo não some quando é zero.
+    return _sessao_aberta(usuario, 201, adopted_sessions=adotadas)
 
 
 @api_view(["POST"])

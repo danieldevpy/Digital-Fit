@@ -39,6 +39,18 @@ export function rememberDeviceId(id: string | null | undefined): void {
   if (id) gravar(DEVICE_KEY, id)
 }
 
+/**
+ * Só o aparelho, sem o `Authorization`.
+ *
+ * É o que o cadastro manda (T-087): o servidor usa o id para adotar as sessões que este
+ * aparelho fez como visitante. Mandar um `Authorization` velho junto seria dizer "já estou
+ * logado" na requisição que existe para criar a conta.
+ */
+export function deviceHeaders(): Record<string, string> {
+  const device = deviceId()
+  return device ? { 'X-Device-Id': device } : {}
+}
+
 export interface TokenPair {
   access: string
   refresh: string
@@ -66,9 +78,7 @@ export function clearTokens(): void {
  * teria de espelhar a regra de quota — duas fontes da verdade para a mesma decisão.
  */
 export function identityHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {}
-  const device = deviceId()
-  if (device) headers['X-Device-Id'] = device
+  const headers: Record<string, string> = { ...deviceHeaders() }
   const { access } = storedTokens()
   if (access) headers.Authorization = `Bearer ${access}`
   return headers

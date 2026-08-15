@@ -188,7 +188,7 @@ funcionalidade nova: são o mesmo dado, dito certo.
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-086 | Módulo `engagement.py` puro (streak com proteções/mês no fuso SP + piso que impede downgrade de encurtar sequência antiga, XP v1 versionado só sobre `SessionResult`, níveis; `scoring` entra por parâmetro) + fixtures de datas + `GET /api/engagement` com cache `df:eng:{user}:{data_sp}` (TTL até a virada em SP, invalidado por `post_save` de `SessionResult` e `User`) + campo `daily_goal` no perfil | 019 | **feito** (2026-08-15) — a SPEC-019 foi corrigida em dois pontos que decidiam produto: a fórmula do downgrade (`max(plano_atual, plano_free)` encurtava o fogo justamente de quem foi rebaixado — 10 dias viravam 7) e a proteção que só valia "no meio" da sequência (que dava de graça o reacender pago). `achievements` fica fora do payload até a T-089 — lista vazia seria uma afirmação falsa |
-| T-087 | Adoção de sessões do aparelho no cadastro: `device_id` no register, backfill de `SessionClaim.user` — fogo e histórico sobrevivem à criação de conta | 019/011 | todo |
+| T-087 | Adoção de sessões do aparelho no cadastro: `device_id` no register, backfill de `SessionClaim.user` — fogo e histórico sobrevivem à criação de conta | 019/011 | **feito** (2026-08-15) — critério de aceite 5 da SPEC-019 verde ponta a ponta; fecha a Descoberta `[T-121]`. As três fronteiras da spec (só no registro, só claims órfãs, idempotente) têm teste cada uma |
 | T-088 | UI do engajamento: chip do fogo + anel de meta na Início, painel (sheet) com calendário do mês, seção no Perfil, decomposição "+XP" no relatório; fogo fantasma local do anônimo com rótulo honesto e CTA de conta | 019/014 | todo |
 | T-089 | Conquistas v1: catálogo em código (predicados puros), lista no `GET /api/engagement`, toast de nova conquista por diff local, galeria no Perfil | 019 | todo |
 
@@ -422,6 +422,11 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
   conta. **Quem fecha isso é a T-087** (`device_id` no register + backfill de
   `SessionClaim.user`), que já está no M1. Registrado porque hoje o único aviso disso é a linha
   "guardado neste aparelho" no Perfil do visitante — e ela some assim que a conta existe.
+  **FECHADA em 2026-08-15 (T-087).** O cadastro manda o `X-Device-Id` e a API adota as claims
+  órfãs daquele aparelho no mesmo requisição. As sessões passam a ser do servidor de verdade:
+  sobrevivem a outro aparelho e a limpar o navegador. O que **continua** valendo da descoberta é
+  o caso que a adoção não alcança — sessões feitas como visitante em um segundo navegador, que
+  nunca terão como ser reivindicadas, porque a spec limita a adoção ao momento do registro.
 
 - **[T-126] O cliente traduzia códigos com um mapa escrito quando só um exercício contava — e
   ninguém viu por três exercícios.** `textForCode` conhecia cinco códigos: os três de cena e os

@@ -27,7 +27,7 @@ function servidor(reports: SessionReport[]) {
 function logar() {
   useAccountStore.setState({
     status: 'authenticated',
-    user: { id: 1, email: 'a@b.com', name: 'Ana', is_admin: false, date_joined: '2026-07-01' },
+    user: { id: 1, email: 'a@b.com', name: 'Ana', is_admin: false, daily_goal: 'casual', date_joined: '2026-07-01' },
   })
 }
 

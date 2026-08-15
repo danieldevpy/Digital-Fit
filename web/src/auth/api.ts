@@ -7,7 +7,7 @@
 
 import type { SessionReport } from '../report/sessionReport'
 import { apiBaseUrl } from '../session/admission'
-import { clearTokens, identityHeaders, storeTokens, storedTokens } from './storage'
+import { clearTokens, deviceHeaders, identityHeaders, storeTokens, storedTokens } from './storage'
 
 export interface AccountUser {
   id: number
@@ -15,6 +15,8 @@ export interface AccountUser {
   name: string
   /** Vê as ferramentas de diagnóstico, inclusive em produção (T-048). */
   is_admin: boolean
+  /** Meta diária de sessões válidas (SPEC-019): `casual` | `regular` | `intenso`. */
+  daily_goal: string
   date_joined: string
 }
 
@@ -22,6 +24,11 @@ export interface AuthSession {
   user: AccountUser
   access: string
   refresh: string
+  /**
+   * Quantas sessões deste aparelho a conta recém-criada adotou (T-087). Só vem no cadastro;
+   * `undefined` no login, onde não há adoção nenhuma.
+   */
+  adopted_sessions?: number
 }
 
 export class AuthError extends Error {
@@ -98,12 +105,13 @@ async function autenticar(
   caminho: string,
   corpo: Record<string, string>,
   fetchImpl: typeof fetch,
+  headersExtra: Record<string, string> = {},
 ): Promise<AuthSession> {
   let resposta: Response
   try {
     resposta = await fetchImpl(`${apiBaseUrl()}${caminho}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...headersExtra },
       body: JSON.stringify(corpo),
     })
   } catch (erro) {
@@ -130,13 +138,21 @@ export function login(
   return autenticar('/api/auth/login', { email, password }, fetchImpl)
 }
 
+/**
+ * Cria a conta — e leva o aparelho junto (T-087).
+ *
+ * O `X-Device-Id` é o que permite ao servidor adotar as sessões feitas como visitante. Sem ele
+ * o cadastro continuaria funcionando e o histórico ficaria para trás, que é exatamente a dor
+ * que o CTA de conta promete evitar. O `Authorization` NÃO vai junto: quem se cadastra não
+ * está logado, e um access velho no cabeçalho diria o contrário.
+ */
 export function register(
   email: string,
   password: string,
   name: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<AuthSession> {
-  return autenticar('/api/auth/register', { email, password, name }, fetchImpl)
+  return autenticar('/api/auth/register', { email, password, name }, fetchImpl, deviceHeaders())
 }
 
 /** Quem está logado. `null` quando ninguém — inclusive quando o refresh já não vale. */

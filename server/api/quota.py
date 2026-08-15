@@ -49,6 +49,7 @@ __all__ = [
     "QuotaStatus",
     "account_key",
     "consume",
+    "device_id_declarado",
     "device_id_from",
     "device_key",
     "quota_key",
@@ -127,6 +128,18 @@ class QuotaStatus:
         }
 
 
+def device_id_declarado(headers) -> str:
+    """Id do aparelho como ele veio. Vazio quando não veio nada — **nunca gera**.
+
+    A adoção de sessões no cadastro (SPEC-019 §Anônimo / T-087) precisa desta versão e não da
+    de baixo: um id inventado aqui não pertence a aparelho nenhum, e a única coisa que ele
+    poderia fazer é adotar zero claims com ar de que tentou. "Não veio id" é resposta, e é a
+    resposta certa para quem cria conta antes de treinar.
+    """
+    bruto = (headers.get(DEVICE_HEADER) or "").strip()
+    return bruto if _DEVICE_RE.match(bruto) else ""
+
+
 def device_id_from(headers) -> str:
     """Id do aparelho a partir dos cabeçalhos, gerando um quando não vem nenhum.
 
@@ -134,8 +147,7 @@ def device_id_from(headers) -> str:
     cliente guardar. Um cliente que nunca guarda ganha um id novo a cada sessão e nunca
     esbarra no limite: é o preço de não fazer fingerprinting, e a spec aceita esse preço.
     """
-    bruto = (headers.get(DEVICE_HEADER) or "").strip()
-    return bruto if _DEVICE_RE.match(bruto) else uuid.uuid4().hex
+    return device_id_declarado(headers) or uuid.uuid4().hex
 
 
 def _dia(now: datetime | None = None) -> str:

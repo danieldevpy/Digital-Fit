@@ -5,6 +5,82 @@
 
 ---
 
+## 2026-08-15 (49) · T-087 — a conta deixa de custar o histórico
+
+Segunda do M1, e a que torna a T-086 honesta: sem ela, o fogo derivado do servidor **recomeça do
+zero no dia do cadastro**. A dor de perder a sequência seria causada exatamente pela ação que o
+app pediu que a pessoa fizesse — e a spec usa essa dor como CTA ("crie uma conta para não
+perdê-lo"). Prometer isso e depois zerar seria a pior versão possível da mecânica.
+
+### O que mudou, em três linhas
+
+O `POST /api/auth/register` passa a ler o `X-Device-Id` (o mesmo cabeçalho do trial) e a rodar um
+`UPDATE` em `SessionClaim` com `user IS NULL AND device_id = X`. Como o fogo é **derivação** das
+claims, adotar a claim adota a sequência junto — não há nada a migrar, nada a recalcular.
+
+Medido no teste do critério de aceite 5: três dias seguidos como visitante, conta criada no
+terceiro, `GET /api/engagement` responde `streak: 3` e `GET /api/sessions?mine` devolve as três.
+Antes desta task o mesmo caminho daria **1**.
+
+### A função que precisou nascer, e por quê
+
+`quota.device_id_from` **gera** um id quando não vem nenhum — é o que faz o trial funcionar na
+primeira visita, e está certo lá. Aqui seria errado: um id inventado não pertence a aparelho
+nenhum, e a única coisa que ele faria é adotar zero claims com ar de que tentou. Separei
+`device_id_declarado`, que devolve `""` quando não veio nada válido, e `device_id_from` passou a
+ser ela mais o `uuid4`. Uma regra, dois usos, nenhuma cópia.
+
+### As três fronteiras, e a que mais protege
+
+A spec enumera três, e cada uma tem teste próprio:
+
+| fronteira | o que o teste prova |
+|---|---|
+| **só claims órfãs** | dois cadastros no mesmo celular: o primeiro leva 2 sessões, o segundo leva **0** |
+| **uma vez** | idempotente por construção — depois da primeira passada não há mais claim órfã |
+| **só no registro** | `login` com o mesmo cabeçalho adota nada; não existe rota "importar aparelho" |
+
+A primeira é a que mais protege, e a mais fácil de perder numa refatoração: sem o filtro
+`user IS NULL`, o segundo a se cadastrar no mesmo celular levaria as sessões do primeiro — e o
+primeiro veria o próprio histórico desaparecer, sem erro nenhum em lugar nenhum.
+
+### Decisões
+
+- **O corpo do cadastro devolve `adopted_sessions`.** A spec não pede, e ele existe para a tela
+  poder confirmar a promessa que o CTA fez. **Zero é resposta legítima** — quem cria conta antes
+  de treinar não perdeu nada —, e é por isso que o campo não some quando é zero: sumir obrigaria
+  o cliente a tratar ausência como "não sei".
+- **Sem `try/except` na adoção.** Seria um `UPDATE` num índice logo depois de um `INSERT` que
+  acabou de dar certo; engolir exceção aqui produziria contas silenciosamente sem histórico, que
+  é o bug mais difícil de perceber e o mais fácil de causar.
+- **Sem invalidar o cache de engajamento depois de adotar.** A conta nasceu nesta mesma
+  requisição e ninguém leu o engajamento dela antes da linha da adoção — não há chave para
+  derrubar. Escrito no docstring porque é o tipo de "otimização ausente" que parece esquecimento.
+- **O `Authorization` NÃO vai junto no cadastro** (só o `X-Device-Id`). Quem se cadastra não está
+  logado; mandar um access velho na requisição que existe para criar a conta diria o contrário.
+  Tem teste dos dois lados.
+- **`AccountUser` do cliente ganhou `daily_goal`.** Rabo da T-086: o servidor já mandava o campo
+  e o espelho do cliente não o conhecia. Espelho incompleto é o `[A/T-051]` recomeçando.
+
+### Gates
+
+`ruff check` e `format --check` limpos; `pytest` **941 passando** (+16 sobre os 925 da T-086).
+Web: `lint` limpo, `tsc -b` limpo, **521 testes** (+2).
+
+### Pendências
+
+- **A adoção não alcança um segundo navegador.** Quem treinou como visitante no Chrome e criou
+  conta no Firefox não leva o histórico do Chrome — a spec limita a adoção ao momento do registro,
+  de propósito, e a alternativa seria um botão "importar aparelho" com todas as fronteiras
+  reabertas. Registrado na Descoberta `[T-121]`, que esta task fechou no resto.
+- **Aparelho compartilhado adota sessão de outra pessoa.** Limitação que a spec declara e aceita:
+  é o mesmo furo do trial por device-id, e fechá-lo exigiria fingerprinting.
+- **Nada disso aparece na tela ainda.** O `adopted_sessions` volta no corpo e ninguém o lê; o
+  rótulo "guardado neste aparelho" do Perfil continua sem contrapartida no cadastro. É a T-088.
+- `web/public/img/herofamale.png` segue sem task e fora dos commits (quinta entrada seguida).
+
+---
+
 ## 2026-08-15 (48) · T-086 — o fogo, e as duas palavras que decidiam produto
 
 Primeira task do M1 (SPEC-019) e abertura do Bloco B. O Bloco A ficou travado em gravação
