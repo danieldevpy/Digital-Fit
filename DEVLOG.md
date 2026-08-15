@@ -5,6 +5,91 @@
 
 ---
 
+## 2026-08-15 (53) · T-090 — o catálogo do produto encolhe pela metade, e está certo
+
+Task de regra: o eixo maturidade entra **dentro** do `exercises_for()` que a T-074 criou, valendo
+no `GET /api/config` e na admissão pelo mesmo resolvedor. O que ela faz é pequeno; o que ela
+**revela** não é.
+
+### O número que muda hoje
+
+`flexao` e `abdominal` nascem `beta` na migration 0012, e `beta` é ferramenta de dev — nunca
+liberado por plano (SPEC-020 §Maturidade). Medido depois da mudança:
+
+| quem | vê |
+|---|---|
+| anônimo | `jumping_jack`, `squat` |
+| Free | `jumping_jack`, `squat` |
+| assinante | `jumping_jack`, `squat` |
+| `is_admin` | `abdominal`, `flexao`, `jumping_jack`, `squat` |
+
+**O catálogo visível vai de 4 exercícios para 2.** Está certo pela spec — um `beta` tem limiares
+calibrados só contra o boneco sintético, e o `[A/T-106]` é a prova documentada de que isso não
+sobrevive a gente de verdade. Também é honesto pelo que a T-110 mediu: a contagem da flexão é
+sensível ao limiar de profundidade em quem faz repetição rasa.
+
+Mas é uma mudança de produto grande, e a saída dela não é código: é **promover os dois**, o que
+depende do corpus da T-108 — gravação. Enquanto isso, o app oferece dois exercícios.
+
+### A ortogonalidade que precisou de `if`
+
+`MATURITY_RANK` resolveria o eixo com uma comparação: `beta` vale 0, e os dois valores que o
+`Plan` aceita valem 1 e 2. Só que resolveria **por acidente**. Bastaria alguém gravar
+`min_maturity="beta"` por SQL — fora do formulário que valida — para o laboratório inteiro abrir
+para todo mundo. O `if` explícito é o que transforma "acontece de funcionar" em regra, e tem
+teste que faz exatamente esse `UPDATE`.
+
+Mesma família: maturidade **desconhecida** (valor fora do vocabulário, linha editada por fora,
+deploy pela metade) some para quem não é admin. Tratá-la como `validado` liberaria justamente o
+caso em que ninguém sabe o que aquilo é.
+
+### O vazamento de primeiro paint
+
+O catálogo embutido do cliente é o do primeiro paint e do offline, e listava os quatro — então
+quem abrisse o app veria, por um instante, dois cards que o `POST /sessions` recusa. É o
+`[A/T-051]` na janela mais curta e mais difícil de reproduzir que existe.
+
+O embutido passou a declarar `maturity` e a ser filtrado a `validado` antes de o servidor falar.
+**`validado` e nada além**, porque o cliente não sabe o plano nem o `is_admin` nesse instante —
+quem tem direito a mais espera a resposta, que vem em milissegundos e manda.
+
+Cinco testes existentes quebraram, e vale dizer por quê: eles afirmavam
+`currentCatalog() === EXERCISE_CATALOG`, identidade do objeto. A propriedade que **descreviam** é
+"o embutido continua no ar", e essa continua verdadeira. Passaram a afirmar a propriedade.
+
+### Uma decisão de dado que a task precisou tomar
+
+A migration 0006 semeou os três planos com `min_maturity: "validado"` — neutro e correto naquele
+dia, porque nada lia a coluna. Com a regra ligada, o valor deixa de ser neutro: com `validado` em
+todos, o eixo existiria sem nunca mudar nada para ninguém, e o Laboratório 🧪 que a SPEC-020
+§Planos dá ao assinante não existiria.
+
+Migration 0017 abre o Laboratório, **só na linha do assinante e só se ela ainda estiver no valor
+semeado**. Quem já mexeu pelo painel decidiu alguma coisa, e um deploy que desfaz a edição
+quebraria em silêncio a promessa inteira da SPEC-018. Não muda nada observável hoje — nenhum
+exercício está em `calibrado`.
+
+### Gates
+
+`ruff check` e `format --check` limpos; `pytest` **971 passando** (+8 sobre os 963 da T-078).
+Web: `lint` sem warnings, `tsc -b` limpo, **571 testes** (+4), `npm run build` OK.
+
+### Pendências
+
+- **O app oferece dois exercícios até a T-108 dar corpus.** É a consequência de produto desta
+  task, e é o argumento mais concreto que existe para priorizar a gravação: cada dia com o eixo
+  ligado é um dia com metade do catálogo fora do ar.
+- **A recusa da admissão não diz o motivo.** Continua `exercise_unavailable` com a frase genérica
+  — o cadeado com motivo distinto ("assinante" ≠ "em validação" ≠ "crie conta") é a T-091, e a
+  SPEC-020 pede que os motivos sejam visualmente distintos lá, não aqui.
+- **Sem catálogo no banco, a admissão volta a aceitar qualquer slug registrado**, `beta`
+  inclusive. É o caminho degradado que a T-074 já tinha (P2: o produto de ontem), e ele só
+  dispara com a tabela inteira ilegível — mas agora ele **abre** o que a regra fecha. Não mexi:
+  fechar também deixaria a tela Escolha vazia num soluço de banco. Fica registrado porque a
+  escolha mudou de peso com esta task.
+
+---
+
 ## 2026-08-15 (52) · T-078 — o relatório para de subtrair um relógio do outro
 
 A Descoberta `[A/T-077]` estava aberta desde julho, e não é cosmética: além de errar a duração

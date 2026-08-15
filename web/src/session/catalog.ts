@@ -158,6 +158,7 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   jumping_jack: {
     display_name: 'Polichinelo',
     category: 'cardio',
+    maturity: 'validado',
     muscle_group: 'Corpo inteiro',
     default_tip: 'Mantenha o core contraído e movimentos controlados.',
     main_angle: 'arm_abduction',
@@ -172,6 +173,7 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   squat: {
     display_name: 'Agachamento',
     category: 'forca',
+    maturity: 'validado',
     muscle_group: 'Pernas e glúteos',
     default_tip: 'Desça com o peso nos calcanhares e o peito aberto.',
     main_angle: 'none',
@@ -189,6 +191,7 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   flexao: {
     display_name: 'Flexão de braço',
     category: 'forca',
+    maturity: 'beta',
     muscle_group: 'Peito, ombro e tríceps',
     default_tip: 'Corpo numa linha reta da cabeça aos pés, do começo ao fim.',
     main_angle: 'none',
@@ -204,6 +207,7 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   abdominal: {
     display_name: 'Abdominal',
     category: 'core',
+    maturity: 'beta',
     muscle_group: 'Abdômen',
     default_tip: 'Suba com o abdômen, devagar, sem puxar o pescoço.',
     main_angle: 'none',
@@ -250,15 +254,34 @@ function daServidor(ex: ServerExercise): ExerciseInfo {
 }
 
 /**
- * O catálogo em vigor: servidor por cima do embutido, ou só o embutido enquanto ele não chega.
+ * O embutido, filtrado pelo que é seguro mostrar antes de o servidor falar (T-090).
+ *
+ * O embutido é o catálogo do **primeiro paint e do offline**, e ele lista tudo que este bundle
+ * conhece — inclusive exercício `beta`, que a SPEC-020 reserva a contas com ferramentas de dev.
+ * Sem este filtro, quem abre o app vê por um instante dois cards que o `POST /sessions` recusa:
+ * é o `[A/T-051]` na janela mais curta e mais difícil de reproduzir que existe.
+ *
+ * `validado` e nada além, de propósito. O cliente **não sabe o plano** antes do `GET /api/config`
+ * — nem se a conta tem `is_admin` —, então o único piso honesto é o que vale para todo mundo.
+ * Quem tem direito a mais espera a resposta do servidor, que vem em milissegundos e manda.
+ */
+function embutidoVisivel(): Record<string, ExerciseInfo> {
+  return Object.fromEntries(
+    Object.entries(EXERCISE_CATALOG).filter(([, info]) => info.maturity === 'validado'),
+  )
+}
+
+/**
+ * O catálogo em vigor: servidor por cima do embutido, ou o embutido seguro enquanto ele não chega.
  *
  * **Substituição, não mesclagem campo a campo.** Quando o servidor fala, ele fala sobre *o que
- * existe* — um exercício que ele não listou está desligado ou fora do plano, e mantê-lo por
- * herança do embutido recriaria o card que a admissão recusa, que é o `[A/T-051]` de volta.
+ * existe* — um exercício que ele não listou está desligado, fora do plano ou abaixo da
+ * maturidade que este solicitante alcança, e mantê-lo por herança do embutido recriaria o card
+ * que a admissão recusa, que é o `[A/T-051]` de volta.
  */
 export function currentCatalog(): Record<string, ExerciseInfo> {
   const doServidor = useConfigStore.getState().exercises
-  if (!doServidor) return EXERCISE_CATALOG
+  if (!doServidor) return embutidoVisivel()
   return Object.fromEntries(doServidor.map((ex) => [ex.slug, daServidor(ex)]))
 }
 
@@ -268,7 +291,7 @@ export function useCatalog(): { keys: string[]; catalog: Record<string, Exercise
   return useMemo(() => {
     const catalog = doServidor
       ? Object.fromEntries(doServidor.map((ex) => [ex.slug, daServidor(ex)]))
-      : EXERCISE_CATALOG
+      : embutidoVisivel()
     return { keys: Object.keys(catalog), catalog }
   }, [doServidor])
 }

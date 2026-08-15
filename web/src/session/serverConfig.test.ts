@@ -80,9 +80,19 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/**
+ * O embutido que o app pode mostrar antes de o servidor falar (T-090).
+ *
+ * NÃO é `Object.keys(EXERCISE_CATALOG)`: desde a T-090 o embutido é filtrado por maturidade, e
+ * `flexao`/`abdominal` são `beta` — reservados a `is_admin` pela SPEC-020. Escrito à mão, e não
+ * derivado do próprio catálogo, para que acrescentar um `beta` novo ao bundle não passe calado
+ * por este teste.
+ */
+const EMBUTIDO_VISIVEL = ['jumping_jack', 'squat']
+
 describe('o catálogo embutido é o default, não o dono', () => {
   it('sem servidor, vale o embutido — o app desenha sem rede', () => {
-    expect(currentCatalog()).toBe(EXERCISE_CATALOG)
+    expect(Object.keys(currentCatalog())).toEqual(EMBUTIDO_VISIVEL)
     expect(getExercise('squat').display_name).toBe('Agachamento')
   })
 
@@ -108,7 +118,7 @@ describe('o catálogo embutido é o default, não o dono', () => {
     // apagaria a tela Escolha por causa de um soluço de banco.
     useConfigStore.getState().apply(config([]))
 
-    expect(currentCatalog()).toBe(EXERCISE_CATALOG)
+    expect(Object.keys(currentCatalog())).toEqual(EMBUTIDO_VISIVEL)
     expect(offersChoice()).toBe(true)
   })
 
@@ -170,14 +180,14 @@ describe('a busca da configuração', () => {
     const fetchFalso = vi.fn().mockRejectedValue(new Error('sem rede'))
 
     expect(await fetchServerConfig(fetchFalso as unknown as typeof fetch)).toBe(false)
-    expect(currentCatalog()).toBe(EXERCISE_CATALOG)
+    expect(Object.keys(currentCatalog())).toEqual(EMBUTIDO_VISIVEL)
   })
 
   it('500 também é silencioso', async () => {
     const fetchFalso = vi.fn().mockResolvedValue(new Response('', { status: 500 }))
 
     expect(await fetchServerConfig(fetchFalso as unknown as typeof fetch)).toBe(false)
-    expect(currentCatalog()).toBe(EXERCISE_CATALOG)
+    expect(Object.keys(currentCatalog())).toEqual(EMBUTIDO_VISIVEL)
   })
 
   it('aba nova hidrata do disco e AÍ revalida', async () => {
@@ -217,7 +227,7 @@ describe('a busca da configuração', () => {
     window.localStorage.setItem('digitalfit.config', '{isto nao e json')
 
     expect(hydrateStoredConfig()).toBe(false)
-    expect(currentCatalog()).toBe(EXERCISE_CATALOG)
+    expect(Object.keys(currentCatalog())).toEqual(EMBUTIDO_VISIVEL)
   })
 
   it('com catálogo em memória, revalida e o 304 não apaga nada', async () => {

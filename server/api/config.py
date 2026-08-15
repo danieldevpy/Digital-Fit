@@ -40,6 +40,7 @@ from typing import Any
 from django.core.cache import cache
 from django.db.models import F
 
+from api.models import MATURITY_RANK, Maturity
 from api.quota import FREE_LIMIT, FREE_MESSAGE, TRIAL_LIMIT, TRIAL_MESSAGE
 
 __all__ = [
@@ -155,6 +156,11 @@ _FLOOR_PLAN: dict[str, dict[str, Any]] = {
         "daily_sessions": 0,
         "quota_message": "",
         "streak_protections_month": 2,
+        # O Laboratório 🧪 da SPEC-020 §Planos: o assinante enxerga `calibrado`, que é exercício
+        # com corpus real medido mas sem a semana de produção do `validado`. É o degrau que a
+        # assinatura compra neste eixo — **antecipação**, não exclusividade —, e sem este valor
+        # o eixo inteiro da T-090 existiria sem nunca mudar nada para ninguém.
+        "min_maturity": Maturity.CALIBRADO.value,
         "daily_workout": True,
     },
 }
@@ -348,8 +354,9 @@ def exercises_for(user=None, *, now: datetime | None = None) -> dict[str, dict[s
     códigos diferentes divergiriam, e divergiriam do pior jeito possível: um card na tela que o
     `POST /sessions` recusa — que é literalmente o `[A/T-051]` que esta task veio fechar.
 
-    Eixos desta task: `enabled` e `min_plan`. O eixo **maturidade** entra aqui dentro na T-090,
-    nesta mesma função e não ao lado dela.
+    Eixos: `enabled`, `min_plan` (T-074) e **maturidade** (T-090) — o terceiro entrou aqui
+    dentro, nesta mesma função e não ao lado dela, como a SPEC-020 pede. Ver
+    `_visivel_por_maturidade`.
 
     Degradação (P2) com uma nuance: sem catálogo no banco, devolve o registro de código
     (`EXERCISES`) — que é o comportamento de ontem, quando a admissão só checava o registro.
@@ -366,8 +373,9 @@ def exercises_for(user=None, *, now: datetime | None = None) -> dict[str, dict[s
         return {slug: {"slug": slug} for slug in EXERCISES}
 
     ordens = dados.get("plan_order") or {}
-    meu_plano = capabilities_for(user, now=now).plan_slug
-    minha_ordem = ordens.get(meu_plano)
+    caps = capabilities_for(user, now=now)
+    minha_ordem = ordens.get(caps.plan_slug)
+    is_admin = bool(getattr(user, "is_admin", False))
 
     visiveis: dict[str, dict[str, Any]] = {}
     for ex in catalogo:
@@ -377,6 +385,10 @@ def exercises_for(user=None, *, now: datetime | None = None) -> dict[str, dict[s
         # não pode aparecer: a admissão o recusaria, e o card seria um botão quebrado.
         if ex["slug"] not in EXERCISES:
             continue
+        if not _visivel_por_maturidade(
+            ex.get("maturity"), min_maturity=caps.min_maturity, is_admin=is_admin
+        ):
+            continue
         exigido = ex.get("min_plan")
         if exigido:
             ordem_exigida = ordens.get(exigido)
@@ -384,6 +396,32 @@ def exercises_for(user=None, *, now: datetime | None = None) -> dict[str, dict[s
                 continue
         visiveis[ex["slug"]] = ex
     return visiveis
+
+
+def _visivel_por_maturidade(maturidade: Any, *, min_maturity: str, is_admin: bool) -> bool:
+    """O eixo maturidade da SPEC-020, em três linhas e uma ortogonalidade.
+
+    **`beta` nunca é liberado por plano.** É ferramenta de dev, não degrau comercial: um
+    exercício `beta` tem limiares calibrados só contra o boneco sintético, e a lição do
+    `[A/T-106]` é que isso não sobrevive a gente de verdade. A comparação ordenada
+    (`MATURITY_RANK`) resolveria o caso por acidente — `beta` vale 0 e os dois valores que o
+    `Plan` aceita valem 1 e 2 —, mas por *acidente*: bastaria alguém gravar `min_maturity="beta"`
+    por SQL, fora do formulário que valida, para o produto inteiro passar a mostrar exercício de
+    laboratório. O `if` explícito é o que torna a regra uma regra.
+
+    **Maturidade desconhecida some para quem não é admin.** Valor fora do vocabulário (linha
+    editada por fora, nível novo em deploy pela metade) não é `validado`, e tratá-lo como tal
+    liberaria justamente o caso em que ninguém sabe o que aquilo é.
+
+    `is_admin` vê tudo — é o mesmo direito das ferramentas de dev da T-048, e o único jeito de
+    alguém conferir um `beta` em produção antes de promovê-lo.
+    """
+    texto = str(maturidade or "")
+    if texto == Maturity.BETA.value:
+        return is_admin
+    if is_admin:
+        return True
+    return MATURITY_RANK.get(texto, -1) >= MATURITY_RANK.get(min_maturity, 0)
 
 
 def config_payload(user=None, *, now: datetime | None = None) -> dict[str, Any]:

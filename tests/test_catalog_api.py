@@ -377,3 +377,136 @@ def test_payload_e_motor_leem_o_mesmo_catalogo(client) -> None:
 
     assert feedback["SQUAT_TOO_SHALLOW"]["message"] == entradas[Code.SQUAT_TOO_SHALLOW].message
     assert feedback["HIPS_PIKED"]["hint"] == entradas[Code.HIPS_PIKED].hint
+
+
+# ======================================================================================
+# Eixo maturidade (T-090 / SPEC-020 §Maturidade).
+# ======================================================================================
+
+
+@pytest.fixture
+def usuario_free(db) -> User:
+    """Conta sem FK de plano — o caso normal, que cai no plano default."""
+    return User.objects.create_user(email="free@exemplo.com", password=SENHA)
+
+
+@pytest.fixture
+def usuario_assinante(db) -> User:
+    conta = User.objects.create_user(email="sub@exemplo.com", password=SENHA)
+    conta.plan = Plan.objects.get(slug=PLAN_SUBSCRIBER)
+    conta.save(update_fields=["plan"])
+    return conta
+
+
+@pytest.fixture
+def usuario_admin(db) -> User:
+    """Ferramentas de dev (T-048) — a única porta do `beta`."""
+    return User.objects.create_user(email="dev@exemplo.com", password=SENHA, is_admin=True)
+
+
+@pytest.mark.django_db
+def test_free_nao_ve_exercicio_beta(client) -> None:
+    """Critério de aceite 1 da SPEC-020, metade da visibilidade.
+
+    `flexao` e `abdominal` nascem `beta` (migration 0012): limiares calibrados só contra o boneco
+    sintético. A lição do `[A/T-106]` é que isso não sobrevive a gente de verdade — mostrá-los ao
+    Free seria oferecer um treino que pode contar zero.
+    """
+    cache.delete(SNAPSHOT_KEY)
+
+    assert sorted(exercises_for(None)) == ["jumping_jack", "squat"]
+
+
+@pytest.mark.django_db
+def test_is_admin_ve_beta_e_o_resto(usuario_admin) -> None:
+    """A única porta do `beta`, e é ferramenta de dev — o mesmo direito da T-048."""
+    cache.delete(SNAPSHOT_KEY)
+
+    assert sorted(exercises_for(usuario_admin)) == [
+        "abdominal",
+        "flexao",
+        "jumping_jack",
+        "squat",
+    ]
+
+
+@pytest.mark.django_db
+def test_beta_NUNCA_e_liberado_por_plano(usuario_free) -> None:
+    """A ortogonalidade que a spec exige, testada pelo caminho que a validação não cobre.
+
+    `Plan.min_maturity` só oferece `validado` e `calibrado` no formulário — mas um `.update()`
+    por SQL passa por cima disso. Se a regra fosse só a comparação ordenada, este UPDATE abriria
+    o laboratório inteiro para todo mundo. O `if` explícito é o que a torna uma regra.
+    """
+    Plan.objects.filter(slug="free").update(min_maturity="beta")
+    cache.delete(SNAPSHOT_KEY)
+
+    assert sorted(exercises_for(usuario_free)) == ["jumping_jack", "squat"]
+
+
+@pytest.mark.django_db
+def test_maturidade_desconhecida_some_para_quem_nao_e_admin(usuario_free, usuario_admin) -> None:
+    """Valor fora do vocabulário não é `validado`, e tratá-lo como tal liberaria justamente o
+    caso em que ninguém sabe o que aquilo é."""
+    Exercise.objects.filter(slug="squat").update(maturity="dourado")
+    cache.delete(SNAPSHOT_KEY)
+
+    assert sorted(exercises_for(usuario_free)) == ["jumping_jack"]
+    assert "squat" in exercises_for(usuario_admin)
+
+
+@pytest.mark.django_db
+def test_o_assinante_enxerga_o_laboratorio(usuario_assinante, usuario_free) -> None:
+    """Critério de aceite 2, metade do servidor: `calibrado` é o degrau que a assinatura compra
+    neste eixo. O selo 🧪 na pré-config é a T-091."""
+    Exercise.objects.filter(slug="flexao").update(maturity="calibrado")
+    cache.delete(SNAPSHOT_KEY)
+
+    assert "flexao" in exercises_for(usuario_assinante)
+    assert "flexao" not in exercises_for(usuario_free)
+
+
+@pytest.mark.django_db
+def test_rebaixar_maturidade_no_painel_some_do_free_sem_deploy(usuario_free) -> None:
+    """Critério de aceite 3. O `post_save` do `Exercise` invalida o snapshot (T-073), então a
+    edição vale na requisição seguinte."""
+    cache.delete(SNAPSHOT_KEY)
+    assert "squat" in exercises_for(usuario_free)
+
+    exercicio = Exercise.objects.get(slug="squat")
+    exercicio.maturity = "calibrado"
+    exercicio.save()
+
+    assert "squat" not in exercises_for(usuario_free)
+
+
+@pytest.mark.django_db
+def test_a_admissao_recusa_exercicio_abaixo_da_maturidade(client, monkeypatch) -> None:
+    """A UI nunca é a única trava (SPEC-020 §Fase Inicial): forjar o cliente não abre `beta`."""
+    from tests.test_sessions import FakeRedis, admissao_falsa
+
+    admissao_falsa(monkeypatch, FakeRedis())
+    cache.delete(SNAPSHOT_KEY)
+
+    resposta = client.post(
+        "/api/sessions",
+        data={"exercise": "flexao", "mode": "edge"},
+        content_type="application/json",
+    )
+
+    assert resposta.status_code == 403
+    assert resposta.json()["code"] == "exercise_unavailable"
+
+
+@pytest.mark.django_db
+def test_o_catalogo_servido_nao_conta_o_que_esta_escondido(client) -> None:
+    """O payload do `GET /api/config` é o MESMO resolvedor da admissão — se divergissem, haveria
+    card na tela que o `POST /sessions` recusa, que é o `[A/T-051]`."""
+    cache.delete(SNAPSHOT_KEY)
+
+    corpo = client.get("/api/config").json()
+    slugs = {ex["slug"] for ex in corpo["exercises"]}
+
+    assert slugs == {"jumping_jack", "squat"}
+    # E a maturidade viaja junto, para o selo da T-091 ter de onde sair.
+    assert all("maturity" in ex for ex in corpo["exercises"])

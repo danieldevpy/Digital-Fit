@@ -196,7 +196,7 @@ funcionalidade nova: são o mesmo dado, dito certo.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-090 | Eixo maturidade dentro do `exercises_for()` que a T-074 criou (`Plan.min_maturity`; `beta` só por `is_admin`), valendo no `GET /api/config` e na admissão + espelho client com categoria em slug, `met` e `maturity` — as colunas já vêm de T-074, esta task traz só a regra | 020/018 | todo |
+| T-090 | Eixo maturidade dentro do `exercises_for()` que a T-074 criou (`Plan.min_maturity`; `beta` só por `is_admin`), valendo no `GET /api/config` e na admissão + espelho client com categoria em slug, `met` e `maturity` — as colunas já vêm de T-074, esta task traz só a regra | 020/018 | **feito** (2026-08-15) — **muda o que está no ar**: `flexao` e `abdominal` são `beta` (migration 0012) e passam a sumir para todo mundo que não é `is_admin`. O catálogo visível cai de 4 para 2. É o que a SPEC-020 manda, e a saída é promovê-los (T-108) |
 | T-091 | Tela Escolha agrupada por categoria, cadeados com motivo e **cadeado de progressão visualmente distinto do de plano** ("conclua o passo anterior" ≠ "assinante" ≠ "crie conta") e selo Laboratório 🧪 na pré-config de exercício `calibrado` | 020/014 | todo |
 | T-092 | Exercício: marcha estacionária (`marcha`) — feature de alternância de altura de joelho (compartilhada com T-094), checklist completa da SPEC-020, nasce `beta` | 020/007/012 | todo |
 | T-093 | Exercício: elevação lateral de braços (`elevacao_bracos`) — reusa `arm_angle`; o guardião do fogo junto com a marcha | 020/007/012 | todo |
