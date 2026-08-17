@@ -138,6 +138,19 @@ Coluna que existe e ninguém lê apodrece: é a lição registrada do `Plan.hist
 (Descoberta `[T-073]`). Uma coluna nova aqui teria nascido com o mesmo destino, porque o número
 que ela guardaria já está guardado.
 
+**Nota (T-136): "generoso" virou número.** Esta seção pedia um teto generoso sem dizer quanto,
+e a admissão precisa de uma régua para responder sim ou não. São duas decisões, tomadas ao
+codar e registradas aqui para a spec continuar sendo a fonte:
+
+- **A régua**: `COUNTED_MIN_CEILING_S = 60` (`api/config.py`) — o dobro da janela livre. Teto
+  menor que isso não é teto de série, é a mesma janela competitiva com outro nome. É constante
+  de código, e não campo do painel, porque derivá-la de um valor editável (`default_duration_s`)
+  deixaria alguém destravar o modo contado em plano que não o suporta ao mexer em outra coisa.
+- **O teto da assinatura**: 180 s, pela migration `0021` (15 repetições a 5 rpm). Sem ela o
+  modo contado nasceria recusado para todo mundo — os três planos saíram da `0006` com 30 s —,
+  e a §4 estaria descrevendo uma capacidade que nenhum plano tem. Free e visitante ficam nos
+  30 s: é exatamente o cadeado que esta seção defende.
+
 ## 5. O gesto de prontidão
 
 > "Aí tu já vai se posicionar na frente. Se posicionou, o bagulho entendeu que tu tá

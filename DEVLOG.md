@@ -5,6 +5,123 @@
 
 ---
 
+## 2026-08-17 (61) · T-136 — A série resolvida na admissão: modo, meta e teto do servidor
+
+Terceira perna do Bloco C (SPEC-023). A T-134 escreveu o carimbo, a T-135 ensinou o worker a
+encerrar por meta — e as duas dependiam de alguém **decidir** o modo. Esta task é esse alguém:
+`POST /api/sessions` passa a resolver `set_mode`, `target_reps`, o teto e o carimbo de série,
+junto de quota, duração, countdown e cloud, na fronteira da API e uma vez por sessão (P1 da
+SPEC-018). O cliente pede; o servidor resolve; o worker obedece ao evento.
+
+### As três decisões desta task
+
+**1. "Generoso" virou número — e o número virou duas coisas.** A §4 diz que o gate do modo
+contado é ter `session_max_s` generoso, sem dizer quanto. A admissão precisa da régua para
+responder sim ou não, então ela existe agora: `COUNTED_MIN_CEILING_S = 60`, o dobro da janela
+livre. O argumento está escrito na constante: teto menor que isso não é teto de série, é a
+mesma janela competitiva com outro nome — e o modo contado existe para ser o oposto dela.
+Ficou constante de código, e não campo do painel, porque derivá-la de um valor editável
+(`default_duration_s`) deixaria alguém destravar o modo contado em plano que não o suporta
+mexendo em outra coisa. A régua fica parada; o que o painel move é o teto de cada plano.
+
+**2. A migration `0021` sobe o teto da assinatura para 180 s, e isso quebra um precedente de
+propósito.** Sem ela a task entregaria uma trava perfeita numa capacidade que nenhum plano tem:
+os três saíram da `0006` com `session_max_s = 30`, então o modo contado nasceria recusado para
+todo mundo, inclusive para quem paga, até alguém lembrar de mudar um número no painel — e a
+T-137 construiria o montador de série para ninguém. A `0006` documentou que migration de infra
+não entrega mudança de produto; aqui a mudança de produto **é** a task, e ela aparece no nome do
+arquivo, que é a mesma inversão que a `0010` fez com a quota do Free. Três minutos = 15
+repetições a 5 rpm; mais lento que isso não é treinar devagar, é ter parado. Free e visitante
+ficam nos 30 s — é o cadeado da SPEC-016, e o modo livre de 30 s continua completo.
+
+O piso do código (`_FLOOR_PLAN["subscriber"]`) subiu junto, e é o único lugar onde ele deixa de
+ser "o produto de ontem". É de propósito e tem teste: um Postgres fora do ar não pode tirar do
+assinante o modo que ele acabou de pagar (P2), e se um dos dois números andar sozinho o modo
+contado passa a existir ou sumir dependendo de o banco estar de pé.
+
+**3. A vaga cloud passou a durar a série, não o ticket.** Achado ao codar, e é defeito que esta
+task criaria: `create_session` pedia a vaga com `ttl_ms = ticket_ttl_s`, e até aqui os dois
+davam no mesmo (30 s de sessão dentro de 45 s de TTL + 15 s de graça), então a vaga sempre
+expirava depois do fim, por construção. Com uma série contada de 3 min o semáforo devolveria a
+vaga aos 60 s **com a pessoa ainda treinando**, e uma 4ª sessão cloud entraria: três
+`pose-worker` viram quatro e o orçamento de VPS que a SPEC-009 protege vira ficção. Agora o
+prazo é `max(ttl_s, duration_s)` — o `max` é o que mantém o modo livre com o número de antes,
+provado em teste parametrizado (livre 45 s, contado 180 s). Não registrei como Descoberta
+porque não é achado alheio: é o rombo que a própria T-136 abriria.
+
+### O que foi feito
+
+- `api/config.py`: `COUNTED_MIN_CEILING_S`; `Capabilities.allows_counted` (a régua) e
+  `Capabilities.target_reps()` (a meta, no clamp da faixa dos steppers que o painel já publica —
+  ter uma régua para desenhar o montador e outra para admitir a série é o que transforma um
+  cliente adulterado numa meta de 500 reps); `session.counted` no `GET /api/config`.
+- `api/sessions.py`: `SetPlan` (a série como o servidor a resolveu, com a duração dentro —
+  no modo contado ela **é** a resolução, e um teto separado do modo é o par que alguém esquece
+  de atualizar junto); `resolve_set()` como função pura sobre o plano; `CountedUnavailable`;
+  os quatro campos no `SessionRequest` (pedido, não resolução) e no ticket de volta.
+- `api/views.py`: a recusa 403 `counted_unavailable` **antes** do Redis e da quota — recusar
+  depois de consumir o contador cobraria da pessoa um treino que ela não chegou a fazer.
+- `workers/shared/events.py`: `_as_set_mode` virou `parse_set_mode` (público, como
+  `parse_camera_view`), para a admissão e o worker normalizarem o campo com a mesma régua.
+- Migration `0021_teto_da_serie_contada`, simétrica na volta e só tocando quem ainda está no
+  valor neutro (lição da `0010`: migration não sobrescreve decisão de operação).
+- Nada em `web/` (é a T-137), nada em `exercises/`, nada no report-builder.
+
+**A recusa é dita, não contornada.** Degradar o contado para livre em silêncio seria "gentil" e
+mentiroso: a pessoa pediu 15 repetições sem pressa e receberia 30 s de janela, com o relatório
+contando outra coisa. O 403 traz o motivo em português e o `session_max_s` do plano; quem
+escolhe o que fazer com isso é o cliente da T-137.
+
+### Verificação dos critérios de aceite
+
+- **2b** (plano de 30 s recusa com motivo legível): na régua,
+  `test_plano_de_30s_nao_tem_onde_a_serie_contada_acontecer`; pelo HTTP real,
+  `test_o_free_recebe_recusa_legivel_em_vez_de_serie_cortada` — 403, `code`,
+  `session_max_s: 30`, e a prova de que **nada nasceu**: nenhum evento publicado e
+  `SessionClaim.objects.count() == 0`. Mais o outro lado (`assinante` treina contado com teto
+  180 no ticket **e** no evento) e o painel mandando (`session_max_s=30` na assinatura derruba
+  o modo sem deploy).
+- **4** (forjar o cliente não muda nada): meta parametrizada (999 → 30, 1 → 5, 0 → 15, 20 → 20);
+  `duration_s`/`session_max_s` no corpo ignorados; e a costura inteira em
+  `test_a_meta_forjada_nao_encerra_a_serie_onde_o_cliente_quis` — o evento que a view publicou
+  vai para o `AnalysisRouter` de verdade, 35 repetições de polichinelo entram e a série fecha em
+  `target_reached` com `rep_count == 30`. É o critério provado onde ele importa: não que o
+  número certo aparece no ticket, mas que é **por ele** que a série termina.
+- **9**, metade da API (corpo sem os campos da spec abre nos defaults):
+  `test_corpo_sem_os_campos_da_serie_abre_nos_defaults` e
+  `test_modo_de_serie_invalido_cai_no_livre_em_vez_de_derrubar` — mesma tolerância da vista da
+  T-111: erra a escolha, perde a escolha, não o treino.
+- **3** (regressão do modo livre): `test_modo_livre_nao_passa_por_nada_disto` (o caminho livre
+  sai antes da régua do contado, então nem plano curto nem meta no corpo o alcançam) e o gate de
+  contagem do corpus (`test_corpus_regressao`) verde no `pytest`. **Não** rodei `evalctl` sobre
+  os vídeos desta vez, e o motivo é verificável: o diff desta task é API + contrato, e a bancada
+  não carrega nada disso — a prova estrutural está na entrada da T-135.
+- Carimbo da §3: `set_index`/`set_total` incoerentes (4 de 3, índice sem total) viram `0/0`, a
+  sessão avulsa de todo o passado. O servidor não é dono do treino na Fase Inicial, então não
+  tem o que validar aí além da coerência interna — e "série 4 de 3" no relatório seria número
+  errado na tela, que é pior do que número nenhum (SPEC-014).
+- Fora do alcance desta task: **1** e **2** são do worker (T-135, feitos); **5**, **6**, **7**,
+  **8** são do cliente (T-137/T-138); **10** continua coberto pela T-135; **11** é a T-139.
+
+### Pendências geradas
+
+- **A T-140 deixou de ser hipótese.** A Descoberta `[T-135]` (`target_reached` não cai em balde
+  nenhum do `exercise_health`) virou task no Bloco C. Antes desta entrega o problema era
+  inalcançável — nenhuma sessão podia terminar por meta; agora falta só o cliente da T-137. Ela
+  é **pré-requisito de produção do modo contado**, não da T-137.
+- O `SessionTicket` do cliente (`web/src/session/admission.ts`) ainda não espelha os quatro
+  campos novos; é escopo da T-137 e não quebra nada hoje (campo JSON a mais é ignorado).
+- `GET /api/config` agora responde `session.counted` — é o que a T-137 deve ler para decidir se
+  oferece o montador de série, em vez de recomparar `max_s` por conta própria.
+
+### Gates
+
+`ruff check` limpo; `ruff format --check` limpo nos arquivos tocados; `pytest`
+**1051/1051** (eram 1020 na T-135; +31 testes). `makemigrations --check` não detecta modelo
+pendente — a `0021` é só dados. Nada de web, nada de infra.
+
+---
+
 ## 2026-08-17 (60) · T-135 — Modo contado no analysis-worker: a meta encerra a série
 
 Segunda perna do Bloco C (SPEC-023). A T-134 carregou o carimbo; esta task é a primeira em que

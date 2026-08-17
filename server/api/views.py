@@ -17,7 +17,15 @@ from api import engagement_cache
 from api import quota as quota_rule
 from api.config import capabilities_for, config_etag, config_payload, exercises_for
 from api.models import SessionClaim, SessionResult
-from api.sessions import DENIED_CLOUD, SessionRequest, bus, create_session
+from api.sessions import (
+    COUNTED_UNAVAILABLE,
+    DENIED_CLOUD,
+    CountedUnavailable,
+    SessionRequest,
+    bus,
+    create_session,
+    resolve_set,
+)
 
 logger = logging.getLogger("api")
 
@@ -195,6 +203,27 @@ def _admitir(request: Request) -> Response:
             status=403,
         )
 
+    # A série resolvida pelo servidor (SPEC-023 §4): modo, meta e teto. Vem ANTES do Redis e da
+    # quota de propósito — recusar depois de consumir o contador cobraria da pessoa uma sessão
+    # que ela não chegou a fazer, e a recusa aqui não é temporária (o dia virar não muda nada).
+    try:
+        serie = resolve_set(pedido, caps)
+    except CountedUnavailable as recusa:
+        return Response(
+            {
+                "detail": str(recusa),
+                "code": COUNTED_UNAVAILABLE,
+                # O teto que este plano dá. O cliente já o conhece pelo `GET /api/config`
+                # (`session.max_s`), e ele volta aqui pela mesma razão do snapshot de quota no
+                # 429: quem mostra a recusa não deveria precisar de uma segunda chamada para
+                # dizer o número que a explica.
+                "session_max_s": recusa.ceiling_s,
+            },
+            # 403 pelo mesmo motivo do exercício acima: o corpo está correto, o plano é que não
+            # alcança. E não 429 — não é limite por tempo, esperar amanhã não resolve.
+            status=403,
+        )
+
     try:
         cliente = bus().client
     except Exception as exc:
@@ -230,7 +259,11 @@ def _admitir(request: Request) -> Response:
             pedido,
             redis_client=cliente,
             caps=caps,
-            duration_s=caps.duration_s(),
+            # A duração viaja dentro da série: no modo contado ela é o teto do plano, e não a
+            # janela. `duration_s` continua aqui para o caso sem `set_plan` — mas quem manda,
+            # quando há série resolvida, é ela.
+            set_plan=serie,
+            duration_s=serie.duration_s,
             countdown_s=caps.countdown_s(pedido.countdown_s),
             ttl_s=caps.ticket_ttl_s,
         )

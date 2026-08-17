@@ -44,6 +44,7 @@ from api.models import MATURITY_RANK, Maturity
 from api.quota import FREE_LIMIT, FREE_MESSAGE, TRIAL_LIMIT, TRIAL_MESSAGE
 
 __all__ = [
+    "COUNTED_MIN_CEILING_S",
     "PLAN_ANON",
     "PLAN_FREE",
     "PLAN_SUBSCRIBER",
@@ -70,6 +71,21 @@ SNAPSHOT_KEY = "df:config:snapshot"
 #: `manage.py shell` com `.update()`, que não dispara `post_save`. Cinco minutos de configuração
 #: velha num caso raro é barato; configuração velha para sempre não é.
 SNAPSHOT_TTL_S = 300
+
+#: Teto mínimo de sessão para o modo contado existir naquele plano (SPEC-023 §4, T-136).
+#:
+#: A spec diz "`session_max_s` generoso" e não dá número, porque o número é uma decisão de
+#: produto. Este é ele: **o dobro da janela livre de 30 s**. Um teto menor que isso não é teto de
+#: série, é a mesma janela competitiva com outro nome — e o modo contado existe justamente para
+#: ser o oposto dela ("um aplicativo que não te apressa"). Com 60 s, uma meta de 15 repetições
+#: cabe até uma cadência de 15 rpm, que é lento de verdade.
+#:
+#: É constante de código e não coluna nem `SiteConfig` de propósito. Coluna nova está proibida
+#: pela §4 (a lição do `Plan.history_limit`), e derivar a régua de outro campo editável
+#: (`default_duration_s`, `session_min_s`) faria alguém baixar a janela no painel e destravar o
+#: modo contado em plano que não o suporta — sem ninguém perceber, que é o pior jeito de uma
+#: trava falhar. A régua fica parada; o que o painel move é o teto de cada plano.
+COUNTED_MIN_CEILING_S = 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +131,25 @@ class Capabilities:
     def unlimited_sessions(self) -> bool:
         return self.daily_sessions <= 0
 
+    @property
+    def allows_counted(self) -> bool:
+        """Este plano suporta o modo contado (SPEC-023 §4)?
+
+        **O gate do modo contado é o teto do plano, e não uma flag própria.** É o que a §4
+        decidiu: o teto da série contada é o `session_max_s` que já existe, então um plano cujo
+        teto é a janela de 30 s (o Free de hoje) não tem onde a série contada acontecer — ela
+        seria cortada no meio, que é exatamente o que o modo existe para não fazer. Recusar na
+        admissão é dizer isso na hora certa; deixar entrar seria prometer "sem pressa" e cobrar
+        30 s.
+
+        Mora aqui, junto de `duration_s`/`countdown_s`, porque é a mesma pergunta que esta
+        classe responde ("o que este solicitante pode") — e porque o `GET /api/config` e a
+        admissão precisam da MESMA resposta. Dois lugares calculando isto divergiriam, e a
+        divergência apareceria como um montador que oferece a meta e um `POST /sessions` que a
+        recusa: o `[A/T-051]` de novo.
+        """
+        return self.session_max_s >= COUNTED_MIN_CEILING_S
+
     def duration_s(self, requested: int | None = None) -> int:
         """Duração efetiva desta sessão, dentro da faixa do plano.
 
@@ -127,6 +162,21 @@ class Capabilities:
 
     def countdown_s(self, requested: int) -> int:
         return max(0, min(self.countdown_max_s, requested))
+
+    def target_reps(self, requested: int | None = None) -> int:
+        """Meta efetiva da série contada, dentro da faixa que o painel publica (SPEC-023 §2).
+
+        A faixa é a MESMA dos steppers (`reps_min`/`reps_max`/`reps_default`): o servidor não
+        pode ter uma régua para desenhar o montador e outra para admitir a série — a segunda
+        régua é o que transforma um cliente adulterado numa meta de 500 repetições.
+
+        `clamp` e não recusa, como em `duration_s`: a meta é escolha de quem treina, e um número
+        fora da faixa vira o número da faixa em vez de virar mensagem de erro. `0` (ou ausente)
+        cai no default — modo contado sem meta é contrato malformado, e o worker já degrada esse
+        caso para o comportamento de sempre; resolver aqui evita que ele chegue lá.
+        """
+        alvo = requested or self.reps_default
+        return max(self.reps_min, min(self.reps_max, alvo))
 
 
 #: Piso do código (P2): exatamente o comportamento anterior a esta task, por plano. Se o banco
@@ -162,6 +212,13 @@ _FLOOR_PLAN: dict[str, dict[str, Any]] = {
         # o eixo inteiro da T-090 existiria sem nunca mudar nada para ninguém.
         "min_maturity": Maturity.CALIBRADO.value,
         "daily_workout": True,
+        # O teto que torna o modo contado possível (SPEC-023 §4, T-136). Três minutos: 15
+        # repetições a 5 rpm, que é mais lento do que qualquer pessoa que ainda está treinando.
+        # É o **único** lugar onde o piso do código deixa de ser "o produto de ontem", e é de
+        # propósito — ele acompanha a migration `0007` para que um Postgres fora do ar não
+        # tire do assinante um modo que ele acabou de pagar. Os outros planos ficam em 30 s
+        # (`_FLOOR_COMMON`), que é o cadeado da SPEC-016.
+        "session_max_s": 180,
     },
 }
 
@@ -448,6 +505,14 @@ def config_payload(user=None, *, now: datetime | None = None) -> dict[str, Any]:
             "max_s": caps.session_max_s,
             "countdown_default_s": caps.default_countdown_s,
             "countdown_max_s": caps.countdown_max_s,
+            # SPEC-023 §4: se este plano tem modo contado. Booleano pronto, e não a régua para o
+            # cliente aplicar sobre `max_s`: quem decide é a admissão (`resolve_set`), e uma
+            # segunda implementação da mesma comparação divergiria no dia em que a régua mudasse
+            # — com o sintoma aparecendo como um montador que oferece a meta e um
+            # `POST /sessions` que responde 403. A trava continua sendo o servidor; isto é só o
+            # que permite a UI refletir a trava em vez de descobri-la batendo nela (mesmo papel
+            # do `GET /api/quota` na SPEC-016).
+            "counted": caps.allows_counted,
         },
         "steppers": {
             "series_min": caps.series_min,

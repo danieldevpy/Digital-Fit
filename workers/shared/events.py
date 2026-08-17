@@ -75,6 +75,7 @@ __all__ = [
     "from_stream_fields",
     "make_envelope",
     "parse_camera_view",
+    "parse_set_mode",
     "to_stream_fields",
 ]
 
@@ -486,9 +487,14 @@ def _stamp_int(valor: Any) -> int:
     return max(0, numero)
 
 
-def _as_set_mode(valor: Any) -> SetMode:
+def parse_set_mode(valor: Any) -> SetMode:
     """Modo da série: valor ausente ou desconhecido cai em `livre` — o comportamento de toda
-    sessão antes desta task (SPEC-023, critério de aceite 9)."""
+    sessão antes desta task (SPEC-023, critério de aceite 9).
+
+    Público como `parse_camera_view`, e pelo mesmo motivo: a admissão (T-136) lê o modo do corpo
+    do `POST /api/sessions` e precisa da MESMA tolerância que o worker aplica ao evento. Duas
+    normalizações do mesmo campo divergiriam no valor torto, que é justo onde importa.
+    """
     if isinstance(valor, SetMode):
         return valor
     try:
@@ -576,7 +582,7 @@ class SessionStarted:
             # Os quatro campos da T-134 seguem a mesma regra: ausentes (evento anterior à
             # SPEC-023, ou replay de stream gravado antes dela) ou tortos caem nos defaults que
             # reproduzem o modo livre de sempre — nunca derrubam o `session.started`.
-            set_mode=_as_set_mode(data.get("set_mode", SetMode.LIVRE.value)),
+            set_mode=parse_set_mode(data.get("set_mode", SetMode.LIVRE.value)),
             target_reps=_stamp_int(data.get("target_reps", 0)),
             set_index=_stamp_int(data.get("set_index", 0)),
             set_total=_stamp_int(data.get("set_total", 0)),

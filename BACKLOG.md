@@ -267,10 +267,11 @@ Raia contrato → worker → api → client; T-134 abre e as outras dependem del
 |---|---|---|---|
 | T-134 | Contrato do treino (`events.py` primeiro, AGENTS): `set_mode` (renomeado de `mode` — colidia com o `mode` de extração de pose que `session.started` já tem; corrigido na própria SPEC-023), `target_reps`, `set_index`, `set_total` aditivos em `session.started` + `SessionEndReason.TARGET_REACHED`; colunas aditivas no `SessionResult` e consolidação no report-builder. Sem bump de `PROTOCOL_VERSION` (justificado na SPEC-023 §Eventos, incluindo a ressalva do enum) | 023/002/010 | **feito** (2026-08-17) |
 | T-135 | Modo contado no analysis-worker: a meta encerra a série no frame da N-ésima rep (autoridade do servidor, como o timer da SPEC-009); teto por `ts` de frame, estouro termina em `completed` sem erro. Depende de T-134 e **de T-078** (o `duration_ms` mistura dois relógios, e "tempo até a meta" é exatamente o número que ele erra) | 023/007/009 | **feito** (2026-08-17) — a meta fecha no caminho do frame (o fim carrega o `ts` da N-ésima rep, não o do `tick` seguinte); o teto trocou de relógio só no modo contado (`ts` de frame em vez de parede) e o modo livre segue intacto, provado com a parede congelada. Gerou a Descoberta `[T-135]` do `exercise_health` |
-| T-136 | Modo resolvido na admissão junto de quota/duração/countdown/cloud: meta e teto que valem são os do servidor (forjar o cliente não muda nada), e o teto é o `Plan.session_max_s` que já existe — **sem coluna nova** (SPEC-023 §4). Plano com `session_max_s = 30` recusa modo contado com motivo legível, em vez de cortar a série no meio. Depende de T-134 | 023/018/016 | todo |
+| T-136 | Modo resolvido na admissão junto de quota/duração/countdown/cloud: meta e teto que valem são os do servidor (forjar o cliente não muda nada), e o teto é o `Plan.session_max_s` que já existe — **sem coluna nova** (SPEC-023 §4). Plano com `session_max_s = 30` recusa modo contado com motivo legível, em vez de cortar a série no meio. Depende de T-134 | 023/018/016 | **feito** (2026-08-17) — régua `COUNTED_MIN_CEILING_S = 60` (o dobro da janela livre) e teto da assinatura em 180 s pela migration `0021`, senão o modo nasceria recusado para todo mundo; a vaga cloud passou a durar a série e não o ticket. `GET /api/config` ganhou `session.counted` para a UI refletir a trava |
 | T-137 | Cliente do treino: montador de plano de exercício único (N séries × meta × descanso), tela de descanso com contador e próximo item, HUD do modo contado (anel conta para cima, `7/15`, tempo decorrido no lugar do restante). O descanso é só cliente — não abre sessão, não segura slot. Depende de T-135/T-136 | 023/014 | todo |
 | T-138 | Gesto de prontidão (dois pulsos acima dos ombros por 1 s) encerra o descanso — **edge apenas**, com toque e temporizador como saída universal; fronteira com o gate por pose da SPEC-004/T-030 declarada em teste. Depende de T-137 | 023/004 | todo |
 | T-139 | Cadência vira o eixo de progresso: relatório da série mostra reps/min sempre e tempo até a meta no modo contado; comparação por exercício nas últimas 4 semanas como **derivação pura** sobre `SessionResult` (sem tabela, sem contador). Depende de T-134 | 023/010/017 | todo |
+| T-140 | `target_reached` entra nos baldes do `exercise_health` (Descoberta `[T-135]`): a série contada conta como completa na taxa de zero-rep da SPEC-020 e a cadência dela entra na mediana. **Pré-requisito de produção do modo contado** — desde a T-136 uma sessão já pode terminar em `target_reached`, e hoje ela some da saúde do exercício sem aparecer em balde nenhum. A decisão de qual balde é da SPEC-020 | 020/023 | todo |
 
 ### Bloco D — A caixa registradora
 
@@ -295,7 +296,9 @@ Raia contrato → worker → api → client; T-134 abre e as outras dependem del
   diferentes num número só, e agora o problema é o inverso — um motivo novo que não é somado a
   lugar nenhum. Não entrou nesta task porque é `api`/SPEC-020, e porque nenhuma sessão pode
   terminar em `target_reached` antes da T-136 (a admissão é quem resolve o modo) — mas precisa
-  estar resolvido **antes** de o modo contado chegar em produção. A resposta provável é que
+  estar resolvido **antes** de o modo contado chegar em produção. **Virou a T-140 na T-136**, e
+  o prazo deixou de ser hipotético: com a admissão resolvendo o modo e o teto do assinante em
+  180 s, a primeira sessão a terminar em `target_reached` depende só do cliente da T-137. A resposta provável é que
   `target_reached` conte como completa para a taxa (é a conclusão mais bem-sucedida que existe),
   e que a cadência da série contada entre na mediana; a decisão é da SPEC-020, não desta linha.
 
