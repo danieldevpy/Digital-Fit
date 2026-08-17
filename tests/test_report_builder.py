@@ -31,6 +31,7 @@ from workers.shared.events import (
     SessionEndReason,
     SessionReportReady,
     SessionStarted,
+    SetMode,
     Severity,
     Source,
     Stream,
@@ -51,12 +52,23 @@ def sessao_completa(
     session_id: str = "s-1",
     exercise: str = "jumping_jack",
     config_version: int = 0,
+    set_mode: SetMode = SetMode.LIVRE,
+    target_reps: int = 0,
+    set_index: int = 0,
+    set_total: int = 0,
 ) -> list:
     """Uma sessão inteira em eventos: abertura, calibração, N reps espalhadas, fim."""
     eventos = [
         evento(
             SessionStarted(
-                exercise=exercise, mode=Mode.EDGE, duration_s=30, config_version=config_version
+                exercise=exercise,
+                mode=Mode.EDGE,
+                duration_s=30,
+                config_version=config_version,
+                set_mode=set_mode,
+                target_reps=target_reps,
+                set_index=set_index,
+                set_total=set_total,
             ),
             ts=BASE_TS,
             session_id=session_id,
@@ -147,6 +159,42 @@ def test_sessao_sem_abertura_diz_versao_zero():
 
     assert relatorio is not None
     assert relatorio.config_version == 0
+
+
+def test_relatorio_carrega_os_carimbos_de_serie_da_abertura():
+    """T-134: os quatro campos da SPEC-023 chegam inteiros ao relatório — consolidação, não
+    decisão (quem decide o fim por meta é o analysis-worker, T-135)."""
+    acumulador = ReportAccumulator()
+    relatorio = None
+    for envelope in sessao_completa(
+        set_mode=SetMode.CONTADO, target_reps=15, set_index=2, set_total=3
+    ):
+        relatorio = acumulador.push(envelope) or relatorio
+
+    assert relatorio is not None
+    assert relatorio.set_mode == "contado"
+    assert relatorio.target_reps == 15
+    assert relatorio.set_index == 2
+    assert relatorio.set_total == 3
+    assert relatorio.to_dict()["set_mode"] == "contado"
+
+
+def test_sessao_sem_abertura_usa_defaults_de_serie():
+    """Mesma regra do `config_version`: builder que não viu o `session.started` não inventa
+    modo contado nem posição de série — cai no modo livre avulso, que é o default do contrato.
+    """
+    acumulador = ReportAccumulator()
+    relatorio = None
+    for envelope in sessao_completa(
+        set_mode=SetMode.CONTADO, target_reps=15, set_index=2, set_total=3
+    )[1:]:  # sem o `session.started`
+        relatorio = acumulador.push(envelope) or relatorio
+
+    assert relatorio is not None
+    assert relatorio.set_mode == SetMode.LIVRE.value
+    assert relatorio.target_reps == 0
+    assert relatorio.set_index == 0
+    assert relatorio.set_total == 0
 
 
 def test_duracao_ignora_a_preparacao():
@@ -433,7 +481,14 @@ def test_persist_faz_upsert_por_session_id():
 
     acumulador = ReportAccumulator()
     relatorio = None
-    for envelope in sessao_completa(reps=11, duracao_ms=22_000):
+    for envelope in sessao_completa(
+        reps=11,
+        duracao_ms=22_000,
+        set_mode=SetMode.CONTADO,
+        target_reps=11,
+        set_index=1,
+        set_total=3,
+    ):
         relatorio = acumulador.push(envelope) or relatorio
     assert relatorio is not None
 
@@ -445,6 +500,11 @@ def test_persist_faz_upsert_por_session_id():
     assert salvo.rep_count == 11
     assert salvo.cadence_rpm == 30.0
     assert sum(salvo.cadence_windows) == 11
+    # T-134: as colunas aditivas de série chegam ao Postgres, não só ao dataclass em memória.
+    assert salvo.set_mode == "contado"
+    assert salvo.target_reps == 11
+    assert salvo.set_index == 1
+    assert salvo.set_total == 3
 
 
 @pytest.mark.django_db
@@ -466,6 +526,11 @@ def test_relatorio_pela_api(client):
     assert corpo["exercise"] == "jumping_jack"
     assert corpo["cadence_rpm"] == 30.0
     assert len(corpo["cadence_windows"]) == 6
+    # T-134: sessão avulsa (sem série) reporta os defaults do contrato, não ausência de campo.
+    assert corpo["set_mode"] == "livre"
+    assert corpo["target_reps"] == 0
+    assert corpo["set_index"] == 0
+    assert corpo["set_total"] == 0
 
 
 @pytest.mark.django_db

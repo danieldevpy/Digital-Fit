@@ -5,6 +5,62 @@
 
 ---
 
+## 2026-08-17 (59) · T-134 — Contrato do treino: `set_mode`, `target_reps`, `set_index`, `set_total`
+
+Abre o Bloco C (SPEC-023): raia contrato → worker → api → client do modo contado (meta de
+reps, sem pressa, com descanso entre séries). Esta task é só o contrato — nada decide fim de
+série por meta ainda (T-135), nada resolve o modo na admissão (T-136), nada no cliente.
+
+**Achado ao carregar a spec, antes de escrever uma linha: `mode` já existe.** A SPEC-023
+nomeava o campo novo `mode` (`"livre"` | `"contado"`). Mas `session.started` **já tem** um
+`mode` — o de extração de pose (`edge`/`cloud`, SPEC-001), presente no contrato, na coluna
+`SessionResult.mode` e no `to_report()`. São dois eixos independentes da mesma sessão (por
+onde os keypoints saíram × como a série termina) e a spec, ainda `draft`, não tinha percebido
+a colisão. Seguido o AGENTS.md à risca: a spec foi corrigida antes de codar, não driblada em
+silêncio. Renomeado para `set_mode` — ecoa `set_index`/`set_total`, que já eram vocabulário de
+série na própria spec. Registrado na SPEC-023 §2 com uma nota explicando o porquê.
+
+### O que foi feito
+
+- `workers/shared/events.py`: `SetMode` (novo enum, `LIVRE`/`CONTADO`) com docstring explicando
+  a não-colisão com `Mode`; `SessionEndReason.TARGET_REACHED`; quatro campos aditivos em
+  `SessionStarted` (`set_mode`, `target_reps`, `set_index`, `set_total`), todos com parsing
+  tolerante — igual a `config_version`/`countdown_s`: valor ausente ou torto vira o default
+  (`livre`/`0`), nunca derruba o `session.started` inteiro. `PROTOCOL_VERSION` não sobe (a
+  spec já justificava isso na §Eventos).
+- `workers/report_builder/builder.py`: os quatro campos viajam do `_SessionBuffer` para o
+  `SessionReport` — consolidação pura, sem decisão nova (quem decide fim por meta é a T-135).
+- `server/api/models.py` + migration `0020_treino_em_series`: colunas aditivas em
+  `SessionResult` (mesmo padrão da `config_version`, T-075) e no `to_report()`.
+- Nada tocado em `server/api/sessions.py` (admissão): `SessionStarted` já é construído lá sem
+  os quatro campos novos, então toda sessão de hoje continua abrindo em modo livre avulso sem
+  precisar de nenhuma mudança — é a prova viva de que o contrato é aditivo de verdade, não só
+  na letra.
+
+### Verificação dos critérios de aceite tocados por esta task
+
+- **9** (evento sem os campos abre nos defaults): `test_session_started_sem_campos_da_t134_e_aditivo`.
+- Tolerância a lixo (mesmo espírito do 9, para valor presente mas torto):
+  `test_set_mode_torto_vira_livre_em_vez_de_derrubar_o_evento`,
+  `test_carimbos_de_serie_tortos_viram_zero_em_vez_de_derrubar_o_evento`.
+- Não-colisão com `mode`: `test_set_mode_nao_colide_com_o_modo_de_extracao`.
+- Round-trip msgpack/stream dos quatro campos e de `TARGET_REACHED`: entradas novas em
+  `PAYLOADS` (`tests/test_events.py`), cobertas pelos testes parametrizados existentes.
+- Consolidação chega ao Postgres, não só ao dataclass em memória:
+  `test_relatorio_carrega_os_carimbos_de_serie_da_abertura`,
+  `test_sessao_sem_abertura_usa_defaults_de_serie`, e as asserções novas em
+  `test_persist_faz_upsert_por_session_id`/`test_relatorio_pela_api`.
+- Os critérios que dependem de contagem por meta, teto e admissão (1, 2, 2b, 4-8) ficam para
+  T-135/T-136 — esta task não decide fim de série, só carrega o carimbo.
+
+### Gates
+
+`ruff check` limpo; `ruff format --check` limpo no que esta sessão tocou (`tests/test_sessions.py`
+já estava fora do formato antes desta task, não mexido); `makemigrations --check` sem
+pendência; `migrate` aplica limpo em SQLite; `pytest` **1010/1010**.
+
+---
+
 ## 2026-08-17 (58) · operação: renumeração do Bloco C (SPEC-023)
 
 O Bloco C (`BACKLOG.md`) reusava T-111/T-112/T-113 para as tasks do treino contado — os mesmos

@@ -51,12 +51,19 @@ Um plano é uma **lista ordenada de itens**. Cada item é uma série:
 ```
 PlanoItem = {
   exercise: str,          # slug do catálogo (SPEC-020)
-  mode: "livre" | "contado",
+  set_mode: "livre" | "contado",
   target_reps: int,       # > 0 no modo contado; 0 no livre
   window_s: int,          # modo livre: tamanho da janela
   rest_s: int,            # descanso DEPOIS deste item; 0 no último
 }
 ```
+
+**Nota (T-134, achada ao codar — spec corrigida, não driblada em silêncio):** o campo nasceu
+`mode` neste rascunho, mas `session.started` **já tem** um `mode` — o de extração de pose
+(`edge`/`cloud`, SPEC-001/005). São dois eixos diferentes de uma mesma sessão (por onde os
+keypoints saíram × como a série termina) e colidem em todas as camadas que já leem `mode` hoje:
+o contrato, a coluna do `SessionResult` e o `to_report()`. Renomeado para `set_mode` — ecoa
+`set_index`/`set_total`, que já são vocabulário de série nesta spec.
 
 **Por que uma lista de itens, e não "N séries do exercício X":** porque a SPEC-022 vai querer
 produzir circuito (cardio → força → mobilidade) e, se o formato só souber repetir um exercício,
@@ -170,7 +177,7 @@ treinos diferentes. O áudio já tinha chegado nisso:
 
 ### Escopo / Comportamento
 
-- `mode`, `target_reps`, `set_index`, `set_total` no contrato (`workers/shared/events.py`
+- `set_mode`, `target_reps`, `set_index`, `set_total` no contrato (`workers/shared/events.py`
   primeiro — AGENTS.md); `SessionEndReason.TARGET_REACHED`.
 - Modo contado no analysis-worker: a meta é do **servidor**, e é ele que encerra a série no
   frame da N-ésima repetição.
@@ -234,7 +241,7 @@ treinos diferentes. O áudio já tinha chegado nisso:
 
 ## Eventos (consome / produz)
 
-**Nenhum evento novo.** Campos aditivos em `session.started` (`mode`, `target_reps`,
+**Nenhum evento novo.** Campos aditivos em `session.started` (`set_mode`, `target_reps`,
 `set_index`, `set_total`, todos com default que reproduz o comportamento de hoje) e um valor
 novo em `SessionEndReason`. Consome `pose.frame`, `rep.detected`; produz `session.completed`
 com a razão nova.

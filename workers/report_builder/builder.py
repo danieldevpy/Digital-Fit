@@ -44,6 +44,7 @@ from workers.shared.events import (
     SessionCalibrated,
     SessionCompleted,
     SessionStarted,
+    SetMode,
 )
 
 __all__ = [
@@ -111,6 +112,13 @@ class SessionReport:
     #: no `session.started` — o builder nunca pergunta ao banco, senão o mesmo replay daria
     #: relatórios diferentes em momentos diferentes, e daria em silêncio (SPEC-010).
     config_version: int = 0
+    #: Os quatro carimbos de série da SPEC-023 (T-134) — vêm direto do `session.started` e não
+    #: são recalculados aqui: consolidação, não decisão. `set_mode` vale `"livre"` para toda
+    #: sessão que não passou pela T-134 (mesmo default do contrato).
+    set_mode: str = SetMode.LIVRE.value
+    target_reps: int = 0
+    set_index: int = 0
+    set_total: int = 0
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -127,6 +135,10 @@ class SessionReport:
             "scene_warning_counts": dict(self.scene_warning_counts),
             "calibration_samples": self.calibration_samples,
             "config_version": self.config_version,
+            "set_mode": self.set_mode,
+            "target_reps": self.target_reps,
+            "set_index": self.set_index,
+            "set_total": self.set_total,
         }
 
 
@@ -160,6 +172,12 @@ class _SessionBuffer:
     #: `0` até o `session.started` chegar — e continua `0` na sessão cujo início o builder não
     #: viu (subiu no meio). Igual a `exercise` e `mode`: o que falta é dito, não inventado.
     config_version: int = 0
+    #: Carimbos de série da SPEC-023 (T-134) — mesma regra de `exercise`/`mode`: default até
+    #: `session.started` chegar, nunca recalculados aqui.
+    set_mode: str = SetMode.LIVRE.value
+    target_reps: int = 0
+    set_index: int = 0
+    set_total: int = 0
 
 
 class ReportAccumulator:
@@ -218,6 +236,10 @@ class ReportAccumulator:
                 buffer.mode = dados.mode.value
                 buffer.config_version = dados.config_version
                 buffer.duration_s = dados.duration_s
+                buffer.set_mode = dados.set_mode.value
+                buffer.target_reps = dados.target_reps
+                buffer.set_index = dados.set_index
+                buffer.set_total = dados.set_total
             case EventType.SESSION_CALIBRATED:
                 dados_cal = SessionCalibrated.from_data(envelope.data)
                 buffer.calibration_samples = dados_cal.samples
@@ -287,6 +309,10 @@ class ReportAccumulator:
             scene_warning_counts=dict(buffer.scene),
             calibration_samples=buffer.calibration_samples,
             config_version=buffer.config_version,
+            set_mode=buffer.set_mode,
+            target_reps=buffer.target_reps,
+            set_index=buffer.set_index,
+            set_total=buffer.set_total,
         )
 
     def drop(self, session_id: str) -> None:

@@ -66,6 +66,7 @@ __all__ = [
     "SessionEndReason",
     "SessionReportReady",
     "SessionStarted",
+    "SetMode",
     "Severity",
     "Source",
     "Stream",
@@ -108,6 +109,22 @@ class Mode(StrEnum):
 
     EDGE = "edge"
     CLOUD = "cloud"
+
+
+class SetMode(StrEnum):
+    """Como a série termina: em `livre`, quando a janela acaba; em `contado`, quando a meta de
+    repetições é atingida (SPEC-023, T-134).
+
+    Eixo **independente** de `Mode`: aquele diz de onde os keypoints saem (navegador ou
+    pose-worker), este diz o que decide o fim da série. `session.started` carrega os dois. O
+    nome não é `mode` de propósito — colidiria com o `Mode` acima em toda camada que já lê
+    `mode` hoje (contrato, `SessionResult.mode`, `to_report()`).
+    """
+
+    #: Máximo de repetições numa janela fixa — o que o produto já faz hoje, sem nome até aqui.
+    LIVRE = "livre"
+    #: Meta de repetições, sem pressa; termina em `target_reached` ou no teto (`completed`).
+    CONTADO = "contado"
 
 
 class CameraView(StrEnum):
@@ -329,10 +346,14 @@ class Code(StrEnum):
 class SessionEndReason(StrEnum):
     """Por que a sessão terminou (SPEC-009)."""
 
-    COMPLETED = "completed"  # os 30s correram até o fim
+    COMPLETED = "completed"  # os 30s correram até o fim (ou, no modo contado, o teto estourou)
     TIMEOUT = "timeout"  # TTL da sessão expirou
     ABORTED = "aborted"  # usuário/cliente encerrou antes
     NO_DATA = "no_data"  # nenhum frame por 10s
+    #: Modo contado: a meta de repetições foi atingida (SPEC-023, T-134). Nunca produzido antes
+    #: do deploy desta task — replay de stream gravado antes dela jamais o contém (ressalva do
+    #: `_as_enum` estrito, ver módulo `SessionStarted`/PROTOCOL_VERSION nas notas da spec).
+    TARGET_REACHED = "target_reached"
 
 
 # ---------------------------------------------------------------------------
@@ -454,6 +475,28 @@ def _config_version(valor: Any) -> int:
     return max(0, versao)
 
 
+def _stamp_int(valor: Any) -> int:
+    """Normaliza um carimbo inteiro (`target_reps`/`set_index`/`set_total`): não-negativo,
+    `0` para qualquer coisa torta — mesmo tratamento de `_config_version` (T-134). São
+    carimbo, não parâmetro medido: um valor errado não pode derrubar `session.started`."""
+    try:
+        numero = int(valor)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, numero)
+
+
+def _as_set_mode(valor: Any) -> SetMode:
+    """Modo da série: valor ausente ou desconhecido cai em `livre` — o comportamento de toda
+    sessão antes desta task (SPEC-023, critério de aceite 9)."""
+    if isinstance(valor, SetMode):
+        return valor
+    try:
+        return SetMode(valor)
+    except (ValueError, TypeError):
+        return SetMode.LIVRE
+
+
 @dataclass(frozen=True, slots=True)
 class SessionStarted:
     """Sessão admitida pela API; abre o estado no analysis-worker (SPEC-009)."""
@@ -480,6 +523,17 @@ class SessionStarted:
     #: worker jamais consulta o banco para descobrir (P1). `0` = configuração não veio do banco
     #: (piso do código, P2) ou evento anterior à T-075.
     config_version: int = 0
+    #: Como a série termina — `livre` (janela) ou `contado` (meta), SPEC-023/T-134. Resolvido
+    #: pela API na admissão (T-136); aqui é só o carimbo que o analysis-worker lê para saber
+    #: se aplica o encerramento por meta. Default `livre` reproduz o comportamento de toda
+    #: sessão anterior a esta task.
+    set_mode: SetMode = SetMode.LIVRE
+    #: Meta de repetições no modo `contado`; `0` no `livre` (SPEC-023 §2).
+    target_reps: int = 0
+    #: Carimbo de série dentro do treino — `0` = sessão avulsa, todo o passado (SPEC-023 §3).
+    set_index: int = 0
+    #: De quantas séries o treino é feito; `0` junto com `set_index=0` (SPEC-023 §3).
+    set_total: int = 0
 
     def to_data(self) -> dict[str, Any]:
         return {
@@ -491,6 +545,10 @@ class SessionStarted:
             # string vazia obrigaria todo consumidor a saber que ela significa "não sei".
             **({"view": self.view.value} if self.view is not None else {}),
             "config_version": self.config_version,
+            "set_mode": self.set_mode.value,
+            "target_reps": self.target_reps,
+            "set_index": self.set_index,
+            "set_total": self.set_total,
         }
 
     @classmethod
@@ -515,6 +573,13 @@ class SessionStarted:
             # derrubar o `session.started` inteiro, levando junto o exercício e o modo, que é
             # o que o relatório de fato precisa. Metadado não pode custar o relatório.
             config_version=_config_version(data.get("config_version", 0)),
+            # Os quatro campos da T-134 seguem a mesma regra: ausentes (evento anterior à
+            # SPEC-023, ou replay de stream gravado antes dela) ou tortos caem nos defaults que
+            # reproduzem o modo livre de sempre — nunca derrubam o `session.started`.
+            set_mode=_as_set_mode(data.get("set_mode", SetMode.LIVRE.value)),
+            target_reps=_stamp_int(data.get("target_reps", 0)),
+            set_index=_stamp_int(data.get("set_index", 0)),
+            set_total=_stamp_int(data.get("set_total", 0)),
         )
 
 

@@ -608,6 +608,14 @@ class SessionResult(models.Model):
     #: nos dois, a resposta honesta é a mesma.
     config_version = models.PositiveIntegerField(default=0)
 
+    #: Carimbos de série da SPEC-023 (T-134): como a série terminou (`livre`/`contado`) e onde
+    #: ela mora dentro do treino. `set_mode` e não `mode` de propósito — `mode` acima já é o
+    #: modo de extração de pose (edge/cloud), eixo diferente da mesma sessão.
+    set_mode = models.CharField(max_length=16, default="livre")
+    target_reps = models.PositiveIntegerField(default=0)
+    set_index = models.PositiveSmallIntegerField(default=0)
+    set_total = models.PositiveSmallIntegerField(default=0)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -640,5 +648,9 @@ class SessionResult(models.Model):
             "scene_warning_counts": self.scene_warning_counts,
             "calibration_samples": self.calibration_samples,
             "config_version": self.config_version,
+            "set_mode": self.set_mode,
+            "target_reps": self.target_reps,
+            "set_index": self.set_index,
+            "set_total": self.set_total,
             "created_at": self.created_at.isoformat(),
         }

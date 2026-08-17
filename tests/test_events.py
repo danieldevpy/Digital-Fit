@@ -35,6 +35,7 @@ from workers.shared.events import (
     SessionCompleted,
     SessionEndReason,
     SessionStarted,
+    SetMode,
     Severity,
     Source,
     Stream,
@@ -63,6 +64,17 @@ PAYLOADS = [
     # Com o carimbo de configuração da SPEC-018 (T-075): o round-trip prova que ele atravessa
     # msgpack e os campos do stream, que é por onde ele chega ao relatório.
     SessionStarted(exercise="squat", mode=Mode.CLOUD, duration_s=45, config_version=7),
+    # Modo contado (T-134/SPEC-023): o round-trip prova que os quatro carimbos de série
+    # atravessam msgpack, que é por onde o report-builder vai lê-los.
+    SessionStarted(
+        exercise="squat",
+        mode=Mode.EDGE,
+        duration_s=30,
+        set_mode=SetMode.CONTADO,
+        target_reps=15,
+        set_index=2,
+        set_total=3,
+    ),
     PoseFrame(landmarks=landmarks()),
     PoseFrame(landmarks=landmarks(0.2), degraded=True, norm={"torso": 1.0}),
     # Com as dimensões do frame (T-110): o round-trip prova que elas atravessam msgpack, que é
@@ -79,6 +91,7 @@ PAYLOADS = [
         message="Estenda mais os bracos acima da cabeca",
     ),
     SessionCompleted(reason=SessionEndReason.COMPLETED, rep_count=23),
+    SessionCompleted(reason=SessionEndReason.TARGET_REACHED, rep_count=15),
 ]
 
 
@@ -306,6 +319,52 @@ def test_config_version_torto_vira_zero_em_vez_de_derrubar_o_evento(lixo) -> Non
     base = {"exercise": "jumping_jack", "mode": "edge", "duration_s": 30}
 
     assert SessionStarted.from_data({**base, "config_version": lixo}).config_version == 0
+
+
+def test_session_started_sem_campos_da_t134_e_aditivo() -> None:
+    """Os quatro carimbos da SPEC-023 (T-134) são aditivos: evento sem eles abre em modo
+    livre, exatamente o comportamento de toda sessão anterior a esta task.
+    """
+    base = {"exercise": "jumping_jack", "mode": "edge", "duration_s": 30}
+
+    dados = SessionStarted.from_data(base)
+
+    assert dados.set_mode is SetMode.LIVRE
+    assert dados.target_reps == 0
+    assert dados.set_index == 0
+    assert dados.set_total == 0
+
+
+@pytest.mark.parametrize("lixo", ["treino", None, 3, [1]])
+def test_set_mode_torto_vira_livre_em_vez_de_derrubar_o_evento(lixo) -> None:
+    base = {"exercise": "jumping_jack", "mode": "edge", "duration_s": 30}
+
+    assert SessionStarted.from_data({**base, "set_mode": lixo}).set_mode is SetMode.LIVRE
+
+
+@pytest.mark.parametrize("campo", ["target_reps", "set_index", "set_total"])
+@pytest.mark.parametrize("lixo", ["quinze", None, -3, [1]])
+def test_carimbos_de_serie_tortos_viram_zero_em_vez_de_derrubar_o_evento(campo: str, lixo) -> None:
+    base = {"exercise": "jumping_jack", "mode": "edge", "duration_s": 30}
+
+    assert getattr(SessionStarted.from_data({**base, campo: lixo}), campo) == 0
+
+
+def test_set_mode_nao_colide_com_o_modo_de_extracao() -> None:
+    """`mode` (edge/cloud) e `set_mode` (livre/contado) são eixos independentes da mesma
+    sessão — a T-134 nasceu de descobrir que a spec original chamava os dois de `mode`."""
+    dados = SessionStarted.from_data(
+        {
+            "exercise": "squat",
+            "mode": "cloud",
+            "duration_s": 30,
+            "set_mode": "contado",
+            "target_reps": 15,
+        }
+    )
+
+    assert dados.mode is Mode.CLOUD
+    assert dados.set_mode is SetMode.CONTADO
 
 
 # --------------------------------------------------------------------------------------
