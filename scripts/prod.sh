@@ -5,6 +5,7 @@
 #   ./scripts/prod.sh secrets   # preenche os segredos vazios do .env.prod
 #   ./scripts/prod.sh up        # build + migrate + start
 #   ./scripts/prod.sh nginx     # imprime o server block de referencia
+#   ./scripts/prod.sh painel    # diz por que o painel nao abre; `painel on` liga e recria
 #   ./scripts/prod.sh modelo    # baixa o modelo de pose e religa o pose-worker
 #   ./scripts/prod.sh ps | logs | down | restart
 #
@@ -32,6 +33,27 @@ gera_segredo() {
     openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-50
   else
     head -c 48 /dev/urandom | base64 | tr -d '\n=+/' | cut -c1-50
+  fi
+}
+
+# Le uma chave do .env.prod SEM sourcear o arquivo. Serve para comparar o que esta ESCRITO
+# com o que o container esta rodando — os dois divergem com facilidade (ver `cmd_painel`), e
+# quem ja sourceou perdeu justamente essa diferenca.
+valor_no_arquivo() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1
+}
+
+# Escreve chave=valor no .env.prod, trocando a linha existente ou acrescentando. Diferente do
+# `cmd_secrets`, que so preenche vazio: aqui o objetivo e mudar um valor ja escrito.
+define_no_arquivo() {
+  local chave="$1" valor="$2"
+  [[ -f "$ENV_FILE" ]] || morre "$ENV_FILE nao existe. Rode: cp .env.prod.example .env.prod"
+  if grep -qE "^${chave}=" "$ENV_FILE"; then
+    # `|` como separador: nenhum valor escrito por aqui contem `|`.
+    sed -i "s|^${chave}=.*|${chave}=${valor}|" "$ENV_FILE"
+  else
+    printf '\n%s=%s\n' "$chave" "$valor" >> "$ENV_FILE"
   fi
 }
 
@@ -323,6 +345,160 @@ cmd_plano() {
   compose exec -T api python manage.py plano "$@"
 }
 
+# O `exec` que o README e o docs/DEPLOY.md prometem em seis lugares — inclusive o
+# `createsuperuser`, que e o UNICO jeito de criar a primeira conta do painel. Ficou anos fora do
+# `case` la embaixo, entao a instrucao documentada caia no "comando desconhecido".
+#
+# Sem `-T`, ao contrario do `cmd_plano`: o `createsuperuser` pergunta a senha, e sem TTY ele
+# falha no meio. Quem precisa de pipe passa o `-T` como primeiro argumento; ele so atravessa.
+cmd_exec() {
+  carrega_ambiente --tolerante
+  shift || true
+  [[ $# -ge 2 ]] || morre "uso: ./scripts/prod.sh exec <servico> <comando...>
+exemplo: ./scripts/prod.sh exec api python manage.py createsuperuser"
+  compose exec "$@"
+}
+
+# --------------------------------------------------------------------------------------
+# Painel de operacao (SPEC-018)
+# --------------------------------------------------------------------------------------
+
+# Status do painel na porta LOCAL da api, sem passar pelo nginx. O header `Host` e
+# obrigatorio: ALLOWED_HOSTS em producao e so o DOMAIN, e sem ele a resposta e 400
+# (DisallowedHost) para qualquer caminho — o mesmo motivo do healthcheck do compose.
+codigo_painel_local() {
+  local bind="${BIND_ADDR:-127.0.0.1}"
+  # 0.0.0.0 nao e endereco de destino; quem escuta nele atende em 127.0.0.1.
+  [[ "$bind" == "0.0.0.0" || "$bind" == "::" ]] && bind="127.0.0.1"
+  curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+    -H "Host: ${DOMAIN}" "http://${bind}:${API_PORT:-8000}/${ADMIN_PATH}" 2>/dev/null || echo 000
+}
+
+codigo_painel_publico() {
+  curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+    "https://${DOMAIN}/${ADMIN_PATH}" 2>/dev/null || echo 000
+}
+
+# O diagnostico que faltava. O painel some por DOIS motivos independentes, e os sintomas se
+# parecem o bastante para trocar um pelo outro — foi assim que uma investigacao inteira foi
+# gasta mexendo no nginx enquanto o problema estava do lado do Django:
+#
+#   - Django: a rota so existe com DJANGO_ENABLE_ADMIN ligado. Desligado, quem responde e o
+#     404 do PROPRIO Django (`text/html; charset=utf-8`, com os headers do SecurityMiddleware).
+#   - nginx: sem o `location`, a URL cai no container do web e volta a LANDING com 200.
+#
+# Comparar os dois codigos separa os casos sem adivinhacao. E a terceira coluna — o que o
+# container esta REALMENTE rodando — pega a armadilha que nenhuma das duas explica sozinha.
+cmd_painel_status() {
+  local arquivo container local_ publico
+  arquivo="$(valor_no_arquivo DJANGO_ENABLE_ADMIN)"
+  container=""
+  if esta_rodando api; then
+    container="$(compose exec -T api printenv DJANGO_ENABLE_ADMIN 2>/dev/null | tr -d '\r\n')" || true
+  fi
+
+  echo "caminho          /${ADMIN_PATH}"
+  echo "no .env.prod     DJANGO_ENABLE_ADMIN=${arquivo:-<ausente>}"
+  if ! esta_rodando api; then
+    echo "no container     (api parada)"
+    amarelo "a api nao esta de pe — './scripts/prod.sh up'"
+    return 0
+  fi
+  echo "no container     DJANGO_ENABLE_ADMIN=${container:-<ausente>}"
+
+  # ESTA e a armadilha. `docker compose restart` reinicia o processo com o ambiente que o
+  # container ja tinha: editar o .env.prod e dar `restart` nao muda nada, e nao ha erro
+  # nenhum para perceber. So `up` (ou o `painel on` daqui) recria o container com o valor novo.
+  if [[ "${arquivo:-}" != "${container:-}" ]]; then
+    vermelho "o arquivo e o container DISCORDAM"
+    amarelo "'restart' nao recarrega ambiente — recria com: ./scripts/prod.sh painel on"
+  fi
+
+  command -v curl >/dev/null 2>&1 || { amarelo "sem curl: pulando a verificacao HTTP"; return 0; }
+
+  local_="$(codigo_painel_local)"
+  publico="$(codigo_painel_publico)"
+  echo "api local        $local_"
+  echo "publico          $publico   (https://${DOMAIN}/${ADMIN_PATH})"
+  echo
+
+  case "$local_" in
+    000) vermelho "a api nao respondeu em ${BIND_ADDR:-127.0.0.1}:${API_PORT:-8000}" ; return 0 ;;
+    404) vermelho "o Django nao monta a rota: o painel esta DESLIGADO neste container"
+         amarelo "  ./scripts/prod.sh painel on" ;;
+    400) vermelho "400 na porta local: o DOMAIN do .env.prod nao bate com o ALLOWED_HOSTS" ;;
+    *)   verde "o Django serve o painel na porta local ($local_)" ;;
+  esac
+
+  case "$publico" in
+    000) vermelho "o dominio nao respondeu (DNS, TLS ou nginx fora do ar)" ;;
+    200) vermelho "publico devolve 200: isso e a LANDING, nao o painel"
+         amarelo "  falta o 'location /${ADMIN_PATH}' no nginx — ./scripts/prod.sh nginx" ;;
+    404) [[ "$local_" == "404" ]] ||
+           amarelo "publico 404 com a api local ok: confira o proxy_pass do location" ;;
+    *)   [[ "$local_" == "404" ]] || verde "publico responde $publico — painel acessivel" ;;
+  esac
+}
+
+# Liga (ou desliga) o painel e RECRIA a api. O `up -d --force-recreate --no-deps api` e o
+# ponto inteiro: e o que faz o valor novo entrar no processo sem um `up` completo, que
+# rebuildaria o bundle do Vite (minutos) so para trocar uma variavel de ambiente.
+cmd_painel_liga() {
+  local ligado="$1"
+
+  esta_rodando api || morre "a api nao esta de pe — rode './scripts/prod.sh up' antes"
+
+  define_no_arquivo DJANGO_ENABLE_ADMIN "$ligado"
+  # Reflete no ambiente do processo: `carrega_ambiente` ja rodou e sourceou o valor ANTIGO.
+  export DJANGO_ENABLE_ADMIN="$ligado"
+
+  verde "==> DJANGO_ENABLE_ADMIN=${ligado} — recriando a api"
+  compose up -d --force-recreate --no-deps api
+
+  if [[ "$ligado" == "0" ]]; then
+    verde "painel desligado."
+    return 0
+  fi
+
+  command -v curl >/dev/null 2>&1 || {
+    amarelo "sem curl: confira a mao em https://${DOMAIN}/${ADMIN_PATH}"
+    return 0
+  }
+
+  # A api acabou de subir; o gunicorn leva um instante para aceitar conexao.
+  local codigo="000"
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    codigo="$(codigo_painel_local)"
+    [[ "$codigo" != "000" ]] && break
+    sleep 1
+  done
+
+  echo
+  case "$codigo" in
+    302|200) verde "painel no ar: https://${DOMAIN}/${ADMIN_PATH}" ;;
+    404) vermelho "ainda 404 na porta local — a variavel nao chegou ao processo"
+         amarelo "rode './scripts/prod.sh painel' para o diagnostico completo"; return 1 ;;
+    *)   amarelo "a api respondeu $codigo na porta local; veja './scripts/prod.sh painel'" ;;
+  esac
+
+  echo
+  amarelo "falta o 'location /${ADMIN_PATH}' e o 'location /static/' no seu nginx?"
+  amarelo "  ./scripts/prod.sh nginx"
+  amarelo "primeira conta de operador (nao ha painel onde cria-la):"
+  amarelo "  ./scripts/prod.sh exec api python manage.py createsuperuser"
+}
+
+cmd_painel() {
+  carrega_ambiente
+  shift || true
+  case "${1:-status}" in
+    status|check|"") cmd_painel_status ;;
+    on|liga)  cmd_painel_liga 1 ;;
+    off|desliga) cmd_painel_liga 0 ;;
+    *) morre "uso: ./scripts/prod.sh painel [status|on|off]" ;;
+  esac
+}
+
 cmd_down()    { carrega_ambiente --tolerante; compose down; }
 cmd_ps()      { carrega_ambiente --tolerante; compose ps; }
 cmd_logs()    { carrega_ambiente --tolerante; shift || true; compose logs -f --tail 100 "$@"; }
@@ -515,12 +691,15 @@ Digital Fit — producao
   ./scripts/prod.sh plano <email> --set subscriber [--dias N] [--sem-prazo]
   ./scripts/prod.sh plano <email> --clear     volta ao plano default
   ./scripts/prod.sh plano --list     planos que existem
+  ./scripts/prod.sh painel           diagnostico do painel (por que ele nao abre)
+  ./scripts/prod.sh painel on|off    liga/desliga e RECRIA a api
+  ./scripts/prod.sh exec <svc> ...   roda um comando dentro do servico
   ./scripts/prod.sh nginx            server block de referencia
   ./scripts/prod.sh ps               estado dos servicos
   ./scripts/prod.sh logs [servico]   segue os logs
   ./scripts/prod.sh stop [servico]   para sem remover
   ./scripts/prod.sh start [servico]  religa o que foi parado
-  ./scripts/prod.sh restart [svc]    reinicia
+  ./scripts/prod.sh restart [svc]    reinicia (NAO recarrega o .env.prod)
   ./scripts/prod.sh down             derruba (o volume do postgres fica)
 
 Use SEMPRE o script, nao `docker compose -f docker-compose.prod.yml` direto: as URLs
@@ -545,6 +724,8 @@ case "${1:-ajuda}" in
   restart) cmd_restart "$@" ;;
   modelo)  cmd_modelo ;;
   plano)   cmd_plano "$@" ;;
+  painel)  cmd_painel "$@" ;;
+  exec)    cmd_exec "$@" ;;
   nginx)   cmd_nginx ;;
   ajuda|help|-h|--help) cmd_ajuda ;;
   *) vermelho "comando desconhecido: $1"; echo; cmd_ajuda; exit 1 ;;

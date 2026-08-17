@@ -5,6 +5,53 @@
 
 ---
 
+## 2026-08-16 (54) · operação — o painel não era o nginx
+
+Sessão de conserto, sem task: `/painel` devolvia 404 em produção e a investigação estava indo
+para o nginx. Medido antes de tocar em qualquer coisa, contra o domínio no ar:
+
+| URL | resposta |
+|---|---|
+| `/painel` | `301` → `/painel/` |
+| `/painel/` | `404`, `text/html; charset=utf-8`, com `X-Frame-Options: DENY` |
+| `/static/painel/digitalfit.css` | `200 text/css` |
+
+**O nginx estava certo desde o começo.** O `301` prova o `location = /painel`; o CSS em
+`text/css` prova o `location /static/` chegando no whitenoise dentro do container da api. E o
+404 é o do **próprio Django** — corpo do `ERROR_PAGE_TEMPLATE`, headers do `SecurityMiddleware`.
+Ou seja: a requisição atravessava tudo e morria em `build_urlpatterns` com `ADMIN_ENABLED`
+desligado.
+
+### A armadilha que fazia isso parecer um problema de rota
+
+`docker compose restart` **não recarrega o `.env.prod`** — reinicia o processo com o ambiente
+que o container já tinha. Editar a variável e dar `restart` não muda nada e não emite erro
+nenhum. O único caminho que existia para aplicar era o `up` completo, que rebuilda o bundle do
+Vite por minutos para trocar um booleano — caro o bastante para o operador preferir o `restart`
+que não funciona.
+
+### O que passou a existir
+
+- `./scripts/prod.sh painel on|off` — escreve no `.env.prod`, recria **só** a api
+  (`up -d --force-recreate --no-deps api`, sem rebuild) e confere que a rota respondeu.
+- `./scripts/prod.sh painel` — diagnóstico. Imprime o valor no arquivo **ao lado do valor que o
+  container está rodando** (é a divergência que nenhum log mostrava) e cruza dois códigos HTTP:
+  o da porta local da api e o do domínio público. O par separa os dois modos de falha que se
+  confundem — `404` do Django (rota desmontada) contra `200` do container do web (a landing).
+- `./scripts/prod.sh exec` — **existia na documentação e não no `case`**. README e `DEPLOY.md`
+  o citam em seis lugares, incluindo o `createsuperuser`, que é o único jeito de criar a
+  primeira conta do painel. A instrução documentada caía em "comando desconhecido".
+
+O diagnóstico foi exercitado nos quatro cenários (painel desligado, falta de `location`, tudo
+certo, api fora do ar) com o `codigo_painel_*` injetado, e o caso público bateu no domínio real.
+
+### Pendência
+
+Nada disso foi **aplicado** em produção: a VPS do Digital Fit não é a do MCP `ssh-vps`. Falta
+rodar `./scripts/prod.sh painel on` lá.
+
+---
+
 ## 2026-08-15 (53) · T-090 — o catálogo do produto encolhe pela metade, e está certo
 
 Task de regra: o eixo maturidade entra **dentro** do `exercises_for()` que a T-074 criou, valendo

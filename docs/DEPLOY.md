@@ -283,12 +283,42 @@ porque `VITE_API_URL` é gravada no bundle em build time e não dá para trocar 
 
 ## Painel de operação (SPEC-018)
 
-**Vem desligado.** Ligar são duas linhas no `.env.prod` e um `./scripts/prod.sh nginx`:
+**Vem desligado.** Ligar é um comando:
 
 ```bash
-DJANGO_ENABLE_ADMIN=1
+./scripts/prod.sh painel on
+```
+
+Ele escreve `DJANGO_ENABLE_ADMIN=1` no `.env.prod`, **recria o container da api** e confere que
+a rota respondeu. Os três passos são um só de propósito — separados, o do meio é o que cai.
+
+> **`restart` não recarrega o `.env.prod`.** `docker compose restart` reinicia o processo com o
+> ambiente que o container já tinha: editar o arquivo e dar `restart` não muda nada, e não há
+> erro nenhum para perceber. Foi essa a armadilha que fez o painel parecer um problema de
+> nginx. Só `up` — ou o `painel on` acima, que recria só a api e não rebuilda o bundle — leva o
+> valor novo ao processo.
+
+Para trocar o caminho, edite o `.env.prod` e rode `./scripts/prod.sh painel on` de novo:
+
+```bash
 DJANGO_ADMIN_PATH=um-caminho-so-seu/      # troque: /admin e /painel são os dois primeiros
 ```
+
+### Quando ele não abre, `./scripts/prod.sh painel` diz por quê
+
+Sem argumento, o comando é só diagnóstico. Ele imprime o que está escrito no `.env.prod`, o que
+o **container está de fato rodando** (é aqui que a divergência acima aparece) e os dois códigos
+HTTP que separam os dois modos de falha — `404` do próprio Django (rota desmontada) contra `200`
+do container do web (a landing, por falta do `location`):
+
+```
+no .env.prod     DJANGO_ENABLE_ADMIN=1
+no container     DJANGO_ENABLE_ADMIN=0
+o arquivo e o container DISCORDAM
+'restart' nao recarrega ambiente — recria com: ./scripts/prod.sh painel on
+```
+
+`./scripts/prod.sh painel off` desliga pelo mesmo caminho.
 
 `CSRF_TRUSTED_ORIGINS` **é derivado do `DOMAIN`** e só precisa ser preenchido se o painel for
 responder em outro host. Deixado a mão, era a variável que ninguém descobria ter esquecido até
@@ -342,9 +372,17 @@ Três coisas que valem saber:
 
 ### Conferindo depois do deploy
 
+`./scripts/prod.sh painel` já faz as duas conferências abaixo e interpreta o resultado. A mão,
+quando você estiver fora da VPS:
+
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' https://SEU-DOMINIO/um-caminho-so-seu/
-# 302 (manda para o login) — se vier 200, você está vendo a landing: falta o location
+# 302 (manda para o login) — o painel está no ar
+# 200 → você está vendo a landing: falta o `location` no nginx
+# 404 → o nginx está certo e quem respondeu foi o Django: o painel está DESLIGADO no
+#       container. Confirme pelo cabeçalho — só o Django manda `X-Frame-Options: DENY`
+#       junto de um 404 aqui; o do nginx vem sem ele:
+#       curl -sI https://SEU-DOMINIO/um-caminho-so-seu/ | grep -i x-frame-options
 
 curl -s -o /dev/null -w '%{http_code} %{content_type}\n' \
   https://SEU-DOMINIO/static/painel/digitalfit.css
