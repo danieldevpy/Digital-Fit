@@ -29,6 +29,7 @@ from workers.shared.events import (
     SessionCompleted,
     SessionEndReason,
     SessionStarted,
+    SetMode,
     Source,
     make_envelope,
 )
@@ -91,12 +92,20 @@ class SessionState:
     #: dado para preparar uma pessoa que não existe. A preparação é combinada entre cliente e
     #: servidor — sem o combinado, não há preparação.
     countdown_s: int = 0
+    #: Como esta série termina (SPEC-023, T-135), vindo do `session.started`. `livre` = a
+    #: janela fixa de sempre; é o default de toda sessão anterior a esta task.
+    set_mode: SetMode = SetMode.LIVRE
+    #: Meta de repetições do modo contado. `0` no modo livre.
+    target_reps: int = 0
     #: Instante (relógio do servidor) a partir do qual a FSM vê os frames. Fica no FUTURO
     #: durante o "3, 2, 1".
     counting_from_wall_ms: int | None = None
     #: Instante (relógio do servidor) em que o exercício passou a valer. É daqui que os 30 s
     #: correm, e não do primeiro frame: a preparação é preparação, não treino.
     exercise_started_wall_ms: int | None = None
+    #: O mesmo instante, medido no relógio DOS FRAMES (`ts` do cliente). É deste que o teto do
+    #: modo contado corre — ver `expiry_reason`.
+    exercise_started_ts: int | None = None
     first_ts: int | None = None
     last_ts: int | None = None
     frames: int = 0
@@ -120,6 +129,16 @@ class SessionState:
         self.scene.posture = hints.posture
         self.scene.body_range = hints.body_height_range
         self.scene.anchors = hints.frame_anchors
+
+    @property
+    def counted(self) -> bool:
+        """Esta série termina por meta (SPEC-023 §1)?
+
+        Exige as duas coisas. Modo contado com `target_reps = 0` é contrato malformado (a
+        §2 pede `> 0`), e a resposta certa é degradar para o comportamento de sempre: um
+        `reps >= 0` encerraria a série no primeiro frame, com zero repetição e cara de bug.
+        """
+        return self.set_mode is SetMode.CONTADO and self.target_reps > 0
 
     def counting(self, now_wall_ms: int) -> bool:
         """A FSM já pode ver os frames? Falso enquanto mede o corpo e durante a preparação."""
@@ -151,8 +170,26 @@ class SessionState:
            encurtaria a sessão de quem demora a se posicionar;
         2. nenhum frame por 10 s ⇒ `no_data` (critério 4 da SPEC-009);
         3. teto absoluto de vida ⇒ `timeout`, para o caso de a calibração nunca fechar.
+
+        No **modo contado** o prazo 1 deixa de ser a janela e vira o **teto** da série, e ele
+        corre no relógio dos FRAMES, não no de parede (SPEC-023, notas técnicas). A troca de
+        relógio é a diferença entre os dois modos: a janela do livre é competitiva de
+        propósito — 30 s de parede iguais para todo mundo —, enquanto a série contada é o
+        oposto ("um aplicativo que não te apressa"), e cortá-la porque a rede engasgou seria
+        cobrar de quem treina uma latência que não é dela. Com o `ts` o corte cai onde a
+        pessoa realmente estava, e replay do stream reproduz o mesmo fim (critério 10).
+
+        Isso não abre sessão pendurada: sem frame chegando o `ts` para de andar, e aí quem
+        fecha é o prazo 2 (`no_data`, 10 s); com frames de `ts` congelado, o prazo 3.
         """
-        if (
+        if self.counted:
+            if (
+                self.exercise_started_ts is not None
+                and self.last_ts is not None
+                and self.last_ts - self.exercise_started_ts >= self.duration_s * 1000
+            ):
+                return SessionEndReason.COMPLETED
+        elif (
             self.exercise_started_wall_ms is not None
             and now_wall_ms - self.exercise_started_wall_ms >= self.duration_s * 1000
         ):
@@ -251,6 +288,8 @@ class AnalysisRouter:
                 duration_s=dados.duration_s,
                 countdown_s=dados.countdown_s,
                 view=dados.view,
+                set_mode=dados.set_mode,
+                target_reps=dados.target_reps,
                 opened_wall_ms=self._now,
             )
         except ValueError as exc:
@@ -259,11 +298,13 @@ class AnalysisRouter:
             return []
         self.sessions[envelope.session_id] = estado
         logger.info(
-            "sessao %s aberta (%s, %s, %ss)",
+            "sessao %s aberta (%s, %s, %s, %ss%s)",
             estado.session_id,
             estado.exercise,
             estado.mode.value,
+            estado.set_mode.value,
             estado.duration_s,
+            f", meta {estado.target_reps}" if estado.counted else "",
         )
         return []
 
@@ -347,6 +388,17 @@ class AnalysisRouter:
             self._wrap(estado, mensagem)
             for mensagem in estado.feedback.push([*avisos, *sinais], envelope.ts)
         )
+
+        # Meta atingida ⇒ a série acaba AQUI, no frame da N-ésima repetição (SPEC-023 §1).
+        # Mora no caminho do frame, e não no `tick`, porque o instante do fim é o da
+        # repetição: é dele que sai o "tempo até a meta", e um fim carimbado no `tick`
+        # seguinte carregaria o atraso do loop dentro do número que a pessoa vai ler.
+        # Quem decide continua sendo o worker, nunca o cliente (notas técnicas da spec).
+        #
+        # Depois do feedback de propósito: a última repetição tem de chegar ao HUD antes do
+        # fim da sessão, senão o placar congela em 14/15 numa série que terminou completa.
+        if estado.counted and int(estado.analyzer.summary()["reps"]) >= estado.target_reps:
+            saidas.append(self._encerrar(estado, SessionEndReason.TARGET_REACHED))
         return saidas
 
     def _calibrar(self, estado: SessionState, norm) -> list[Envelope]:
@@ -386,6 +438,10 @@ class AnalysisRouter:
         # foi a pessoa se posicionando, e cobrar isso do treino dela seria errado. Fica no
         # futuro de propósito — `expired()` compara contra ele e só passa a contar lá.
         estado.exercise_started_wall_ms = estado.counting_from_wall_ms
+        # Mesmo instante, no relógio dos frames: a âncora do teto do modo contado. Sai daqui e
+        # não do primeiro frame pela mesma razão do par de parede — o que veio antes foi a
+        # pessoa se posicionando.
+        estado.exercise_started_ts = norm.ts + countdown_ms
         logger.info("sessao %s calibrada, exercicio vale em %s ms", estado.session_id, countdown_ms)
 
         return [
@@ -427,6 +483,25 @@ class AnalysisRouter:
             )
         ]
 
+    def _encerrar(self, estado: SessionState, motivo: SessionEndReason) -> Envelope:
+        """Fecha uma sessão por decisão do servidor e devolve o `session.completed`.
+
+        Os três passos — tirar do dicionário, deixar a lápide, devolver a vaga — andam sempre
+        juntos: foi separá-los que produziu o bug da T-077. Todo caminho de fim decidido aqui
+        dentro (timer, teto, meta) passa por este método.
+        """
+        self.sessions.pop(estado.session_id, None)
+        self._marcar_encerrada(estado.session_id)
+        self._liberar_vaga(estado.session_id)
+        reps = int(estado.analyzer.summary()["reps"])
+        logger.info(
+            "sessao %s encerrada pelo servidor (%s) com %s reps",
+            estado.session_id,
+            motivo.value,
+            reps,
+        )
+        return self._wrap(estado, SessionCompleted(reason=motivo, rep_count=reps))
+
     # --------------------------------------------------------------------- timer
 
     def tick(self, now_wall_ms: int | None = None) -> list[Envelope]:
@@ -439,18 +514,11 @@ class AnalysisRouter:
         self._now = agora
         self._esquecer_encerradas(agora)
         saidas: list[Envelope] = []
-        for session_id, estado in list(self.sessions.items()):
+        for estado in list(self.sessions.values()):
             motivo = estado.expiry_reason(agora)
             if motivo is None:
                 continue
-            self.sessions.pop(session_id, None)
-            self._marcar_encerrada(session_id)
-            self._liberar_vaga(session_id)
-            reps = int(estado.analyzer.summary()["reps"])
-            logger.info(
-                "sessao %s encerrada pelo servidor (%s) com %s reps", session_id, motivo.value, reps
-            )
-            saidas.append(self._wrap(estado, SessionCompleted(reason=motivo, rep_count=reps)))
+            saidas.append(self._encerrar(estado, motivo))
         return saidas
 
     def _esquecer_encerradas(self, agora_wall_ms: int) -> None:

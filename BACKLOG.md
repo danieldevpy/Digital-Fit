@@ -266,7 +266,7 @@ Raia contrato → worker → api → client; T-134 abre e as outras dependem del
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-134 | Contrato do treino (`events.py` primeiro, AGENTS): `set_mode` (renomeado de `mode` — colidia com o `mode` de extração de pose que `session.started` já tem; corrigido na própria SPEC-023), `target_reps`, `set_index`, `set_total` aditivos em `session.started` + `SessionEndReason.TARGET_REACHED`; colunas aditivas no `SessionResult` e consolidação no report-builder. Sem bump de `PROTOCOL_VERSION` (justificado na SPEC-023 §Eventos, incluindo a ressalva do enum) | 023/002/010 | **feito** (2026-08-17) |
-| T-135 | Modo contado no analysis-worker: a meta encerra a série no frame da N-ésima rep (autoridade do servidor, como o timer da SPEC-009); teto por `ts` de frame, estouro termina em `completed` sem erro. Depende de T-134 e **de T-078** (o `duration_ms` mistura dois relógios, e "tempo até a meta" é exatamente o número que ele erra) | 023/007/009 | todo |
+| T-135 | Modo contado no analysis-worker: a meta encerra a série no frame da N-ésima rep (autoridade do servidor, como o timer da SPEC-009); teto por `ts` de frame, estouro termina em `completed` sem erro. Depende de T-134 e **de T-078** (o `duration_ms` mistura dois relógios, e "tempo até a meta" é exatamente o número que ele erra) | 023/007/009 | **feito** (2026-08-17) — a meta fecha no caminho do frame (o fim carrega o `ts` da N-ésima rep, não o do `tick` seguinte); o teto trocou de relógio só no modo contado (`ts` de frame em vez de parede) e o modo livre segue intacto, provado com a parede congelada. Gerou a Descoberta `[T-135]` do `exercise_health` |
 | T-136 | Modo resolvido na admissão junto de quota/duração/countdown/cloud: meta e teto que valem são os do servidor (forjar o cliente não muda nada), e o teto é o `Plan.session_max_s` que já existe — **sem coluna nova** (SPEC-023 §4). Plano com `session_max_s = 30` recusa modo contado com motivo legível, em vez de cortar a série no meio. Depende de T-134 | 023/018/016 | todo |
 | T-137 | Cliente do treino: montador de plano de exercício único (N séries × meta × descanso), tela de descanso com contador e próximo item, HUD do modo contado (anel conta para cima, `7/15`, tempo decorrido no lugar do restante). O descanso é só cliente — não abre sessão, não segura slot. Depende de T-135/T-136 | 023/014 | todo |
 | T-138 | Gesto de prontidão (dois pulsos acima dos ombros por 1 s) encerra o descanso — **edge apenas**, com toque e temporizador como saída universal; fronteira com o gate por pose da SPEC-004/T-030 declarada em teste. Depende de T-137 | 023/004 | todo |
@@ -282,6 +282,22 @@ Raia contrato → worker → api → client; T-134 abre e as outras dependem del
 | T-119 | Card compartilhável semanal (Canvas no cliente): resumo da semana com marca, para auto-divulgação (`docs/IDEIAS…` §2.5). Dado já existe; não depende de motor novo | 014/019 | todo |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-135] `target_reached` não cai em nenhum balde do `exercise_health` — a série contada some
+  da saúde do exercício.** O `server/api/exercise_health.py` classifica sessão por `reason` em
+  quatro baldes (`completed`, `no_data`, `aborted`, `timeout`) e monta a taxa de zero-rep da
+  SPEC-020 sobre `completed`; a cadência mediana também sai de `filter(reason=_COMPLETED)`. Uma
+  série contada termina em `target_reached` e entra em `total` e `reps`, mas em nenhum balde:
+  não é `completa`, não é `sem_dado`, não é nada — e sua cadência não entra na mediana. O efeito
+  é silencioso e da pior espécie: quanto mais gente treinar em modo contado, mais a saúde do
+  exercício vai ser medida numa amostra que não representa o uso, e o denominador encolhe sem
+  ninguém notar. Ironia registrada: o próprio módulo nasceu (T-104/T-133) de somar motivos
+  diferentes num número só, e agora o problema é o inverso — um motivo novo que não é somado a
+  lugar nenhum. Não entrou nesta task porque é `api`/SPEC-020, e porque nenhuma sessão pode
+  terminar em `target_reached` antes da T-136 (a admissão é quem resolve o modo) — mas precisa
+  estar resolvido **antes** de o modo contado chegar em produção. A resposta provável é que
+  `target_reached` conte como completa para a taxa (é a conclusão mais bem-sucedida que existe),
+  e que a cadência da série contada entre na mediana; a decisão é da SPEC-020, não desta linha.
 
 - **[T-089] `semana-cheia` é a única conquista REVOGÁVEL, e a spec não percebeu.** O predicado é
   "meta batida 7 dias seguidos", e a meta é campo mutável do perfil — então subir de `casual`

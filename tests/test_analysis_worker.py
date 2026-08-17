@@ -31,6 +31,7 @@ from workers.shared.events import (
     SessionCompleted,
     SessionEndReason,
     SessionStarted,
+    SetMode,
     Source,
     Stream,
     make_envelope,
@@ -55,6 +56,8 @@ def envelope_started(
     exercise: str = "jumping_jack",
     duration_s: int = 30,
     countdown_s: int = 0,
+    set_mode: SetMode = SetMode.LIVRE,
+    target_reps: int = 0,
 ) -> Envelope:
     """`session.started` do teste.
 
@@ -64,7 +67,12 @@ def envelope_started(
     """
     return make_envelope(
         SessionStarted(
-            exercise=exercise, mode=Mode.EDGE, duration_s=duration_s, countdown_s=countdown_s
+            exercise=exercise,
+            mode=Mode.EDGE,
+            duration_s=duration_s,
+            countdown_s=countdown_s,
+            set_mode=set_mode,
+            target_reps=target_reps,
         ),
         session_id=session_id,
         ts=1_722_100_000_000,
@@ -527,3 +535,193 @@ def _wall_ms_apos_o_prazo() -> int:
     import time
 
     return int(time.time() * 1000) + (DEFAULT_DURATION_S + 5) * 1000
+
+
+# --------------------------------------------------------------------------------------
+# Modo contado (T-135 / SPEC-023)
+# --------------------------------------------------------------------------------------
+
+#: Relógio de parede PARADO durante toda a série contada.
+#:
+#: Não é conveniência de teste — é o que separa os dois modos. Com a parede congelada nenhuma
+#: regra de parede pode fechar a sessão (nem a janela, nem `no_data`, nem o teto absoluto);
+#: logo, o que fechar, fechou pelo `ts` dos frames, que é a autoridade do modo contado. É a
+#: mesma propriedade que faz o replay de um stream gravado reproduzir o mesmo fim (critério 10).
+PAREDE_PARADA = 1_000_000
+
+
+def alimentar(router: AnalysisRouter, poses, *, wall_ms: int = PAREDE_PARADA) -> list[Envelope]:
+    """Passa uma sessão inteira (countdown + exercício) pelo roteador, sem mexer na parede."""
+    saidas: list[Envelope] = []
+    for frame in sequence(session_poses(poses)):
+        saidas.extend(router.handle(envelope_pose(frame), now_wall_ms=wall_ms))
+    return saidas
+
+
+def _serie_contada(
+    poses, *, target_reps: int, duration_s: int = 30, wall_ms: int = PAREDE_PARADA
+) -> tuple[AnalysisRouter, list[Envelope]]:
+    router = AnalysisRouter()
+    router.handle(
+        envelope_started(duration_s=duration_s, set_mode=SetMode.CONTADO, target_reps=target_reps),
+        now_wall_ms=wall_ms,
+    )
+    saidas = alimentar(router, poses, wall_ms=wall_ms)
+    # O tick roda a cada volta do loop do worker; aqui ele fecha a série que estourou o teto.
+    saidas.extend(router.tick(now_wall_ms=wall_ms))
+    return router, saidas
+
+
+def test_meta_encerra_a_serie_no_frame_da_nesima_repeticao() -> None:
+    """Critério 1 da SPEC-023: 15 reps com meta 15 termina em `target_reached`, não no teto.
+
+    O "no frame da 15ª rep" é a parte que importa e a mais fácil de perder: um fim carimbado
+    no `tick` seguinte carregaria o atraso do loop dentro do "tempo até a meta", que é
+    justamente o número que esta spec promete medir.
+    """
+    router, saidas = _serie_contada(jumping_jack_poses(15), target_reps=15)
+
+    fins = [e for e in saidas if e.type is EventType.SESSION_COMPLETED]
+    reps = [e for e in saidas if e.type is EventType.REP_DETECTED]
+    assert len(fins) == 1
+    payload = SessionCompleted.from_data(fins[0].data)
+    assert payload.reason is SessionEndReason.TARGET_REACHED
+    assert payload.rep_count == 15
+    # O fim tem o `ts` da 15ª repetição — mesmo frame, mesmo instante.
+    assert fins[0].ts == reps[-1].ts
+    assert router.sessions == {}
+
+
+def test_meta_atingida_fecha_a_porta_para_o_resto_da_serie() -> None:
+    """Quem continua se mexendo depois da meta não ganha repetição extra.
+
+    Mesma família do bug da T-077: o fim tem de deixar lápide, senão o frame seguinte abre uma
+    sessão nova com o mesmo `session_id` e o segundo relatório sobrescreve o bom.
+    """
+    router, saidas = _serie_contada(jumping_jack_poses(20), target_reps=15)
+
+    reps = [e for e in saidas if e.type is EventType.REP_DETECTED]
+    fins = [e for e in saidas if e.type is EventType.SESSION_COMPLETED]
+    assert len(reps) == 15
+    assert SessionCompleted.from_data(fins[0].data).rep_count == 15
+    assert router.sessions == {}
+    assert SESSAO in router.ended
+    assert router.ended[SESSAO].ignored > 0, "os frames depois da meta têm de ser descartados"
+
+
+def test_estourar_o_teto_termina_em_completed_sem_erro() -> None:
+    """Critério 2: fez 10 de 15 e o teto chegou — `completed`, 10 reps, ninguém é punido."""
+    router, saidas = _serie_contada(
+        [*jumping_jack_poses(10), *still_poses(120)], target_reps=15, duration_s=12
+    )
+
+    fins = [e for e in saidas if e.type is EventType.SESSION_COMPLETED]
+    assert len(fins) == 1
+    payload = SessionCompleted.from_data(fins[0].data)
+    assert payload.reason is SessionEndReason.COMPLETED
+    assert payload.rep_count == 10
+    assert router.sessions == {}, "sessão pendurada come vaga cloud para sempre"
+
+
+def test_o_teto_do_modo_contado_corre_no_relogio_dos_frames() -> None:
+    """Com a parede congelada o teto ainda vence: quem mede o teto é o `ts` do frame.
+
+    O par negativo mora no teste seguinte — nos mesmos frames, o modo livre não fecha nada com
+    a parede parada, porque lá a janela é de parede de propósito.
+    """
+    router, saidas = _serie_contada(
+        [*jumping_jack_poses(10), *still_poses(120)], target_reps=15, duration_s=12
+    )
+    estado_final = [e for e in saidas if e.type is EventType.SESSION_COMPLETED]
+
+    assert estado_final, "o teto por `ts` tem de fechar a sessão mesmo sem a parede andar"
+    assert router.sessions == {}
+
+
+def test_modo_livre_nao_fecha_pelo_ts_dos_frames() -> None:
+    """Critério 3 (regressão): o modo livre é byte-a-byte o comportamento de hoje.
+
+    Os mesmos frames que fecham a série contada pelo teto deixam a sessão livre aberta — a
+    janela do livre é competitiva e corre no relógio do servidor (SPEC-009), e esta task não
+    encostou nisso.
+    """
+    router = AnalysisRouter()
+    router.handle(envelope_started(duration_s=12), now_wall_ms=PAREDE_PARADA)
+
+    saidas = alimentar(router, [*jumping_jack_poses(10), *still_poses(120)])
+    saidas.extend(router.tick(now_wall_ms=PAREDE_PARADA))
+
+    assert [e for e in saidas if e.type is EventType.SESSION_COMPLETED] == []
+    assert router.sessions[SESSAO].analyzer.summary()["reps"] == 10
+
+
+def test_modo_livre_ignora_target_reps() -> None:
+    """`target_reps` sem modo contado não encerra nada — os dois campos andam juntos."""
+    router = AnalysisRouter()
+    router.handle(envelope_started(target_reps=3), now_wall_ms=PAREDE_PARADA)
+
+    saidas = alimentar(router, jumping_jack_poses(5))
+
+    assert [e for e in saidas if e.type is EventType.SESSION_COMPLETED] == []
+    assert router.sessions[SESSAO].analyzer.summary()["reps"] == 5
+
+
+def test_modo_contado_sem_meta_degrada_para_livre() -> None:
+    """Contrato malformado (`contado` com meta 0) não pode encerrar a série na rep zero.
+
+    A SPEC-023 §2 exige `target_reps > 0` no modo contado. Um `reps >= 0` fecharia a sessão no
+    primeiro frame com zero repetição — exatamente a cara de "app quebrado" que a T-112 já
+    pagou para aprender.
+    """
+    router = AnalysisRouter()
+    router.handle(
+        envelope_started(set_mode=SetMode.CONTADO, target_reps=0), now_wall_ms=PAREDE_PARADA
+    )
+
+    saidas = alimentar(router, jumping_jack_poses(3))
+
+    assert [e for e in saidas if e.type is EventType.SESSION_COMPLETED] == []
+    assert router.sessions[SESSAO].analyzer.summary()["reps"] == 3
+
+
+def test_sessao_sem_os_campos_da_spec023_abre_no_modo_livre() -> None:
+    """Critério 9 no roteador: evento anterior a esta spec abre nos defaults, não recusa."""
+    router = AnalysisRouter()
+    router.handle(envelope_started(), now_wall_ms=PAREDE_PARADA)
+
+    estado = router.sessions[SESSAO]
+    assert estado.set_mode is SetMode.LIVRE
+    assert estado.target_reps == 0
+    assert estado.counted is False
+
+
+def test_a_serie_contada_e_a_mesma_em_qualquer_relogio_de_parede() -> None:
+    """Critério 10: replay reproduz o mesmo fim.
+
+    Duas paredes muito distantes (uma delas 30 dias adiante, o desvio que a T-078 mediu em
+    produção), os mesmos frames: mesmo motivo, mesma contagem, mesmo `ts` de fim.
+    """
+
+    def rodar_com(wall_ms: int) -> tuple[SessionEndReason, int, int]:
+        _, saidas = _serie_contada(jumping_jack_poses(15), target_reps=15, wall_ms=wall_ms)
+        fim = next(e for e in saidas if e.type is EventType.SESSION_COMPLETED)
+        payload = SessionCompleted.from_data(fim.data)
+        return payload.reason, payload.rep_count, fim.ts
+
+    assert rodar_com(PAREDE_PARADA) == rodar_com(PAREDE_PARADA + 30 * 86_400_000)
+
+
+def test_a_meta_devolve_a_vaga_cloud() -> None:
+    """Caminho de fim novo = risco novo de vazar vaga (SPEC-009, critério 2).
+
+    Cada caminho de fim esquecido come uma vaga para sempre; este nasceu nesta task.
+    """
+    semaforo = SemaforoEspiao()
+    router = AnalysisRouter(slots=semaforo)
+    router.handle(
+        envelope_started(set_mode=SetMode.CONTADO, target_reps=2), now_wall_ms=PAREDE_PARADA
+    )
+
+    alimentar(router, jumping_jack_poses(3))
+
+    assert semaforo.liberadas == [SESSAO]

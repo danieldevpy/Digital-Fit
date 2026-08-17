@@ -5,6 +5,99 @@
 
 ---
 
+## 2026-08-17 (60) · T-135 — Modo contado no analysis-worker: a meta encerra a série
+
+Segunda perna do Bloco C (SPEC-023). A T-134 carregou o carimbo; esta task é a primeira em que
+alguma coisa **decide** com ele. Escopo: só o worker. A admissão continua sem resolver modo
+(T-136) e o cliente continua sem HUD contado (T-137) — nenhuma sessão de produção termina em
+`target_reached` ainda, e é de propósito.
+
+### As duas decisões desta task
+
+**1. A meta fecha no caminho do frame, não no `tick`.** A série contada acaba dentro do
+`_on_pose_frame`, no frame em que a N-ésima repetição foi detectada — e o `session.completed`
+sai com o `ts` daquele frame. Fechar no `tick` seguinte seria mais simples e estaria errado
+pelo motivo que a spec inteira existe: o número que o modo contado promete é o **tempo até a
+meta**, e um fim carimbado no tick carregaria o atraso do loop do worker dentro dele. É a mesma
+razão pela qual a T-049 pôs o countdown no servidor e não na animação. O fim é appendado
+**depois** do feedback engine, senão o HUD congelaria em 14/15 numa série que terminou completa.
+
+**2. O teto trocou de relógio — e só no modo contado.** No `expiry_reason`, o prazo 1 deixou de
+ser um `if` e virou um `if self.counted / elif`: no livre continua sendo a janela de parede da
+SPEC-009, no contado passa a ser `last_ts - exercise_started_ts >= duration_s`, o relógio dos
+frames. A troca é o que separa os dois modos, e não é preciosismo: a janela do livre é
+competitiva de propósito (30 s de parede iguais para todo mundo), enquanto a série contada é o
+oposto — *"um aplicativo que não te apressa"* —, e cortá-la porque a rede engasgou seria cobrar
+de quem treina uma latência que não é dela. De quebra é o que faz replay reproduzir o mesmo fim
+(critério 10). Nasceu daqui o `exercise_started_ts`, par do `exercise_started_wall_ms` já
+existente, ancorado no mesmo instante ("o JÁ") e medido no `ts` do cliente.
+
+Isso não abre sessão pendurada, que era a objeção óbvia: sem frame chegando o `ts` para de
+andar e o `no_data` fecha em 10 s; com frames de `ts` congelado (cliente quebrado), o teto
+absoluto de vida fecha em `timeout`. As duas redes de segurança continuam sendo de parede, que
+é onde elas têm de estar.
+
+### O que foi feito
+
+- `workers/analysis_worker/router.py`: `set_mode`/`target_reps`/`exercise_started_ts` no
+  `SessionState`; `counted` como predicado único (exige modo contado **e** meta > 0 — modo
+  contado com meta 0 é contrato malformado e degrada para livre, porque um `reps >= 0` fecharia
+  a série na repetição zero, exatamente a cara de app quebrado que a T-112 já pagou para
+  aprender); fim por meta no caminho do frame; teto por `ts` no `expiry_reason`.
+- `_encerrar()` extraído: os três passos de todo fim decidido pelo servidor — tirar do
+  dicionário, deixar a lápide, devolver a vaga cloud — agora moram num lugar só. O fim por meta
+  é um **caminho de fim novo**, e caminho de fim esquecido come vaga cloud para sempre (SPEC-009,
+  critério 2); foi separar esses passos que produziu o bug da T-077. O `tick` passou a usá-lo.
+- Nada em `exercises/`, nada na API, nada no cliente, nada no report-builder.
+
+### Verificação dos critérios de aceite
+
+- **1** (meta encerra na N-ésima rep, não no teto): `test_meta_encerra_a_serie_no_frame_da_nesima_repeticao`
+  — 15 reps, meta 15, `reason=target_reached`, `rep_count=15` e `ts` do fim **igual** ao da 15ª
+  `rep.detected`. Mais `test_meta_atingida_fecha_a_porta_para_o_resto_da_serie`: fixture de 20
+  reps com meta 15 produz 15 `rep.detected` e descarta o resto pela lápide.
+- **2** (estouro do teto): `test_estourar_o_teto_termina_em_completed_sem_erro` — 10 de 15,
+  `reason=completed`, `rep_count=10`, `router.sessions == {}`.
+- **3** (regressão do modo livre): duas provas, uma estrutural e uma medida. Estrutural:
+  `test_modo_livre_nao_fecha_pelo_ts_dos_frames` — os mesmos frames que fecham a série contada
+  pelo teto deixam a sessão livre **aberta**, com as 10 reps contadas. Medida: `evalctl run` nos
+  três vídeos de polichinelo do corpus deu **20 / 13 / 19**, que é exatamente o que o
+  `manifest.yaml` documenta (rótulos 20/15/21 com `conhecido: 0 / -2 / -2`). E o motivo de nem
+  poder ser diferente ficou provado, não alegado: a bancada **não carrega o `router.py`** —
+  `sorted(m for m in sys.modules if "analysis_worker" in m)` depois de importar `eval.pipeline`
+  traz `calibration` e `exercises`, e `"workers.analysis_worker.router" in sys.modules` é
+  `False`. O único arquivo de produção que esta task tocou está fora do caminho do corpus.
+- **9** (evento anterior à spec abre nos defaults): `test_sessao_sem_os_campos_da_spec023_abre_no_modo_livre`,
+  no roteador (a T-134 já cobria no contrato). Mais `test_modo_livre_ignora_target_reps`: os dois
+  campos andam juntos, `target_reps` sozinho não encerra nada.
+- **10** (replay reproduz o mesmo fim): `test_a_serie_contada_e_a_mesma_em_qualquer_relogio_de_parede`
+  — mesmas frames com duas paredes a 30 dias de distância (o desvio que a T-078 mediu em
+  produção) dão o mesmo motivo, a mesma contagem e o mesmo `ts` de fim.
+- Vaga cloud no caminho novo: `test_a_meta_devolve_a_vaga_cloud`.
+- **Todos os testes do modo contado rodam com a parede congelada**, e isso é parte do
+  argumento: com a parede parada nenhuma regra de parede pode fechar a sessão, então o que
+  fechou, fechou pelo `ts`.
+- Fora do alcance desta task: **2b** e **4** são da admissão (T-136); **5**, **6**, **7** e **8**
+  são do cliente (T-137/T-138); **11** é da derivação de cadência (T-139).
+
+Conferido de passagem, porque falharia só em produção e só na primeira série contada:
+`SessionResult.reason` é `CharField(max_length=16)` e `"target_reached"` tem 14 caracteres. Cabe.
+
+### Pendências geradas
+
+- Descoberta **`[T-135]`**: `target_reached` não cai em nenhum balde do `exercise_health` — a
+  taxa de zero-rep da SPEC-020 sai de `reason == "completed"` e a cadência mediana também, então
+  a série contada entra no `total` e desaparece do resto. Precisa estar resolvido antes de o
+  modo contado chegar em produção (ou seja, antes da T-136 ir ao ar), e a decisão é da SPEC-020.
+
+### Gates
+
+`ruff check` limpo; `ruff format --check` limpo nos dois arquivos tocados; `pytest`
+**1020/1020** (eram 1010 na T-134; +10 testes, todos do modo contado). Nada de web, nada de
+migration, nada de infra nesta task.
+
+---
+
 ## 2026-08-17 (59) · T-134 — Contrato do treino: `set_mode`, `target_reps`, `set_index`, `set_total`
 
 Abre o Bloco C (SPEC-023): raia contrato → worker → api → client do modo contado (meta de
