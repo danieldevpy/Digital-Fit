@@ -5,6 +5,129 @@
 
 ---
 
+## 2026-08-16 (55) · T-111 — a flexão contava zero de lado, e a culpa era do porteiro
+
+Cinco vídeos novos de flexão no corpus (três de perfil, dois de frente) e o pedido: melhorar,
+deixar a vista ser escolhida por quem treina, habilitar o exercício. A primeira medição, antes
+de tocar em nada, dizia que não havia nada de sutil para ajustar:
+
+| vídeo | rótulo | contava |
+|---|---|---|
+| lateral, série 1 | 16 | **0** |
+| lateral, série 2 | 16 | **0** |
+| lateral, série 3 (fadiga) | 11 | 3 |
+| frontal, 20 lentas | 20 | 11 |
+| frontal, 5 pegadas × 5 | 25 | 19 |
+
+MAE 9,14 repetição. Um exercício que estava em produção (invisível, `beta`) e que, na vista que
+o próprio Guia ensina, **não contava absolutamente nada**.
+
+### O rótulo veio antes do conserto, e um dos vídeos não era o que dizia ser
+
+O vídeo lateral tem 82 s e o nome dizia "16 repetições". Assistido, é um time-lapse de rede
+social: cartela "Meta: 3 x 15" e "Intervalo 80 segundos" entre as séries. Não é uma série
+contínua — é três, com os intervalos cortados —, e o README do corpus é explícito em que corte
+no meio invalida a contagem.
+
+Foi fatiado em três clipes, um por série, e cada um rotulado **aqui**: vale a vale do ângulo de
+cotovelo cru (sem FSM, sem limiar), com conferência visual nos frames de início e fim. Deu 16,
+16 e 11. O "16" do nome era a primeira série.
+
+Conferência independente que vale mais que o método: rodada no vídeo inteiro, a bancada conta
+**43** — exatamente 16 + 16 + 11. As três contagens somam sozinhas.
+
+Os dois frontais têm o rótulo dentro do próprio vídeo (um conta em voz alta e por legenda,
+"1… 3 4… 5 meus parabéns soldado"; o outro anuncia "5 NORMAIS ✅ 5 ABERTAS ✅…"). São 20 e 25.
+
+### Um defeito só, em duas vistas: porteiro alimentado por grandeza que se move
+
+De frente, `wrists_below_hips` (distância pulso→quadril) cai de 1,19 para 0,20 torsos quando o
+peito desce. O porteiro de chão exige 0,30. Ele fechava **no fundo de cada repetição**, e
+`_abandon_attempt()` descartava a tentativa em curso — a repetição que a pessoa acabara de fazer
+sumia calada, sem contagem e sem crítica. Nove das vinte.
+
+De perfil, o mesmo com `plank_height >= 0,25`: no fundo a altura do ombro sobre a mão cai a
+0,205. Quem descia **mais** era quem tinha mais chance de perder a rep.
+
+E, ainda de perfil, um segundo defeito: a profundidade era medida contra a maior altura da
+sessão, que os frames de montagem da prancha fixavam em 0,914 enquanto o topo de cada repetição
+ficava em 0,70. Razão 0,77, contra um `sobe` de 0,93 que **nunca** era cruzado. Daí o 0/16.
+
+### Os dois consertos, medidos separados
+
+| desenho | MAE | exatos |
+|---|---|---|
+| hoje | 9,14 | 0/7 |
+| só porteiro com histerese | 7,00 | 1/7 |
+| só profundidade pelo cotovelo | 3,43 | 3/7 |
+| **os dois** | **1,29** | **4/7** |
+
+São independentes e somam: a histerese conserta a frente (11 → 20), o cotovelo conserta o
+perfil (0/0/3 → 16/16/11). Restrito aos cinco vídeos de rótulo verificado, **MAE 0,20**.
+
+1. **Porteiro com histerese**: entrar exige a evidência forte de sempre (a que recusa gente em
+   pé, intacta), permanecer exige só que a mão continue no nível do quadril ou abaixo, e sair
+   exige que a fraca falhe por 400 ms seguidos. É a mesma histerese que a FSM já usa, uma
+   camada antes.
+2. **Profundidade pelo ângulo do cotovelo nas duas vistas**, contra o maior ângulo da própria
+   pessoa. O módulo já declarava que de lado o cotovelo é honesto (dobra no plano da imagem);
+   faltava usá-lo. A altura da prancha continua viva para `hip_line` e `ready_pose`.
+
+Varreduras (o platô, não o pico):
+
+| eixo | valores que dão contagem idêntica | escolhido |
+|---|---|---|
+| `off_floor_ms` | 250 · 400 · 500 · 750 | **400** |
+| `stay_wrists_below_hips` | 0,00 · 0,10 | **0,00** |
+| `down_depth` (com `up` 0,80) | 0,60 · 0,63 · 0,66 | **0,63** (inalterado) |
+
+**Nenhum limiar de profundidade mudou.** O conserto é estrutural, e a varredura confirma que
+0,63/0,80 continua no meio do platô depois dele. `up_depth` = 0,80 é o que o perfil decide: com
+0,90 as três séries laterais desabam para 2/4/4, porque de lado quase ninguém trava o cotovelo.
+
+As duas contagens que já existiam (v1 52, v2 43) **não se mexeram** — é o que separa conserto
+estrutural de ajuste ao rótulo.
+
+### A vista virou pergunta, não palpite
+
+`CameraView` entrou no contrato (`events.py` primeiro, como manda o AGENTS) e viaja no
+`session.started`: pré-config → `POST /sessions` → analisador. A detecção geométrica continua
+existindo e continua acertando as sete fixtures — mas agora é **fallback**, não caminho do
+produto. Motivo: a vista troca o porteiro, e uma detecção que oscile no meio da série troca a
+régua com a pessoa em movimento. Vista desconhecida ou ausente não derruba a admissão; vira
+"ninguém disse".
+
+O despacho mora no `get_analyzer()`, não no router: quem declara o atributo `view` recebe, quem
+não declara ignora. Um `if slug == "flexao"` no worker seria a primeira pedra do caminho que a
+SPEC-007 proíbe.
+
+Na tela, segmentado e não ciclo — as duas opções pedem que a pessoa faça algo **diferente** com
+o celular, e um controle que mostrasse só a atual esconderia metade da decisão. Aparece na
+pré-config (card estreito, "Lado/Frente" + onde o celular vai) e no Guia (rótulo inteiro, mais a
+frase do que se ganha e se perde em cada vista). Trocar no Guia reescreve os passos e a
+instrução de cena; a escolha é por exercício e sobrevive à sessão.
+
+### Promoção
+
+`flexao` vai a **`calibrado`** (migration 0018) — a primeira promoção do produto, e a primeira
+coisa dentro do Laboratório 🧪 que a 0017 abriu e que estava vazio. Aparece para assinante e
+admin; para o Free continua invisível, porque a prateleira do Free é `validado` e `validado`
+exige a paridade edge×cloud×navegador e a semana em produção que só o uso real produz.
+
+**Verificado no navegador** (stack isolada, banco descartável): a flexão aparece no catálogo, o
+controle troca passos e cena no Guia, a escolha chega na pré-config, o card cabe na coluna de
+92 px sem quebrar linha e sem rolagem horizontal.
+
+### Pendências
+
+- `[A/T-111]` — a variação mora no bundle do cliente, como a figura do exercício: variação nova
+  exige deploy. Levá-la ao painel é task própria.
+- O `abdominal` continua `beta` e continua sem um único vídeo de gente real — a mesma posição de
+  que a flexão está saindo.
+- `validado` da flexão depende da semana em produção. O relógio só começa agora.
+
+---
+
 ## 2026-08-16 (54) · operação — o painel não era o nginx
 
 Sessão de conserto, sem task: `/painel` devolvia 404 em produção e a investigação estava indo

@@ -90,17 +90,22 @@ def test_os_dois_primeiros_nascem_validado_por_decisao_declarada() -> None:
 
 
 @pytest.mark.django_db
-def test_exercicio_de_chao_nasce_beta_e_nao_herda_o_grandfathering() -> None:
+def test_exercicio_de_chao_nasce_beta_e_so_sobe_por_medicao() -> None:
     """O oposto do teste acima, e é o que separa decisão declarada de decisão medida.
 
-    A flexão e o abdominal (T-106/T-107) tiveram os limiares calibrados no gerador sintético,
-    contra nenhum vídeo de gente treinando. `beta` é a afirmação verdadeira sobre isso, e o
-    grandfathering da SPEC-018 valia para os dois que já estavam no ar — não é um selo que se
-    herda por chegar depois.
+    A flexão e o abdominal (T-106/T-107) nasceram `beta` com os limiares calibrados no gerador
+    sintético, contra nenhum vídeo de gente treinando: o grandfathering da SPEC-018 valia para
+    os dois que já estavam no ar, e não é selo que se herda por chegar depois.
+
+    **A flexão subiu (T-111, migration 0018), e o abdominal não — e a diferença entre os dois é
+    exatamente o corpus.** A flexão ganhou oito itens rotulados, cinco deles contados a mão, e
+    fecha com MAE de 0,20 repetição; o abdominal continua sem um único vídeo de gente real, que
+    é a mesma posição em que a flexão estava quando contava zero em produção. O degrau é medido,
+    não concedido.
     """
     maturidades = dict(Exercise.objects.values_list("slug", "maturity"))
 
-    assert maturidades["flexao"] == "beta"
+    assert maturidades["flexao"] == "calibrado"
     assert maturidades["abdominal"] == "beta"
 
 
@@ -441,7 +446,11 @@ def test_beta_NUNCA_e_liberado_por_plano(usuario_free) -> None:
     Plan.objects.filter(slug="free").update(min_maturity="beta")
     cache.delete(SNAPSHOT_KEY)
 
-    assert sorted(exercises_for(usuario_free)) == ["jumping_jack", "squat"]
+    # `calibrado` desce junto com o piso — é comparação ordenada e é o que a coluna promete.
+    # O que NÃO desce em hipótese nenhuma é o `beta`, e é só isso que este teste guarda.
+    visiveis = sorted(exercises_for(usuario_free))
+    assert visiveis == ["flexao", "jumping_jack", "squat"]
+    assert "abdominal" not in visiveis
 
 
 @pytest.mark.django_db

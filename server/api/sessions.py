@@ -22,6 +22,7 @@ from workers.analysis_worker.exercises import EXERCISES
 from workers.shared.bus import RedisBus
 from workers.shared.events import (
     DEFAULT_COUNTDOWN_S,
+    CameraView,
     Mode,
     SessionCapability,
     SessionStarted,
@@ -29,6 +30,7 @@ from workers.shared.events import (
     Stream,
     clamp_countdown_s,
     make_envelope,
+    parse_camera_view,
 )
 from workers.shared.slots import CloudSlots
 
@@ -71,6 +73,9 @@ class SessionRequest:
     probe: dict[str, Any] | None = None
     #: Preparação antes de a contagem valer (T-049). Preferência de quem treina, não medição.
     countdown_s: int = DEFAULT_COUNTDOWN_S
+    #: De que lado a câmera está, escolhido na pré-configuração (T-111). `None` = não veio, e
+    #: aí o exercício decide sozinho.
+    view: CameraView | None = None
 
     @classmethod
     def parse(cls, data: Any) -> SessionRequest:
@@ -99,6 +104,11 @@ class SessionRequest:
             # `clamp` em vez de recusar: é conforto, não parâmetro de medição. Derrubar a
             # sessão inteira porque veio `-1` trocaria um treino por uma mensagem de erro.
             countdown_s=clamp_countdown_s(data.get("countdown_s", DEFAULT_COUNTDOWN_S)),
+            # Mesma tolerância do `countdown_s`, e pelo mesmo motivo: vista desconhecida vira
+            # "ninguém disse" em vez de derrubar a admissão. O cliente que mandar `lateral` em
+            # vez de `profile` perde a escolha, não o treino — e o exercício ainda tem a
+            # detecção geométrica embaixo.
+            view=parse_camera_view(data.get("view")),
         )
 
 
@@ -224,6 +234,10 @@ def create_session(
             # ela passa pelo teto do PLANO, quando há um. Os dois clamps não são redundância: o
             # primeiro protege contra lixo no corpo da requisição, o segundo é capacidade.
             countdown_s=request.countdown_s if countdown_s is None else countdown_s,
+            # A vista atravessa a admissão sem que a API opine: ela é escolha de quem treina e
+            # significado do exercício, e a API não sabe — nem deve saber — que a flexão tem
+            # duas geometrias e o polichinelo não.
+            view=request.view,
             # Carimbo da SPEC-018 (P1): a versão que valia no instante da admissão viaja com a
             # sessão. `0` quando não houve resolução de configuração — chamada de teste sem
             # `caps`, ou banco/cache fora (P2, `from_db=False`). "Não sei" dito como número.

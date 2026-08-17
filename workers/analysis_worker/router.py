@@ -19,6 +19,7 @@ from workers.analysis_worker.exercises import ExerciseAnalyzer, feed, get_analyz
 from workers.analysis_worker.feedback import FeedbackEngine
 from workers.analysis_worker.scene import SceneValidator
 from workers.shared.events import (
+    CameraView,
     Envelope,
     EventType,
     EventValidationError,
@@ -69,6 +70,10 @@ class SessionState:
     exercise: str = "jumping_jack"
     mode: Mode = Mode.EDGE
     duration_s: int = DEFAULT_DURATION_S
+    #: Vista escolhida por quem treina (T-111), vinda do `session.started`. `None` = ninguém
+    #: disse, e o exercício decide sozinho — que é o caminho de todo cliente anterior a esta
+    #: task e de toda sessão aberta por `pose.frame` sem admissão.
+    view: CameraView | None = None
     analyzer: ExerciseAnalyzer = field(default=None)  # type: ignore[assignment]
     normalizer: Normalizer = field(default_factory=Normalizer)
     scene: SceneValidator = field(default_factory=SceneValidator)
@@ -106,7 +111,7 @@ class SessionState:
 
     def __post_init__(self) -> None:
         if self.analyzer is None:
-            self.analyzer = get_analyzer(self.exercise)
+            self.analyzer = get_analyzer(self.exercise, view=self.view)
         # A cena passa a saber em que postura o corpo vai ficar (T-106): validar uma flexão com
         # a régua de quem está em pé pediria "aproxime-se" a sessão inteira. Os campos são
         # sobrescritos e não recriados para não jogar fora um validador com debounce próprio,
@@ -245,6 +250,7 @@ class AnalysisRouter:
                 mode=dados.mode,
                 duration_s=dados.duration_s,
                 countdown_s=dados.countdown_s,
+                view=dados.view,
                 opened_wall_ms=self._now,
             )
         except ValueError as exc:

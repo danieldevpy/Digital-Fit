@@ -5,6 +5,7 @@
 // O `ws_url` vem pronto (já com o token na query) e é usado como veio: montar a URL de novo
 // aqui seria uma segunda implementação do mesmo contrato, pronta para divergir.
 import { identityHeaders, rememberDeviceId } from '../auth/storage'
+import type { ViewId } from './exerciseViews'
 import { countdownPreference } from './preferences'
 import type { Mode } from '../lib/events'
 import { Mode as ModeValues } from '../lib/events'
@@ -81,6 +82,11 @@ export interface AdmissionRequest {
   exercise: string
   requestedMode: Mode
   probe: ProbeOutcome | null
+  /**
+   * De que lado a câmera está, escolhido na pré-configuração (T-111). `null`/ausente =
+   * exercício sem variação, ou ninguém escolheu — e aí quem decide é o analisador.
+   */
+  view?: ViewId | null
 }
 
 /**
@@ -88,13 +94,17 @@ export interface AdmissionRequest {
  * `session.capability` (SPEC-001) sem o cliente precisar de um segundo evento pelo WS.
  */
 export async function requestSession(
-  { exercise, requestedMode, probe }: AdmissionRequest,
+  { exercise, requestedMode, probe, view }: AdmissionRequest,
   fetchImpl: typeof fetch = fetch,
 ): Promise<SessionTicket> {
   // Montar o corpo fora do `try`: erro aqui é bug meu, não rede fora do ar.
   const corpo = JSON.stringify({
     exercise,
     requested_mode: requestedMode,
+    // A vista escolhida (T-111). Vai na admissão pelo mesmo motivo do countdown: quem MEDE a
+    // flexão é o analysis-worker, e uma escolha que ficasse no cliente não mudaria a régua da
+    // contagem. Omitida quando não há escolha — ausência já significa "ninguém disse".
+    ...(view ? { view } : {}),
     // Preparação escolhida por quem treina (T-049). Vai na admissão porque quem SEGURA a
     // contagem é o analysis-worker — no cliente seria só animação, e a rep feita durante o
     // "3, 2, 1" entraria no total.

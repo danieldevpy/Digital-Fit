@@ -44,6 +44,7 @@ __all__ = [
     "STREAM_FOR_TYPE",
     "STREAM_MAXLEN",
     "STREAM_PAYLOAD_FIELD",
+    "CameraView",
     "Code",
     "Envelope",
     "EventPayload",
@@ -72,6 +73,7 @@ __all__ = [
     "encode_envelope",
     "from_stream_fields",
     "make_envelope",
+    "parse_camera_view",
     "to_stream_fields",
 ]
 
@@ -106,6 +108,30 @@ class Mode(StrEnum):
 
     EDGE = "edge"
     CLOUD = "cloud"
+
+
+class CameraView(StrEnum):
+    """De que lado a câmera está em relação a quem treina (T-111).
+
+    Não é preferência de enquadramento: é **qual eixo do movimento vive no plano da imagem**, e
+    por isso muda a régua com que o exercício é medido. Uma flexão de perfil e uma de frente são
+    a mesma flexão e duas geometrias sem nada em comum — de lado o corpo atravessa a imagem na
+    horizontal, de frente ele encolhe contra a lente.
+
+    **Viaja no contrato porque é escolha de quem treina, não palpite do modelo.** Dá para
+    adivinhar pela geometria (a flexão sabe fazer isso e acerta no corpus inteiro), mas uma
+    adivinhação que oscile no meio da série troca a régua com a pessoa em movimento — e o custo
+    de errar é a sessão inteira sair zerada, que é a pior coisa que este produto sabe fazer.
+    Um toque na pré-configuração resolve, e o valor viaja daqui até a FSM.
+
+    Exercício que não se importa com a vista simplesmente ignora o campo: ele é opcional, e
+    ausência significa "ninguém disse", não "de frente".
+    """
+
+    #: Celular em pé, pessoa de frente para a lente.
+    FRONTAL = "frontal"
+    #: Celular deitado no chão, pessoa de perfil.
+    PROFILE = "profile"
 
 
 class EventType(StrEnum):
@@ -404,6 +430,21 @@ def clamp_countdown_s(valor: Any) -> int:
     return max(0, min(MAX_COUNTDOWN_S, segundos))
 
 
+def parse_camera_view(valor: Any) -> CameraView | None:
+    """Normaliza a vista: valor conhecido vira enum, qualquer outra coisa vira `None`.
+
+    Tolerante de propósito — ver o comentário em `SessionStarted.from_data`.
+    """
+    if isinstance(valor, CameraView):
+        return valor
+    if not isinstance(valor, str):
+        return None
+    try:
+        return CameraView(valor.strip().lower())
+    except ValueError:
+        return None
+
+
 def _config_version(valor: Any) -> int:
     """Normaliza o carimbo de configuração: inteiro não negativo, `0` para qualquer outra coisa."""
     try:
@@ -427,6 +468,12 @@ class SessionStarted:
     #: analysis-worker: fosse só animação no cliente, uma repetição feita durante o "3, 2, 1"
     #: entraria no total — que é exatamente o que o recurso existe para evitar.
     countdown_s: int = DEFAULT_COUNTDOWN_S
+    #: De que lado a câmera está, **escolhido por quem treina** na pré-configuração (T-111).
+    #: `None` = ninguém disse, e aí cada exercício decide (a flexão cai na detecção geométrica).
+    #: Viaja aqui pelo mesmo motivo do `countdown_s`: quem consome é o analysis-worker, e uma
+    #: escolha que ficasse só no cliente seria enfeite — a FSM continuaria medindo pela régua
+    #: errada.
+    view: CameraView | None = None
     #: Versão da configuração (`SiteConfig.version`, SPEC-018) sob a qual esta sessão foi
     #: admitida. Carimbo, não parâmetro: nada na análise lê este número — ele viaja porque o
     #: relatório precisa poder dizer sob qual configuração aquela contagem nasceu, e porque um
@@ -440,6 +487,9 @@ class SessionStarted:
             "mode": self.mode.value,
             "duration_s": self.duration_s,
             "countdown_s": self.countdown_s,
+            # `None` viaja como ausência e não como `""`: o campo é opcional dos dois lados, e
+            # string vazia obrigaria todo consumidor a saber que ela significa "não sei".
+            **({"view": self.view.value} if self.view is not None else {}),
             "config_version": self.config_version,
         }
 
@@ -452,6 +502,12 @@ class SessionStarted:
             # Ausente = sessão criada antes da T-049 (ou por cliente velho): cai no default,
             # em vez de quebrar a admissão por um campo que não existia.
             countdown_s=clamp_countdown_s(data.get("countdown_s", DEFAULT_COUNTDOWN_S)),
+            # Vista desconhecida NÃO derruba a sessão: cai em `None`, que é o mesmo estado de
+            # quem não disse nada, e o exercício segue pelo caminho que já tinha. Um
+            # `_as_enum` estrito aqui faria um cliente novo com um valor que este worker ainda
+            # não conhece perder o treino inteiro — preço alto demais para um campo cuja
+            # ausência já é suportada por construção.
+            view=parse_camera_view(data.get("view")),
             # Mesma tolerância, mesmo motivo: sessão publicada antes desta task (ou por um
             # replay do stream gravado antes dela) continua abrindo, com a versão desconhecida
             # dita como `0`. Um `_require` aqui recusaria justamente os eventos que a SPEC-010

@@ -7,9 +7,9 @@ rasa vira sinal de qualidade em vez de repetição::
   PRANCHA ───────────────────────► EMBAIXO ───────────────────────► PRANCHA
                                                   = 1 repetição válida
 
-`depth` é sempre "que fração do SEU topo você está mostrando agora", mas **o que a alimenta
-depende de que lado a câmera está** (0,82/0,93 da altura da prancha de perfil; 0,63/0,80 do
-ângulo de cotovelo de frente). A vista é lida da geometria — ver §Duas vistas abaixo.
+`depth` é **o ângulo do seu cotovelo dividido pelo maior ângulo que VOCÊ mostrou nesta sessão**
+— nas duas vistas, com os mesmos 0,63/0,80. A vista muda o porteiro que decide se você está no
+chão, não a régua que conta. Ver §Duas vistas abaixo.
 
 **Antes de tudo isso vem um porteiro de postura, e ele existe por um bug de produção.**
 
@@ -37,6 +37,18 @@ apertada, e é isso que faz o porteiro sobreviver a ruído do modelo e a câmera
 não passa **congela a FSM e descarta a tentativa em curso**: quem começou deitado e terminou de
 pé não fez uma repetição incompleta, fez outra coisa.
 
+**E o porteiro tem histerese, porque sem ela ele fechava no fundo da repetição** (T-111). Todas
+as grandezas acima se mexem enquanto a pessoa faz o exercício: de frente, a distância
+pulso→quadril cai de 1,19 para 0,20 torsos quando o peito desce; de perfil, a altura do ombro
+sobre a mão cai de 0,69 para 0,205. Usadas como porteiro a cada frame, elas fechavam a porta
+exatamente onde a repetição estava sendo feita — e o descarte da tentativa apagava a repetição.
+Medido antes do conserto: **9 das 20 flexões frontais e 16 das 16 laterais se perdiam assim.**
+
+A saída é a que o resto do projeto já usa em todo limiar: **entrar exige a evidência forte,
+permanecer exige a fraca, e sair exige que a fraca falhe por 400 ms seguidos**. Quem levantou de
+verdade fica fora do critério fraco por segundos; quem está no fundo de uma flexão, por dois ou
+três frames. O porteiro que recusa gente em pé continua igual — é só o de saída que afrouxou.
+
 **Duas vistas, medidas — não uma.** Este módulo nasceu só de perfil (celular deitado no chão),
 sob a tese de que "de frente uma flexão é um corpo encolhendo contra a lente e não há feature
 que sobreviva". A primeira metade da tese é verdadeira e a segunda é falsa: o encolhimento
@@ -62,55 +74,43 @@ Três decisões saem dessa tabela, e nenhuma é chute:
 2. **A vista se lê em `ombro/tronco`** — largura de ombros dividida pelo comprimento aparente
    do tronco, ambos do mesmo frame. De perfil os ombros se sobrepõem e o tronco aparece
    inteiro (0,12); de frente os ombros abrem e o tronco encolhe contra a lente (≥ 1,9). São
-   16× de separação, e o limiar fica em 1,0, no meio do vão.
-3. **De frente, quem conta é o ângulo do cotovelo** — não a altura do ombro. A altura que
-   sustenta o perfil balança de 0,3 a 2,3 torsos aqui, porque cada repetição muda a distância
-   corpo↔lente; o ângulo do cotovelo é imune a escala por construção.
+   16× de separação, e o limiar fica em 1,0, no meio do vão. **Mas quem manda é a escolha de
+   quem treina** — ver §Quem escolhe a vista.
+3. **Quem conta é o ângulo do cotovelo, nas duas vistas** — não a altura do ombro. De frente a
+   altura balança de 0,3 a 2,3 torsos porque cada repetição muda a distância corpo↔lente. De
+   perfil ela é estável, mas a REFERÊNCIA não: medido no corpus lateral, o topo de cada
+   repetição fica em 0,77 da maior altura da sessão, e um `sobe` de 0,93 nunca é cruzado — a
+   série inteira contava **0 de 16**. O ângulo do cotovelo é imune a escala por construção, e
+   de lado ele é o ângulo mais honesto que existe: o cotovelo dobra no plano da imagem.
 
-**Em ambas as vistas a feature é uma razão contra o topo da PRÓPRIA pessoa** — a decisão que
-define este módulo. De perfil, altura do ombro ÷ maior altura da sessão; de frente, ângulo do
-cotovelo ÷ maior ângulo da sessão. Mesma forma, mesma FSM, mesma histerese.
+**Nas duas vistas a feature é uma razão contra o topo da PRÓPRIA pessoa** — a decisão que define
+este módulo. Ângulo de cotovelo atual ÷ maior ângulo que ESTA pessoa mostrou nesta sessão. A
+razão cancela o torso, cancela o formato do vídeo, cancela a distância da câmera, cancela o
+tamanho da pessoa e cancela o quanto ela estende o braço no topo. O que sobra é "quanto do seu
+próprio braço você dobrou", que é o que a flexão é.
 
-**A feature de perfil é a altura do ombro sobre a mão, dividida pela altura da própria prancha
-da pessoa.**
+O que o corpus real diz, com o rótulo contado a mão (T-111):
 
-Duas medições feitas nesta task explicam por quê:
+===========================  ======  ==========  =========  ==========
+vídeo                        rótulo  antes       depois     vista
+===========================  ======  ==========  =========  ==========
+lateral, série 1                 16           0         16  perfil
+lateral, série 2                 16           0         16  perfil
+lateral, série 3 (fadiga)        11           3         11  perfil
+frontal, 20 lentas               20          11         20  frente
+frontal, 5 pegadas × 5           25          19         26  frente
+===========================  ======  ==========  =========  ==========
 
-1. **O espaço normalizado não é isotrópico.** O MediaPipe divide `x` pela largura do frame e
-   `y` pela altura; num vídeo deitado (16:9) uma distância vertical vale 1,78× o que valeria
-   uma horizontal do mesmo tamanho. Medido no corpus: a mesma largura de ombros lê 0,352
-   torsos no vídeo em paisagem e 1,188 no vídeo em retrato — razão 3,37, contra 3,16 previstos
-   só pelo formato do quadro. Num corpo **deitado** o torso é medido no eixo horizontal e o
-   movimento acontece no vertical: qualquer limiar "em torsos" herdaria o formato do vídeo.
-2. **Limiar em torsos calibrado no gerador não sobrevive a gente real.** O agachamento é o
-   precedente medido (Descoberta `[A/T-106]` no BACKLOG): o boneco sintético diz que quem está
-   em pé tem `hip_height` 1,02, gente real do corpus lê 1,31–1,61, e o limiar de 0,72 nunca
-   dispara.
+MAE de 9,14 para 0,20 repetição. Nenhum limiar de profundidade foi retunado para chegar aí: o
+conserto é **estrutural** (porteiro com histerese + uma grandeza só), e a varredura mostra que
+0,63/0,80 continua no meio do platô depois dele.
 
-A saída para as duas é a mesma: **razão entre duas medidas do mesmo eixo do mesmo corpo**. Aqui
-o numerador é a altura atual do ombro sobre o pulso e o denominador é a maior altura que ESTA
-pessoa mostrou nesta sessão — a prancha dela. A razão cancela o torso, cancela o formato do
-vídeo, cancela a distância da câmera e cancela o tamanho da pessoa. O que sobra é "quanto do
-seu próprio braço você dobrou", que é o que a flexão é.
-
-Profundidade medida no gerador (`tests/synthetic_keypoints.py`), com as proporções corporais
-tiradas do corpus real:
-
-===============  ===================  ================
-cotovelo (real)  altura do ombro      razão da prancha
-===============  ===================  ================
-172° (prancha)         1,147                1,000
-145°                   1,097                0,956
-130°                   1,042                0,909
-115°                   0,970                0,846
-100°                   0,882                0,768
- 90° (fundo)           0,814                0,709
-===============  ===================  ================
-
-O limiar de descida (0,82) fica em ~107° de cotovelo, um pouco acima dos 90° que NASM e ACE
-descrevem como fundo: conta a flexão de quem desce quase tudo, e reserva `PUSHUP_TOO_SHALLOW`
-para quem para entre 107° e 127°. Errar para o lado de contar é a escolha certa aqui — um
-`beta` que não conta nada não recebe corpus para deixar de ser `beta`.
+**Quem escolhe a vista é o usuário, não o modelo** (T-111). A detecção geométrica acima continua
+existindo e continua acertando as duas vistas no corpus inteiro — mas ela é o **fallback**, não
+o caminho do produto. A razão é de desenho: a vista troca o porteiro que decide se a pessoa está
+no chão, e uma detecção que oscile no meio da série troca a régua com a pessoa em movimento.
+Perguntar custa um toque na pré-configuração; adivinhar errado custa a sessão inteira. O valor
+chega pelo `session.started` e entra aqui como `PushUpAnalyzer.view`.
 
 Classe pura, sem I/O.
 """
@@ -121,7 +121,6 @@ import math
 import statistics
 from collections import deque
 from dataclasses import dataclass, field
-from enum import StrEnum
 
 from workers.analysis_worker.exercises.base import (
     EXERCISES,
@@ -129,24 +128,25 @@ from workers.analysis_worker.exercises.base import (
     Features,
     Posture,
 )
-from workers.shared.events import Code, ExercisePhase, Phase, QualitySignal, RepDetected
+from workers.shared.events import (
+    CameraView,
+    Code,
+    ExercisePhase,
+    Phase,
+    QualitySignal,
+    RepDetected,
+)
 from workers.shared.normalize import Baseline, NormFrame
 
 __all__ = ["PushUpAnalyzer", "PushUpThresholds", "View"]
 
 
-class View(StrEnum):
-    """De que lado a câmera está — e, por consequência, que feature sabe contar.
-
-    Não é preferência de enquadramento: é qual eixo do movimento vive no plano da imagem.
-    Ver a tabela no topo do módulo; a vista é **lida da geometria**, não perguntada ao usuário.
-    """
-
-    #: Celular deitado no chão, pessoa de perfil. O movimento acontece na vertical da imagem.
-    PROFILE = "profile"
-    #: Celular em pé no chão, pessoa de frente. O corpo encolhe contra a lente, e quem
-    #: sobrevive a isso é o ângulo do cotovelo.
-    FRONTAL = "frontal"
+#: De que lado a câmera está — e, por consequência, que porteiro sabe reconhecer o chão.
+#:
+#: **É o enum do contrato, não uma cópia** (T-111): a vista deixou de ser coisa interna deste
+#: módulo quando passou a ser escolhida por quem treina e a viajar no `session.started`. Manter
+#: dois enums com os mesmos dois valores seria o caminho mais curto para eles divergirem.
+View = CameraView
 
 
 _LEFT_SHOULDER, _RIGHT_SHOULDER = 11, 12
@@ -180,18 +180,34 @@ _VIEW_SAMPLES = 5
 class PushUpThresholds:
     """Limiares da flexão. Frozen: mudar isto é mudar comportamento.
 
-    **Calibrados no gerador sintético, não em vídeo de gente fazendo flexão** — a maturidade
-    deste exercício nasce `beta` por causa disso (SPEC-020). O que os torna mais defensáveis que
-    os do agachamento é a unidade: são frações da prancha da própria pessoa, então não dependem
-    das proporções do boneco terem ficado certas.
+    **Varridos contra o corpus real de chão na T-111** — cinco vídeos com rótulo verificado,
+    nas duas vistas. Os três limiares de profundidade **não mudaram** na varredura; o que mudou
+    foi a grandeza que os alimenta e o porteiro que decide quando eles valem.
     """
 
-    #: Fração da prancha abaixo da qual conta como "desceu". ~107° de cotovelo.
-    down_depth: float = 0.82
-    #: Acima disto voltou à prancha. A folga para 0,82 é a histerese.
-    up_depth: float = 0.93
-    #: Desceu, mas não o bastante: entre este valor e `down_depth` vira crítica (~107°–127°).
-    shallow_depth: float = 0.90
+    #: Fração do cotovelo do topo abaixo da qual conta como "desceu".
+    #:
+    #: **Dois caminhos independentes chegam neste número, e é isso que o sustenta.**
+    #: (1) Equivalência anatômica: ~107° de cotovelo sobre um topo de ~171° dá 0,63 — um pouco
+    #: acima dos 90° que NASM e ACE descrevem como fundo, o que conta a flexão de quem desce
+    #: quase tudo e reserva `PUSHUP_TOO_SHALLOW` para quem para entre 107° e 127°.
+    #: (2) Medição: nos vídeos frontais do corpus todo fundo de repetição fica **abaixo de
+    #: 0,585** e todo topo **acima de 0,859**, e a histerese inteira tem de viver nessa folga.
+    #:
+    #: A varredura da T-111 dá platô, não pico: `desce` ∈ {0,60; 0,63; 0,66} com `sobe` = 0,80
+    #: produz a MESMA contagem nos cinco vídeos de rótulo próprio (MAE 0,20 rep).
+    down_depth: float = 0.63
+    #: Acima disto voltou ao topo. A folga para `down_depth` é a histerese.
+    #:
+    #: **0,80 e não 0,90, e quem decide isso é a vista de perfil.** De frente o braço trava
+    #: perto de 180° e o topo de cada repetição encosta na referência; de lado quase ninguém
+    #: estende tudo, e os topos medidos ficam em 0,85–0,95. Medido: com `sobe` = 0,90 as três
+    #: séries laterais desabam de 16/16/11 para 2/4/4 — o topo real de quem treina não cruza a
+    #: linha, e a repetição nunca fecha.
+    up_depth: float = 0.80
+    #: Desceu, mas não o bastante: entre este valor e `down_depth` vira crítica. É o
+    #: equivalente dos 127° que a literatura chama de meia amplitude (127 ÷ 171).
+    shallow_depth: float = 0.74
     #: Fase mínima antes de aceitar a transição seguinte (SPEC-007: debounce de 250 ms).
     min_phase_ms: int = 250
     #: Desvio do quadril da linha ombro→tornozelo, em alturas de prancha, que vira crítica.
@@ -217,7 +233,35 @@ class PushUpThresholds:
     #: e num plano que se afasta, mais longe é mais alto na imagem. Medido: perfil 0,48–0,77,
     #: frente 0,25–2,74, **em pé no máximo 0,16** (três vídeos reais de polichinelo). O limiar
     #: em 0,30 fica com quase o dobro de folga sobre o pior caso de quem está em pé.
+    #:
+    #: É o limiar de **ENTRAR** no chão. Para permanecer vale o `stay_wrists_below_hips`, e a
+    #: diferença entre os dois é o conserto medido na T-111 — ver `off_floor_ms`.
     min_wrists_below_hips: float = 0.30
+
+    # ------------------------------------------------------- permanecer no chão (histerese)
+
+    #: O que basta para CONTINUAR no chão, depois de o porteiro já ter aberto.
+    #:
+    #: **Este campo existe porque o porteiro de entrada fechava no fundo da repetição.** Medido
+    #: no vídeo frontal de 20 flexões: quando o peito desce, o quadril desce junto e a distância
+    #: pulso→quadril encolhe de 1,19 para 0,20 torsos — abaixo dos 0,30 da entrada. O porteiro
+    #: fechava exatamente no fundo, `_abandon_attempt()` jogava fora a tentativa em curso, e a
+    #: repetição que a pessoa acabara de fazer sumia: **9 das 20 se perdiam assim**.
+    #:
+    #: O erro não era o número: era usar como porteiro de postura uma grandeza que **se move
+    #: com a repetição**. A saída é a mesma que o resto do projeto já usa em todo limiar —
+    #: histerese: entrar exige evidência forte, permanecer exige só que a mão continue no nível
+    #: do quadril ou abaixo dele (0,0), que é a forma mais fraca e ainda honesta de "a mão está
+    #: no chão". Varredura da T-111: `permanecer` ∈ {0,00; 0,10} dá a mesma contagem; a partir
+    #: de 0,20 as reps começam a se perder de novo (20 → 17 → 15).
+    stay_wrists_below_hips: float = 0.0
+    #: Quanto tempo de evidência contrária antes de largar o chão. É o debounce do porteiro,
+    #: irmão do `min_phase_ms` da FSM.
+    #:
+    #: 400 ms fica no meio de um platô largo (250–750 ms dão contagem idêntica) e é mais longo
+    #: que a permanência mais funda já medida no corpus. Abaixo de 150 ms o porteiro volta a
+    #: piscar no fundo da repetição; acima de 1 s ele demora a reconhecer quem de fato levantou.
+    off_floor_ms: int = 400
 
     # ----------------------------------------------------------------------------- vista
 
@@ -238,23 +282,6 @@ class PushUpThresholds:
     #: gerador em perspectiva mede 1,40 ali. Dois porteiros apertados na mesma direção não
     #: somam segurança — somam repetições perdidas.
     min_shoulder_to_torso: float = 1.0
-    #: Fração do ângulo de cotovelo do topo abaixo da qual conta como "desceu".
-    #:
-    #: **Dois caminhos independentes chegam neste número, e é isso que o sustenta.**
-    #: (1) Equivalência: o `down_depth` do perfil (0,82 de prancha) vale ~107° de cotovelo, e
-    #: 107° sobre um topo de ~171° dá 0,63. (2) Medição: nos dois vídeos frontais do corpus,
-    #: todo fundo de repetição fica **abaixo de 0,585** e todo topo **acima de 0,859** — a
-    #: histerese inteira tem de viver nessa folga, e 0,63 fica dentro dela com margem.
-    #:
-    #: A varredura registrada no DEVLOG mostra 20 pares (desce, sobe) dentro da folga dando
-    #: contagem IDÊNTICA: é platô, não pico. O par que minimizava o erro bruto (0,86) ficava
-    #: 0,001 abaixo do menor topo medido — ajuste ao rótulo, não limiar.
-    frontal_down_depth: float = 0.63
-    #: Acima disto voltou ao topo. A folga para `frontal_down_depth` é a histerese.
-    frontal_up_depth: float = 0.80
-    #: Desceu, mas não o bastante: entre este valor e `frontal_down_depth` vira crítica.
-    #: 0,74 é o equivalente frontal dos 127° que o perfil usa (127 ÷ 171).
-    frontal_shallow_depth: float = 0.74
 
 
 @dataclass(slots=True)
@@ -264,9 +291,13 @@ class PushUpAnalyzer:
     slug: str = "flexao"
     thresholds: PushUpThresholds = field(default_factory=PushUpThresholds)
 
-    #: Vista da câmera. `None` (o default do produto) = **detectar pela geometria**. Fixar um
-    #: valor força a vista e desliga a detecção — é o que os testes usam para exercitar um
-    #: caminho de cada vez, e o gancho para o dia em que o usuário puder escolher na tela.
+    #: Vista da câmera, **escolhida por quem treina** e entregue pela sessão (T-111).
+    #:
+    #: `None` = ninguém disse, e aí a geometria decide (é o caminho da bancada, do replay e de
+    #: cliente antigo). No produto isto vem preenchido desde a pré-configuração, e é uma
+    #: decisão de desenho, não economia de código: a vista troca a feature que conta, e uma
+    #: detecção que oscile no meio da série troca a régua com a pessoa em movimento. Perguntar
+    #: custa um toque na tela; errar custa a sessão inteira.
     view: View | None = None
 
     #: Medidas da calibração (SPEC-004). Não entram no cálculo — a feature é uma razão e
@@ -286,6 +317,11 @@ class PushUpAnalyzer:
     #: Vista já travada, e as amostras que a decidem. Ver `_VIEW_SAMPLES`.
     _view: View | None = None
     _view_samples: deque[float] = field(default_factory=lambda: deque(maxlen=_VIEW_SAMPLES))
+    #: Porteiro de chão já aberto? Enquanto estiver, vale o critério fraco de permanência.
+    _on_floor: bool = False
+    #: Desde quando a evidência de permanência falha, para o debounce de `off_floor_ms`.
+    #: `None` = não está falhando.
+    _off_floor_since_ms: int | None = None
     _phase_since_ms: int | None = None
     _rep_started_ms: int | None = None
     _rep_timestamps: deque[int] = field(default_factory=deque)
@@ -349,15 +385,28 @@ class PushUpAnalyzer:
         elbow_angle = self._elbow_angle_view(points)
 
         if view is View.FRONTAL:
-            on_floor = no_chao and shoulder_to_torso >= self.thresholds.min_shoulder_to_torso
+            entrar = no_chao and shoulder_to_torso >= self.thresholds.min_shoulder_to_torso
+            # A mão continua no nível do quadril ou abaixo dele, e o corpo continua apontando
+            # para a lente. É o mesmo par de perguntas da entrada, na forma mais fraca que
+            # ainda significa "no chão fazendo flexão".
+            permanecer = (
+                wrists_below_hips >= self.thresholds.stay_wrists_below_hips
+                and shoulder_to_torso >= self.thresholds.min_shoulder_to_torso
+            )
         else:
             # Perfil: o porteiro histórico, intacto. `trunk_spread` continua sendo a
             # confirmação certa aqui — de lado o tronco atravessa a imagem na horizontal.
-            on_floor = (
+            deitado = (
                 trunk_spread >= self.thresholds.min_trunk_spread
                 and hands_to_ground <= self.thresholds.max_hands_to_ground
-                and plank_height >= _MIN_PLANK_HEIGHT
             )
+            entrar = deitado and plank_height >= _MIN_PLANK_HEIGHT
+            # `plank_height` sai da permanência pelo mesmo motivo que o `wrists_below_hips`
+            # sai de frente: no fundo da flexão o ombro chega perto da mão e a altura cai a
+            # 0,205 — abaixo do mínimo. Quem desce MAIS era quem tinha mais chance de perder
+            # a repetição, que é o incentivo exatamente ao contrário.
+            permanecer = deitado
+        on_floor = self._resolve_floor(entrar=entrar, permanecer=permanecer, ts=frame.ts)
 
         # As referências só crescem, e só crescem COM O PORTEIRO ABERTO. Sem essa segunda
         # condição, a pessoa em pé esperando o countdown fixa uma referência que não é prancha
@@ -379,9 +428,7 @@ class PushUpAnalyzer:
         self._last_plank_height = plank_height
         self._last_elbow = elbow_angle
 
-        depth = (
-            self._frontal_depth(elbow_angle) if view is View.FRONTAL else self._depth(plank_height)
-        )
+        depth = self._depth(elbow_angle)
 
         return {
             "on_floor": on_floor,
@@ -447,22 +494,45 @@ class PushUpAnalyzer:
             return self._view
         return instantanea
 
-    def _depth(self, plank_height: float) -> float:
-        """Altura atual como fração da prancha da pessoa. 1.0 = braço estendido."""
-        if self._plank_height < _MIN_PLANK_HEIGHT:
-            # Sem referência confiável não existe profundidade: devolver 1.0 (= "está na
-            # prancha") mantém a FSM em repouso em vez de inventar uma descida.
-            return 1.0
-        return plank_height / self._plank_height
+    def _resolve_floor(self, *, entrar: bool, permanecer: bool, ts: int) -> bool:
+        """O porteiro de chão, com histerese: forte para abrir, fraco para continuar aberto.
 
-    def _frontal_depth(self, elbow_angle: float) -> float:
+        Fechado, exige a evidência forte (`entrar`) — é ela que recusa gente em pé, e ela não
+        mudou. Aberto, basta a evidência fraca (`permanecer`), e mesmo a falta dela só fecha o
+        porteiro depois de `off_floor_ms` seguidos. Quem se levanta de verdade fica fora do
+        critério fraco por segundos; quem está no fundo de uma flexão, por dois ou três frames.
+
+        É a mesma forma da histerese da FSM logo abaixo, aplicada uma camada antes: sem ela, o
+        porteiro pisca no fundo da repetição e leva junto a tentativa em curso.
+        """
+        if entrar:
+            self._on_floor = True
+            self._off_floor_since_ms = None
+            return True
+        if not self._on_floor:
+            self._off_floor_since_ms = None
+            return False
+        if permanecer:
+            self._off_floor_since_ms = None
+            return True
+        if self._off_floor_since_ms is None:
+            self._off_floor_since_ms = ts
+        if ts - self._off_floor_since_ms >= self.thresholds.off_floor_ms:
+            self._on_floor = False
+            self._off_floor_since_ms = None
+            return False
+        return True
+
+    def _depth(self, elbow_angle: float) -> float:
         """Ângulo de cotovelo como fração do topo da pessoa. 1.0 = braço estendido.
 
-        O análogo exato do `_depth` do perfil, e pelo mesmo motivo: dividir pelo topo DESTA
-        pessoa cancela o quanto ela estende o braço, o quanto a lente distorce e o tamanho
-        dela no quadro. O que sobra é "quanto do seu próprio braço você dobrou".
+        Dividir pelo topo DESTA pessoa cancela o quanto ela estende o braço, o quanto a lente
+        distorce e o tamanho dela no quadro. O que sobra é "quanto do seu próprio braço você
+        dobrou", que é o que a flexão é.
         """
         if self._top_elbow < _MIN_TOP_ELBOW:
+            # Sem referência confiável não existe profundidade: devolver 1.0 (= "está na
+            # prancha") mantém a FSM em repouso em vez de inventar uma descida.
             return 1.0
         return elbow_angle / self._top_elbow
 
@@ -548,7 +618,7 @@ class PushUpAnalyzer:
         depth = float(feats["depth"])
         hip_line = float(feats["hip_line"])
         limiares = self.thresholds
-        desce, sobe, _ = self._depth_thresholds(feats)
+        desce, sobe, _ = self._depth_thresholds()
         estavel = ts - self._phase_since_ms >= limiares.min_phase_ms
 
         if abs(hip_line) > abs(self._worst_hip_line):
@@ -571,20 +641,15 @@ class PushUpAnalyzer:
             return [*eventos, *self._count_rep(ts, feats)]
         return []
 
-    def _depth_thresholds(self, feats: Features) -> tuple[float, float, float]:
-        """`(desce, sobe, rasa)` da vista deste frame.
+    def _depth_thresholds(self) -> tuple[float, float, float]:
+        """`(desce, sobe, rasa)` — **um conjunto só, para as duas vistas** (T-111).
 
-        Os dois conjuntos existem porque as grandezas são outras — fração de prancha de um
-        lado, fração de ângulo de cotovelo do outro —, e um número calibrado numa não
-        significa nada na outra.
+        Eram dois, porque as grandezas eram duas: fração de prancha de perfil, fração de ângulo
+        de cotovelo de frente. Com a profundidade unificada no cotovelo, o mesmo trio de números
+        descreve as duas vistas — e a varredura contra o corpus confirma que ele serve às duas
+        sem retoque.
         """
         limiares = self.thresholds
-        if feats.get("view") == View.FRONTAL.value:
-            return (
-                limiares.frontal_down_depth,
-                limiares.frontal_up_depth,
-                limiares.frontal_shallow_depth,
-            )
         return limiares.down_depth, limiares.up_depth, limiares.shallow_depth
 
     def _abandon_attempt(self, ts: int) -> None:
@@ -645,7 +710,7 @@ class PushUpAnalyzer:
 
     def _close_partial_attempt(self, feats: Features) -> list[AnalysisEvent]:
         """Fecha uma tentativa incompleta. Só reclama de quem chegou perto."""
-        desce, _, rasa = self._depth_thresholds(feats)
+        desce, _, rasa = self._depth_thresholds()
         eventos: list[AnalysisEvent] = []
 
         if desce <= self._lowest_depth <= rasa:
@@ -669,7 +734,7 @@ class PushUpAnalyzer:
         """
         if feats.get("degraded") or not feats.get("on_floor"):
             return Phase.REST
-        desce, _, _ = self._depth_thresholds(feats)
+        desce, _, _ = self._depth_thresholds()
         return Phase.PEAK if float(feats["depth"]) < desce else Phase.REST
 
     def ready_pose(self, feats: Features) -> bool:
@@ -682,7 +747,7 @@ class PushUpAnalyzer:
         """
         if feats.get("degraded") or not feats.get("on_floor"):
             return False
-        _, sobe, _ = self._depth_thresholds(feats)
+        _, sobe, _ = self._depth_thresholds()
         if float(feats["depth"]) <= sobe:
             return False
         if feats.get("view") == View.FRONTAL.value:

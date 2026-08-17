@@ -13,7 +13,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
-from workers.shared.events import ExercisePhase, Phase, QualitySignal, RepDetected
+from workers.shared.events import CameraView, ExercisePhase, Phase, QualitySignal, RepDetected
 from workers.shared.normalize import NormFrame
 
 __all__ = [
@@ -140,11 +140,22 @@ def feed(analyzer: ExerciseAnalyzer, frame: NormFrame) -> list[AnalysisEvent]:
 EXERCISES: dict[str, type[ExerciseAnalyzer]] = {}
 
 
-def get_analyzer(slug: str) -> ExerciseAnalyzer:
-    """Instancia o analisador de um slug. Slug desconhecido falha alto, não silenciosamente."""
+def get_analyzer(slug: str, *, view: CameraView | None = None) -> ExerciseAnalyzer:
+    """Instancia o analisador de um slug. Slug desconhecido falha alto, não silenciosamente.
+
+    `view` é a vista escolhida por quem treina (T-111), e chega da sessão. **Quem decide se ela
+    significa alguma coisa é o exercício**: um analisador que declare o atributo `view` a
+    recebe, e os outros a ignoram sem nem saber que ela existe. É de propósito que o
+    despacho more aqui e não no `router.py` — a regra auditada da SPEC-007 é que exercício não
+    pode obrigar mudança fora de `exercises/`, e um `if slug == "flexao"` no worker seria a
+    primeira pedra desse caminho.
+    """
     try:
         analyzer_cls = EXERCISES[slug]
     except KeyError:
         disponiveis = ", ".join(sorted(EXERCISES)) or "nenhum"
         raise ValueError(f"exercicio desconhecido: {slug!r} (disponiveis: {disponiveis})") from None
-    return analyzer_cls()
+    analyzer = analyzer_cls()
+    if view is not None and hasattr(analyzer, "view"):
+        analyzer.view = view  # type: ignore[attr-defined]
+    return analyzer

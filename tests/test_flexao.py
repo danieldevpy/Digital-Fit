@@ -351,6 +351,48 @@ def test_o_porteiro_separa_deitado_de_em_pe_com_ordem_de_grandeza() -> None:
     assert float(em_pe["hands_to_ground"]) > 1.0
 
 
+def test_o_porteiro_nao_fecha_no_fundo_da_repeticao() -> None:
+    """A histerese do porteiro (T-111), no nível em que ela é uma decisão.
+
+    O bug que ela conserta não aparece no boneco sintético — aparece em gente real, e por isso
+    quem o cobra de verdade é `test_corpus_regressao.py` (16/16 onde eram 0/16). O que se trava
+    aqui é a REGRA: uma vez no chão, um punhado de frames sem a evidência forte não fecha a
+    porta, porque no fundo da flexão é a própria evidência que encolhe — de frente a distância
+    pulso→quadril cai de 1,19 para 0,20 torsos.
+    """
+    analyzer = PushUpAnalyzer()
+    limiares = PushUpThresholds()
+
+    assert analyzer._resolve_floor(entrar=True, permanecer=True, ts=0) is True
+    # Fundo da repetição: a evidência forte some, a fraca também oscila. Dois frames a 15 fps.
+    assert analyzer._resolve_floor(entrar=False, permanecer=False, ts=66) is True
+    assert analyzer._resolve_floor(entrar=False, permanecer=False, ts=133) is True
+    # E a subida devolve as duas — sem que a tentativa em curso tenha sido descartada.
+    assert analyzer._resolve_floor(entrar=True, permanecer=True, ts=200) is True
+    assert limiares.off_floor_ms > 200
+
+
+def test_quem_levanta_de_verdade_ainda_fecha_o_porteiro() -> None:
+    """A outra ponta: afrouxar a saída não pode virar porta destrancada.
+
+    Sem este limite, alguém que terminou a série e se levantou continuaria "no chão" para
+    sempre — e o porteiro existe justamente porque braço levantado em pé já foi contado como
+    flexão uma vez (o bug relatado em produção na T-106).
+    """
+    analyzer = PushUpAnalyzer()
+    limiares = PushUpThresholds()
+    analyzer._resolve_floor(entrar=True, permanecer=True, ts=0)
+
+    # O relógio da saída começa no primeiro frame sem evidência, não no início da sessão.
+    assert analyzer._resolve_floor(entrar=False, permanecer=False, ts=100) is True
+    fecha_em = 100 + limiares.off_floor_ms
+    assert analyzer._resolve_floor(entrar=False, permanecer=False, ts=fecha_em - 1) is True
+    assert analyzer._resolve_floor(entrar=False, permanecer=False, ts=fecha_em) is False
+    # E depois de fechado só a evidência FORTE reabre: a fraca sozinha não basta.
+    assert analyzer._resolve_floor(entrar=False, permanecer=True, ts=2_000) is False
+    assert analyzer._resolve_floor(entrar=True, permanecer=True, ts=2_100) is True
+
+
 def test_um_frame_errado_do_modelo_nao_estraga_a_referencia() -> None:
     """A referência exige dois frames seguidos, e é por isso.
 
@@ -374,19 +416,24 @@ def test_um_frame_errado_do_modelo_nao_estraga_a_referencia() -> None:
 # --------------------------------------------------------------------------------------
 
 
-def test_profundidade_e_razao_e_bate_com_a_tabela_do_docstring() -> None:
-    """Os números da tabela do módulo, travados."""
+def test_profundidade_e_razao_do_cotovelo_sobre_o_topo_da_pessoa() -> None:
+    """Os números da tabela do módulo, travados — agora em fração do cotovelo (T-111).
+
+    Eram fração da altura da prancha. A troca não foi estética: de perfil, no corpus real, o
+    topo de cada repetição fica em 0,77 da maior altura da sessão, e nenhuma repetição fechava
+    (0 de 16, três séries seguidas). O ângulo do cotovelo é imune a escala por construção.
+    """
     analyzer = PushUpAnalyzer()
 
     def profundidade(cotovelo: float) -> float:
-        # A referência da prancha precisa existir antes: é ela que a razão usa.
+        # A referência do topo precisa existir antes: é ela que a razão usa.
         analyzer.features(um_frame(plank_pose()))
         return float(analyzer.features(um_frame(PushUpPose(elbow_angle=cotovelo)))["depth"])
 
     assert profundidade(ELBOW_TOP) == pytest.approx(1.000, abs=0.01)
-    assert profundidade(130.0) == pytest.approx(0.909, abs=0.01)
-    assert profundidade(115.0) == pytest.approx(0.846, abs=0.01)
-    assert profundidade(ELBOW_BOTTOM) == pytest.approx(0.709, abs=0.01)
+    assert profundidade(130.0) == pytest.approx(130 / ELBOW_TOP, abs=0.01)
+    assert profundidade(115.0) == pytest.approx(115 / ELBOW_TOP, abs=0.01)
+    assert profundidade(ELBOW_BOTTOM) == pytest.approx(ELBOW_BOTTOM / ELBOW_TOP, abs=0.01)
     # Monotônica: mais dobrado é sempre mais fundo, sem inversão no meio da faixa.
     valores = [profundidade(c) for c in (ELBOW_TOP, 145.0, 130.0, 115.0, ELBOW_BOTTOM)]
     assert valores == sorted(valores, reverse=True)

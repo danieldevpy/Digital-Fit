@@ -105,6 +105,114 @@
     # OUT_OF_FRAME — os unicos que sobraram depois da T-108 (eram 26).
     conhecido: 50/50 exato (era 0/50 antes da T-108); ~4% dos frames com pulso/cotovelo perdidos
 
+# ----------------------------------------------------------------------------- T-111
+#
+# As tres series abaixo saem de UM video (`flexao-lateral-rapida-16-repeticoes.mp4`, o
+# original que nao entra no manifest): um time-lapse de rede social com cartela "Meta: 3 x 15"
+# e "Intervalo 80 segundos" entre as series. O video inteiro nao serve como item de corpus —
+# os intervalos sao cortados, entao ele nao e uma serie continua —, mas cada SERIE e continua,
+# tem 15-20s e e exatamente o que o produto ve numa sessao de 30s.
+#
+# O rotulo das tres foi contado AQUI, vale por vale do angulo de cotovelo cru (sem FSM e sem
+# limiar), com conferencia visual nos frames de inicio e fim de cada serie. E rotulo proprio no
+# sentido que o README exige — nao veio de titulo nem de legenda.
+#
+# Conferencia independente que vale registrar: rodada no video INTEIRO, a bancada conta 43,
+# que e exatamente 16 + 16 + 11. As tres contagens somam sozinhas.
+- file: flexao-lateral-serie1-16.mp4
+  exercise: flexao
+  expected_reps: 16
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    angulo: perfil (levemente obliquo)
+    celular: deitado no chao
+    fonte: internet (recorte 2,0-18,0s do original)
+    inicio: ~1s em pe antes de deitar (o corte pega a montagem da prancha)
+    cadencia: rapida (~87 rpm)
+    execucao: limpa
+    # Antes da T-111: 0/16. O porteiro de perfil exigia `plank_height >= 0,25` A CADA FRAME e
+    # a altura cai a 0,205 no fundo da flexao; e a profundidade era medida contra a maior
+    # altura da sessao, que os frames de montagem fixaram em 0,914 enquanto o topo de cada
+    # repeticao ficava em 0,70 (razao 0,77, contra um `sobe` de 0,93 que nunca era cruzado).
+    conhecido: 16/16 exato (era 0/16 antes da T-111)
+
+- file: flexao-lateral-serie2-16.mp4
+  exercise: flexao
+  expected_reps: 16
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    angulo: perfil (levemente obliquo)
+    celular: deitado no chao
+    fonte: internet (recorte 30,0-47,0s do original)
+    inicio: ~2s em pe antes de deitar
+    cadencia: rapida (~80 rpm)
+    execucao: limpa
+    conhecido: 16/16 exato (era 0/16 antes da T-111)
+
+- file: flexao-lateral-serie3-11.mp4
+  exercise: flexao
+  expected_reps: 11
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    angulo: perfil (levemente obliquo)
+    celular: deitado no chao
+    fonte: internet (recorte 62,0-82,7s do original)
+    inicio: ~3s em pe antes de deitar
+    cadencia: irregular (~46 rpm, com pausas na prancha)
+    # A serie mais valiosa das tres: e a terceira, com fadiga. A meta era 15 e ele fez 11,
+    # com duas pausas longas na prancha (69,7-72,0s e 74,0-76,9s) e amplitude encurtando.
+    # Pausa na prancha e exatamente o que a histerese do porteiro nao pode confundir com
+    # "levantou e foi embora".
+    execucao: fadiga (pausas na prancha, amplitude irregular)
+    conhecido: 11/11 exato (eram 3/11 antes da T-111)
+
+# Video de rede social em que a propria pessoa CONTA em voz alta e por legenda ("1", "3 4",
+# "5 ne achou que nao ia parar", "mais 5", "1 2 3", "5 meus parabens soldado"): o rotulo 20 esta
+# dentro do video, em 4 blocos de 5, e foi conferido vale a vale. E o video frontal mais dificil
+# do corpus — a camera fica muito perto, o pe sai do quadro, e o corpo ocupa quase tudo.
+- file: flexao-frente-20-repeticoes-estilo-militar-lento.mp4
+  exercise: flexao
+  expected_reps: 20
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    angulo: frontal
+    celular: em pe no chao, muito perto
+    fonte: internet (rotulo contado na legenda do proprio video)
+    inicio: ~4s parado na prancha antes da primeira flexao
+    cadencia: lenta (~25 rpm)
+    execucao: limpa, amplitude grande (fundo em ~50-70 graus de cotovelo)
+    # Antes da T-111: 11/20. O porteiro frontal (`wrists_below_hips >= 0,30`) fechava no FUNDO
+    # de cada repeticao — a distancia pulso->quadril cai de 1,19 para 0,20 torsos quando o
+    # peito desce — e `_abandon_attempt()` jogava fora a tentativa em curso. Nove repeticoes
+    # sumiam assim, e sumiam CALADAS: nem contagem, nem critica.
+    conhecido: 20/20 exato (era 11/20 antes da T-111)
+
+# "DESAFIO DE FLEXOES": 5 repeticoes de cada pegada — normais, abertas, diamante, toque de
+# ombros e russas —, anunciadas por legenda. Entra no corpus como teste de ROBUSTEZ de pegada,
+# e o rotulo 25 e a soma das legendas.
+#
+# Duas das cinco variacoes nao sao a flexao que a SPEC descreve: "toque de ombros" acrescenta
+# uma pausa no topo com uma mao fora do chao, e "russa" e outro movimento (o corpo desliza para
+# tras sobre os antebracos). Que a contagem fique em 26 e nao 25 e coerente com isso — sobra
+# uma, nao faltam seis. Serve para medir estabilidade de pegada, nao para promover maturidade.
+- file: flexão-frente-variantes-de-flexao-5-de-cada.mp4
+  exercise: flexao
+  expected_reps: 25
+  conditions:
+    orientacao: retrato
+    resolucao: 576x1024
+    angulo: frontal
+    celular: em pe no chao
+    fonte: internet (rotulo somado das legendas do proprio video)
+    inicio: ja comeca em prancha
+    cadencia: media (~39 rpm)
+    execucao: 5 pegadas diferentes (normal, aberta, diamante, toque de ombros, russa)
+    conhecido: 26/25 (+1, nas variacoes que nao sao flexao); era 19/25 antes da T-111
+
 # Video de internet/rede social (nao gravacao propria) — tem cortes de camera, fala e um
 # angulo obliquo (nao puramente frontal nem perfil, mistura os dois). NAO tem expected_reps
 # confiavel: e um compilado promocional ("E VOCE? QUANTAS CONSEGUE?"), nao uma serie continua

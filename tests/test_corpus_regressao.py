@@ -69,12 +69,40 @@ FIXTURES = Path(__file__).resolve().parent.parent / "eval" / "fixtures"
 #: O aval independente da correção não vem de rótulo nenhum: braço travado no topo é ~180° por
 #: anatomia, e a leitura vai de 164,7°→171,2° (v1) e 170,9°→174,5° (v2). A correção move as
 #: quatro medidas na direção de uma verdade conhecida de antemão.
+#: **T-111 dobrou o corpus de flexão e mudou cinco números — todos para cima, e nenhum por
+#: retune de limiar.** Os cinco vídeos novos têm rótulo próprio (contado vale a vale no ângulo
+#: de cotovelo cru, com conferência visual), e é contra eles que o conserto foi medido:
+#:
+#: ===========================  ======  ======  ======
+#: fixture                      rótulo  antes   depois
+#: ===========================  ======  ======  ======
+#: lateral-serie1                   16       0      16
+#: lateral-serie2                   16       0      16
+#: lateral-serie3 (fadiga)          11       3      11
+#: frente-20-militar-lento          20      11      20
+#: frente-variantes (5 pegadas)     25      19      26
+#: ===========================  ======  ======  ======
+#:
+#: Os dois defeitos eram o mesmo defeito em vistas diferentes: **grandeza que se move com a
+#: repetição usada como porteiro de postura**. De frente, `wrists_below_hips` cai de 1,19 para
+#: 0,20 torsos no fundo e fechava a porta ali; de perfil, `plank_height` cai a 0,205 e fazia o
+#: mesmo. O porteiro ganhou histerese (entrar forte, permanecer fraco, sair com 400 ms de
+#: debounce) e a profundidade passou a ser o ângulo do cotovelo nas DUAS vistas.
+#:
+#: **Os dois números que já existiam não se mexeram** (v1 52, v2 43), e é isso que separa
+#: conserto estrutural de ajuste ao rótulo: a varredura mostra `desce` ∈ {0,60; 0,63; 0,66}
+#: com `sobe` = 0,80 dando contagem idêntica nos cinco vídeos novos.
 CONTAGENS = {
     "polichinelo-01": 20,
     "polichinelo-02": 13,
     "polichinelo-03": 19,
     "flexão-frente-50-repetições-v1": 52,
     "flexão-frente-50-repetições-v2": 43,
+    "flexao-lateral-serie1-16": 16,
+    "flexao-lateral-serie2-16": 16,
+    "flexao-lateral-serie3-11": 11,
+    "flexao-frente-20-repeticoes-estilo-militar-lento": 20,
+    "flexão-frente-variantes-de-flexao-5-de-cada": 26,
     "agachamento-frente-aprox-18-repetiçẽos-v1": 18,
 }
 

@@ -20,6 +20,7 @@ import { waitForReport } from '../report/sessionReport'
 import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
 import { AdmissionError, isQuotaRefusal, modeToRequest, requestSession } from './admission'
+import { viewPreference } from './exerciseViews'
 import { exercisePreference } from './preferences'
 import { entryFromEvent } from './coachCard'
 import { setGatewayClient, startNewSequence } from './gatewayInstance'
@@ -168,12 +169,17 @@ export function useSession(enabled: boolean) {
     } else {
       const { modeOverride, capability } = useSessionStore.getState()
       useSessionStore.getState().setGatewayStatus('connecting')
+      const exercise = exercisePreference()
       void requestSession({
         // A escolha de quem treina (T-051), lida no instante do pedido. Antes era
         // `DEFAULT_EXERCISE` fixo, e o produto não tinha como pedir outra coisa.
-        exercise: exercisePreference(),
+        exercise,
         requestedMode: modeToRequest(modeOverride, capability),
         probe: capability,
+        // De que lado a câmera está (T-111). Lida aqui e não guardada no store pelo mesmo
+        // motivo do exercício: o que vale é o que estava escolhido no instante em que a
+        // pessoa tocou em iniciar. `null` para exercício sem variação, e aí o worker decide.
+        view: viewPreference(exercise),
       })
         .then((ticket) => {
           if (cancelado) return

@@ -191,7 +191,10 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   flexao: {
     display_name: 'Flexão de braço',
     category: 'forca',
-    maturity: 'beta',
+    // `calibrado` desde a T-111 (migration 0018): corpus real de oito itens, cinco com rótulo
+    // contado a mão, MAE de 0,20 rep. Some para o Free e aparece para o assinante — a
+    // prateleira do Free continua sendo `validado`, e ela chega lá com a semana de produção.
+    maturity: 'calibrado',
     muscle_group: 'Peito, ombro e tríceps',
     default_tip: 'Corpo numa linha reta da cabeça aos pés, do começo ao fim.',
     main_angle: 'none',

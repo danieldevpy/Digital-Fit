@@ -27,6 +27,7 @@ import {
   setSeriesPreference,
 } from '../session/configPrefs'
 import { useCountdown } from '../session/countdown'
+import { setViewPreference, viewPreference, viewsOf, type ViewId } from '../session/exerciseViews'
 import { estadoDoExemplo, temConta } from '../session/guideGate'
 import { ESTIMATED_LABEL, formatKcal, liveKcal } from '../session/kcal'
 import { exercisePreference, guideSeen } from '../session/preferences'
@@ -39,6 +40,7 @@ import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
 import { ExerciseIcon } from '../ui/exerciseIcon'
 import { IconAngle, IconCamera, IconFlame, IconMirror, IconPlay, IconStop } from '../ui/icons'
+import { ViewPicker } from '../ui/ViewPicker'
 
 /** Silhueta-guia ciano do protótipo — sobre a câmera na pré-configuração. */
 function SilhouetteGuide() {
@@ -154,6 +156,11 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
 
   const [series, setSeries] = useState(seriesPreference)
   const [repsGoal, setRepsGoal] = useState(repsGoalPreference)
+  // A variação de câmera (T-111). Estado local porque a mesma escolha é editável aqui e no
+  // Guia, e a tela precisa se redesenhar no toque — o armazenamento é a memória, não a fonte.
+  // `viewOf` guarda de que exercício a escolha atual é; ver o ajuste logo abaixo.
+  const [viewId, setViewId] = useState<ViewId | null>(null)
+  const [viewOf, setViewOf] = useState<string | null>(null)
 
   // Persistência fora do updater: dois toques rápidos no stepper não podem perder um
   // incremento (closure velha), e o updater funcional tem de continuar puro.
@@ -167,6 +174,16 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   // Na pré-config vale a preferência; no treino vale o que o servidor admitiu.
   const exerciseKey = mode === 'treino' && exerciseKeyLive ? exerciseKeyLive : exercisePreference()
   const exercise = getExercise(exerciseKey)
+
+  // A variação segue o exercício: trocar de exercício não pode carregar junto a escolha de
+  // câmera do anterior, e quem volta do Guia tem de ver o que escolheu lá. O ajuste é feito
+  // DURANTE o render (padrão de "estado derivado de prop") e não num efeito: num efeito a tela
+  // pintaria uma vez com a escolha do exercício anterior antes de se corrigir.
+  if (viewOf !== exerciseKey) {
+    setViewOf(exerciseKey)
+    setViewId(viewPreference(exerciseKey))
+  }
+  const view = viewsOf(exerciseKey)?.find((v) => v.id === viewId)
 
   // O destaque do "ver exemplo" (ver `session/guideGate.ts`). Assinado do store, e não lido do
   // token direto, para o destaque apagar sozinho no instante em que a pessoa entra pela folha
@@ -260,7 +277,10 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                   {sceneAdvice
                     ? sceneAdvice.text
                     : cameraReady
-                      ? 'Você já está visível · alinhe-se à guia'
+                      ? // Com variação, o pill diz onde o CELULAR vai (T-111) em vez de
+                        // "alinhe-se à guia": num exercício de chão a silhueta em pé não
+                        // ensina nada, e é a montagem da cena que decide se a sessão conta.
+                        (view?.phone ?? 'Você já está visível · alinhe-se à guia')
                       : // O treino não começa mais com a câmera desligada: o pill diz o passo
                         // que falta em vez de descrever a janela vazia.
                         'Ligue a câmera para se enquadrar'}
@@ -310,6 +330,18 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                 ver exemplo
               </button>
             </div>
+
+            {/* Logo abaixo do card do exercício, e não perdido na outra coluna: a variação é
+                propriedade DAQUELE exercício, e é a segunda decisão de quem chegou aqui —
+                antes de série, repetição e preparação, porque é a única que muda o que a
+                pessoa faz com o celular antes de deitar no chão. Some sozinha para exercício
+                sem variação. */}
+            <ViewPicker
+              exercise={exerciseKey}
+              value={viewId}
+              onChange={(id) => setViewId(setViewPreference(exerciseKey, id))}
+              compact
+            />
 
             <StepperCell
               label="Série"

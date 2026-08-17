@@ -15,8 +15,12 @@ describe('maturidade no embutido (T-090 / SPEC-020)', () => {
     }
   })
 
-  it('os dois de chão continuam `beta` — é o que o banco diz (migration 0012)', () => {
-    expect(EXERCISE_CATALOG.flexao?.maturity).toBe('beta')
+  it('o embutido espelha o banco: flexão `calibrado`, abdominal ainda `beta`', () => {
+    // Os dois nasceram `beta` na migration 0012. A flexão subiu na 0018 (T-111) porque ganhou
+    // corpus real — oito itens, cinco com rótulo contado a mão, MAE de 0,20 rep; o abdominal
+    // continua sem um único vídeo de gente treinando. O embutido tem de contar a mesma
+    // história que o servidor, senão o primeiro paint mostra um card que a admissão recusa.
+    expect(EXERCISE_CATALOG.flexao?.maturity).toBe('calibrado')
     expect(EXERCISE_CATALOG.abdominal?.maturity).toBe('beta')
   })
 

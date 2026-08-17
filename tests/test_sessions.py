@@ -19,6 +19,7 @@ from workers.analysis_worker.router import (
 )
 from workers.shared.bus import InMemoryBus
 from workers.shared.events import (
+    CameraView,
     EventType,
     Mode,
     PoseFrame,
@@ -133,6 +134,71 @@ def test_session_started_e_publicado_no_stream_de_entrada_da_analise() -> None:
     assert dados.exercise == "jumping_jack"
     assert dados.duration_s == DEFAULT_DURATION_S
     assert dados.mode is Mode.EDGE
+
+
+# --------------------------------------------------------------------------------------
+# A vista escolhida por quem treina (T-111)
+# --------------------------------------------------------------------------------------
+
+
+def test_a_vista_escolhida_atravessa_a_admissao_ate_o_evento() -> None:
+    """De ponta a ponta: corpo do POST → `SessionRequest` → `session.started`.
+
+    É o caminho inteiro que faz a escolha valer alguma coisa. Se ela parasse no cliente, seria
+    animação: quem mede a flexão é o analysis-worker, e é ele que precisa saber de que lado a
+    câmera está.
+    """
+    pedido = SessionRequest.parse({"exercise": "flexao", "view": "profile"})
+    assert pedido.view is CameraView.PROFILE
+
+    _, _, bus = criar(pedido=pedido)
+
+    envelope = next(
+        e
+        for e in bus.published_in(Stream.POSE_FRAMES)
+        if e.type is EventType.SESSION_STARTED
+    )
+    assert SessionStarted.from_data(envelope.data).view is CameraView.PROFILE
+
+
+def test_sessao_sem_vista_continua_valendo() -> None:
+    """Cliente antigo (ou exercício que não se importa) não manda nada — e treina igual."""
+    pedido = SessionRequest.parse({"exercise": "jumping_jack"})
+
+    assert pedido.view is None
+    _, _, bus = criar(pedido=pedido)
+    envelope = next(
+        e
+        for e in bus.published_in(Stream.POSE_FRAMES)
+        if e.type is EventType.SESSION_STARTED
+    )
+    # Ausente no payload, e não `""`: quem lê não precisa saber que vazio quer dizer "não sei".
+    assert "view" not in envelope.data
+    assert SessionStarted.from_data(envelope.data).view is None
+
+
+@pytest.mark.parametrize("bruto", ["lateral", "", 42, None, "FRONTAL "])
+def test_vista_invalida_nao_derruba_o_treino(bruto) -> None:
+    """Erra a escolha, perde a escolha — não a sessão.
+
+    A vista é conforto de medição, não credencial: recusar a admissão por causa dela trocaria
+    um treino por uma mensagem de erro, e ainda há a detecção geométrica embaixo. `"FRONTAL "`
+    entra na lista porque maiúscula e espaço são erro de digitação de cliente, não valor novo.
+    """
+    pedido = SessionRequest.parse({"exercise": "flexao", "view": bruto})
+
+    esperado = CameraView.FRONTAL if bruto == "FRONTAL " else None
+    assert pedido.view is esperado
+
+
+def test_a_vista_chega_ao_analisador_da_flexao() -> None:
+    """A última ponta: o worker abre a sessão e o analisador já nasce com a vista travada."""
+    estado = SessionState(session_id="s", exercise="flexao", view=CameraView.PROFILE)
+
+    assert estado.analyzer.view is CameraView.PROFILE
+    # E quem não declara vista simplesmente ignora o campo (SPEC-007: exercício novo não pode
+    # obrigar mudança fora de `exercises/`).
+    assert SessionState(session_id="s", exercise="jumping_jack", view=CameraView.PROFILE)
 
 
 def test_session_started_tambem_vai_para_a_saida_da_analise() -> None:

@@ -4168,3 +4168,98 @@ a {
   line-height: 1;
   cursor: pointer;
 }
+
+/* ---------- escolha da variação de câmera (T-111) ----------
+
+   Segmentado e não ciclo, ao contrário do card de Preparação: as duas opções pedem que a
+   pessoa faça algo DIFERENTE com o celular, e um controle que mostrasse só a atual esconderia
+   metade da decisão. Aparece em duas casas — o card estreito da coluna da pré-configuração
+   (`--compact`) e o bloco largo do Guia —, com o mesmo componente e a mesma memória. */
+.viewpick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+}
+
+.viewpick--compact {
+  gap: 6px;
+  margin-top: 0;
+  padding: 10px 8px;
+  align-items: center;
+  text-align: center;
+}
+
+.viewpick__opts {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  padding: 3px;
+  border-radius: calc(var(--radius) - 4px);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.viewpick__opt {
+  flex: 1;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: calc(var(--radius) - 7px);
+  background: none;
+  color: var(--text-dim);
+  font: 600 0.6875rem var(--font-ui);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.viewpick--compact .viewpick__opt {
+  padding: 6px 2px;
+  font-size: 0.625rem;
+}
+
+.viewpick__opt--on {
+  background: rgba(77, 210, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(77, 210, 255, 0.45);
+  color: var(--cyan);
+}
+
+/* A linha que muda o que a pessoa FAZ: é ela, e não o rótulo do botão, que evita a sessão
+   zerada por celular no lugar errado. */
+.viewpick__hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.viewpick--compact .viewpick__hint {
+  justify-content: center;
+  font-size: 0.5625rem;
+}
+
+.viewpick__icon {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  color: var(--cyan);
+}
+
+/* Só no Guia: o que se ganha e o que se perde em cada vista. Na coluna da pré-configuração
+   não cabe, e lá a pessoa já escolheu uma vez. */
+.viewpick__why {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+
+.viewpick__why strong {
+  color: var(--text-dim);
+}

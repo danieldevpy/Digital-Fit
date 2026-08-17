@@ -228,7 +228,8 @@ funcionalidade nova: são o mesmo dado, dito certo.
 |---|---|---|---|
 | T-106 | Flexão de braço (`flexao`): FSM lateral com profundidade medida como fração da **própria prancha** da pessoa + sinais `PUSHUP_TOO_SHALLOW`/`HIPS_SAGGING`/`HIPS_PIKED`; traz junto a capacidade que o Tier C exigia — `Posture` no `scene_hints()` e validação de cena que mede a extensão do corpo no eixo certo (SPEC-003 evolução) — e o campo `scene_tip` por exercício, porque a frase fixa do Guia ("celular na vertical") é falsa para chão. Nasce `beta` | 020/003/007/012 | **feito** (2026-08-05) |
 | T-107 | Abdominal (`abdominal`): FSM lateral com a subida do ombro medida em alturas de joelho (referência sem memória, estável no primeiro frame) + sinais `CRUNCH_TOO_SHALLOW`/`CRUNCH_TOO_FAST`. Nasce `beta` | 020/007/012 | **feito** (2026-08-05) |
-| T-108 | Corpus real de chão (≥ 8 vídeos por exercício, guia de gravação já escrito em `eval/corpus/README.md`) + varredura de limiares → promoção `beta → calibrado` de `flexao` e `abdominal`. É o T-053 do Tier C | 020/012 | **parcial** — a vista frontal saiu daqui (DEVLOG 29): de frente a flexão conta 52/50 e 50/50 onde contava 0/50, e o mesmo 0/50 estava valendo **em produção**. Falta o que dá nome à task: 8 vídeos por exercício com contagem própria. Sem eles não há promoção a `calibrado` (Descoberta `[A/T-108]`) |
+| T-108 | Corpus real de chão (≥ 8 vídeos por exercício, guia de gravação já escrito em `eval/corpus/README.md`) + varredura de limiares → promoção `beta → calibrado` de `flexao` e `abdominal`. É o T-053 do Tier C | 020/012 | **parcial** — a flexão fechou na T-111 (oito itens, cinco com rótulo contado a mão, MAE 0,20 rep, promovida a `calibrado`). **Falta o `abdominal`**, que segue sem um único vídeo de gente real |
+| T-111 | Flexão: a vista vira **escolha de quem treina** (`CameraView` no contrato → `session.started` → analisador; controle na pré-config e no Guia, com passos e cena por variação) + conserto medido dos dois porteiros que descartavam a repetição no fundo do movimento + promoção `beta → calibrado` | 020/007/012/002 | **feito** (2026-08-16) — **muda o que está no ar**: a flexão passa a contar de perfil (era 0/16 em três séries seguidas) e de frente (11/20 → 20/20), e aparece para assinante e admin. MAE de 9,14 → 0,20 rep sem retunar limiar nenhum: o conserto é histerese no porteiro de chão + profundidade pelo ângulo do cotovelo nas duas vistas |
 | T-109 | ~~Agachamento não conta em produção~~ — **a premissa era falsa** (T-133, 2026-08-13): o agachamento conta nas três pernas, e os zeros do banco eram `no_data`. O que **sobra** de real e continua valendo é a margem: a pessoa medida desce a 50,7% e o limiar abre em 54,1% — **3,4 pontos**, e quem parar no paralelo conta 0. Trocar `hip_height` absoluto por razão sobre a altura de quadril da própria pessoa continua sendo o desenho certo, mas é **margem de robustez, não conserto de bug**, e não se mexe nele antes da T-108 dar corpus de agachamento para revarrer | 007/012/020 | **todo (média)** — rebaixada de alta |
 | T-133 | `evalctl stack <fixture>`: toca keypoints conhecidos pela stack no ar (admissão real, WebSocket real, msgpack, janela de 30 s) e diz quantas reps a **sessão de verdade** contou. É a perna que faltava entre a bancada (prova a FSM) e o navegador (prova a extração) — e a única das três que dá para automatizar | 012/009 | **feito** (2026-08-13) |
 | T-110 | Espaço normalizado é anisotrópico (Descoberta `[A/T-106]`): levar largura/altura do frame no `pose.frame` e corrigir `x` na normalização, ou declarar por escrito que toda feature é razão no mesmo eixo. Mexe no contrato de eventos (AGENTS: `events.py` primeiro) e obriga a revarrer polichinelo e agachamento | 002/006 | **feito** (2026-08-15) — a segunda saída foi **refutada por medição**: ângulo é `atan2(dx, dy)` e mistura os eixos por construção, então nenhuma redação salvaria `arm_angle`/`knee_angle`/`elbow_angle`. A revarredura pedida voltou **limpa** (polichinelo 20/13/19 e agachamento 18, idênticos); mudou só a flexão v2, 50 → 43, com as 7 reps virando `PUSHUP_TOO_SHALLOW` — sem tocar em limiar nenhum |
@@ -383,7 +384,24 @@ Raia contrato → worker → api → client; T-111 abre e as outras dependem del
   outra fonte envenena a bancada inteira"*. Hoje isso não é fatal — os limiares foram escolhidos
   por platô (20 pares com contagem idêntica) e não por minimizar erro contra o rótulo —, mas
   **impede a promoção a `calibrado`**: o v1 conta 52 e não há como saber se o certo é 52 ou 50.
-  Fecha junto com os 8 vídeos rotulados da T-108.
+  Fecha junto com os 8 vídeos rotulados da T-108. **Fechada pela T-111 para a flexão**
+  (2026-08-16): entraram cinco vídeos com rótulo próprio — três séries laterais contadas vale a
+  vale no ângulo de cotovelo cru (16/16/11, com o vídeo original somando 43 sozinho, que é
+  exatamente a soma das três) e dois frontais cujo rótulo está DENTRO do vídeo (a pessoa conta
+  em voz alta; as legendas anunciam "5 NORMAIS ✅ 5 ABERTAS ✅…"). Os dois de título continuam no
+  corpus e continuam marcados como não-verificados: a promoção foi medida contra os cinco novos,
+  não contra eles. Segue **aberta para o `abdominal`**, que não tem vídeo nenhum.
+
+- **[A/T-111] A variação de câmera mora no bundle do cliente, não no catálogo do servidor.**
+  `web/src/session/exerciseViews.ts` guarda rótulo, instrução de cena e passos do Guia de cada
+  vista, e a T-074 tinha acabado de tirar o catálogo do cliente justamente para que texto de
+  produto fosse editável sem deploy (`scene_tip` existe por isso). O precedente que sustenta a
+  escolha é a figura do exercício (`[A/T-074]`): é conteúdo que ESTE bundle sabe desenhar, e
+  exercício sem entrada aqui simplesmente não oferece variação — degrada para a detecção
+  geométrica, não quebra. Mas o efeito prático é o mesmo que a T-074 combateu: **variação nova,
+  ou texto de variação corrigido, exige deploy.** Levá-la ao painel é `Exercise.views` como JSON
+  validado contra `CameraView`, mais o campo no `GET /api/config` — task própria, não urgente
+  enquanto só a flexão tem variação.
 
 - **[T-075] `ruff format` não é gate, e o repositório já anda fora dele.** Os gates do AGENTS.md
   são `ruff check` + `pytest`; `ruff format --check .` acusa **dois blocos** em
