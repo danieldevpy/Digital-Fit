@@ -261,16 +261,16 @@ Fase 5. Pré-requisito **comercial** do pagamento, não técnico — e o M0 é p
 
 ### Bloco C — O motivo de pagar (SPEC-023)
 
-Raia contrato → worker → api → client; T-111 abre e as outras dependem dela.
+Raia contrato → worker → api → client; T-134 abre e as outras dependem dela.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-111 | Contrato do treino (`events.py` primeiro, AGENTS): `mode`, `target_reps`, `set_index`, `set_total` aditivos em `session.started` + `SessionEndReason.TARGET_REACHED`; colunas aditivas no `SessionResult` e consolidação no report-builder. Sem bump de `PROTOCOL_VERSION` (justificado na SPEC-023 §Eventos, incluindo a ressalva do enum) | 023/002/010 | todo |
-| T-112 | Modo contado no analysis-worker: a meta encerra a série no frame da N-ésima rep (autoridade do servidor, como o timer da SPEC-009); teto por `ts` de frame, estouro termina em `completed` sem erro. Depende de T-111 e **de T-078** (o `duration_ms` mistura dois relógios, e "tempo até a meta" é exatamente o número que ele erra) | 023/007/009 | todo |
-| T-113 | Modo resolvido na admissão junto de quota/duração/countdown/cloud: meta e teto que valem são os do servidor (forjar o cliente não muda nada), e o teto é o `Plan.session_max_s` que já existe — **sem coluna nova** (SPEC-023 §4). Plano com `session_max_s = 30` recusa modo contado com motivo legível, em vez de cortar a série no meio. Depende de T-111 | 023/018/016 | todo |
-| T-114 | Cliente do treino: montador de plano de exercício único (N séries × meta × descanso), tela de descanso com contador e próximo item, HUD do modo contado (anel conta para cima, `7/15`, tempo decorrido no lugar do restante). O descanso é só cliente — não abre sessão, não segura slot. Depende de T-112/T-113 | 023/014 | todo |
-| T-115 | Gesto de prontidão (dois pulsos acima dos ombros por 1 s) encerra o descanso — **edge apenas**, com toque e temporizador como saída universal; fronteira com o gate por pose da SPEC-004/T-030 declarada em teste. Depende de T-114 | 023/004 | todo |
-| T-116 | Cadência vira o eixo de progresso: relatório da série mostra reps/min sempre e tempo até a meta no modo contado; comparação por exercício nas últimas 4 semanas como **derivação pura** sobre `SessionResult` (sem tabela, sem contador). Depende de T-111 | 023/010/017 | todo |
+| T-134 | Contrato do treino (`events.py` primeiro, AGENTS): `mode`, `target_reps`, `set_index`, `set_total` aditivos em `session.started` + `SessionEndReason.TARGET_REACHED`; colunas aditivas no `SessionResult` e consolidação no report-builder. Sem bump de `PROTOCOL_VERSION` (justificado na SPEC-023 §Eventos, incluindo a ressalva do enum) | 023/002/010 | todo |
+| T-135 | Modo contado no analysis-worker: a meta encerra a série no frame da N-ésima rep (autoridade do servidor, como o timer da SPEC-009); teto por `ts` de frame, estouro termina em `completed` sem erro. Depende de T-134 e **de T-078** (o `duration_ms` mistura dois relógios, e "tempo até a meta" é exatamente o número que ele erra) | 023/007/009 | todo |
+| T-136 | Modo resolvido na admissão junto de quota/duração/countdown/cloud: meta e teto que valem são os do servidor (forjar o cliente não muda nada), e o teto é o `Plan.session_max_s` que já existe — **sem coluna nova** (SPEC-023 §4). Plano com `session_max_s = 30` recusa modo contado com motivo legível, em vez de cortar a série no meio. Depende de T-134 | 023/018/016 | todo |
+| T-137 | Cliente do treino: montador de plano de exercício único (N séries × meta × descanso), tela de descanso com contador e próximo item, HUD do modo contado (anel conta para cima, `7/15`, tempo decorrido no lugar do restante). O descanso é só cliente — não abre sessão, não segura slot. Depende de T-135/T-136 | 023/014 | todo |
+| T-138 | Gesto de prontidão (dois pulsos acima dos ombros por 1 s) encerra o descanso — **edge apenas**, com toque e temporizador como saída universal; fronteira com o gate por pose da SPEC-004/T-030 declarada em teste. Depende de T-137 | 023/004 | todo |
+| T-139 | Cadência vira o eixo de progresso: relatório da série mostra reps/min sempre e tempo até a meta no modo contado; comparação por exercício nas últimas 4 semanas como **derivação pura** sobre `SessionResult` (sem tabela, sem contador). Depende de T-134 | 023/010/017 | todo |
 
 ### Bloco D — A caixa registradora
 

@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-08-17 (58) · operação: renumeração do Bloco C (SPEC-023)
+
+O Bloco C (`BACKLOG.md`) reusava T-111/T-112/T-113 para as tasks do treino contado — os mesmos
+IDs das tasks de Tier C (flexão/abdominal) que já estavam `feito`. Colisão encontrada numa
+avaliação geral do projeto, antes de abrir a primeira task do Bloco C. Renumerado para
+T-134…T-139 (contíguo com T-114/T-115/T-116, que não colidiam mas ficaram junto para o bloco
+ler como uma sequência só). Atualizada a referência em `docs/IDEIAS-2026-08-05-conversa.md`
+(§Bloco 2). Nenhum código tocado.
+
+---
+
 ## 2026-08-17 (57) · T-113 — flexão e abdominal para todo mundo, com os lastros diferentes
 
 Pedido direto: ao deslogar, os dois somem, e o Daniel quer os dois visíveis para qualquer

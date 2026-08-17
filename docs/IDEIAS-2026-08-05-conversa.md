@@ -371,7 +371,7 @@ pré-requisito **comercial** do pagamento, não técnico.
 - **[SPEC-023](../specs/SPEC-023-treino-series-e-ritmo.md)** (ideias 2.1 + 2.2 + 2.17), escrita
   em 2026-08-06 e aguardando revisão: modo contado × livre, série com fim por repetição,
   descanso, gesto de prontidão, cadência como eixo de progresso. Free fica com o modo livre de
-  30 s (completo e bom); assinante ganha o treino de verdade. Tasks **T-111…T-116**.
+  30 s (completo e bom); assinante ganha o treino de verdade. Tasks **T-134…T-139**.
 - **T-064** — capacidades da assinatura lendo do `Plan`.
 
 O cadeado precisa ter conteúdo real atrás. Hoje a diferença Free × pago é *quantidade*; depois
