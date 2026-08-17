@@ -12,6 +12,7 @@ import { FireChip } from '../engagement/FireChip'
 import { useEngagementStore } from '../engagement/store'
 import { CountdownSetting } from '../hud/CountdownSetting'
 import { TimerRing } from '../hud/TimerRing'
+import { ViewConfirm } from '../hud/ViewConfirm'
 import { ZoomControl } from '../hud/ZoomControl'
 import { exerciseSubtitle, getExercise } from '../session/catalog'
 import { resolveCoachCard } from '../session/coachCard'
@@ -29,6 +30,7 @@ import {
 import { useCountdown } from '../session/countdown'
 import { setViewPreference, viewPreference, viewsOf, type ViewId } from '../session/exerciseViews'
 import { estadoDoExemplo, temConta } from '../session/guideGate'
+import { shouldConfirmView } from '../session/viewGate'
 import { ESTIMATED_LABEL, formatKcal, liveKcal } from '../session/kcal'
 import { exercisePreference, guideSeen } from '../session/preferences'
 import { ctaDeInicio } from '../session/startGate'
@@ -161,6 +163,11 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   // `viewOf` guarda de que exercício a escolha atual é; ver o ajuste logo abaixo.
   const [viewId, setViewId] = useState<ViewId | null>(null)
   const [viewOf, setViewOf] = useState<string | null>(null)
+  // A trava de confirmação (T-112). `confirmadoPara` guarda o exercício já confirmado NESTA
+  // visita: é o que faz a caixa interceptar o "Ligar câmera" e deixar o "Iniciar Exercício"
+  // seguinte passar direto, sem perguntar duas vezes o que a pessoa acabou de responder.
+  const [travaAberta, setTravaAberta] = useState(false)
+  const [confirmadoPara, setConfirmadoPara] = useState<string | null>(null)
 
   // Persistência fora do updater: dois toques rápidos no stepper não podem perder um
   // incremento (closure velha), e o updater funcional tem de continuar puro.
@@ -230,6 +237,17 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
       useAccountStore.getState().blockByQuota()
       return
     }
+    // Trava da variação (T-112): exercício com duas montagens de cena não passa daqui sem
+    // alguém dizer qual delas vale. Vem ANTES de ligar a câmera porque o próximo gesto de quem
+    // confirma é pôr o celular no chão — perguntar depois seria perguntar tarde.
+    //
+    // Também cobre o caminho de quem trocou de exercício com a câmera JÁ ligada: aí o CTA está
+    // em "Iniciar Exercício", e sem esta linha a pessoa entraria no treino sem nunca ter visto
+    // a pergunta.
+    if (shouldConfirmView(exerciseKey, { confirmadoPara })) {
+      setTravaAberta(true)
+      return
+    }
     // Câmera desligada: o toque LIGA e fica. Não navega (`session/startGate.ts`) — sair da
     // pré-configuração no instante do diálogo de permissão pulava justamente o que esta tela
     // serve para fazer, que é a pessoa se ver e se enquadrar antes de começar.
@@ -238,6 +256,17 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
       return
     }
     navigate({ screen: 'treino' })
+  }
+
+  /** Confirmou a variação: a trava fecha e o toque original segue seu caminho. */
+  const confirmarVista = (id: ViewId) => {
+    setViewId(id)
+    setConfirmadoPara(exerciseKey)
+    setTravaAberta(false)
+    // Segue o degrau que a trava interrompeu — ligar a câmera, ou entrar no treino se ela já
+    // estava ligada. Sem isto a confirmação custaria um segundo toque no mesmo botão.
+    if (!cameraReady) cameraControls?.start()
+    else navigate({ screen: 'treino' })
   }
 
   const encerrar = () => {
@@ -401,6 +430,17 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
 
             <CountdownSetting />
           </div>
+
+          {/* A trava (T-112) mora sobre a janela da câmera e acima de todo o cromo: enquanto
+              ela está aberta, o único caminho para frente é confirmar. */}
+          {travaAberta && (
+            <ViewConfirm
+              exercise={exerciseKey}
+              value={viewId}
+              onConfirm={confirmarVista}
+              onCancel={() => setTravaAberta(false)}
+            />
+          )}
 
           <div className="prep__bottom">
             <div className="prep__cta">

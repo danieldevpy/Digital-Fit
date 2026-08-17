@@ -5,6 +5,63 @@
 
 ---
 
+## 2026-08-17 (56) · T-112 — a trava que existe porque zero repetição é lido como "app ruim"
+
+A T-111 deu duas vistas à flexão e um controle na coluna da pré-configuração. O controle resolve
+para quem procura; esta task é sobre quem **não sabe que precisa procurar**. O risco, dito pelo
+Daniel e correto: a pessoa não percebe a escolha, monta a cena da vista errada, o treino termina
+em **zero**, e zero não é lido como "montei errado" — é lido como "esse app não funciona". Ela
+desinstala antes de descobrir que havia um botão.
+
+### O desenho
+
+Uma trava no caminho do **"Ligar câmera"**, e não numa tela de ajustes: o próximo gesto de quem
+confirma é pegar o celular e pôr no chão (ou em pé). Perguntar depois seria perguntar tarde.
+
+- **Cards grandes, os dois visíveis.** Não é um `<select>` porque as opções não são valores de um
+  campo — são duas montagens de cena, e o que se compara é *o que fazer com o celular*, não o
+  nome da vista. Esconder uma atrás de menu é a falha que a trava veio consertar.
+- **Responsivo por grid** (`auto-fit` + `minmax(150px, 1fr)`): lado a lado quando cabe, empilhado
+  quando não. Sem media query e sem medir em JS. Medido: lado a lado a 375 px e a 904 px,
+  empilhado a 320 px. Em tela baixa (≤ 620 px de altura) o parágrafo de apoio some primeiro,
+  porque os cards e o botão é que precisam caber.
+- **Checkbox "não mostrar novamente" desmarcado por padrão**, e isso é a decisão de produto da
+  caixa: quem chega pela primeira vez não tem como saber que vai querer dispensá-la. Marcar por
+  conveniência seria decidir por ela na tela que existe para ela decidir. O rótulo diz para onde
+  a escolha vai embora ("você continua trocando pelo card Câmera") — sem isso, "não mostrar" lê
+  como "perdi o controle", e aí ninguém marca, ou marca e se arrepende sem caminho de volta.
+
+### Três regras, e a terceira é a que evita virar praga
+
+1. Só aparece para exercício que **tem** variação. Polichinelo e agachamento nunca a veem.
+2. Só aparece **uma vez por visita**. Confirmou, ligou a câmera, tocou em "Iniciar" — não
+   pergunta de novo (`confirmadoPara`, estado do componente, não armazenamento).
+3. Quem dispensa nunca mais a vê **naquele exercício**. A dispensa é por slug, como o guia visto
+   e a própria variação: no dia em que outro exercício ganhar vistas ele terá uma decisão de cena
+   própria para ensinar, e herdar o "já sei" da flexão devolveria a sessão zerada.
+
+Sem armazenamento (Safari privado) a trava **aparece**. É o lado certo do erro: perguntar de novo
+custa um toque, não perguntar custa a sessão inteira.
+
+### O buraco que quase passou
+
+A trava intercepta o `iniciar`, não o botão — e por isso cobre também quem **trocou de exercício
+com a câmera já ligada**. Nesse caminho o CTA está em "Iniciar Exercício", e uma trava presa ao
+rótulo "Ligar câmera" deixaria a pessoa entrar no treino sem nunca ter visto a pergunta.
+
+Confirmar também **segue o degrau interrompido** (liga a câmera, ou entra no treino se ela já
+estava ligada), em vez de devolver a pessoa ao mesmo botão para tocar de novo.
+
+### Verificado no navegador, não só por teste
+
+Ciclo inteiro numa stack isolada: a trava abre no "Ligar câmera", **bloqueia o CTA de trás**
+(`elementFromPoint` devolve a própria trava), a escolha grava e reflete no card da coluna, o
+segundo toque na mesma visita não pergunta, o reload sem dispensa pergunta de novo, marcar o
+checkbox grava `digitalfit.view_gate_off.flexao=1`, e depois disso ela some e o card da coluna
+continua lá. Polichinelo: nem trava, nem card.
+
+---
+
 ## 2026-08-16 (55) · T-111 — a flexão contava zero de lado, e a culpa era do porteiro
 
 Cinco vídeos novos de flexão no corpus (três de perfil, dois de frente) e o pedido: melhorar,
