@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-08-17 (57) · T-113 — flexão e abdominal para todo mundo, com os lastros diferentes
+
+Pedido direto: ao deslogar, os dois somem, e o Daniel quer os dois visíveis para qualquer
+pessoa. Migration 0019 põe `flexao` e `abdominal` em **`validado`** — o único degrau que aparece
+para anônimo e Free.
+
+**O que essa linha custa, dito antes de fazer e registrado depois de feito.** Os dois chegam
+com lastro muito diferente:
+
+| exercício | corpus real | erro medido | vai a `validado` porque |
+|---|---|---|---|
+| `flexao` | 8 itens, 5 com rótulo contado a mão | **0,20 rep** (MAE) | tem medição |
+| `abdominal` | **nenhum vídeo de gente** | — | decisão de produto |
+
+O abdominal está exatamente na posição em que a flexão estava quando passou 19 h em produção
+contando zero — o incidente que originou o `test_corpus_regressao.py`. Se ele contar errado,
+contará errado para todo visitante, e não há um número neste repositório que preveja isso. A
+dívida continua declarada em `SEM_MATERIAL_REAL`, o teste que a cobra continua de pé, e o freio
+de mão é o campo Maturidade no painel: rebaixa numa edição, sem deploy. Um único vídeo de
+abdominal fecha a lacuna — a mesma bancada que mediu a flexão hoje mede ele em minutos.
+
+O `down` da migration devolve cada um ao degrau que a medição sustenta (`flexao` → `calibrado`,
+`abdominal` → `beta`), e não os dois ao mesmo lugar: um `down` simétrico apagaria a diferença
+que o `up` documenta.
+
+### Os testes que travavam a maturidade viraram testes da regra
+
+Quatro deles cobravam o catálogo do dia (`== ["jumping_jack", "squat"]`) para provar que `beta`
+não vaza. Com nenhum exercício em `beta`, eles passariam por vacuidade. Agora cada um **planta**
+um `beta` e cobra a regra em cima dele — medem a trava, não o inventário.
+
+---
+
 ## 2026-08-17 (56) · T-112 — a trava que existe porque zero repetição é lido como "app ruim"
 
 A T-111 deu duas vistas à flexão e um controle na coluna da pré-configuração. O controle resolve

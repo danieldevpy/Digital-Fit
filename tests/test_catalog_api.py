@@ -90,23 +90,24 @@ def test_os_dois_primeiros_nascem_validado_por_decisao_declarada() -> None:
 
 
 @pytest.mark.django_db
-def test_exercicio_de_chao_nasce_beta_e_so_sobe_por_medicao() -> None:
-    """O oposto do teste acima, e é o que separa decisão declarada de decisão medida.
+def test_os_exercicios_de_chao_estao_na_prateleira_de_todo_mundo() -> None:
+    """Onde a flexão e o abdominal pararam, e com que lastro cada um chegou lá.
 
-    A flexão e o abdominal (T-106/T-107) nasceram `beta` com os limiares calibrados no gerador
-    sintético, contra nenhum vídeo de gente treinando: o grandfathering da SPEC-018 valia para
-    os dois que já estavam no ar, e não é selo que se herda por chegar depois.
+    Os dois nasceram `beta` (T-106/T-107), calibrados só contra o boneco sintético. Hoje os dois
+    são `validado` (T-113, migration 0019) — **por decisão de produto, e não pelo mesmo
+    caminho**, o que este teste existe para não deixar esquecer:
 
-    **A flexão subiu (T-111, migration 0018), e o abdominal não — e a diferença entre os dois é
-    exatamente o corpus.** A flexão ganhou oito itens rotulados, cinco deles contados a mão, e
-    fecha com MAE de 0,20 repetição; o abdominal continua sem um único vídeo de gente real, que
-    é a mesma posição em que a flexão estava quando contava zero em produção. O degrau é medido,
-    não concedido.
+    - a **flexão** passou pela T-111: oito itens de corpus, cinco com rótulo contado a mão,
+      MAE de 0,20 repetição nas duas vistas;
+    - o **abdominal** não tem um único vídeo de gente real, e a dívida segue declarada em
+      `SEM_MATERIAL_REAL` (`tests/test_corpus_regressao.py`).
+
+    A migration 0019 documenta o risco; o caminho de volta é o campo Maturidade no painel.
     """
     maturidades = dict(Exercise.objects.values_list("slug", "maturity"))
 
-    assert maturidades["flexao"] == "calibrado"
-    assert maturidades["abdominal"] == "beta"
+    assert maturidades["flexao"] == "validado"
+    assert maturidades["abdominal"] == "validado"
 
 
 # --------------------------------------------------------------------------------------
@@ -413,18 +414,23 @@ def usuario_admin(db) -> User:
 def test_free_nao_ve_exercicio_beta(client) -> None:
     """Critério de aceite 1 da SPEC-020, metade da visibilidade.
 
-    `flexao` e `abdominal` nascem `beta` (migration 0012): limiares calibrados só contra o boneco
-    sintético. A lição do `[A/T-106]` é que isso não sobrevive a gente de verdade — mostrá-los ao
-    Free seria oferecer um treino que pode contar zero.
+    Nenhum exercício do catálogo é `beta` desde a T-113 — os quatro são `validado` —, então o
+    teste **põe um lá** para cobrar a regra. Cobrar a lista de slugs seria cobrar o catálogo de
+    hoje; o que precisa não voltar nunca é `beta` na tela de quem não é dev.
     """
+    Exercise.objects.filter(slug="abdominal").update(maturity="beta")
     cache.delete(SNAPSHOT_KEY)
 
-    assert sorted(exercises_for(None)) == ["jumping_jack", "squat"]
+    visiveis = sorted(exercises_for(None))
+
+    assert "abdominal" not in visiveis
+    assert visiveis == ["flexao", "jumping_jack", "squat"]
 
 
 @pytest.mark.django_db
 def test_is_admin_ve_beta_e_o_resto(usuario_admin) -> None:
     """A única porta do `beta`, e é ferramenta de dev — o mesmo direito da T-048."""
+    Exercise.objects.filter(slug="abdominal").update(maturity="beta")
     cache.delete(SNAPSHOT_KEY)
 
     assert sorted(exercises_for(usuario_admin)) == [
@@ -443,14 +449,15 @@ def test_beta_NUNCA_e_liberado_por_plano(usuario_free) -> None:
     por SQL passa por cima disso. Se a regra fosse só a comparação ordenada, este UPDATE abriria
     o laboratório inteiro para todo mundo. O `if` explícito é o que a torna uma regra.
     """
+    Exercise.objects.filter(slug="abdominal").update(maturity="beta")
     Plan.objects.filter(slug="free").update(min_maturity="beta")
     cache.delete(SNAPSHOT_KEY)
 
-    # `calibrado` desce junto com o piso — é comparação ordenada e é o que a coluna promete.
-    # O que NÃO desce em hipótese nenhuma é o `beta`, e é só isso que este teste guarda.
+    # O piso do plano desceu ao chão e mesmo assim o `beta` não passa — é só isso que este teste
+    # guarda, e é por isso que ele planta um `beta` em vez de contar com o catálogo do dia.
     visiveis = sorted(exercises_for(usuario_free))
-    assert visiveis == ["flexao", "jumping_jack", "squat"]
     assert "abdominal" not in visiveis
+    assert visiveis == ["flexao", "jumping_jack", "squat"]
 
 
 @pytest.mark.django_db
@@ -460,7 +467,9 @@ def test_maturidade_desconhecida_some_para_quem_nao_e_admin(usuario_free, usuari
     Exercise.objects.filter(slug="squat").update(maturity="dourado")
     cache.delete(SNAPSHOT_KEY)
 
-    assert sorted(exercises_for(usuario_free)) == ["jumping_jack"]
+    visiveis = sorted(exercises_for(usuario_free))
+    assert "squat" not in visiveis
+    assert visiveis == ["abdominal", "flexao", "jumping_jack"]
     assert "squat" in exercises_for(usuario_admin)
 
 
@@ -491,9 +500,14 @@ def test_rebaixar_maturidade_no_painel_some_do_free_sem_deploy(usuario_free) -> 
 
 @pytest.mark.django_db
 def test_a_admissao_recusa_exercicio_abaixo_da_maturidade(client, monkeypatch) -> None:
-    """A UI nunca é a única trava (SPEC-020 §Fase Inicial): forjar o cliente não abre `beta`."""
+    """A UI nunca é a única trava (SPEC-020 §Fase Inicial): forjar o cliente não abre `beta`.
+
+    Planta o `beta` em vez de contar com o catálogo do dia — desde a T-113 os quatro exercícios
+    são `validado`, e um teste que dependesse disso mediria o catálogo, não a trava.
+    """
     from tests.test_sessions import FakeRedis, admissao_falsa
 
+    Exercise.objects.filter(slug="flexao").update(maturity="beta")
     admissao_falsa(monkeypatch, FakeRedis())
     cache.delete(SNAPSHOT_KEY)
 
@@ -513,9 +527,12 @@ def test_o_catalogo_servido_nao_conta_o_que_esta_escondido(client) -> None:
     card na tela que o `POST /sessions` recusa, que é o `[A/T-051]`."""
     cache.delete(SNAPSHOT_KEY)
 
+    Exercise.objects.filter(slug="abdominal").update(maturity="beta")
+    cache.delete(SNAPSHOT_KEY)
+
     corpo = client.get("/api/config").json()
     slugs = {ex["slug"] for ex in corpo["exercises"]}
 
-    assert slugs == {"jumping_jack", "squat"}
+    assert slugs == {"jumping_jack", "squat", "flexao"}
     # E a maturidade viaja junto, para o selo da T-091 ter de onde sair.
     assert all("maturity" in ex for ex in corpo["exercises"])

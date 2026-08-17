@@ -83,12 +83,13 @@ afterEach(() => {
 /**
  * O embutido que o app pode mostrar antes de o servidor falar (T-090).
  *
- * NÃO é `Object.keys(EXERCISE_CATALOG)`: desde a T-090 o embutido é filtrado por maturidade, e
- * `flexao`/`abdominal` são `beta` — reservados a `is_admin` pela SPEC-020. Escrito à mão, e não
- * derivado do próprio catálogo, para que acrescentar um `beta` novo ao bundle não passe calado
- * por este teste.
+ * NÃO é `Object.keys(EXERCISE_CATALOG)`: o embutido é filtrado por maturidade, e o filtro só
+ * deixa passar `validado` — o piso honesto de quem ainda não sabe o próprio plano. Hoje os
+ * quatro passam (T-113 pôs flexão e abdominal em `validado`), e a lista continua **escrita à
+ * mão** justamente por isso: no dia em que um `beta` novo entrar no bundle, ele tem de fazer
+ * este teste falhar em vez de aparecer calado no primeiro paint.
  */
-const EMBUTIDO_VISIVEL = ['jumping_jack', 'squat']
+const EMBUTIDO_VISIVEL = ['jumping_jack', 'squat', 'flexao', 'abdominal']
 
 describe('o catálogo embutido é o default, não o dono', () => {
   it('sem servidor, vale o embutido — o app desenha sem rede', () => {

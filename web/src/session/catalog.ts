@@ -191,10 +191,9 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   flexao: {
     display_name: 'Flexão de braço',
     category: 'forca',
-    // `calibrado` desde a T-111 (migration 0018): corpus real de oito itens, cinco com rótulo
-    // contado a mão, MAE de 0,20 rep. Some para o Free e aparece para o assinante — a
-    // prateleira do Free continua sendo `validado`, e ela chega lá com a semana de produção.
-    maturity: 'calibrado',
+    // `validado` desde a T-113 (migration 0019): decisão de produto de liberar para todo
+    // mundo. Tem lastro — a T-111 mediu oito itens de corpus, MAE de 0,20 rep nas duas vistas.
+    maturity: 'validado',
     muscle_group: 'Peito, ombro e tríceps',
     default_tip: 'Corpo numa linha reta da cabeça aos pés, do começo ao fim.',
     main_angle: 'none',
@@ -210,7 +209,11 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   abdominal: {
     display_name: 'Abdominal',
     category: 'core',
-    maturity: 'beta',
+    // `validado` desde a T-113 (migration 0019), por decisão de produto — e **sem medição por
+    // trás**: não existe um único vídeo de gente real de abdominal, os limiares vêm do gerador
+    // sintético, e a dívida segue declarada em `SEM_MATERIAL_REAL`
+    // (`tests/test_corpus_regressao.py`). O caminho de volta é o campo Maturidade no painel.
+    maturity: 'validado',
     muscle_group: 'Abdômen',
     default_tip: 'Suba com o abdômen, devagar, sem puxar o pescoço.',
     main_angle: 'none',

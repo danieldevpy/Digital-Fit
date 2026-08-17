@@ -15,20 +15,21 @@ describe('maturidade no embutido (T-090 / SPEC-020)', () => {
     }
   })
 
-  it('o embutido espelha o banco: flexão `calibrado`, abdominal ainda `beta`', () => {
-    // Os dois nasceram `beta` na migration 0012. A flexão subiu na 0018 (T-111) porque ganhou
-    // corpus real — oito itens, cinco com rótulo contado a mão, MAE de 0,20 rep; o abdominal
-    // continua sem um único vídeo de gente treinando. O embutido tem de contar a mesma
-    // história que o servidor, senão o primeiro paint mostra um card que a admissão recusa.
-    expect(EXERCISE_CATALOG.flexao?.maturity).toBe('calibrado')
-    expect(EXERCISE_CATALOG.abdominal?.maturity).toBe('beta')
+  it('o embutido espelha o banco: os quatro em `validado`', () => {
+    // Os dois de chão nasceram `beta` (migration 0012), a flexão subiu a `calibrado` na 0018
+    // (T-111, com corpus medido) e os dois foram a `validado` na 0019 (T-113, decisão de
+    // produto). O embutido tem de contar a MESMA história que o servidor, senão o primeiro
+    // paint mostra um card que a admissão recusa — que é o `[A/T-051]` de volta.
+    expect(EXERCISE_CATALOG.flexao?.maturity).toBe('validado')
+    expect(EXERCISE_CATALOG.abdominal?.maturity).toBe('validado')
   })
 
   it('antes do servidor falar, só `validado` aparece', () => {
     // O embutido é o catálogo do primeiro paint e do offline. Sem o filtro, quem abre o app vê
-    // por um instante dois cards que o `POST /sessions` recusa — o `[A/T-051]` na janela mais
-    // curta e mais difícil de reproduzir que existe.
-    expect(Object.keys(currentCatalog())).toEqual(['jumping_jack', 'squat'])
+    // por um instante um card que o `POST /sessions` recusa — o `[A/T-051]` na janela mais
+    // curta e mais difícil de reproduzir que existe. Hoje os quatro são `validado` e passam;
+    // o filtro segue de pé para o próximo exercício que entrar abaixo disso.
+    expect(Object.keys(currentCatalog())).toEqual(['jumping_jack', 'squat', 'flexao', 'abdominal'])
   })
 
   it('o default do app é um exercício que todo mundo pode abrir', () => {
