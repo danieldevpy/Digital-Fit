@@ -4,6 +4,7 @@
 // O card NUNCA fica vazio — sem nada ativo, mostra o `default_tip`.
 //
 // Função pura: a decisão de o que mostrar não depende de React nem do WebSocket.
+import { t, tDynamic } from '../i18n'
 import { Code, Severity, type Severity as SeverityType } from '../lib/events'
 import { useConfigStore } from '../store/config'
 
@@ -27,51 +28,55 @@ export interface CoachCard {
 }
 
 /**
- * Texto em pt-BR **embutido**, para o primeiro paint e para o caso offline.
- *
- * A fonte da verdade é o catálogo do servidor (`catalog.pt-BR.yaml`, servido no
- * `GET /api/config` desde a T-126), pela regra da SPEC-018 §C: a frase que a pessoa lê suando
- * se reescreve sem deploy. Este mapa é o default do cliente, na mesma doutrina do catálogo de
- * exercícios — nunca é apagado quando o servidor chega, nunca some quando a rede cai.
- *
- * Ele precisa existir porque `scene.warning` **não tem campo `message`** (o contrato manda só o
- * código) e porque o relatório guarda `{código: contagem}`. Está completo de propósito: um
- * código de fora deste mapa e fora do servidor aparece como identificador na tela, que foi
- * exatamente o que aconteceu com os seis códigos de chão e de agachamento.
- */
-const CODE_MESSAGES: Record<string, string> = {
-  [Code.OUT_OF_FRAME]: 'Apareça inteiro no quadro',
-  [Code.TOO_FAR]: 'Aproxime-se da câmera',
-  [Code.TOO_CLOSE]: 'Afaste-se da câmera',
-  [Code.ARMS_TOO_LOW]: 'Estenda mais os braços acima da cabeça',
-  [Code.LEGS_TOO_CLOSED]: 'Abra mais as pernas',
-  [Code.SQUAT_TOO_SHALLOW]: 'Desça mais no agachamento',
-  [Code.PUSHUP_TOO_SHALLOW]: 'Desça mais na flexão',
-  [Code.HIPS_SAGGING]: 'Contraia o abdômen',
-  [Code.HIPS_PIKED]: 'Abaixe o quadril',
-  [Code.CRUNCH_TOO_SHALLOW]: 'Suba um pouco mais',
-  [Code.CRUNCH_TOO_FAST]: 'Mais devagar',
-}
-
-/**
  * Nada no contrato diz que um aviso deixou de valer — não existe evento de
  * "resolvido". Sem TTL o card ficaria preso no último aviso até o fim da sessão,
  * então o cliente expira sozinho. É cosmético: a autoridade segue no worker.
  */
 export const COACH_ENTRY_TTL_MS = 6000
 
-export const COACH_TITLE = 'Dica do treinador'
+/**
+ * Título do card, nas duas línguas (namespace `catalog`, T-152: `coach.title`). Função, não
+ * `const` — mesmo motivo do resto desta migração: `resolveCoachCard` é chamada a cada render do
+ * HUD, e uma constante de módulo congelaria no idioma de quando o bundle carregou.
+ */
+function coachTitle(): string {
+  return t('catalog:coach.title')
+}
 
 /**
- * Texto em pt-BR de um código solto. O relatório (SPEC-010) recebe só `{code: contagem}` e
- * precisa do mesmo texto que o HUD mostrou ao vivo — daí reusar esta função em vez de escrever
+ * Texto **embutido**, nas duas línguas (T-152; antes, herança pendente da T-144), para o
+ * primeiro paint e para o caso offline.
+ *
+ * A fonte da verdade é o catálogo do servidor (`catalog.<locale>.yaml`, servido no
+ * `GET /api/config` desde a T-126, com idioma desde a T-144), pela regra da SPEC-018 §C: a
+ * frase que a pessoa lê suando se reescreve sem deploy. Este dicionário (`catalog:code.*`) é o
+ * default do cliente, na mesma doutrina do catálogo de exercícios — nunca é apagado quando o
+ * servidor chega, nunca some quando a rede cai, e agora nasce nas duas línguas por construção
+ * (o mesmo `tsc` que cobra `dict/en/*` de `dict/pt-BR/*` cobra este namespace).
+ *
+ * Ele precisa existir porque `scene.warning` **não tem campo `message`** (o contrato manda só o
+ * código) e porque o relatório guarda `{código: contagem}`. Cobre TODO o enum `Code` de
+ * propósito — código de fora deste mapa e fora do servidor aparece como identificador cru na
+ * tela, que foi exatamente o que aconteceu com os seis códigos de chão e de agachamento antes
+ * da T-126 (o teste `textForCode` abaixo cobra isso).
+ *
+ * `tDynamic`, não `t()`: `code` é `string` (código desconhecido é um caso coberto de propósito
+ * — ver o teste "código desconhecido devolve ele mesmo"), não um literal fechado em `TKey`.
+ */
+function textoEmbutido(code: string): string {
+  return tDynamic(`catalog:code.${code}`, code)
+}
+
+/**
+ * Texto de um código solto, no idioma ativo. O relatório (SPEC-010) recebe só `{code: contagem}`
+ * e precisa do mesmo texto que o HUD mostrou ao vivo — daí reusar esta função em vez de escrever
  * uma segunda tradução, que envelheceria em separado.
  *
  * Ordem: servidor, embutido, o próprio código. O último degrau continua sendo feio de
  * propósito — código na tela é um sintoma que se vê, e é assim que a T-126 foi descoberta.
  */
 export function textForCode(code: string): string {
-  return useConfigStore.getState().feedback?.[code]?.message ?? CODE_MESSAGES[code] ?? code
+  return useConfigStore.getState().feedback?.[code]?.message ?? textoEmbutido(code)
 }
 
 function isFresh(entry: CoachEntry | null, now: number, ttlMs: number): entry is CoachEntry {
@@ -109,7 +114,7 @@ export function resolveCoachCard(input: ResolveCoachCardInput): CoachCard {
 
   if (isFresh(input.scene, input.now, ttl)) {
     return {
-      title: COACH_TITLE,
+      title: coachTitle(),
       text: textOf(input.scene),
       hint: input.scene.hint ?? null,
       tone: 'scene',
@@ -118,14 +123,14 @@ export function resolveCoachCard(input: ResolveCoachCardInput): CoachCard {
 
   if (isFresh(input.feedback, input.now, ttl)) {
     return {
-      title: COACH_TITLE,
+      title: coachTitle(),
       text: textOf(input.feedback),
       hint: input.feedback.hint ?? null,
       tone: 'feedback',
     }
   }
 
-  return { title: COACH_TITLE, text: input.defaultTip, hint: null, tone: 'default' }
+  return { title: coachTitle(), text: input.defaultTip, hint: null, tone: 'default' }
 }
 
 export function entryFromEvent(

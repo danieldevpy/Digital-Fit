@@ -5,6 +5,88 @@
 
 ---
 
+## 2026-08-18 (69) · T-152 — Namespace `catalog`: o embutido offline nasce nas duas línguas
+
+Escopo: SPEC-025 Onda 2, namespace `catalog`. Migrou o catálogo embutido de exercícios
+(`session/catalog.ts`), as variações de câmera da flexão (`session/exerciseViews.ts`) e —
+herança explícita da T-144 — o mapa `CODE_MESSAGES` do card do treinador
+(`session/coachCard.ts`). `ui/exerciseFigures.ts` entrou no gate do ESLint por ser a mesma pasta
+migrada, mas não tinha texto para mover (é registro slug→ícone, puro).
+
+### O problema que não é óbvio: texto de módulo congela no idioma do import
+
+`EXERCISE_CATALOG` e `EXERCISE_VIEWS` são objetos montados **uma vez**, na primeira importação
+do módulo. Se os campos de texto (`display_name`, `muscle_group`, `default_tip`, `scene_tip`,
+`label`, `short`, `phone`, `guide_steps[].text`) fossem strings soltas com `t()` chamado na
+montagem, o valor ficaria congelado no idioma detectado NAQUELE instante — o mesmo bug que o
+comentário de `TABS` em `shell/TabBar.tsx` (T-142) já registrava para não repetir. A saída:
+todo campo de texto virou **getter** (`get display_name() { return t('catalog:...') }`), que
+chama `t()` de novo a cada leitura, não na montagem. `category`, `maturity`, `demo_img`,
+`dot_color`, `main_angle` e os caminhos de imagem continuam literais — vocabulário de contrato
+e caminho de arquivo não são texto.
+
+`categoryLabel(slug)` e `textForCode(code)` recebem a chave em **tempo de execução** (slug e
+código não são literais estáticos), então não davam para tipar contra `TKey` sem um `as`
+mentiroso. Ganharam `tDynamic(chave, fallback)`, nova função em `i18n/index.ts` — irmã de `t()`,
+mas devolve `fallback` (o slug/código cru) em vez da chave namespaced quando não encontra nada,
+preservando a doutrina "feio de propósito, para ser visto" que `categoryLabel` e `textForCode`
+já tinham antes desta task. Testada em `i18n/index.test.ts`.
+
+`useCatalog()` passou a assinar `useI18nStore` além de `useConfigStore`: os getters do embutido
+já respondem certo em qualquer leitura, mas sem o locale nas dependências do `useMemo` o
+componente não teria motivo para re-renderizar ao trocar de idioma.
+
+### O embutido de `CODE_MESSAGES` (herança da T-144)
+
+`session/coachCard.ts` tinha um mapa `Record<string, string>` só em pt-BR, reservado
+explicitamente para esta task no DEVLOG da T-144. Virou `textoEmbutido(code)`, usando
+`tDynamic('catalog:code.${code}', code)` — as 11 mensagens (`OUT_OF_FRAME`...`CRUNCH_TOO_FAST`)
+foram para `catalog:code.*`, com o `en` reaproveitando literalmente o texto de
+`workers/analysis_worker/feedback/catalog.en.yaml` (T-144): é o mesmo aviso dito pelo servidor
+quando há rede e pelo embutido quando não há, e ninguém deveria notar a troca. `COACH_TITLE`
+virou `coachTitle()` (função interna, `catalog:coach.title`) pelo mesmo motivo dos getters acima.
+
+### `CENA_PADRAO` mudou de forma, e por isso `GuideScreen.tsx` mudou uma linha
+
+`CENA_PADRAO` era uma `const` exportada e consumida direto em `screens/GuideScreen.tsx`
+(`view?.scene_tip ?? info.scene_tip ?? CENA_PADRAO`). Virou `cenaPadrao()` pela mesma razão dos
+getters — e por não poder ser getter fora de um objeto/classe, o único jeito honesto era função.
+Ajuste mecânico de uma linha em `GuideScreen.tsx` (chamar `cenaPadrao()`), sem tocar no texto
+próprio daquela tela (pertence à T-148, namespace `funnel`, ainda não migrada).
+
+### Testes existentes que quebrariam calados
+
+`session/catalog.test.ts`, `catalogGroups.test.ts`, `serverConfig.test.ts`,
+`exerciseViews.test.ts`, `coachCard.test.ts` e `report/reportSummary.test.ts` checavam texto em
+pt-BR direto (`'Agachamento'`, `'Força'`, `'Apareça inteiro no quadro'`...). Locale ativo em
+teste (`vitest` roda em `environment: 'node'`, sem `window`) é `'en'` por default
+(`DEFAULT_LOCALE`, SPEC-025 §3.3) — sem travar o locale, essas asserções passariam a falhar
+silenciosamente contra texto em inglês. Cada arquivo ganhou `useI18nStore.getState().setLocale
+('pt-BR')` (top-level ou `beforeEach`, seguindo o padrão já usado em `auth/api.test.ts`).
+Acrescentei também casos novos provando as DUAS línguas (não só que o pt-BR sobrevive) em
+`catalog.test.ts`, `exerciseViews.test.ts` e `coachCard.test.ts` — é o critério 1 da SPEC-025 e
+o ponto real desta task.
+
+### Chaves criadas (namespace `catalog`, 56 no total)
+
+`category.*` (4), `scene.padrao`/`scene.chao` (2), `exercise.<slug>.*` para os quatro exercícios
+embutidos (24, com `guide_step.0..2`), `view.flexao.<profile|frontal>.*` (14), `coach.title`
+(1), `code.<CODE>` para os 11 códigos do contrato. Tradução em tom de treinador, não literal.
+
+### Gates
+
+`npm run lint` (0 erros), `npm run typecheck` (`tsc -b --force`, 0 erros), `npm run test`
+(639/639, 57 arquivos — 634 preexistentes + 5 novos). Worktree precisou de `git merge master`
+antes de começar: o branch tinha sido criado antes de T-141/T-142/T-143/T-144 aterrissarem em
+`master`, e o runtime de i18n (pré-requisito direto) não existia ainda nele.
+
+### Pendências
+
+Nenhuma nova. `ui/exerciseFigures.ts` não tinha texto a migrar — entrou no override do ESLint
+só por doutrina de pasta, não por ter algo a corrigir.
+
+---
+
 ## 2026-08-18 (65) · T-142 — Runtime i18n do cliente: consertando o que a sessão anterior deixou pela metade
 
 Sessão que retomou trabalho não commitado (a anterior caiu no meio). O grosso de `web/src/i18n/`

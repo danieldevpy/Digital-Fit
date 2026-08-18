@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
-import { currentCatalog, DEFAULT_EXERCISE, EXERCISE_CATALOG } from './catalog'
+import { useI18nStore } from '../i18n/store'
+import { categoryLabel, currentCatalog, DEFAULT_EXERCISE, EXERCISE_CATALOG, getExercise } from './catalog'
 import { useConfigStore } from '../store/config'
 
 // O store precisa estar vazio para `currentCatalog` cair no embutido — é justamente esse o
@@ -34,5 +35,45 @@ describe('maturidade no embutido (T-090 / SPEC-020)', () => {
 
   it('o default do app é um exercício que todo mundo pode abrir', () => {
     expect(EXERCISE_CATALOG[DEFAULT_EXERCISE]?.maturity).toBe('validado')
+  })
+})
+
+describe('o embutido existe nas duas línguas (T-152, SPEC-025 critério 1)', () => {
+  afterEach(() => useI18nStore.getState().setLocale('pt-BR'))
+
+  it('o texto muda de idioma sem reimportar o módulo — não é congelado no import', () => {
+    // O ponto central desta task: `EXERCISE_CATALOG` é montado UMA VEZ, no import, e o texto
+    // não pode congelar no idioma de quando o bundle carregou (o mesmo bug que o comentário de
+    // `TABS`, em `shell/TabBar.tsx`, evitou desde a T-142).
+    useI18nStore.getState().setLocale('pt-BR')
+    expect(getExercise('squat').display_name).toBe('Agachamento')
+
+    useI18nStore.getState().setLocale('en')
+    expect(getExercise('squat').display_name).toBe('Squat')
+  })
+
+  it('nenhum campo de texto do embutido fica em branco em nenhuma das duas línguas', () => {
+    for (const locale of ['pt-BR', 'en'] as const) {
+      useI18nStore.getState().setLocale(locale)
+      for (const slug of Object.keys(EXERCISE_CATALOG)) {
+        const info = getExercise(slug)
+        expect(info.display_name.length, `${locale}/${slug}.display_name`).toBeGreaterThan(0)
+        expect(info.muscle_group.length, `${locale}/${slug}.muscle_group`).toBeGreaterThan(0)
+        expect(info.default_tip.length, `${locale}/${slug}.default_tip`).toBeGreaterThan(0)
+        for (const passo of info.guide_steps) {
+          expect(passo.text.length, `${locale}/${slug}.guide_steps`).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+
+  it('categoria conhecida traduz nas duas línguas — desconhecida devolve o slug nas duas', () => {
+    useI18nStore.getState().setLocale('pt-BR')
+    expect(categoryLabel('forca')).toBe('Força')
+    expect(categoryLabel('hiit')).toBe('hiit')
+
+    useI18nStore.getState().setLocale('en')
+    expect(categoryLabel('forca')).toBe('Strength')
+    expect(categoryLabel('hiit')).toBe('hiit')
   })
 })

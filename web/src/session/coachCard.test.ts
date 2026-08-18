@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { useI18nStore } from '../i18n/store'
 import { Code, Severity } from '../lib/events'
 import { useConfigStore } from '../store/config'
 import {
@@ -8,6 +9,10 @@ import {
   textForCode,
   type CoachEntry,
 } from './coachCard'
+
+// O embutido (`catalog:code.*`, T-152) é getter resolvido por `t()` — as fixtures deste
+// arquivo checam texto em pt-BR, então o locale precisa estar travado nele.
+useI18nStore.getState().setLocale('pt-BR')
 
 const NOW = 1_700_000_000_000
 const DEFAULT_TIP = 'Mantenha o core contraído e movimentos controlados.'
@@ -174,5 +179,18 @@ describe('textForCode', () => {
 
   it('código desconhecido devolve ele mesmo — feio de propósito, para ser visto', () => {
     expect(textForCode('CODIGO_QUE_NAO_EXISTE')).toBe('CODIGO_QUE_NAO_EXISTE')
+  })
+
+  it('o embutido existe nas duas línguas (T-152, herança da T-144)', () => {
+    try {
+      useI18nStore.getState().setLocale('en')
+      for (const code of Object.values(Code)) {
+        expect(textForCode(code), `código sem texto embutido em en: ${code}`).not.toBe(code)
+      }
+      expect(textForCode(Code.OUT_OF_FRAME)).toBe('Get your whole body in frame')
+      expect(textForCode('CODIGO_QUE_NAO_EXISTE')).toBe('CODIGO_QUE_NAO_EXISTE')
+    } finally {
+      useI18nStore.getState().setLocale('pt-BR')
+    }
   })
 })

@@ -129,3 +129,21 @@ export function useT(): (chave: TKey, params?: Params) => string {
   const locale = useI18nStore((state) => state.locale)
   return useCallback((chave: TKey, params?: Params) => translate(locale, chave, params), [locale])
 }
+
+/**
+ * Como `t()`, mas para chave MONTADA em tempo de execução — slug de categoria, código de
+ * feedback, id de exercício (T-152): `TKey` não cobre essas porque o valor não é conhecido em
+ * tempo de compilação (`Extract<keyof DictShape[N], string>` exige literal estático), então
+ * `${namespace}:${variável}` nunca seria atribuível a `TKey` sem um `as` mentiroso.
+ *
+ * `translate()` já devolve a própria chave quando não encontra nada (§ doc de `translate`) — o
+ * que basta para chave FIXA, mas aqui a chave é montada (`catalog:category.${slug}`), então
+ * devolver ela mesma exporia o namespace na tela. `fallback` é o que aparece nesse caso — o
+ * `slug`/`code` cru, a mesma doutrina de "feio de propósito, para ser visto" que já existia em
+ * `categoryLabel` e `textForCode` antes desta task.
+ */
+export function tDynamic(chave: string, fallback: string): string {
+  const locale = useI18nStore.getState().locale
+  const resolvido = translate(locale, chave)
+  return resolvido === chave ? fallback : resolvido
+}

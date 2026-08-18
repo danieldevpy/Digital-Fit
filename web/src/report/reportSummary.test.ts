@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { useI18nStore } from '../i18n/store'
 import { Code, SessionEndReason } from '../lib/events'
 import { cadenceBars, improvements, reasonText, windowLabel } from './reportSummary'
 import type { SessionReport } from './sessionReport'
+
+// `improvements` passa pelo `textForCode` (T-152: `catalog:code.*`, getter resolvido por
+// `t()`) — as fixtures deste arquivo checam texto em pt-BR.
+useI18nStore.getState().setLocale('pt-BR')
 
 function relatorio(parcial: Partial<SessionReport> = {}): SessionReport {
   return {

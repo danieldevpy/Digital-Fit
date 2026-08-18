@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { installStorage, uninstallStorage } from '../auth/testStorage'
+import { useI18nStore } from '../i18n/store'
 import { useConfigStore, type ServerConfig, type ServerExercise } from '../store/config'
 import {
   EXERCISE_CATALOG,
@@ -72,6 +73,9 @@ function config(exercises: ServerExercise[]): ServerConfig {
 beforeEach(() => {
   installStorage()
   useConfigStore.getState().reset()
+  // O embutido (`catalog:exercise.*`/`catalog:category.*`, T-152) é getter resolvido por
+  // `t()` — as fixtures deste arquivo checam texto em pt-BR ('Agachamento', 'Força').
+  useI18nStore.getState().setLocale('pt-BR')
 })
 
 afterEach(() => {

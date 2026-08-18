@@ -14,6 +14,8 @@
 // embutido puro, e é isso que o teste da figura (T-082) deve cobrar — figura nova exige
 // deploy, então cobrar figura de exercício que só existe no servidor seria cobrar o impossível.
 import { useMemo } from 'react'
+import { t, tDynamic } from '../i18n'
+import { useI18nStore } from '../i18n/store'
 import { useConfigStore, type ServerExercise } from '../store/config'
 
 export interface ExerciseInfo {
@@ -69,22 +71,16 @@ export interface ExerciseInfo {
 }
 
 /**
- * Rótulo de exibição de uma categoria.
+ * Rótulo de exibição de uma categoria (namespace `catalog`, T-152: `category.<slug>`).
  *
  * O catálogo guarda o **slug** desde a T-074 porque categoria virou contrato — conquistas
  * (SPEC-019) e o mix por objetivo (SPEC-022) consomem os slugs, e o cliente guardava a string
  * de exibição (`'Cardio'`, `'Força'`). Slug desconhecido devolve ele mesmo em vez de vazio:
- * uma categoria nova no servidor aparece feia, e não some da tela.
+ * uma categoria nova no servidor aparece feia, e não some da tela. Chave montada em tempo de
+ * execução ⇒ `tDynamic`, não `t()` (a chave não é um literal estático — ver o docstring dela).
  */
-const CATEGORY_LABELS: Record<string, string> = {
-  cardio: 'Cardio',
-  forca: 'Força',
-  core: 'Core',
-  mobilidade: 'Mobilidade',
-}
-
 export function categoryLabel(slug: string): string {
-  return CATEGORY_LABELS[slug] ?? slug
+  return tDynamic(`catalog:category.${slug}`, slug)
 }
 
 /**
@@ -146,85 +142,137 @@ export function groupByCategory(
  *
  * Vive aqui, e não dentro da tela do Guia, porque agora ela é o **fallback** de um campo do
  * catálogo: quem não declara `scene_tip` recebe esta.
+ *
+ * **Função, não constante** (T-152, namespace `catalog`: `scene.padrao`) — de propósito, o
+ * mesmo motivo do comentário em `TABS` de `shell/TabBar.tsx`: uma `const` de módulo chamaria
+ * `t()` uma vez só, na primeira importação, e congelaria no idioma de quando o bundle carregou.
+ * Quem consome (`GuideScreen.tsx`) passa a chamar `cenaPadrao()`.
  */
-export const CENA_PADRAO =
-  'celular apoiado na vertical, uns 2 metros de distância, corpo inteiro no quadro e luz vindo de frente.'
+export function cenaPadrao(): string {
+  return t('catalog:scene.padrao')
+}
 
 /** A cena dos exercícios de chão (SPEC-020 Tier C): o celular deita junto com a pessoa. */
-const CENA_CHAO =
-  'celular deitado no chão, de lado, a uns 2 metros — a tela precisa ver seu corpo inteiro de perfil, da cabeça aos pés.'
+function cenaChao(): string {
+  return t('catalog:scene.chao')
+}
 
+/**
+ * O catálogo embutido. Os campos de TEXTO (`display_name`, `muscle_group`, `default_tip`,
+ * `scene_tip`, `guide_steps[].text`) são **getters**, pela mesma razão de `cenaPadrao()` acima:
+ * este objeto é montado uma vez só, no import — sem getter, o texto congelaria no idioma
+ * detectado nesse instante e nunca mais mudaria, nem trocando `useI18nStore.setLocale` depois
+ * (é exatamente o bug que `EXERCISE_CATALOG.squat.display_name` teria se fosse `string` solta).
+ * `category`, `maturity`, `demo_img`, `dot_color`, `main_angle` continuam literais: são
+ * vocabulário de contrato ou caminho de arquivo, não texto.
+ */
 export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
   jumping_jack: {
-    display_name: 'Polichinelo',
+    get display_name() {
+      return t('catalog:exercise.jumping_jack.display_name')
+    },
     category: 'cardio',
     maturity: 'validado',
-    muscle_group: 'Corpo inteiro',
-    default_tip: 'Mantenha o core contraído e movimentos controlados.',
+    get muscle_group() {
+      return t('catalog:exercise.jumping_jack.muscle_group')
+    },
+    get default_tip() {
+      return t('catalog:exercise.jumping_jack.default_tip')
+    },
     main_angle: 'arm_abduction',
     demo_img: '/img/guia/polichinelo-2.jpg',
     dot_color: '#34d399',
-    guide_steps: [
-      { img: '/img/guia/polichinelo-1.jpg', text: 'Fique em pé, de frente para a câmera, corpo inteiro visível, braços ao lado do corpo.' },
-      { img: '/img/guia/polichinelo-2.jpg', text: 'Salte abrindo as pernas e levando os braços acima da cabeça, ao mesmo tempo.' },
-      { img: '/img/guia/polichinelo-1.jpg', text: 'Volte à posição inicial no salto seguinte — cada ida e volta conta uma repetição.' },
-    ],
+    get guide_steps() {
+      return [
+        { img: '/img/guia/polichinelo-1.jpg', text: t('catalog:exercise.jumping_jack.guide_step.0') },
+        { img: '/img/guia/polichinelo-2.jpg', text: t('catalog:exercise.jumping_jack.guide_step.1') },
+        { img: '/img/guia/polichinelo-1.jpg', text: t('catalog:exercise.jumping_jack.guide_step.2') },
+      ]
+    },
   },
   squat: {
-    display_name: 'Agachamento',
+    get display_name() {
+      return t('catalog:exercise.squat.display_name')
+    },
     category: 'forca',
     maturity: 'validado',
-    muscle_group: 'Pernas e glúteos',
-    default_tip: 'Desça com o peso nos calcanhares e o peito aberto.',
+    get muscle_group() {
+      return t('catalog:exercise.squat.muscle_group')
+    },
+    get default_tip() {
+      return t('catalog:exercise.squat.default_tip')
+    },
     main_angle: 'none',
     demo_img: '/img/guia/agachamento-2.jpg',
     dot_color: '#4d8cff',
-    guide_steps: [
-      { img: '/img/guia/agachamento-1.jpg', text: 'Pés na largura dos ombros, pontas levemente para fora, braços à frente para equilibrar.' },
-      { img: '/img/guia/agachamento-2.jpg', text: 'Desça empurrando o quadril para trás, peso nos calcanhares, até as coxas ficarem paralelas ao chão.' },
-      { img: '/img/guia/agachamento-1.jpg', text: 'Suba estendendo as pernas sem tirar os pés do chão — subida completa conta a repetição.' },
-    ],
+    get guide_steps() {
+      return [
+        { img: '/img/guia/agachamento-1.jpg', text: t('catalog:exercise.squat.guide_step.0') },
+        { img: '/img/guia/agachamento-2.jpg', text: t('catalog:exercise.squat.guide_step.1') },
+        { img: '/img/guia/agachamento-1.jpg', text: t('catalog:exercise.squat.guide_step.2') },
+      ]
+    },
   },
   // Os dois de chão (T-106/T-107). As fotos são de PERFIL com a câmera no chão de propósito:
   // a demo do Guia é a primeira coisa que ensina o enquadramento, e enquadramento errado num
   // exercício de chão não é estética — é a sessão inteira sair zerada.
   flexao: {
-    display_name: 'Flexão de braço',
+    get display_name() {
+      return t('catalog:exercise.flexao.display_name')
+    },
     category: 'forca',
     // `validado` desde a T-113 (migration 0019): decisão de produto de liberar para todo
     // mundo. Tem lastro — a T-111 mediu oito itens de corpus, MAE de 0,20 rep nas duas vistas.
     maturity: 'validado',
-    muscle_group: 'Peito, ombro e tríceps',
-    default_tip: 'Corpo numa linha reta da cabeça aos pés, do começo ao fim.',
+    get muscle_group() {
+      return t('catalog:exercise.flexao.muscle_group')
+    },
+    get default_tip() {
+      return t('catalog:exercise.flexao.default_tip')
+    },
     main_angle: 'none',
     demo_img: '/img/guia/flexao-2.jpg',
     dot_color: '#f59e0b',
-    scene_tip: CENA_CHAO,
-    guide_steps: [
-      { img: '/img/guia/flexao-1.jpg', text: 'Deite o celular no chão, de lado, e fique de perfil para ele — ele precisa ver você da cabeça aos pés.' },
-      { img: '/img/guia/flexao-1.jpg', text: 'Comece na prancha: mãos abaixo dos ombros, braço estendido, corpo numa linha reta da cabeça aos calcanhares.' },
-      { img: '/img/guia/flexao-2.jpg', text: 'Desça dobrando o cotovelo até uns 90°, com o peito perto do chão, e suba estendendo o braço — a subida completa conta a repetição.' },
-    ],
+    get scene_tip() {
+      return cenaChao()
+    },
+    get guide_steps() {
+      return [
+        { img: '/img/guia/flexao-1.jpg', text: t('catalog:exercise.flexao.guide_step.0') },
+        { img: '/img/guia/flexao-1.jpg', text: t('catalog:exercise.flexao.guide_step.1') },
+        { img: '/img/guia/flexao-2.jpg', text: t('catalog:exercise.flexao.guide_step.2') },
+      ]
+    },
   },
   abdominal: {
-    display_name: 'Abdominal',
+    get display_name() {
+      return t('catalog:exercise.abdominal.display_name')
+    },
     category: 'core',
     // `validado` desde a T-113 (migration 0019), por decisão de produto — e **sem medição por
     // trás**: não existe um único vídeo de gente real de abdominal, os limiares vêm do gerador
     // sintético, e a dívida segue declarada em `SEM_MATERIAL_REAL`
     // (`tests/test_corpus_regressao.py`). O caminho de volta é o campo Maturidade no painel.
     maturity: 'validado',
-    muscle_group: 'Abdômen',
-    default_tip: 'Suba com o abdômen, devagar, sem puxar o pescoço.',
+    get muscle_group() {
+      return t('catalog:exercise.abdominal.muscle_group')
+    },
+    get default_tip() {
+      return t('catalog:exercise.abdominal.default_tip')
+    },
     main_angle: 'none',
     demo_img: '/img/guia/abdominal-2.jpg',
     dot_color: '#a78bfa',
-    scene_tip: CENA_CHAO,
-    guide_steps: [
-      { img: '/img/guia/abdominal-1.jpg', text: 'Deite o celular no chão, de lado, e deite-se de perfil para ele — ele precisa ver seu tronco e seus joelhos.' },
-      { img: '/img/guia/abdominal-1.jpg', text: 'Deite de costas com os joelhos dobrados e os pés apoiados, calcanhar perto do quadril: é o joelho levantado que serve de referência para a contagem.' },
-      { img: '/img/guia/abdominal-2.jpg', text: 'Suba encolhendo o abdômen até as escápulas saírem do chão, mantendo a lombar apoiada, e volte devagar — a descida completa conta a repetição.' },
-    ],
+    get scene_tip() {
+      return cenaChao()
+    },
+    get guide_steps() {
+      return [
+        { img: '/img/guia/abdominal-1.jpg', text: t('catalog:exercise.abdominal.guide_step.0') },
+        { img: '/img/guia/abdominal-1.jpg', text: t('catalog:exercise.abdominal.guide_step.1') },
+        { img: '/img/guia/abdominal-2.jpg', text: t('catalog:exercise.abdominal.guide_step.2') },
+      ]
+    },
   },
 }
 
@@ -294,12 +342,22 @@ export function currentCatalog(): Record<string, ExerciseInfo> {
 /** Versão reativa de `currentCatalog` — as telas que listam exercícios usam esta. */
 export function useCatalog(): { keys: string[]; catalog: Record<string, ExerciseInfo> } {
   const doServidor = useConfigStore((state) => state.exercises)
+  // Assina o locale (T-152): os campos de texto do embutido são getters resolvidos por `t()` a
+  // cada leitura (correto mesmo sem isto), mas sem o locale nas dependências do `useMemo` o
+  // COMPONENTE não teria motivo para re-renderizar ao trocar de idioma — o objeto memoizado
+  // continuaria de pé, e ninguém chamaria os getters de novo até a próxima causa de render.
+  const locale = useI18nStore((state) => state.locale)
   return useMemo(() => {
     const catalog = doServidor
       ? Object.fromEntries(doServidor.map((ex) => [ex.slug, daServidor(ex)]))
       : embutidoVisivel()
     return { keys: Object.keys(catalog), catalog }
-  }, [doServidor])
+    // `locale` não aparece no corpo do memo — os getters do embutido leem o store sozinhos
+    // (`t()`). Ele está aqui só como GATILHO de recomputação para o componente re-renderizar
+    // ao trocar de idioma; o lint não tem como saber disso e sinaliza "dependência
+    // desnecessária" por engano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doServidor, locale])
 }
 
 export function isExerciseKey(key: unknown): key is string {
