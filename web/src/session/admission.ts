@@ -128,8 +128,8 @@ export async function requestSession(
   } catch (erro) {
     throw new AdmissionError(
       erro instanceof Error
-        ? t('session:admission.api_down_detail', { reason: erro.message })
-        : t('session:admission.api_down'),
+        ? t('errors:api_down_detail', { reason: erro.message })
+        : t('errors:api_down'),
     )
   }
 

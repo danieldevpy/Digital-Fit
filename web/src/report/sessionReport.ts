@@ -86,8 +86,8 @@ export async function fetchReport(
   } catch (erro) {
     throw new ReportError(
       erro instanceof Error
-        ? t('report:fetch.api_down_detail', { reason: erro.message })
-        : t('report:fetch.api_down'),
+        ? t('errors:api_down_detail', { reason: erro.message })
+        : t('errors:api_down'),
     )
   }
 

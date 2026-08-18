@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { EngagementSection } from '../engagement/EngagementSection'
 import { useHistoryStore } from '../history/store'
+import { useT } from '../i18n'
 import { useFreshHistory } from '../history/useFreshHistory'
 import { formatDuration } from '../report/sessionReport'
 import { getExercise } from '../session/catalog'
@@ -26,6 +27,8 @@ import { login, logout, register } from './api'
  * vira botão nesta mesma linha.
  */
 function QuotaBlock({ notice, upsell }: { notice: QuotaNotice; upsell: boolean }) {
+  const t = useT()
+
   return (
     <div className="account__quota">
       <p className="account__quota-title">{notice.title}</p>
@@ -35,20 +38,21 @@ function QuotaBlock({ notice, upsell }: { notice: QuotaNotice; upsell: boolean }
         {notice.renew && <span className="account__quota-renew">{notice.renew}</span>}
       </p>
       {upsell && (
-        <p className="account__quota-soon">Assinatura em breve — e aí o limite deixa de existir.</p>
+        <p className="account__quota-soon">{t('account:quota.upsell_soon')}</p>
       )}
     </div>
   )
 }
 
 export function AccountSheet() {
+  const t = useT()
   const open = useAccountStore((state) => state.sheetOpen)
   const status = useAccountStore((state) => state.status)
 
   if (!open) return null
 
   return (
-    <div className="account" role="dialog" aria-label="Sua conta">
+    <div className="account" role="dialog" aria-label={t('account:sheet.aria_label')}>
       <div className="account__card">
         <BrandMark center />
         {status === 'authenticated' ? <Conta /> : <Entrada />}
@@ -60,6 +64,7 @@ export function AccountSheet() {
 // ---------------------------------------------------------------------------- visitante
 
 function Entrada() {
+  const t = useT()
   const [modo, setModo] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
@@ -93,27 +98,28 @@ function Entrada() {
         : await login(email.trim(), senha)
       setUser(sessao.user)
     } catch (falha) {
-      setFormError(falha instanceof Error ? falha.message : 'Não foi possível entrar.')
+      setFormError(falha instanceof Error ? falha.message : t('errors:login_failed'))
     }
   }
 
   return (
     <>
-      <p className="account__title">{cadastro ? 'Criar conta' : 'Entrar'}</p>
+      <p className="account__title">
+        {cadastro ? t('account:action.create_account') : t('account:action.login')}
+      </p>
       {aviso && <QuotaBlock notice={aviso} upsell={false} />}
 
       {guardadas > 0 && (
         <p className="account__hint">
-          <span className="tabular">{guardadas}</span>
-          {guardadas === 1 ? ' treino guardado' : ' treinos guardados'} neste aparelho — limpar
-          o navegador leva embora. Com conta, ficam.
+          <span className="tabular">{guardadas}</span>{' '}
+          {t('account:stored.suffix', { n: guardadas })} {t('account:stored.tail')}
         </p>
       )}
 
       <form className="account__form" onSubmit={enviar}>
         {cadastro && (
           <label className="account__field">
-            <span>Nome (opcional)</span>
+            <span>{t('account:field.name')}</span>
             <input
               type="text"
               autoComplete="given-name"
@@ -124,7 +130,7 @@ function Entrada() {
         )}
 
         <label className="account__field">
-          <span>E-mail</span>
+          <span>{t('account:field.email')}</span>
           <input
             type="email"
             required
@@ -135,7 +141,7 @@ function Entrada() {
         </label>
 
         <label className="account__field">
-          <span>Senha</span>
+          <span>{t('account:field.password')}</span>
           <input
             type="password"
             required
@@ -152,7 +158,11 @@ function Entrada() {
         )}
 
         <button type="submit" className="account__submit" disabled={busy}>
-          {busy ? 'Só um instante…' : cadastro ? 'Criar conta' : 'Entrar'}
+          {busy
+            ? t('account:submit.busy')
+            : cadastro
+              ? t('account:action.create_account')
+              : t('account:action.login')}
         </button>
       </form>
 
@@ -164,14 +174,14 @@ function Entrada() {
           setModo(cadastro ? 'login' : 'register')
         }}
       >
-        {cadastro ? 'Já tenho conta' : 'Criar uma conta'}
+        {cadastro ? t('account:action.have_account') : t('account:action.create_one')}
       </button>
 
       {/* Fechar continua disponível mesmo com o trial esgotado: o treino é que está
           bloqueado, não o aplicativo. Prender a pessoa na tela de cadastro seria o oposto
           de um funil. */}
       <button type="button" className="account__close" onClick={() => openSheet(false)}>
-        Agora não
+        {t('account:action.not_now')}
       </button>
     </>
   )
@@ -180,6 +190,7 @@ function Entrada() {
 // -------------------------------------------------------------------------------- logado
 
 function Conta() {
+  const t = useT()
   const user = useAccountStore((state) => state.user)
   // Do store de histórico, não do de conta (T-121): esta folha deixou de ser a única tela que
   // sabe o que a pessoa treinou, e duas cópias da mesma lista divergem.
@@ -205,7 +216,7 @@ function Conta() {
 
   return (
     <>
-      <p className="account__title">Olá, {displayName(user)}</p>
+      <p className="account__title">{t('account:greeting', { name: displayName(user) })}</p>
       <p className="account__email">{user?.email}</p>
 
       {/* Chip de plano (SPEC-016 §Fase Inicial). O nome vem do servidor (`Plan.nome`), não de
@@ -220,7 +231,9 @@ function Conta() {
               significados para a mesma forma, na mesma tela. Visto no navegador com a conta
               esgotada: o chip dizia "0 de 10" ao lado de "10 de 10". A palavra desfaz. */}
           {!quota.unlimited && (
-            <span className="account__plan-left tabular">restam {quota.remaining}</span>
+            <span className="account__plan-left tabular">
+              {t('account:plan.remaining', { n: quota.remaining })}
+            </span>
           )}
         </p>
       )}
@@ -232,45 +245,45 @@ function Conta() {
       <div className="account__totals">
         <div className="account__total">
           <p className="account__total-value tabular">{totais.sessions}</p>
-          <p className="account__total-label">sessões</p>
+          <p className="account__total-label">{t('account:totals.sessions')}</p>
         </div>
         <div className="account__total">
           <p className="account__total-value tabular">{totais.reps}</p>
-          <p className="account__total-label">repetições</p>
+          <p className="account__total-label">{t('account:totals.reps')}</p>
         </div>
         <div className="account__total">
           <p className="account__total-value tabular">{totais.bestCadence.toFixed(0)}</p>
-          <p className="account__total-label">melhor rep/min</p>
+          <p className="account__total-label">{t('account:totals.best_rpm')}</p>
         </div>
       </div>
 
       <p className="account__section-title">
-        Histórico
+        {t('account:history.title')}
         {history.length > 0 && (
           <span className="account__section-count tabular">{history.length}</span>
         )}
       </p>
 
-      {historyStatus === 'loading' && <p className="account__hint">Carregando…</p>}
+      {historyStatus === 'loading' && (
+        <p className="account__hint">{t('account:history.loading')}</p>
+      )}
       {historyStatus === 'error' && (
-        <p className="account__hint">Não consegui carregar seu histórico agora.</p>
+        <p className="account__hint">{t('account:history.load_failed')}</p>
       )}
       {/* Logado, mas o servidor não respondeu: o que está na tela é o que ESTE aparelho
           lembra. A lista continua — falha de rede não zera o progresso de ninguém (SPEC-024,
           critério 5) — mas dizer de onde ela veio é o que separa "desatualizado" de "mentira". */}
       {source === 'local' && history.length > 0 && (
-        <p className="account__hint">Mostrando o que está guardado neste aparelho.</p>
+        <p className="account__hint">{t('account:history.local')}</p>
       )}
       {/* Revalidação que falhou com dado bom na tela. Discreto de propósito: o número não está
           errado, só pode não ser o último. Um erro em vermelho aqui assustaria por causa de um
           Wi-Fi ruim. */}
       {loadError && source === 'server' && history.length > 0 && (
-        <p className="account__hint">Não consegui atualizar agora — pode faltar algo recente.</p>
+        <p className="account__hint">{t('account:history.stale')}</p>
       )}
       {historyStatus === 'ready' && history.length === 0 && (
-        <p className="account__hint">
-          Nenhuma sessão ainda. Toque no botão do meio para treinar 30 segundos.
-        </p>
+        <p className="account__hint">{t('account:history.empty')}</p>
       )}
 
       {/* Rola dentro de si (T-079). Antes a lista crescia com o histórico e empurrava as
@@ -291,7 +304,9 @@ function Conta() {
                   </span>
                   <span className="account__item-date">{historyDate(sessao.created_at)}</span>
                 </span>
-                <span className="account__item-reps tabular">{sessao.rep_count} reps</span>
+                <span className="account__item-reps tabular">
+                  {t('account:history.item_reps', { n: sessao.rep_count })}
+                </span>
                 <span className="account__item-time tabular">
                   {formatDuration(sessao.duration_ms)}
                 </span>
@@ -307,20 +322,20 @@ function Conta() {
           conta. Agora o primário é fechar (o que 99% dos toques querem) e sair é discreto,
           separado por uma linha e com confirmação. */}
       <button type="button" className="account__submit" onClick={() => openSheet(false)}>
-        Fechar
+        {t('account:action.close')}
       </button>
 
       <div className="account__danger">
         {confirmandoSaida ? (
           <>
-            <p className="account__danger-ask">Sair da conta neste aparelho?</p>
+            <p className="account__danger-ask">{t('account:logout.ask')}</p>
             <div className="account__danger-row">
               <button
                 type="button"
                 className="account__danger-cancel"
                 onClick={() => setConfirmandoSaida(false)}
               >
-                Cancelar
+                {t('account:logout.cancel')}
               </button>
               <button
                 type="button"
@@ -330,7 +345,7 @@ function Conta() {
                   reset()
                 }}
               >
-                Sair da conta
+                {t('account:logout.confirm')}
               </button>
             </div>
           </>
@@ -340,7 +355,7 @@ function Conta() {
             className="account__leave"
             onClick={() => setConfirmandoSaida(true)}
           >
-            Sair da conta
+            {t('account:logout.confirm')}
           </button>
         )}
       </div>

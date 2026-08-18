@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
+import { account as accountEn } from './dict/en/account'
+import { errors as errorsEn } from './dict/en/errors'
 import { funnel as funnelEn } from './dict/en/funnel'
 import { progress as progressEn } from './dict/en/progress'
 import { report as reportEn } from './dict/en/report'
 import { session as sessionEn } from './dict/en/session'
+import { account as accountPtBR } from './dict/pt-BR/account'
+import { errors as errorsPtBR } from './dict/pt-BR/errors'
 import { funnel as funnelPtBR } from './dict/pt-BR/funnel'
 import { progress as progressPtBR } from './dict/pt-BR/progress'
 import { report as reportPtBR } from './dict/pt-BR/report'
@@ -16,8 +20,8 @@ import { resolveFromTable, t, tDynamic, translate } from './index'
  * que esqueça o `{exercise}` compila limpa, passa no lint e só some com o nome do exercício em
  * produção, na língua que ninguém abre para conferir. Esta é a outra metade do portão.
  *
- * Vale hoje para os namespaces que a Onda 2 já migrou com interpolação (`funnel`, `session`,
- * `report`, `progress`);
+ * Vale hoje para os seis namespaces da Onda 2 que têm interpolação (`funnel`, `session`,
+ * `report`, `progress`, `account`, `errors`);
  * generalizar para os nove é a T-154 (Descoberta `[T-148]` do BACKLOG) — o corpo já é genérico,
  * falta só quem chame.
  */
@@ -230,5 +234,42 @@ describe('namespaces report + progress — a leitura do passado nas duas língua
   it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
     esperaMesmosPlaceholders(reportPtBR, reportEn)
     esperaMesmosPlaceholders(progressPtBR, progressEn)
+  })
+})
+
+describe('namespaces account + errors — a conta e as falhas nas duas línguas (T-151)', () => {
+  it('resolve a mesma chave nas duas línguas', () => {
+    expect(translate('pt-BR', 'account:eng.title')).toBe('Sua constância')
+    expect(translate('en', 'account:eng.title')).toBe('Your consistency')
+  })
+
+  it('uma frase, uma casa: a falha de rede das TRÊS chamadas é a mesma chave', () => {
+    // `session/admission`, `report/sessionReport` e `auth/api` liam três cópias iguais até a
+    // T-151 (Descoberta `[T-150]`). O `errors` é a casa única.
+    expect(translate('pt-BR', 'errors:api_down')).toBe('API fora do ar')
+    expect(translate('en', 'errors:api_down_detail', { reason: 'Failed to fetch' })).toBe(
+      'API is down: Failed to fetch',
+    )
+  })
+
+  it('os quatro plurais da conta escolhem o balde pelo Intl, nas duas línguas', () => {
+    const casos = [
+      ['account:fire.days', 1, '1 dia seguido', '1 day in a row'],
+      ['account:fire.days', 7, '7 dias seguidos', '7 days in a row'],
+      ['account:eng.days', 1, 'dia seguido', 'day in a row'],
+      ['account:eng.sessions', 2, 'sessões', 'sessions'],
+      ['account:stored.suffix', 1, 'treino guardado', 'workout saved'],
+      ['account:eng.days_trained', 3, 'dias treinados neste mês', 'days trained this month'],
+    ] as const
+
+    for (const [chave, n, esperadoPtBR, esperadoEn] of casos) {
+      expect(translate('pt-BR', chave, { n })).toBe(esperadoPtBR)
+      expect(translate('en', chave, { n })).toBe(esperadoEn)
+    }
+  })
+
+  it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
+    esperaMesmosPlaceholders(accountPtBR, accountEn)
+    esperaMesmosPlaceholders(errorsPtBR, errorsEn)
   })
 })

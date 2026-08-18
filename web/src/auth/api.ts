@@ -5,6 +5,7 @@
 // suficiente está do outro lado: o WebSocket do treino não usa JWT nenhum (é o token HMAC do
 // ticket, SPEC-009), então a renovação nunca acontece no meio de nada que possa cair.
 
+import { t } from '../i18n'
 import { useI18nStore } from '../i18n/store'
 import type { SessionReport } from '../report/sessionReport'
 import { apiBaseUrl } from '../session/admission'
@@ -127,13 +128,15 @@ async function autenticar(
     })
   } catch (erro) {
     throw new AuthError(
-      erro instanceof Error ? `API fora do ar: ${erro.message}` : 'API fora do ar',
+      erro instanceof Error
+        ? t('errors:api_down_detail', { reason: erro.message })
+        : t('errors:api_down'),
       0,
     )
   }
 
   if (!resposta.ok) {
-    throw new AuthError(await detalhe(resposta, 'Não foi possível entrar.'), resposta.status)
+    throw new AuthError(await detalhe(resposta, t('errors:login_failed')), resposta.status)
   }
 
   const sessao = (await resposta.json()) as AuthSession
@@ -186,7 +189,7 @@ export async function updateProfile(
     fetchImpl,
   )
   if (!resposta.ok) {
-    throw new AuthError(await detalhe(resposta, 'Não foi possível salvar.'), resposta.status)
+    throw new AuthError(await detalhe(resposta, t('errors:save_failed')), resposta.status)
   }
   return (await resposta.json()) as AccountUser
 }
@@ -217,7 +220,7 @@ export async function fetchHistory(
   const resposta = await authedFetch('/api/sessions?mine', { signal }, fetchImpl)
   if (!resposta.ok) {
     throw new AuthError(
-      await detalhe(resposta, 'Não foi possível carregar o histórico.'),
+      await detalhe(resposta, t('errors:history_failed')),
       resposta.status,
     )
   }

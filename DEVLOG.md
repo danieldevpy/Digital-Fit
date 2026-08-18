@@ -5,6 +5,91 @@
 
 ---
 
+## 2026-08-18 (73) · T-151 — `account` + `errors`: a Onda 2 fecha, e o plural sai dos ternários
+
+**O que foi feito.** A última raia da Onda 2 (SPEC-025): `account` (82 chaves — conta, quota,
+fogo, XP, conquistas) e `errors` (6 — as falhas de rede). Onze arquivos migrados, mais os dois
+débitos que a T-150 deixou registrados e esta task recolheu.
+
+**"API fora do ar" existia em três cópias, e esta era a única task que podia juntá-las.** A
+admissão (T-149), a busca do relatório (T-150) e o `auth/api` (esta) escreviam a mesma frase em
+namespaces diferentes — não por descuido, mas porque **namespace é a unidade de paralelismo da
+Onda 2** e escrever no arquivo alheio teria colidido entre raias. A T-151 é a que toca as três,
+e o namespace `errors` existia vazio esperando exatamente isso. Agora é uma frase, uma casa, e
+o teste diz por quê.
+
+**As datas do Progresso e do Analytics voltaram a falar a língua da tela.** Era o gap que a
+T-150 mediu e declarou: `historyDate` formatava com `toLocaleTimeString('pt-BR')` e devolvia
+"hoje 12:03" com a tela inteira em inglês. Agora sai de `formatTime`/`formatDate` mais as chaves
+`account:date.*` — medido: "today 12:19 PM". **"hoje"/"ontem" continuam decididos por diferença
+de dia de CALENDÁRIO**, e não pelo `Intl.RelativeTimeFormat`: a regra de produto é "que dia foi
+isso", e o `RelativeTimeFormat` responderia "há 14 horas", que é outra pergunta. Data inválida
+continua `—` nas duas línguas, com teste — ausência não se traduz.
+
+**Segundo array de dias da semana em português, mesma origem.** `INICIAIS_DA_SEMANA` no
+`engagement/calendar.ts` era gêmeo do `DIAS_DA_SEMANA` que a T-150 matou no Progresso — duas
+cópias do calendário brasileiro, em dois arquivos, escritas por tasks diferentes. Sumiu; o
+painel do fogo usa o mesmo `weekdayNarrowLabels()`. O `offset` da grade continua calculado em
+`calendar.ts` e continua abrindo na segunda.
+
+**Seis ternários de plural viraram baldes.** `streak === 1 ? 'dia seguido' : 'dias seguidos'`,
+`guardadas === 1 ? ' treino guardado' : ...`, `alvo === 1 ? 'sessão' : 'sessões'`,
+`grade.ativos` dias treinados — cada um era uma regra de português embutida num componente.
+Agora todos são `.one`/`.other` resolvidos pelo `Intl.PluralRules` (plano §2.7), e o `TKey` já
+aceitava a chave-base porque a T-150 abriu esse caminho na véspera.
+
+**O `key` do React não pode ser texto traduzido.** `parcelasDeXp` devolvia
+`{ rotulo: 'sessão', valor }` e o `XpLine` usava `parcela.rotulo` como `key`. Com o rótulo
+traduzido, trocar de idioma remontaria a lista inteira — e duas línguas com a mesma palavra
+("reps" nas duas) colidiriam. Passou a devolver `{ id, rotulo, valor }`: o `id` é o slug estável,
+o `rotulo` é o que se lê. Tem teste.
+
+**`fireAriaLabel` monta por template, não por concatenação.** Era
+`` `${dias}, ${meta}${onde}` `` — três partes coladas na ordem do código. Virou
+`account:fire.aria` = `'{days}, {goal}{where}'`: a ordem passa a ser do dicionário, que é onde
+ela pode mudar de língua. Mesma doutrina do `vgate.dont_show_hint` (T-148) e do `zoom.aria`
+(T-149).
+
+**Uma chave para "nível", com o CSS decidindo a caixa.** A seção do Perfil escrevia `nível`
+(minúsculo, `.account__eng-label` não transforma) e o painel escrevia `Nível` (maiúsculo, mas
+`.v2-label` já aplica `text-transform: uppercase`). Duas chaves seriam duas traduções da mesma
+palavra para manter uma diferença que o CSS apaga — uma chave só, e quem precisa de caixa alta a
+recebe da folha de estilo.
+
+**Testes** (+15, total 672): quota e datas nas duas línguas (incluindo o `—` da data inválida e
+a prova de que o CORPO do aviso continua vindo do servidor, não do dicionário); os quatro
+plurais da conta; `parcelasDeXp` com `id` estável e rótulo traduzido; a falha de rede em inglês
+nas três chamadas pela mesma chave; e a paridade de `{placeholder}` estendida a `account` e
+`errors` — o helper da T-148 serve agora seis namespaces. Sete testes existentes passaram a
+fixar o locale antes de cobrar a frase.
+
+**Medições** (dev server real, uma sessão semeada no `localStorage`, medido por JS):
+
+- `en`, folha da conta: "Log in" / "Create account", campos NAME (OPTIONAL)/EMAIL/PASSWORD,
+  "I already have an account", "Not now", e o argumento do funil no singular certo —
+  "**1 workout saved** on this device — clearing your browser takes them away."
+- `en`, chip do fogo: `aria-label` "1 day in a row, daily goal 1 of 1, saved on this device only"
+  — as três partes montadas pelo template.
+- `en`, painel do fogo: "Your consistency", "day in a row", "Best streak: 1", o bloco fantasma
+  inteiro, calendário `M T W T F S S`, dia com `aria-label` "18, trained", "1 day trained this
+  month", "TODAY’S GOAL".
+- `en`, Analytics: a coluna de datas agora diz "today 12:19 PM" — o gap da T-150, fechado.
+- `pt-BR`, as mesmas telas: idênticas ao que eram (incluindo `S T Q Q S S D` e "18, treinou").
+- **Não verificado nesta sessão**: o `AchievementToast` (depende de conquista nova chegando do
+  servidor), o bloco de quota esgotada e a galeria de conquistas com dado real — todos exigem
+  conta e servidor. Cobertos por dicionário, paridade e, no caso da quota, teste de
+  `quotaNotice` nas duas línguas; a tela fica para a T-155.
+
+**Gates.** `npm run lint` limpo, `npm run typecheck` limpo, `npm run test` 672/672,
+`npm run build` OK. Python intocado: `ruff check .` limpo, `pytest` 1161 passed.
+
+**Pendências.** Nenhuma nova. As duas descobertas da T-150 foram fechadas aqui e marcadas como
+tal no BACKLOG. **A Onda 2 terminou** — os nove namespaces existem e estão preenchidos, e a
+T-154 (portões) já pode ligar o `no-literal-string` global; a Descoberta `[T-149]` continua
+valendo para ela: a regra não enxerga string fora de JSX, e é lá que mora boa parte deste texto.
+
+---
+
 ## 2026-08-18 (72) · T-150 — `report` + `progress`: o passado do treino nas duas línguas
 
 **O que foi feito.** Os dois últimos namespaces de leitura da Onda 2: `report` (23 chaves — o

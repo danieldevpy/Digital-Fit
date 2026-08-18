@@ -314,7 +314,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 | T-148 | **Namespace `funnel`.** `screens/ChooseScreen`, `GuideScreen`, `ExerciseCards`, `ExerciseRails`, `funnel`, `ui/ViewPicker`, `ExerciseDemo`, `hud/ViewConfirm`, `ExercisePicker`, `session/guideGate`, `viewGate`. Depende de T-142 *(Tam: M)* | 025/015 | **feito** (2026-08-18) |
 | T-149 | **Namespace `session`.** `screens/SessionScreen`, `capture/CameraView`, `useCamera`, `useEdgePipeline`, `hud/*` (CoachTip, StatsBar, GetReady, TimerRing, CountdownSetting, ZoomControl), `session/startGate`, `pipelineGate`, `admission`, `useSession`, `scene/sceneQuality`, `pose/assetWarmup`, `probe/runProbe`. Depende de T-142 *(Tam: G)* | 025/013 | **feito** (2026-08-18) |
 | T-150 | **Namespaces `report` + `progress`.** `report/ReportSheet`, `reportSummary`, `sessionReport`, `screens/ProgressScreen`, `AnalyticsScreen`, `history/aggregates`, `session/kcal` **+ troca dos `toLocaleDateString('pt-BR')` pelos formatadores (plano §2.6) e do `DIAS_DA_SEMANA` montado à mão**. Depende de T-142 *(Tam: G)* | 025/010/024 | **feito** (2026-08-18) |
-| T-151 | **Namespaces `account` + `errors`.** `auth/AccountSheet`, `accountSummary`, `auth/api` (mensagens de rede/falha), `engagement/EngagementSheet`, `EngagementSection`, `FireChip`, `XpLine`, `AchievementGallery`, `AchievementToast`, `format` **+ plural via `Intl.PluralRules` (plano §2.7)**. Depende de T-142 *(Tam: G)* | 025/019/011 | todo |
+| T-151 | **Namespaces `account` + `errors`.** `auth/AccountSheet`, `accountSummary`, `auth/api` (mensagens de rede/falha), `engagement/EngagementSheet`, `EngagementSection`, `FireChip`, `XpLine`, `AchievementGallery`, `AchievementToast`, `format` **+ plural via `Intl.PluralRules` (plano §2.7)**. Depende de T-142 *(Tam: G)* | 025/019/011 | **feito** (2026-08-18) |
 | T-152 | **Namespace `catalog`.** `session/catalog.ts` (o catálogo embutido — o fallback offline precisa existir nas duas línguas), `exerciseViews.ts`, `ui/exerciseFigures`, `categoryLabel`. Par com a T-146: o servidor manda o traduzido, o embutido é o que aparece sem rede. Depende de T-142 *(Tam: M)* | 025/020 | **feito** (2026-08-18) |
 
 ### Onda 3 — fechar
@@ -1202,4 +1202,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   declarado da **T-151** (`auth/accountSummary` está na linha dela) — então ficou de fora aqui,
   de propósito, e não por esquecimento. Medido no navegador com a tela em inglês: todo o resto
   traduzido e a coluna de datas em português. Some quando a T-151 rodar; registrado para que a
-  T-155 não o descubra como bug novo.
+  T-155 não o descubra como bug novo. **Resolvido na T-151** (2026-08-18): `historyDate`
+  passou a usar `formatTime`/`formatDate` e as chaves `account:date.*`; medido em inglês,
+  "today 12:19 PM". A cópia tripla de "API fora do ar" também foi consolidada em
+  `errors:api_down` na mesma task.

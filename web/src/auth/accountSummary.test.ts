@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
+import { useI18nStore } from '../i18n/store'
 import type { SessionReport } from '../report/sessionReport'
 import type { QuotaSnapshot } from '../session/quota'
 import { displayName, historyDate, historyTotals, quotaNotice, renewLabel } from './accountSummary'
+
+// Texto e formato de data saem do dicionário/`Intl` desde a T-151: os testes dizem em que
+// língua estão antes de cobrar a frase, em vez de herdar o locale que o `detectLocale()`
+// resolver no ambiente do vitest (sem `localStorage` e sem `navigator.languages`, é `en`).
+beforeEach(() => useI18nStore.getState().setLocale('pt-BR'))
 
 const RELATORIO: SessionReport = {
   session_id: 's1',
@@ -157,5 +163,47 @@ describe('displayName', () => {
 
   it('sem usuário, texto vazio', () => {
     expect(displayName(null)).toBe('')
+  })
+})
+
+describe('a conta e o histórico nas duas línguas (T-151)', () => {
+  it('o aviso de quota traduz título, contagem e renovação', () => {
+    const quota = {
+      plan: 'free',
+      plan_name: 'Free',
+      limit: 10,
+      used: 10,
+      remaining: 0,
+      allowed: false,
+      unlimited: false,
+      message: 'texto do painel',
+      resets_at: '2026-08-18T00:00:00Z',
+    } as QuotaSnapshot
+
+    useI18nStore.getState().setLocale('en')
+    const aviso = quotaNotice(quota, false, new Date('2026-08-17T22:00:00Z'))
+    expect(aviso?.title).toBe('You trained a lot today 🎉')
+    expect(aviso?.count).toBe('10 of 10 sessions today')
+    // O CORPO continua vindo do servidor (`Plan.quota_message`, T-146) — o cliente não o
+    // traduz nem o copia.
+    expect(aviso?.text).toBe('texto do painel')
+  })
+
+  it('"hoje"/"ontem" e a data curta seguem o idioma', () => {
+    const agora = new Date('2026-08-17T12:00:00')
+    useI18nStore.getState().setLocale('en')
+    expect(historyDate(new Date('2026-08-17T07:30:00').toISOString(), agora)).toMatch(/^today /)
+    expect(historyDate(new Date('2026-08-16T23:50:00').toISOString(), agora)).toMatch(
+      /^yesterday /,
+    )
+    // Data absoluta pelo `Intl`: em inglês o mês vem antes do dia.
+    expect(historyDate(new Date('2026-07-24T07:55:00').toISOString(), agora)).toMatch(/^Jul 24/)
+  })
+
+  it('data inválida continua `—` nas duas línguas — ausência não se traduz', () => {
+    for (const locale of ['pt-BR', 'en'] as const) {
+      useI18nStore.getState().setLocale(locale)
+      expect(historyDate('não é data')).toBe('—')
+    }
   })
 })

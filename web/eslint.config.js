@@ -77,6 +77,57 @@ export default tseslint.config(
       ],
     },
   },
+  // T-151, namespaces `account` + `errors` (SPEC-025 Onda 2 — a última raia): a conta
+  // (`auth/AccountSheet`, `accountSummary`, `auth/api`) e o engajamento (`engagement/*`).
+  // `engagement/calendar.ts` entra sem ter mais texto: as iniciais da semana saíram dele para o
+  // `Intl` nesta task, e a regra passa a valer para que não voltem.
+  //
+  // É a raia com mais plural do app (dias de sequência, treinos guardados, sessões da meta,
+  // dias treinados no mês) — todos por `.one`/`.other` e `Intl.PluralRules`, plano §2.7.
+  {
+    files: [
+      'src/auth/AccountSheet.tsx',
+      'src/auth/accountSummary.ts',
+      'src/auth/api.ts',
+      'src/engagement/AchievementGallery.tsx',
+      'src/engagement/AchievementToast.tsx',
+      'src/engagement/EngagementSection.tsx',
+      'src/engagement/EngagementSheet.tsx',
+      'src/engagement/FireChip.tsx',
+      'src/engagement/XpLine.tsx',
+      'src/engagement/format.ts',
+      'src/engagement/calendar.ts',
+    ],
+    plugins: { i18next },
+    rules: {
+      'i18next/no-literal-string': [
+        'error',
+        {
+          mode: 'jsx-only',
+          'jsx-attributes': {
+            exclude: [
+              'className',
+              'styleName',
+              'style',
+              'type',
+              'key',
+              'id',
+              'width',
+              'height',
+              'role',
+              'aria-hidden',
+              'aria-live',
+              'autoComplete',
+              'viewBox',
+              'cx',
+              'cy',
+              'r',
+            ],
+          },
+        },
+      ],
+    },
+  },
   // T-150, namespaces `report` + `progress` (SPEC-025 Onda 2): a leitura do que já foi treinado
   // — o relatório do fim (`report/*`) e as duas telas de histórico (`ProgressScreen`,
   // `AnalyticsScreen`). `history/aggregates.ts` e `session/kcal.ts` entram junto: o primeiro não

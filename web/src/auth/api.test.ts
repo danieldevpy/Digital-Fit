@@ -244,7 +244,21 @@ describe('login e cadastro', () => {
       throw new TypeError('Failed to fetch')
     }) as unknown as typeof fetch
 
+    useI18nStore.getState().setLocale('pt-BR')
     await expect(login('a@b.com', 'segredo', quebrado)).rejects.toThrow(/API fora do ar/)
+  })
+
+  it('a mesma falha de rede sai em inglês — e da MESMA chave das outras duas (T-151)', async () => {
+    installStorage()
+    const quebrado = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    }) as unknown as typeof fetch
+
+    // `errors:api_down_detail` é a única casa da frase desde esta task: `auth/api`,
+    // `session/admission` e `report/sessionReport` liam três cópias iguais.
+    useI18nStore.getState().setLocale('en')
+    await expect(login('a@b.com', 'segredo', quebrado)).rejects.toThrow(/API is down/)
+    useI18nStore.getState().setLocale('pt-BR')
   })
 })
 

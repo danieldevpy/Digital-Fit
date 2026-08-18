@@ -11,6 +11,7 @@
 // da mesma conta, e no dia da mudança um dos dois lados ficaria para trás — em silêncio, porque
 // nenhum teste pode comparar as duas linguagens. É o `[A/T-051]` de novo, com pontos no lugar
 // de exercícios. Então o `GET /api/sessions/{id}/report` traz a decomposição pronta.
+import { useT } from '../i18n'
 import type { XpBreakdown } from '../report/sessionReport'
 import { parcelasDeXp } from './format'
 
@@ -20,15 +21,18 @@ import { parcelasDeXp } from './format'
  * está faltando, é uma mecânica que não se aplica a quem está olhando.
  */
 export function XpLine({ xp }: { xp?: XpBreakdown }) {
+  const t = useT()
+
   if (!xp || xp.total <= 0) return null
 
   return (
     <p className="report__xp">
-      <span className="report__xp-total num tabular">+{xp.total} XP</span>
+      <span className="report__xp-total num tabular">{t('account:xp.total', { n: xp.total })}</span>
       <span className="report__xp-parts">
         {parcelasDeXp(xp).map((parcela) => (
-          <span key={parcela.rotulo} className="report__xp-part">
-            {parcela.rotulo} <span className="num tabular">+{parcela.valor}</span>
+          <span key={parcela.id} className="report__xp-part">
+            {parcela.rotulo}{' '}
+            <span className="num tabular">{t('account:xp.part', { n: parcela.valor })}</span>
           </span>
         ))}
       </span>

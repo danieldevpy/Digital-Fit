@@ -2,6 +2,7 @@
 //
 // Mora sobre o cabeçalho da pré-configuração porque é lá que a pessoa chega ao abrir o app —
 // é a tela "Início" da tab bar desde a T-067. Toque abre o painel.
+import { useT } from '../i18n'
 import { fireAriaLabel, fireLabel } from './format'
 import { useEngagement } from './useEngagement'
 
@@ -31,6 +32,7 @@ function GoalRing({ done, target }: { done: number; target: number }) {
 }
 
 export function FireChip({ onOpen }: { onOpen: () => void }) {
+  const t = useT()
   const view = useEngagement()
 
   return (
@@ -48,7 +50,11 @@ export function FireChip({ onOpen }: { onOpen: () => void }) {
       {/* O ponto do fantasma: pequeno, mas presente em toda tela onde o número aparece. A
           explicação inteira fica no painel — aqui o que cabe é o sinal de que há uma. */}
       {view.source === 'local' && !view.pending && (
-        <span className="fire-chip__ghost" aria-hidden="true" title="Só neste aparelho" />
+        <span
+          className="fire-chip__ghost"
+          aria-hidden="true"
+          title={t('account:fire.ghost_title')}
+        />
       )}
     </button>
   )

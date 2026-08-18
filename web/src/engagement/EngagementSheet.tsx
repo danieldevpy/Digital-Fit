@@ -5,27 +5,36 @@
 import { useState } from 'react'
 import { updateProfile } from '../auth/api'
 import { useHistoryStore } from '../history/store'
+import { useT, type TKey } from '../i18n'
+import { weekdayNarrowLabels } from '../i18n/format'
 import { useAccountStore } from '../store/account'
 import { AchievementGallery } from './AchievementGallery'
-import { gradeDoMes, INICIAIS_DA_SEMANA } from './calendar'
+import { gradeDoMes } from './calendar'
 import { diaDoFogo } from './fire'
 import { refreshEngagement, useEngagementStore } from './store'
 import { METAS, useEngagement } from './useEngagement'
 
-const NOME_DA_META: Record<string, string> = {
-  casual: 'Casual',
-  regular: 'Regular',
-  intenso: 'Intenso',
+/**
+ * O nome de cada meta. O slug (`casual`/`regular`/`intenso`) é contrato — vai no `PATCH /api/me`
+ * e volta no `GET /api/engagement` —, e o que mora aqui é a CHAVE da frase, resolvida no render.
+ */
+const CHAVE_DA_META: Record<string, TKey> = {
+  casual: 'account:eng.goal.casual',
+  regular: 'account:eng.goal.regular',
+  intenso: 'account:eng.goal.intenso',
 }
 
 function Calendario({ hoje }: { hoje: string }) {
+  const t = useT()
   const sessoes = useHistoryStore((state) => state.sessions)
   const grade = gradeDoMes(sessoes, hoje)
 
   return (
     <div className="eng__cal">
       <div className="eng__cal-week" aria-hidden="true">
-        {INICIAIS_DA_SEMANA.map((letra, i) => (
+        {/* As letras vêm do `Intl` (T-150/T-151), não de um array em português. A semana
+            continua abrindo na segunda — é assim que `gradeDoMes` calcula o `offset`. */}
+        {weekdayNarrowLabels().map((letra, i) => (
           <span key={`${letra}-${i}`} className="eng__cal-weekday">
             {letra}
           </span>
@@ -47,20 +56,24 @@ function Calendario({ hoje }: { hoje: string }) {
               .filter(Boolean)
               .join(' ')}
             // O dia aceso é informação, não enfeite: quem usa leitor de tela precisa dela.
-            aria-label={`${dia.numero}${dia.ativo ? ', treinou' : ''}`}
+            aria-label={t(dia.ativo ? 'account:eng.cal_day_active' : 'account:eng.cal_day', {
+              n: dia.numero,
+            })}
           >
             {dia.numero}
           </span>
         ))}
       </div>
       <p className="eng__cal-total">
-        <span className="num tabular">{grade.ativos}</span> dias treinados neste mês
+        <span className="num tabular">{grade.ativos}</span>{' '}
+        {t('account:eng.days_trained', { n: grade.ativos })}
       </p>
     </div>
   )
 }
 
 function SeletorDeMeta({ atual }: { atual: string }) {
+  const t = useT()
   const setUser = useAccountStore((state) => state.setUser)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -75,7 +88,7 @@ function SeletorDeMeta({ atual }: { atual: string }) {
       // isso agora, não no próximo foco. `force` porque houve fato novo, não suspeita.
       await refreshEngagement({ force: true })
     } catch {
-      setErro('Não foi possível salvar a meta.')
+      setErro(t('errors:goal_save_failed'))
     } finally {
       setSalvando(false)
     }
@@ -83,8 +96,8 @@ function SeletorDeMeta({ atual }: { atual: string }) {
 
   return (
     <div className="eng__goal">
-      <p className="v2-label">Meta diária</p>
-      <div className="eng__goal-opts" role="group" aria-label="Meta diária">
+      <p className="v2-label">{t('account:eng.goal_label')}</p>
+      <div className="eng__goal-opts" role="group" aria-label={t('account:eng.goal_label')}>
         {Object.entries(METAS).map(([slug, alvo]) => (
           <button
             key={slug}
@@ -94,9 +107,11 @@ function SeletorDeMeta({ atual }: { atual: string }) {
             disabled={salvando}
             aria-pressed={slug === atual}
           >
-            <span className="eng__goal-name">{NOME_DA_META[slug] ?? slug}</span>
+            <span className="eng__goal-name">
+              {CHAVE_DA_META[slug] ? t(CHAVE_DA_META[slug]) : slug}
+            </span>
             <span className="eng__goal-alvo num tabular">
-              {alvo} {alvo === 1 ? 'sessão' : 'sessões'}
+              {alvo} {t('account:eng.sessions', { n: alvo })}
             </span>
           </button>
         ))}
@@ -107,6 +122,7 @@ function SeletorDeMeta({ atual }: { atual: string }) {
 }
 
 export function EngagementSheet() {
+  const t = useT()
   const aberto = useEngagementStore((state) => state.sheetOpen)
   const fechar = useEngagementStore((state) => state.openSheet)
   const abrirConta = useAccountStore((state) => state.openSheet)
@@ -117,12 +133,12 @@ export function EngagementSheet() {
   if (!aberto) return null
 
   return (
-    <div className="account eng" role="dialog" aria-label="Seu engajamento">
+    <div className="account eng" role="dialog" aria-label={t('account:eng.sheet_aria')}>
       <div className="account__card">
         <header className="account__head">
-          <h2 className="account__title">Sua constância</h2>
+          <h2 className="account__title">{t('account:eng.title')}</h2>
           <button type="button" className="account__close" onClick={() => fechar(false)}>
-            Fechar
+            {t('account:action.close')}
           </button>
         </header>
 
@@ -131,22 +147,17 @@ export function EngagementSheet() {
             🔥
           </span>
           <p className="eng__streak num tabular">{view.pending ? '--' : view.streak}</p>
-          <p className="eng__streak-label">
-            {view.streak === 1 ? 'dia seguido' : 'dias seguidos'}
-          </p>
+          <p className="eng__streak-label">{t('account:eng.days', { n: view.streak })}</p>
           <p className="eng__best">
-            Melhor sequência: <span className="num tabular">{view.bestStreak}</span>
+            {t('account:eng.best_label')} <span className="num tabular">{view.bestStreak}</span>
           </p>
         </div>
 
         {/* O rótulo honesto do §Anônimo, e o CTA que a dor de perder a sequência sustenta. */}
         {view.source === 'local' && (
           <div className="eng__ghost">
-            <p className="eng__ghost-title">Seu fogo vive só neste aparelho</p>
-            <p className="eng__ghost-text">
-              Limpar o navegador leva sua sequência embora. Uma conta guarda o que você já
-              treinou — e é de graça.
-            </p>
+            <p className="eng__ghost-title">{t('account:eng.ghost_title')}</p>
+            <p className="eng__ghost-text">{t('account:eng.ghost_text')}</p>
             <button
               type="button"
               className="eng__ghost-cta"
@@ -155,7 +166,7 @@ export function EngagementSheet() {
                 abrirConta(true)
               }}
             >
-              Criar conta
+              {t('account:action.create_account')}
             </button>
           </div>
         )}
@@ -164,7 +175,7 @@ export function EngagementSheet() {
 
         <div className="eng__row">
           <div className="eng__stat">
-            <p className="v2-label">Meta de hoje</p>
+            <p className="v2-label">{t('account:eng.goal_today')}</p>
             <p className="eng__stat-val num tabular">
               {view.sessionsToday}/{view.goalTarget}
             </p>
@@ -174,11 +185,11 @@ export function EngagementSheet() {
           {view.xp !== null && (
             <>
               <div className="eng__stat">
-                <p className="v2-label">XP</p>
+                <p className="v2-label">{t('account:eng.xp')}</p>
                 <p className="eng__stat-val num tabular">{view.xp}</p>
               </div>
               <div className="eng__stat">
-                <p className="v2-label">Nível</p>
+                <p className="v2-label">{t('account:eng.level')}</p>
                 <p className="eng__stat-val num tabular">{view.level}</p>
               </div>
             </>
@@ -187,9 +198,12 @@ export function EngagementSheet() {
 
         {view.protections !== null && view.protections.total > 0 && (
           <p className="eng__prot">
-            Proteções de sequência usadas neste mês:{' '}
+            {t('account:eng.protections')}{' '}
             <span className="num tabular">
-              {view.protections.used} de {view.protections.total}
+              {t('account:eng.protections_count', {
+                used: view.protections.used,
+                total: view.protections.total,
+              })}
             </span>
           </p>
         )}

@@ -37,8 +37,6 @@ export const session: Session = {
   'scene.CONTRALUZ': 'The light is behind you · turn around',
   'scene.SEM_NITIDEZ': 'Blurry image · clean the lens',
 
-  'admission.api_down': 'API is down',
-  'admission.api_down_detail': 'API is down: {reason}',
   'admission.cloud_denied': 'Cloud mode is unavailable right now — try edge mode.',
   'admission.ticket_incomplete': 'Incomplete session ticket (no ws_url).',
   'admission.no_redis': 'Server without Redis — the session cannot be opened.',

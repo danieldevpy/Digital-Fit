@@ -30,7 +30,5 @@ export const report: Report = {
   'reason.no_data': 'Ended: we stopped seeing you on camera',
   'reason.unknown': 'Session ended',
 
-  'fetch.api_down': 'API is down',
-  'fetch.api_down_detail': 'API is down: {reason}',
   'fetch.failed': 'Could not fetch the report (HTTP {status}).',
 }

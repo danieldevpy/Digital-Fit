@@ -8,12 +8,14 @@
 // Este arquivo é só a apresentação da fila: mostra a primeira, some sozinho, passa para a
 // próxima.
 import { useEffect } from 'react'
+import { useT } from '../i18n'
 import { useEngagementStore } from './store'
 
 /** Quanto tempo o aviso fica na tela antes de sair sozinho. */
 export const DURACAO_MS = 6000
 
 export function AchievementToast() {
+  const t = useT()
   const atual = useEngagementStore((state) => state.novas[0])
   const dispensar = useEngagementStore((state) => state.dispensarNova)
 
@@ -30,18 +32,21 @@ export function AchievementToast() {
 
   return (
     <div className="ach-toast" role="status" aria-live="polite">
+      {/* Emoji decorativo, `aria-hidden` — é ilustração, não frase, e igual nas duas línguas
+          (mesma doutrina do `176°` do mini-HUD do site, T-147). */}
+      {/* eslint-disable-next-line i18next/no-literal-string */}
       <span className="ach-toast__badge" aria-hidden="true">
         🎖️
       </span>
       <span className="ach-toast__texto">
-        <strong className="ach-toast__title">Nova conquista</strong>
+        <strong className="ach-toast__title">{t('account:ach.toast_title')}</strong>
         <span className="ach-toast__name">{atual.name}</span>
       </span>
       <button
         type="button"
         className="ach-toast__close"
         onClick={dispensar}
-        aria-label="Fechar aviso"
+        aria-label={t('account:ach.toast_close_aria')}
       >
         ×
       </button>

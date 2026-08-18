@@ -32,8 +32,10 @@ export interface GradeDoMes {
   ativos: number
 }
 
-/** Iniciais da semana, começando na segunda — como o calendário brasileiro. */
-export const INICIAIS_DA_SEMANA = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D']
+// As iniciais da semana saíram daqui na T-151: eram `['S','T','Q','Q','S','S','D']`, o
+// calendário brasileiro embutido no código. Quem as desenha agora pergunta ao `Intl`
+// (`weekdayNarrowLabels`, `i18n/format.ts`). A semana continua abrindo na SEGUNDA, e é o
+// `offset` calculado aqui que depende disso.
 
 function totalDeDias(ano: number, mes: number): number {
   return new Date(Date.UTC(ano, mes, 0)).getUTCDate()

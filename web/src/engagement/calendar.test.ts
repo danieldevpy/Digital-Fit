@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { SessionReport } from '../report/sessionReport'
-import { gradeDoMes, INICIAIS_DA_SEMANA } from './calendar'
+import { gradeDoMes } from './calendar'
 
 function sessao(dia: string, reps = 10): SessionReport {
   return {
@@ -29,7 +29,6 @@ describe('gradeDoMes', () => {
     expect(grade.dias).toHaveLength(31)
     // Semana abrindo na segunda: sábado é a 6ª coluna, então 5 células vazias antes.
     expect(grade.offset).toBe(5)
-    expect(INICIAIS_DA_SEMANA).toHaveLength(7)
   })
 
   it('marca os dias em que houve sessão válida', () => {

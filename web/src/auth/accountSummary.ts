@@ -1,8 +1,11 @@
-// Como a conta e o histórico são lidos em português (SPEC-011). Puro: entra dado, sai texto.
+// Como a conta e o histórico são lidos (SPEC-011). Puro: entra dado, sai texto — na língua de
+// quem lê desde a T-151, e com data e hora pelos formatadores do locale ativo.
 //
 // Separado do componente pelo mesmo motivo do `reportSummary`: isto é regra, não desenho. O
 // convite a criar conta muda conforme quantas sessões restam, e a data do histórico tem de
 // dizer "hoje" quando é hoje — as duas coisas se testam com um objeto.
+import { t } from '../i18n'
+import { formatDate, formatTime } from '../i18n/format'
 import type { SessionReport } from '../report/sessionReport'
 import type { QuotaSnapshot } from '../session/quota'
 
@@ -41,9 +44,9 @@ export function quotaNotice(
       // O título é do cliente e o corpo é do servidor de propósito: o "🎉" da spec é parte do
       // desenho da tela (é ele que faz o limite ler como parabéns e não como punição), e o
       // corpo é o que o suporte reescreve no painel numa terça-feira sem chamar ninguém.
-      title: 'Você treinou muito hoje 🎉',
+      title: t('account:quota.exhausted_title'),
       text: quota.message,
-      count: `${quota.used} de ${quota.limit} sessões de hoje`,
+      count: t('account:quota.count', { used: quota.used, limit: quota.limit }),
       renew: renewLabel(quota.resets_at, agora),
     }
   }
@@ -52,12 +55,12 @@ export function quotaNotice(
   // de graça em quem ainda nem sabe se gostou do produto.
   if (quota.remaining > 1) return null
   return {
-    title: 'Última sessão de hoje',
+    title: t('account:quota.last_title'),
     text:
       quota.plan === 'anon'
-        ? 'Resta 1 sessão grátis hoje. Com conta, são mais.'
-        : 'Resta 1 sessão hoje. Com assinatura, não acaba.',
-    count: `${quota.used} de ${quota.limit} sessões de hoje`,
+        ? t('account:quota.last_anon')
+        : t('account:quota.last_account'),
+    count: t('account:quota.count', { used: quota.used, limit: quota.limit }),
     renew: renewLabel(quota.resets_at, agora),
   }
 }
@@ -79,20 +82,34 @@ export function renewLabel(isoUtc: string, agora: Date = new Date()): string | n
 
   const horas = (virada.getTime() - agora.getTime()) / 3_600_000
   if (horas <= 0) return null
-  const hora = virada.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  return horas > 12 ? `Renova amanhã às ${hora}` : `Renova às ${hora}`
+  const hora = formatTime(virada)
+  return horas > 12
+    ? t('account:quota.renew_tomorrow', { time: hora })
+    : t('account:quota.renew', { time: hora })
 }
 
-/** Data curta de uma sessão do histórico: "hoje 19:42", "ontem 08:10", "24 jul 07:55". */
+/** Dia e mês curtos da data absoluta. Fora da função por ser vocabulário do `Intl`, não frase. */
+const DIA_E_MES_CURTO: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' }
+
+/**
+ * Data curta de uma sessão do histórico: "hoje 19:42", "ontem 08:10", "24 jul 07:55" — e
+ * "today 19:42", "yesterday 08:10", "Jul 24 07:55" em inglês.
+ *
+ * "hoje"/"ontem" continuam sendo decididos por diferença de dia de CALENDÁRIO (ver
+ * `diasDeDiferenca`), não pelo `Intl.RelativeTimeFormat`: a regra de produto é "que dia do
+ * calendário foi isso", e o `RelativeTimeFormat` responderia "há 14 horas".
+ */
 export function historyDate(iso: string, agora: Date = new Date()): string {
   const data = new Date(iso)
+  // Traço e não frase: data inválida é ausência de dado, e a régua da SPEC-014 manda mostrar
+  // ausência como ausência. Não passa por tradução.
   if (Number.isNaN(data.getTime())) return '—'
 
-  const hora = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const hora = formatTime(data)
   const dias = diasDeDiferenca(data, agora)
-  if (dias === 0) return `hoje ${hora}`
-  if (dias === 1) return `ontem ${hora}`
-  return `${data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} ${hora}`
+  if (dias === 0) return t('account:date.today', { time: hora })
+  if (dias === 1) return t('account:date.yesterday', { time: hora })
+  return t('account:date.other', { date: formatDate(data, DIA_E_MES_CURTO), time: hora })
 }
 
 function diasDeDiferenca(data: Date, agora: Date): number {

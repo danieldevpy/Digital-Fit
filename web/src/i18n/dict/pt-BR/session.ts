@@ -52,9 +52,8 @@ export const session = {
   'scene.CONTRALUZ': 'A luz está atrás de você · vire-se',
   'scene.SEM_NITIDEZ': 'Imagem sem nitidez · limpe a lente',
 
-  // --- Admissão (SPEC-009): as recusas que quem treina lê na tela ---
-  'admission.api_down': 'API fora do ar',
-  'admission.api_down_detail': 'API fora do ar: {reason}',
+  // --- Admissão (SPEC-009): as recusas que quem treina lê na tela. A falha de REDE não está
+  // aqui: "API fora do ar" mora no namespace `errors` desde a T-151, numa cópia só. ---
   'admission.cloud_denied': 'Modo cloud indisponível agora — tente em modo edge.',
   'admission.ticket_incomplete': 'Ticket de sessão incompleto (sem ws_url).',
   'admission.no_redis': 'Servidor sem Redis — sessão não pode ser aberta.',

@@ -39,10 +39,8 @@ export const report = {
   'reason.no_data': 'Encerrada: paramos de te ver na câmera',
   'reason.unknown': 'Sessão encerrada',
 
-  // Falhas ao buscar o relatório. Repetem a redação da admissão (`session:admission.*`) de
-  // propósito — juntar as duas num namespace `errors` é a T-151 (ver Descoberta `[T-150]`).
-  'fetch.api_down': 'API fora do ar',
-  'fetch.api_down_detail': 'API fora do ar: {reason}',
+  // Falha ao buscar o relatório. A de REDE saiu daqui na T-151, para o namespace `errors` —
+  // era a mesma frase em três arquivos. Esta fica: é específica do relatório.
   'fetch.failed': 'Falha ao buscar o relatório (HTTP {status}).',
 } as const
 
