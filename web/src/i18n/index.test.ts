@@ -1,17 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { account as accountEn } from './dict/en/account'
-import { errors as errorsEn } from './dict/en/errors'
-import { funnel as funnelEn } from './dict/en/funnel'
-import { progress as progressEn } from './dict/en/progress'
-import { report as reportEn } from './dict/en/report'
-import { session as sessionEn } from './dict/en/session'
-import { account as accountPtBR } from './dict/pt-BR/account'
-import { errors as errorsPtBR } from './dict/pt-BR/errors'
-import { funnel as funnelPtBR } from './dict/pt-BR/funnel'
-import { progress as progressPtBR } from './dict/pt-BR/progress'
-import { report as reportPtBR } from './dict/pt-BR/report'
-import { session as sessionPtBR } from './dict/pt-BR/session'
+import { dict as dictEn } from './dict/en'
+import { dict as dictPtBR } from './dict/pt-BR'
 import { useI18nStore } from './store'
 import { resolveFromTable, t, tDynamic, translate } from './index'
 
@@ -20,20 +10,21 @@ import { resolveFromTable, t, tDynamic, translate } from './index'
  * que esqueça o `{exercise}` compila limpa, passa no lint e só some com o nome do exercício em
  * produção, na língua que ninguém abre para conferir. Esta é a outra metade do portão.
  *
- * Vale hoje para os seis namespaces da Onda 2 que têm interpolação (`funnel`, `session`,
- * `report`, `progress`, `account`, `errors`);
- * generalizar para os nove é a T-154 (Descoberta `[T-148]` do BACKLOG) — o corpo já é genérico,
- * falta só quem chame.
+ * Desde a T-154 vale para os NOVE namespaces de uma vez, varrendo `dict/pt-BR/index.ts` — não
+ * mais uma chamada por namespace escrita à mão (que era o desenho enquanto a Onda 2 corria em
+ * paralelo, e que deixaria o décimo namespace de fora sem ninguém notar).
  */
 function esperaMesmosPlaceholders(
   ptBR: Record<string, string>,
   en: Record<string, string>,
+  namespace = '',
 ): void {
   const placeholders = (texto: string) => [...texto.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
 
   for (const [chave, textoPtBR] of Object.entries(ptBR)) {
-    expect({ chave, ph: placeholders(en[chave] ?? '') }).toEqual({
-      chave,
+    const onde = namespace ? `${namespace}:${chave}` : chave
+    expect({ chave: onde, ph: placeholders(en[chave] ?? '') }).toEqual({
+      chave: onde,
       ph: placeholders(textoPtBR),
     })
   }
@@ -177,9 +168,6 @@ describe('namespace funnel — a moldura do funil nas duas línguas (T-148)', ()
     expect(en).toContain('“Camera”')
   })
 
-  it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
-    esperaMesmosPlaceholders(funnelPtBR, funnelEn)
-  })
 })
 
 describe('namespace session — o treino nas duas línguas (T-149)', () => {
@@ -197,9 +185,6 @@ describe('namespace session — o treino nas duas línguas (T-149)', () => {
     expect(translate('en', 'session:countdown.value', { n: 5 })).toBe('5s countdown')
   })
 
-  it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
-    esperaMesmosPlaceholders(sessionPtBR, sessionEn)
-  })
 })
 
 describe('namespaces report + progress — a leitura do passado nas duas línguas (T-150)', () => {
@@ -231,10 +216,6 @@ describe('namespaces report + progress — a leitura do passado nas duas língua
     )
   })
 
-  it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
-    esperaMesmosPlaceholders(reportPtBR, reportEn)
-    esperaMesmosPlaceholders(progressPtBR, progressEn)
-  })
 })
 
 describe('namespaces account + errors — a conta e as falhas nas duas línguas (T-151)', () => {
@@ -268,8 +249,20 @@ describe('namespaces account + errors — a conta e as falhas nas duas línguas 
     }
   })
 
+})
+
+describe('o portão da paridade de placeholder, nos NOVE namespaces (T-154)', () => {
   it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
-    esperaMesmosPlaceholders(accountPtBR, accountEn)
-    esperaMesmosPlaceholders(errorsPtBR, errorsEn)
+    // Varre o índice, e não uma lista escrita à mão: um namespace novo entra em
+    // `dict/pt-BR/index.ts` e passa a ser cobrado aqui sem ninguém tocar neste arquivo — a
+    // mesma propriedade que faz o `TKey` crescer sozinho (T-142).
+    for (const namespace of Object.keys(dictPtBR) as Array<keyof typeof dictPtBR>) {
+      esperaMesmosPlaceholders(dictPtBR[namespace], dictEn[namespace], namespace)
+    }
+  })
+
+  it('varre os nove — se um namespace novo nascer, ele entra sozinho', () => {
+    expect(Object.keys(dictPtBR)).toHaveLength(9)
+    expect(Object.keys(dictEn)).toEqual(Object.keys(dictPtBR))
   })
 })

@@ -11,6 +11,7 @@
 // aquecer e se enquadraria — para só então ouvir "não". O limite continuaria correto e a
 // experiência continuaria ruim.
 import { identityHeaders, rememberDeviceId } from '../auth/storage'
+import { localeHeaders } from '../i18n/http'
 import { apiBaseUrl } from './admission'
 
 /**
@@ -47,7 +48,13 @@ export interface QuotaSnapshot {
  */
 export async function fetchQuota(fetchImpl: typeof fetch = fetch): Promise<QuotaSnapshot | null> {
   try {
-    const resposta = await fetchImpl(`${apiBaseUrl()}/api/quota`, { headers: identityHeaders() })
+    // `localeHeaders` junto (T-154): o `message` desta resposta é o `Plan.quota_message` do
+    // painel, traduzido por locale desde a T-146 — sem o header ele volta na língua do
+    // NAVEGADOR. Quinta chamada com o mesmo buraco; foi o portão de `i18n/http.test.ts` que a
+    // encontrou, depois de a T-153 ter consertado as outras quatro à mão.
+    const resposta = await fetchImpl(`${apiBaseUrl()}/api/quota`, {
+      headers: { ...identityHeaders(), ...localeHeaders() },
+    })
     if (!resposta.ok) return null
     const corpo = (await resposta.json()) as QuotaSnapshot
     // Mesma razão do ticket: na primeira visita quem gerou o id foi o servidor, e amanhã só

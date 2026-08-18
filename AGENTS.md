@@ -20,12 +20,21 @@ Pedido que não caiba em nenhuma → seguir o fluxo manual abaixo, que continua 
 1. **Carregar contexto mínimo**: ler `context/project.md` → spec da task → só então abrir código relacionado. Não ler arquivos fora do escopo da task.
 2. **Escopo rigoroso**: implementar somente o que a task T-XXX descreve. Descobriu algo fora do escopo? Registre como nova task no `BACKLOG.md`, não implemente.
 3. **Fase Inicial ≠ Fase Evolução**: nunca antecipar itens da Fase Evolução de uma spec dentro de uma task de Fase Inicial, mesmo que "seja rápido".
-4. **Executar gates** antes de encerrar:
+4. **Texto novo nasce nas duas línguas** (SPEC-025). Frase que o cliente lê vira chave em
+   `web/src/i18n/dict/pt-BR/<namespace>.ts` e `t('namespace:chave')` no componente — nunca
+   literal solta. Texto de **conteúdo** (exercício, plano, conquista, feedback) não vai para o
+   dicionário: vai para o painel ou para o YAML por idioma, e o par é cobrado por `pytest` /
+   `manage.py i18n_status`. Número e data saem dos formatadores de `i18n/format.ts`, nunca de
+   `toLocaleDateString('pt-BR')` ou `.replace('.', ',')` — o separador decimal escrito à mão foi
+   o bug de i18n mais difícil de ver em duas tasks seguidas. Chamada nova à API leva
+   `localeHeaders()` junto. Os quatro portões que cobram isto já rodam nos gates do item
+   seguinte; nenhum deles depende de alguém lembrar.
+5. **Executar gates** antes de encerrar:
    - `ruff check` + `pytest` (workers/api)
    - `npm run lint` + `npm run typecheck` + `npm run test` (web), quando tocada
    - docker-compose sobe sem erro se infra foi tocada
-5. **Registrar no DEVLOG.md**: data, task, o que foi feito, decisões tomadas, pendências geradas.
-6. **Commit** com mensagem `T-XXX: descrição` (um commit lógico por task quando possível).
+6. **Registrar no DEVLOG.md**: data, task, o que foi feito, decisões tomadas, pendências geradas.
+7. **Commit** com mensagem `T-XXX: descrição` (um commit lógico por task quando possível).
 
 ## Regras de arquitetura (invioláveis sem ADR novo)
 

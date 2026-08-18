@@ -23,6 +23,7 @@ export const session: Session = {
   'warmup.size_mb': '{done} MB',
   'warmup.progress': '{percent}% · {done} of {total} MB',
   'pipeline.start_failed': 'Could not start the pose pipeline.',
+  'pipeline.start_failed_detail': 'Could not start the pose pipeline: {reason}',
 
   'calibrating.title': 'Stand still',
   'calibrating.hint':

@@ -74,6 +74,12 @@ BACKLOG se o escopo mudou.
   maturidade — precedente T-032/T-053).
 - Marcos devem terminar em produto **funcional**, nunca em meia-mecânica no ar (Fase 5 é o
   modelo).
+- **Superfície nova = texto novo, e ele nasce nas duas línguas** (SPEC-025, AGENTS §Fluxo 4).
+  Ao escrever o §Escopo, diga de qual das cinco fontes de texto a frase vem — bundle do cliente
+  (dicionário), catálogo de feedback (YAML do worker), banco (painel), código do servidor (YAML
+  da API) ou HTML de shell. A pergunta não é decorativa: ela decide se a task é "acrescentar
+  chave" ou "acrescentar coluna de tradução", e responder tarde é o que produz metade da tela
+  numa língua. Idioma **não** é Fase Evolução de nada — é Fase Inicial de tudo desde a T-141.
 
 ## Encerramento
 

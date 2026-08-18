@@ -5,6 +5,101 @@
 
 ---
 
+## 2026-08-18 (75) · T-154 — Os portões: dois novos, e os dois acharam bug na primeira execução
+
+**O que foi feito.** O critério 5 da SPEC-025 — *"um commit que acrescenta uma frase em
+português e esquece o inglês não passa nos gates que já existem"* — é o único que vale para
+sempre, e esta é a task que o transforma em máquina. `no-literal-string` global (os sete
+overrides por pasta viraram um bloco só), dois portões novos varrendo o código-fonte
+(`web/src/i18n/portoes.test.ts`), a paridade de placeholder generalizada aos nove namespaces, e
+as três linhas de processo (AGENTS.md, as duas skills, o checklist de deploy).
+
+### Os dois portões novos, e o que cada um encontrou
+
+Os dois nasceram de Descobertas registradas pelas tasks anteriores — o que já é o sistema
+funcionando: quem viu o buraco não o consertou fora de hora, escreveu onde ele estava.
+
+**1. Texto fora de JSX (Descoberta `[T-149]`).** O `no-literal-string` roda em
+`mode: 'jsx-only'`, que olha JSXText e JSXAttribute **e nada mais** — uma frase nascida num
+módulo `.ts` passa batido. A varredura nova procura literal com caractere acentuado fora de
+comentário. **Achou na primeira execução**: `` `Falha ao iniciar o pipeline de pose:
+${error.message}` `` vivo em `useEdgePipeline.ts`. A T-149 traduziu o ramo `:` do ternário e
+deixou o ramo `?` em português — texto de produto, numa tela que já se dizia traduzida, invisível
+para todos os gates anteriores. Virou `session:pipeline.start_failed_detail`.
+
+**2. Cabeçalho de idioma (Descoberta `[T-153]`).** A T-153 consertou à mão três chamadas que não
+mandavam `Accept-Language`, e registrou que a mão era o problema: nenhum gate olha header. O
+portão novo cobra que todo arquivo que chama `apiBaseUrl()` importe `localeHeaders`. **Achou na
+primeira execução**: `session/quota.ts`, a QUINTA chamada, que a T-153 não tinha visto — e o
+`message` dela é o `Plan.quota_message` do painel, traduzido por locale desde a T-146. Quem
+trocasse o app para inglês continuaria lendo o aviso de limite em português.
+
+**Os dois foram verificados por mutação**, não por fé: reintroduzindo o literal em
+`startGate.ts` e tirando o `localeHeaders` do `quota.ts`, cada um falha nomeando o arquivo.
+
+### A lição que a mutação ensinou sobre o próprio portão
+
+A primeira versão do portão do cabeçalho lia o arquivo **cru** e dava por coberto um arquivo
+cujo `localeHeaders` aparecia só dentro de um comentário — o comentário que eu tinha acabado de
+escrever explicando o header. O teste de mutação passou verde e não devia. **Portão que lê
+comentário acredita em promessa, não em código**; agora os dois tiram comentário antes de
+procurar, e foi por isso que os dois viraram um arquivo só (`portoes.test.ts`), compartilhando
+o `semComentarios` e a leitura do fonte.
+
+### As decisões
+
+**Por que "literal acentuada" e não "qualquer literal".** A alternativa era `mode: 'all'` no
+ESLint para os `.ts`, e ela passaria a cobrar tradução de slug (`'jumping_jack'`), chave de
+armazenamento (`'digitalfit.locale'`), nome de header e tipo de evento — centenas de exceções, e
+portão cheio de exceção deixa de ser lido. A heurística é estreita de propósito e mira **a
+direção do erro que existe**: quem escreve este projeto escreve em português. Uma frase nova em
+inglês esquecida não seria pega, e está escrito no arquivo que não seria.
+
+**`import.meta.glob('?raw')` em vez de `node:fs`.** O `tsconfig.app.json` não carrega
+`@types/node` — é um app de navegador, e trazer a tipagem inteira do Node para ler arquivo num
+teste seria pagar caro por pouco. De quebra, some a armadilha do caminho com espaço ("Digital
+Fit" vira `Digital%20Fit` num `URL.pathname`, e foi assim que a primeira versão quebrou).
+
+**O `no-literal-string` global tinha um só resíduo**: `Digital Fit` no `BrandMark`. É NOME do
+produto, não texto de produto — mesma categoria do `Category` que guarda `forca` e não `"Força"`
+—, e ficou com `eslint-disable` e o porquê no ponto. Que sete tasks de migração tenham deixado
+exatamente uma linha para o global encontrar é o melhor sinal de que a migração por diretório
+funcionou.
+
+**A paridade de placeholder virou varredura.** Era uma chamada por namespace, escrita à mão
+(desenho certo enquanto seis raias corriam em paralelo). Agora percorre `dict/pt-BR/index.ts`:
+o décimo namespace entra sozinho, a mesma propriedade que faz o `TKey` crescer sem manutenção.
+
+**Processo.** `AGENTS.md` §Fluxo ganhou o item 4 (texto novo nas duas línguas, conteúdo no
+painel/YAML, data e número pelos formatadores, chamada nova com `localeHeaders`); a
+`df-executor` ganhou a mesma regra na seção de testes; a `df-spec` ganhou a pergunta que decide
+a forma da task — *de qual das cinco fontes de texto esta frase vem?* —, porque responder tarde
+é o que produz metade da tela numa língua. E o `docs/DEPLOY.md` ganhou o `i18n_status` antes de
+anunciar versão, com a razão de ele **não** bloquear deploy: falta de tradução degrada com
+honestidade (cai no pt-BR da coluna base), então travar o deploy custaria mais do que o buraco.
+
+### O que NÃO foi feito, e é o mais importante desta entrada
+
+**Os gates do `web/` não rodam no CI.** O `.github/workflows/ci.yml` roda `ruff` e `pytest` e
+mais nada. Os quatro portões de i18n do cliente existem, são verdes e foram verificados por
+mutação — mas só reprovam **quem roda os gates localmente**. Um PR que esqueça o `en` passa no
+CI hoje. Isso é escopo declarado da **T-027**, que continua `todo`, e que deixou de ser tarefa
+de higiene: ela é a outra metade do critério de aceite 5. Está registrado como Descoberta
+`[T-154]`, e a frase honesta enquanto isso é: *"não passa nos gates que já existem" vale para a
+sessão de trabalho, não para o repositório*.
+
+**Medições.** `npm run lint` limpo com a regra global (1 exceção, justificada no ponto),
+`npm run typecheck` limpo, `npm run test` 680/680 (+8), `npm run build` OK. `ruff check .`
+limpo, `pytest` 1161 passed — inclusive os testes de paridade dos YAML
+(`test_i18n_messages.py`, `test_feedback.py`), que já rodavam no CI desde a T-144/T-145 e são a
+metade do critério 5 que **já** está protegida no repositório.
+
+**Pendências.** Uma, em Descobertas (`[T-154]`): os gates do web fora do CI, que é a T-027. As
+três descobertas anteriores (`[T-148]`, `[T-149]`, `[T-153]`) foram fechadas aqui e marcadas
+como tal no BACKLOG.
+
+---
+
 ## 2026-08-18 (74) · T-153 — O seletor de idioma, e as três chamadas que não diziam a língua
 
 **O que foi feito.** O controle que faltava para o trabalho das seis tasks anteriores ser

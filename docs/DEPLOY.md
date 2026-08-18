@@ -249,6 +249,27 @@ cd web && DIGITALFIT_E2E=1 VITE_API_URL=https://SEU-DOMINIO npm run e2e
 Por fim, o que motivou tudo isto: abra `https://SEU-DOMINIO` no celular e faça 30 segundos de
 polichinelo (T-014).
 
+### Conteúdo sem tradução (SPEC-025)
+
+O app fala duas línguas, e **o conteúdo do painel não é traduzido por gate nenhum** — exercício,
+plano e passo de guia são texto que alguém escreve à mão, e ninguém pode escrever por essa
+pessoa. O comando que mostra o que ficou faltando:
+
+```bash
+./scripts/prod.sh exec api python manage.py i18n_status
+```
+
+Ele lista, por idioma, todo campo com conteúdo em pt-BR e sem contrapartida traduzida — só de
+exercício/plano **habilitado**, que é o que alguém pode ver hoje. Campo em branco na própria
+fonte não conta como buraco (não há o que traduzir ali), justamente para a lista não virar ruído
+que se aprende a ignorar. `--json` para script, `--todos` para incluir o que está desligado.
+
+**Não bloqueia deploy, e é de propósito**: falta de tradução degrada com honestidade — o inglês
+cai no português da coluna base (SPEC-025 §3.6) em vez de mostrar chave crua ou campo vazio. Mas
+subir uma versão com exercício novo sem revisar esta lista é escolher que ela apareça meio
+traduzida para quem abriu o app em inglês. **Rodar antes de anunciar a versão** é o hábito que a
+T-154 pede — a lista vazia leva dois segundos e é a única forma de saber.
+
 ## Operação
 
 ```bash

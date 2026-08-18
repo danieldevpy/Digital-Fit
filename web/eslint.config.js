@@ -31,85 +31,37 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
-  // `no-literal-string` por diretório (T-142, PLANO-I18N.md §4): ligar a regra no repositório
-  // inteiro de uma vez travaria a Onda 2 inteira atrás de telas que ainda não migraram. Em vez
-  // disso, cada task de migração liga a regra só para a pasta que ela acabou de migrar — esta
-  // task migrou `shell` (TabBar, nav — SPEC-014 §Mapa de navegação) e o efeito de `<html lang>`
-  // em `AppShell.tsx`. A T-154 remove estes overrides e liga a regra global depois que a Onda 2
-  // terminar. `mode: 'jsx-only'` (não o padrão `jsx-text-only`) para também pegar string solta
-  // em atributo (`aria-label`, `alt`, `title`, `placeholder`), não só texto de nó JSX.
-  {
-    files: ['src/shell/**/*.{ts,tsx}', 'src/app/AppShell.tsx'],
-    plugins: { i18next },
-    rules: {
-      'i18next/no-literal-string': ['error', { mode: 'jsx-only' }],
-    },
-  },
-  // T-147 (namespace `site`): `site/IndexScreen`, `AboutScreen`, `SiteBar`, `SiteApp`, `nav` —
-  // migrados para `t()`. Mesmo `mode: 'jsx-only'` do override acima, mesma doutrina. `active`
-  // acrescentado ao `jsx-attributes.exclude` (a lista PADRÃO — `context.options[0]` substitui o
-  // default inteiro, não faz merge, então a exclusão de `className`/`style`/... precisa ser
-  // repetida aqui): é o slug da tela em `SiteBar` (`'index' | 'sobre'`), o mesmo
-  // vocabulário-de-contrato que já vale para `Category`/`Code` no resto do projeto — dado, não
-  // frase.
-  {
-    files: ['src/site/**/*.{ts,tsx}'],
-    plugins: { i18next },
-    rules: {
-      'i18next/no-literal-string': [
-        'error',
-        {
-          mode: 'jsx-only',
-          'jsx-attributes': {
-            exclude: [
-              'className',
-              'styleName',
-              'style',
-              'type',
-              'key',
-              'id',
-              'width',
-              'height',
-              'active',
-            ],
-          },
-        },
-      ],
-    },
-  },
-  // T-153 (seletor de idioma): o próprio runtime de i18n passa a ter componente, e ele entra
-  // sob a regra como qualquer tela — `LocaleSwitch` desenha texto ("Português"/"English" e o
-  // `aria-label`), e é dele que sai a única superfície pela qual alguém troca de idioma. Os
-  // demais arquivos de `src/i18n/` não têm JSX; entram pela mesma doutrina de "pasta migrada"
-  // usada desde a T-152, para que a primeira frase escrita ali já nasça cobrada.
-  {
-    files: ['src/i18n/**/*.{ts,tsx}'],
-    ignores: ['src/i18n/dict/**'],
-    plugins: { i18next },
-    rules: {
-      'i18next/no-literal-string': ['error', { mode: 'jsx-only' }],
-    },
-  },
-  // T-151, namespaces `account` + `errors` (SPEC-025 Onda 2 — a última raia): a conta
-  // (`auth/AccountSheet`, `accountSummary`, `auth/api`) e o engajamento (`engagement/*`).
-  // `engagement/calendar.ts` entra sem ter mais texto: as iniciais da semana saíram dele para o
-  // `Intl` nesta task, e a regra passa a valer para que não voltem.
+  // `no-literal-string` GLOBAL (T-154, PLANO-I18N.md §4 — o portão que vale para sempre).
   //
-  // É a raia com mais plural do app (dias de sequência, treinos guardados, sessões da meta,
-  // dias treinados no mês) — todos por `.one`/`.other` e `Intl.PluralRules`, plano §2.7.
+  // Até aqui a regra entrava por diretório: cada task da Onda 2 ligava-a só para a pasta que
+  // acabara de migrar (T-142 `shell`, T-147 `site`, T-148 `funnel`, T-149 `session`, T-150
+  // `report`/`progress`, T-151 `account`/`errors`, T-153 o próprio runtime). Era o desenho certo
+  // enquanto a migração corria — ligar tudo de uma vez teria produzido ~280 erros e travado as
+  // seis raias atrás de telas que ainda não tinham dicionário. Com a Onda 2 fechada, os
+  // overrides viraram exatamente o oposto do que o portão promete: uma lista de exceções que
+  // cresce sozinha quando alguém cria um arquivo fora dela.
+  //
+  // Agora vale para `src/**`, e o que sobra de fora está nos `files` de exclusão abaixo, com
+  // motivo escrito. `mode: 'jsx-only'` (não o padrão `jsx-text-only`) para também pegar string
+  // solta em atributo — `aria-label`, `alt`, `title`, `placeholder` são os ~30 rótulos de
+  // acessibilidade que a SPEC-025 §Entidade conta como texto de cliente.
+  //
+  // **O que esta regra NÃO pega, e está registrado**: string fora de JSX (Descoberta `[T-149]`
+  // do BACKLOG). O `mode: 'jsx-only'` olha JSXText e JSXAttribute e nada mais, então uma frase
+  // nascida num módulo `.ts` passa batido. Quem cobre esse flanco é
+  // `src/i18n/textoNovo.test.ts`, que varre o código-fonte atrás de literal acentuada.
   {
-    files: [
-      'src/auth/AccountSheet.tsx',
-      'src/auth/accountSummary.ts',
-      'src/auth/api.ts',
-      'src/engagement/AchievementGallery.tsx',
-      'src/engagement/AchievementToast.tsx',
-      'src/engagement/EngagementSection.tsx',
-      'src/engagement/EngagementSheet.tsx',
-      'src/engagement/FireChip.tsx',
-      'src/engagement/XpLine.tsx',
-      'src/engagement/format.ts',
-      'src/engagement/calendar.ts',
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      // O dicionário É o texto — cobrar `t()` dentro dele seria recursão.
+      'src/i18n/dict/**',
+      // Testes falam de texto o tempo todo (fixtures, asserts nas duas línguas). O que protege
+      // o teste de mentir é ele rodar, não o lint.
+      'src/**/*.test.{ts,tsx}',
+      // Ferramenta de operação, não superfície de quem treina — a mesma exclusão que a
+      // SPEC-025 §Escopo dá ao painel admin do Django. Só aparece com build de dev ou conta
+      // `is_admin` (`dev/gate.ts`).
+      'src/dev/**',
     ],
     plugins: { i18next },
     rules: {
@@ -118,7 +70,12 @@ export default tseslint.config(
         {
           mode: 'jsx-only',
           'jsx-attributes': {
+            // A lista PADRÃO precisa ser repetida — `context.options[0]` substitui o default
+            // inteiro, não faz merge. Depois dela, três famílias de nome, todas com o mesmo
+            // critério: é vocabulário de contrato (do navegador, do leitor de tela, do SVG) ou
+            // é frase que alguém lê?
             exclude: [
+              // padrão do plugin
               'className',
               'styleName',
               'style',
@@ -127,123 +84,23 @@ export default tseslint.config(
               'id',
               'width',
               'height',
+              // `className` com outro nome, e slugs de tela/variante (dado, não frase)
+              'figuraClassName',
+              'active',
+              'variant',
+              // vocabulário da ARIA: contrato do leitor de tela. `aria-label` fica de FORA de
+              // propósito — é justamente o texto que a spec conta.
               'role',
               'aria-hidden',
               'aria-live',
+              'aria-modal',
+              'aria-labelledby',
+              'aria-current',
               'autoComplete',
-              'viewBox',
-              'cx',
-              'cy',
-              'r',
-            ],
-          },
-        },
-      ],
-    },
-  },
-  // T-150, namespaces `report` + `progress` (SPEC-025 Onda 2): a leitura do que já foi treinado
-  // — o relatório do fim (`report/*`) e as duas telas de histórico (`ProgressScreen`,
-  // `AnalyticsScreen`). `history/aggregates.ts` e `session/kcal.ts` entram junto: o primeiro não
-  // tem texto nenhum (só `Rumo`, que é contrato) e o segundo perdeu o `ESTIMATED_LABEL` para o
-  // dicionário nesta task.
-  //
-  // Além do `t()`, esta raia trocou os `toLocaleDateString('pt-BR')` e os
-  // `.toFixed(1).replace('.', ',')` pelos formatadores de `i18n/format.ts` (plano §2.6) — o que
-  // nenhuma regra de lint pega, porque data e número não parecem texto.
-  {
-    files: [
-      'src/report/ReportSheet.tsx',
-      'src/report/reportSummary.ts',
-      'src/report/sessionReport.ts',
-      'src/screens/ProgressScreen.tsx',
-      'src/screens/AnalyticsScreen.tsx',
-      'src/history/aggregates.ts',
-      'src/session/kcal.ts',
-    ],
-    plugins: { i18next },
-    rules: {
-      'i18next/no-literal-string': [
-        'error',
-        {
-          mode: 'jsx-only',
-          'jsx-attributes': {
-            exclude: [
-              'className',
-              'styleName',
-              'style',
-              'type',
-              'key',
-              'id',
-              'width',
-              'height',
-              'role',
-              'aria-hidden',
+              // geometria e pintura de SVG
               'viewBox',
               'preserveAspectRatio',
               'points',
-            ],
-          },
-        },
-      ],
-    },
-  },
-  // T-149, namespace `session` (SPEC-025 Onda 2): o treino em si — a capa e os avisos da
-  // câmera, o aquecimento do pipeline, a medição do corpo, os conselhos de cena, as recusas da
-  // admissão, o CTA de dois degraus, o HUD e as duas telas do `SessionScreen`.
-  // `session/preferences.ts` entra fora da lista original da task porque o `countdownLabel` dele
-  // é o texto que o `aria-label` do `CountdownSetting` interpola (ver o docstring lá).
-  //
-  // O chip de diagnóstico do `CameraView` e o conselho de "suba a stack" continuam em português
-  // cru, com `eslint-disable` e justificativa no ponto: são ferramenta de operação, a mesma
-  // exclusão que a SPEC-025 §Escopo dá ao painel admin. Note que `mode: 'jsx-only'` não alcança
-  // string fora de JSX — o que cobre os módulos `.ts` desta raia (`admission`, `sceneQuality`,
-  // `assetWarmup`, …) é o teste de paridade e a revisão, não esta regra.
-  //
-  // `aria-modal`/`aria-labelledby` não aparecem aqui (nenhum arquivo desta lista os usa);
-  // `role`, `aria-hidden`, `aria-live`, `stroke*`, `fill`, `transform` e afins são vocabulário
-  // de SVG/ARIA — contrato de desenho e de leitor de tela, nunca frase que alguém lê.
-  {
-    files: [
-      'src/screens/SessionScreen.tsx',
-      'src/capture/CameraView.tsx',
-      'src/capture/useCamera.ts',
-      'src/capture/useEdgePipeline.ts',
-      'src/hud/CoachTip.tsx',
-      'src/hud/StatsBar.tsx',
-      'src/hud/GetReady.tsx',
-      'src/hud/TimerRing.tsx',
-      'src/hud/CountdownSetting.tsx',
-      'src/hud/ZoomControl.tsx',
-      'src/session/startGate.ts',
-      'src/session/pipelineGate.ts',
-      'src/session/admission.ts',
-      'src/session/useSession.ts',
-      'src/session/preferences.ts',
-      'src/scene/sceneQuality.ts',
-      'src/pose/assetWarmup.ts',
-      'src/probe/runProbe.ts',
-    ],
-    plugins: { i18next },
-    rules: {
-      'i18next/no-literal-string': [
-        'error',
-        {
-          mode: 'jsx-only',
-          'jsx-attributes': {
-            exclude: [
-              'className',
-              'styleName',
-              'style',
-              'type',
-              'key',
-              'id',
-              'width',
-              'height',
-              'role',
-              'aria-hidden',
-              'aria-live',
-              'variant',
-              'viewBox',
               'fill',
               'stroke',
               'strokeWidth',
@@ -264,86 +121,6 @@ export default tseslint.config(
           },
         },
       ],
-    },
-  },
-  // T-148, namespace `funnel` (SPEC-025 Onda 2): o caminho da SPEC-015 do lado do app —
-  // Escolha (`screens/ChooseScreen`, `ExerciseRails`), Guia (`screens/GuideScreen`), a escolha
-  // de variação de câmera (`ui/ViewPicker`, `hud/ViewConfirm`), os dois seletores herdados do
-  // funil antigo (`hud/ExercisePicker`, `ui/ExerciseDemo`) e o card da vitrine do site
-  // (`screens/ExerciseCards`, que mora em `screens/` mas só o site desenha). `screens/funnel.ts`,
-  // `session/guideGate.ts` e `session/viewGate.ts` entram sem ter nada a pegar hoje — é a mesma
-  // doutrina de "pasta migrada" do `ui/exerciseFigures.ts` na T-152: a regra passa a valer ANTES
-  // de a primeira frase aparecer ali, que é o único momento em que ela custa zero.
-  //
-  // Arquivos explícitos, e não `src/screens/**`: `ProgressScreen`/`AnalyticsScreen` são da T-150
-  // e `SessionScreen` é da T-149 — as raias da Onda 2 dividem estas pastas.
-  //
-  // Cinco nomes acrescentados ao `jsx-attributes.exclude` (a lista PADRÃO precisa ser repetida —
-  // `context.options[0]` substitui o default inteiro, não faz merge). `role="radio"`,
-  // `role="dialog"`, `aria-modal="true"`, `aria-labelledby="vgate-titulo"` e `aria-hidden="true"`
-  // são vocabulário da ARIA: contrato do navegador e do leitor de tela, nunca frase que alguém
-  // lê. `figuraClassName` é `className` com outro nome (o ramo-figura do `ExerciseDemo`), e
-  // `className` já está no default pelo mesmo motivo. `aria-label` e `alt` ficam de FORA da
-  // exclusão de propósito — são exatamente o texto que a SPEC-025 §Entidade conta entre os ~30
-  // rótulos de acessibilidade, e é por eles que esta regra existe em `mode: 'jsx-only'`.
-  {
-    files: [
-      'src/screens/ChooseScreen.tsx',
-      'src/screens/GuideScreen.tsx',
-      'src/screens/ExerciseCards.tsx',
-      'src/screens/ExerciseRails.tsx',
-      'src/screens/funnel.ts',
-      'src/ui/ViewPicker.tsx',
-      'src/ui/ExerciseDemo.tsx',
-      'src/hud/ViewConfirm.tsx',
-      'src/hud/ExercisePicker.tsx',
-      'src/session/guideGate.ts',
-      'src/session/viewGate.ts',
-    ],
-    plugins: { i18next },
-    rules: {
-      'i18next/no-literal-string': [
-        'error',
-        {
-          mode: 'jsx-only',
-          'jsx-attributes': {
-            exclude: [
-              'className',
-              'styleName',
-              'style',
-              'type',
-              'key',
-              'id',
-              'width',
-              'height',
-              'figuraClassName',
-              'role',
-              'aria-modal',
-              'aria-labelledby',
-              'aria-hidden',
-            ],
-          },
-        },
-      ],
-    },
-  },
-  // T-152, namespace `catalog` (SPEC-025 Onda 2): o catálogo embutido de exercícios
-  // (`session/catalog.ts`), as variações de câmera (`session/exerciseViews.ts`), o embutido de
-  // `CODE_MESSAGES` do card do treinador (`session/coachCard.ts`, herança da T-144) e o registro
-  // de figuras (`ui/exerciseFigures.ts`, sem texto — entra pela mesma doutrina de "pasta
-  // migrada", não por ter algo a pegar). Arquivos explícitos, e não uma pasta inteira: o resto
-  // de `session/` (`admission.ts`, `useSession.ts`, ...) pertence a outras raias da Onda 2
-  // (T-149) e ainda não migrou.
-  {
-    files: [
-      'src/session/catalog.ts',
-      'src/session/exerciseViews.ts',
-      'src/session/coachCard.ts',
-      'src/ui/exerciseFigures.ts',
-    ],
-    plugins: { i18next },
-    rules: {
-      'i18next/no-literal-string': ['error', { mode: 'jsx-only' }],
     },
   },
 )

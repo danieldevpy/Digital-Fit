@@ -35,6 +35,11 @@ export const session = {
   'warmup.size_mb': '{done} MB',
   'warmup.progress': '{percent}% · {done} de {total} MB',
   'pipeline.start_failed': 'Falha ao iniciar o pipeline de pose.',
+  // O detalhe (`{reason}`) é a mensagem crua da exceção — diagnóstico, e continua sem tradução
+  // pelo mesmo motivo do `errors:api_down_detail`. O que a T-154 consertou aqui foi a MOLDURA:
+  // ela era um template literal em português, fora de JSX, e por isso passou pelo
+  // `no-literal-string` na T-149 sem ninguém ver (Descoberta `[T-149]`, o portão que faltava).
+  'pipeline.start_failed_detail': 'Falha ao iniciar o pipeline de pose: {reason}',
 
   // --- Medição do corpo (SPEC-004) ---
   'calibrating.title': 'Fique em pé, parado',

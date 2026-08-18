@@ -46,6 +46,13 @@ Regras de teste da casa:
 - Lógica de análise/derivação = **função pura** testável sem câmera, sem banco e sem mock de
   relógio (data/tempo entram como parâmetro). Fixtures em `tests/fixtures/`.
 - Novo evento ⇒ `workers/shared/events.py` **primeiro**, com teste de serialização.
+- **Texto novo nasce nas duas línguas** (SPEC-025, AGENTS §Fluxo 4). Frase que o cliente lê →
+  chave em `web/src/i18n/dict/pt-BR/<namespace>.ts` + `t('namespace:chave')`; o `en` é tipado
+  pelo `pt-BR`, então `npm run typecheck` reprova a chave que faltar. Texto de **conteúdo**
+  (exercício, plano, conquista, feedback) não vai para o dicionário — vai para o painel ou para
+  o YAML por idioma. Data e número pelos formatadores de `i18n/format.ts`; chamada nova à API
+  com `localeHeaders()`. Nada disso depende de lembrar: são quatro portões nos gates
+  obrigatórios (`tsc`, `eslint`, `src/i18n/portoes.test.ts`, `pytest`).
 - Mudança de contrato/coluna deve ser **aditiva** (default que não quebra consumidor atual).
 - UI nunca mostra número inventado: sem dado real, mostra `--` (princípio "honestidade >
   fidelidade" da SPEC-014).

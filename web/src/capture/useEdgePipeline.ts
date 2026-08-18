@@ -266,7 +266,7 @@ export function useEdgePipeline(
       store.setPoseStatus('error')
       store.setError(
         error instanceof Error
-          ? `Falha ao iniciar o pipeline de pose: ${error.message}`
+          ? t('session:pipeline.start_failed_detail', { reason: error.message })
           : t('session:pipeline.start_failed'),
       )
     })

@@ -322,7 +322,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-153 | **Seletor de idioma nas configurações.** Entra no Perfil (`AccountSheet`); troca sem reload; persiste em `digitalfit.locale`; força revalidação do `GET /api/config` e do `GET /api/engagement` ao trocar (senão o ETag/cache devolve a língua velha — SPEC-025 §Notas técnicas); reescreve `<html lang>`. No site, o mesmo controle navega entre `/` e `/en/`. Depende de T-142 e T-143 *(Tam: M)* | 025/018/019 | **feito** (2026-08-18) |
-| T-154 | **Os portões + o processo.** Regra ESLint `no-literal-strings` global (removendo os overrides por pasta); paridade de tipos já garantida desde a T-142; teste de paridade dos YAML no CI; `i18n_status` no checklist de release; `AGENTS.md` e as skills `df-executor`/`df-spec` ganham a regra do texto novo (plano §4). Depende da Onda 2 completa (T-147…T-152) *(Tam: P)* | 025 | todo |
+| T-154 | **Os portões + o processo.** Regra ESLint `no-literal-strings` global (removendo os overrides por pasta); paridade de tipos já garantida desde a T-142; teste de paridade dos YAML no CI; `i18n_status` no checklist de release; `AGENTS.md` e as skills `df-executor`/`df-spec` ganham a regra do texto novo (plano §4). Depende da Onda 2 completa (T-147…T-152) *(Tam: P)* | 025 | **feito** (2026-08-18) |
 | T-155 | **Revisão de tradução e de layout.** Passada ponta a ponta nas duas línguas, nos dois entry points, em aparelho real: qualidade do inglês (tom de treinador, não tradução literal), estouro de layout nos cards e chips ("Repetições" → "Reps" muda a métrica visual), e o caminho novo do primeiro acesso com o navegador em inglês. Depende das Ondas 1 e 2 completas *(Tam: M)* | 025/015 | todo |
 
 ### Fora da frente, mesmo objetivo
@@ -1166,7 +1166,9 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   compara os placeholders chave a chave — mas só sobre `funnel`, porque generalizá-lo para os
   nove namespaces é portão, e portão é a T-154. O teste está escrito em cima de dois objetos
   importados (`funnelPtBR`/`funnelEn`) e vira um `for` sobre `dict/pt-BR/index.ts` inteiro sem
-  mudar de forma. Entra na T-154, junto com o `no-literal-string` global.
+  mudar de forma. Entra na T-154, junto com o `no-literal-string` global. **Resolvido na T-154**
+  (2026-08-18): a varredura passou a percorrer `dict/pt-BR/index.ts`, os nove de uma vez — um
+  namespace novo entra sozinho.
 - **[T-149] O `no-literal-string` não enxerga string fora de JSX, e metade do texto do cliente
   mora fora de JSX.** A regra roda em `mode: 'jsx-only'` (escolha da T-142, para pegar
   `aria-label`/`alt` além de nó de texto), e nesse modo ela olha JSXText e JSXAttribute — nada
@@ -1179,7 +1181,10 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   bloco com `mode: 'all'` restrito aos módulos que produzem texto (ruidoso — pega slug, chave de
   storage, nome de header), ou um teste que varra `src/**/*.ts` procurando literal com
   caractere acentuado fora de comentário (mais estreito, e cobre só quem escreve em português —
-  que é justamente a direção do erro que importa).
+  que é justamente a direção do erro que importa). **Resolvido na T-154** (2026-08-18) pela
+  segunda via, em `web/src/i18n/portoes.test.ts` — e o portão se pagou na primeira execução,
+  encontrando um template literal em português vivo no `useEdgePipeline.ts` que a própria T-149
+  tinha deixado passar.
 - **[T-149] `hud/StatsBar.tsx`, `hud/CoachTip.tsx` e `hud/ExerciseCard.tsx` não são importados
   por ninguém.** Um `grep` por cada nome em `web/src` só encontra a própria declaração: o HUD da
   SPEC-013 §1/§4 foi reescrito dentro do `SessionScreen` (cards `hud-card--reps`/`--angle`/
@@ -1214,4 +1219,15 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   T-153 é que o revelou: trocar para inglês e continuar recebendo o catálogo em português. Fechado
   na própria task (`i18n/http.ts`, `localeHeaders()`), com teste que falha se o header sumir de
   qualquer uma delas. **Fica a lição para a T-154**: o portão do texto novo não vê header nenhum,
-  e uma chamada nova nasce sem idioma sem que nada acuse.
+  e uma chamada nova nasce sem idioma sem que nada acuse. **Resolvido na T-154** (2026-08-18):
+  `portoes.test.ts` cobra que todo arquivo que chama `apiBaseUrl()` importe `localeHeaders` — e
+  encontrou `session/quota.ts`, a QUINTA chamada, que a T-153 não tinha visto.
+- **[T-154] Os gates do `web/` não rodam no CI, e é isso que separa o critério 5 de ser verdade
+  inteira.** `.github/workflows/ci.yml` roda `ruff` e `pytest` — nada de `npm run lint`,
+  `typecheck` ou `test`. Os quatro portões de i18n do cliente (paridade de tipo, literal em JSX,
+  literal fora de JSX, cabeçalho de idioma) existem e são verdes, mas hoje eles só reprovam
+  **quem roda os gates localmente**, que é o que o AGENTS.md manda e ninguém força. Um PR que
+  esqueça o `en` passa no CI. Isso é escopo declarado da **T-027** ("CI: ruff+pytest+lint web+
+  build de imagens"), que continua `todo` — e ela deixou de ser tarefa de higiene para virar a
+  outra metade do critério de aceite 5 da SPEC-025. Enquanto não rodar, a frase "não passa nos
+  gates que já existem" vale para a sessão de trabalho, não para o repositório.
