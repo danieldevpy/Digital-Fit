@@ -7,16 +7,18 @@ export default defineConfig({
     host: true,
     port: 5173,
   },
-  // Dois entry points (T-067): o site na raiz, o app em `/app/`. Um build só, dois HTMLs —
-  // é o que permite servir `site.dominio.com` e `app.dominio.com` do mesmo artefato sem
+  // Três entry points: o site em pt-BR na raiz, o site em inglês em `/en/` (T-147, SPEC-025
+  // §Escopo — Site por URL), o app em `/app/`. Um build só, três HTMLs — é o que permite
+  // servir `site.dominio.com` (nas duas línguas) e `app.dominio.com` do mesmo artefato sem
   // duplicar pipeline, e o code splitting do Rollup mantém MediaPipe e a máquina de sessão
-  // fora do bundle do site.
+  // fora dos bundles do site.
   build: {
     rollupOptions: {
       // Caminhos relativos à `root` do Vite (a pasta `web/`) — sem `node:path` para o
       // tsconfig.node não precisar de @types/node só por causa disto.
       input: {
         site: 'index.html',
+        siteEn: 'en/index.html',
         app: 'app/index.html',
       },
     },
