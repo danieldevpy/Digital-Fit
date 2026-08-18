@@ -5,6 +5,84 @@
 
 ---
 
+## 2026-08-18 (79) · T-162 — Deixar traduzir sem deixar quebrar
+
+**O que foi feito.** `translate="no"` nas regiões que o React reescreve durante a sessão —
+valores da `StatsBar`, relógio do `TimerRing`, corpo do `CoachTip`, números do `ReportSheet` —,
+`SiteApp` decidindo idioma por `matchLocale()` em vez de `=== 'en'`, o motivo do locale
+resolvido escrito no `i18n/http.ts`, e um portão novo (`i18n/traducao.test.ts`) que cobra a
+marcação. Primeira task de código da Fase 8, e a única que não depende das URLs.
+
+**A ideia por trás.** O produto tem duas línguas curadas e vai continuar tendo. A terceira,
+quarta e quadragésima língua são a tradução do navegador — de graça, sem manutenção, e é a
+camada "Traduzir" da SPEC-026. Aceitar isso tem um preço em duas moedas: número traduzido por
+máquina é ruído com risco, e o Google Translate embrulha cada nó de texto num `<font>`, o que
+põe uma tela que redesenha texto a cada repetição na rota de uma classe conhecida de falha do
+React. As duas se pagam com o mesmo atributo.
+
+### As decisões
+
+**Marcação cirúrgica, não cortina.** `translate="no"` foi nos VALORES, nunca na barra inteira.
+"Repetições"/"Reps", "restantes", "Detalhes" são exatamente o que alguém que ligou a tradução
+quer ler na própria língua — e só mudam quando o locale muda, que é o caso em que o React
+redesenha tudo de qualquer forma. Cobrir o container faria o app parar de quebrar e a camada
+"Traduzir" morrer junto, em silêncio. Virou o terceiro caso de teste do portão, justamente para
+impedir a "correção" preguiçosa de amanhã.
+
+**O card do treinador foi protegido, e isso custa alguma coisa.** É o texto que mais muda na
+sessão e a superfície mais exposta — mas também é a frase que um estrangeiro mais gostaria de
+ler traduzida. Escolhido proteger, pelo argumento da SPEC-026 §Escopo: o app já existe em duas
+línguas curadas, e perder a dica é melhor que perder a sessão no meio do treino. Registrado
+aqui porque é troca, não ganho puro.
+
+**Recusado o teste que a task pedia, e a linha do BACKLOG foi corrigida em vez de contornada.**
+A redação original dizia "teste que simula o embrulho em `<font>` e prova que o HUD sobrevive a
+um redesenho". Ele não foi escrito, por um motivo que não é de esforço: **quem honra
+`translate="no"` é o tradutor do navegador** — não o React, não o DOM. Um teste desses provaria
+que o *bug* existe, não que a *correção* existe, e ainda exigiria `jsdom` como dependência de
+desenvolvimento (o repositório roda `environment: 'node'`), num projeto que recusou 50 KB de
+`i18next` por um `t()`. O que regride de verdade é a marcação sumir sem ninguém notar, e é isso
+que o portão cobra — mesma doutrina do `portoes.test.ts`: mirar o modo de falha real da equipe
+(esquecer) em vez de perseguir prova exaustiva que ninguém mantém.
+
+**`matchLocale()` no `SiteApp`, e o fallback mudou junto.** A comparação `=== 'en' ? 'en' :
+'pt-BR'` respondia certo para exatamente dois valores; um `/es/` futuro cairia no PORTUGUÊS em
+silêncio — página em espanhol, dicionário em português, nenhum erro em lugar nenhum. O fallback
+passou de `'pt-BR'` para `DEFAULT_LOCALE` de propósito: é a mesma resposta que o `x-default` da
+SPEC-026 dá ao robô, e as duas pontas passam a dizer a mesma coisa.
+
+### As medições
+
+- **O portão pega o que promete pegar**, provado por mutação no fonte real: removida a marcação
+  do `ring__time`, o teste ficou vermelho apontando a tag inteira
+  (`<p className="ring__time tabular">`); restaurada, verde. Não é um portão que só sabe dizer
+  "está tudo bem".
+- **React emite o atributo**: `renderToStaticMarkup` de um `<p translate="no">` contém
+  `translate="no"` no HTML (medido com um teste temporário, removido em seguida).
+- **Gates**: `ruff check` e `ruff format --check` limpos (176 arquivos), `pytest` verde,
+  `npm run lint`/`typecheck` sem saída, `npm run test` com **698 testes em 62 arquivos**.
+
+### Critérios de aceite da SPEC-026 conferidos
+
+- **3** (navegador em francês abre `/app/` e recebe inglês) — já coberto por
+  `i18n/locale.test.ts:56`, que prova `resolveLocale(null, ['fr-FR','de-DE'])` →
+  `DEFAULT_LOCALE`. Entrou na conferência para não regredir, não como entrega desta task.
+- **4** (traduzir o `/app/` e treinar 30 s sem derrubar a tela) — **pendência declarada**. Exige
+  navegador real com tradução ligada e uma sessão de verdade; nada neste repositório simula o
+  tradutor. É verificação de aparelho, e vai junto da T-155.
+
+### Pendências
+
+- Critério 4 da SPEC-026 aguarda verificação em aparelho real (acima).
+- A SPEC-026 continua em **`draft`** — a T-157 a escreveu e a revisão do Daniel é o que a leva a
+  `approved`. Esta task foi executada porque não toca nenhuma decisão em disputa da spec.
+- **Sessão paralela no mesmo repositório.** No meio desta task apareceu na árvore uma alteração
+  em `web/src/styles.css` que não era daqui (largura do hero, `min(76%, 210px)` →
+  `min(82%, 210px)`); ficou de fora do stage, e pouco depois ela foi commitada pela própria
+  sessão vizinha como **T-167**. Nenhuma colisão de numeração — a Fase 8 reservou T-157…T-166 —,
+  mas fica o registro de que duas sessões escreveram no `master` no mesmo dia, e que o commit
+  desta task nasce em cima daquele.
+
 ## 2026-08-18 (78) · T-167 — A pré-configuração para de esconder o quadro
 
 **O pedido.** Daniel, usando o app: *"a janela onde mostra com nitidez a pessoa está muito

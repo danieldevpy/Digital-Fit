@@ -1,5 +1,15 @@
 // Barra de métricas da SPEC-013 §1.
 //
+// `translate="no"` nos VALORES, e não na barra inteira (T-162, SPEC-026 §Escopo). Quem abre o
+// app numa língua não curada pode pedir a tradução da página ao navegador — e aí duas coisas
+// ruins acontecem de uma vez. A primeira é de produto: "12" não se traduz, e um número passado
+// por tradução de máquina é ruído com risco. A segunda é técnica: o Google Translate embrulha
+// cada nó de texto num `<font>`, o React continua tratando o nó como filho direto do elemento,
+// e uma tela que redesenha texto a cada repetição é a mais exposta do app a essa classe de
+// falha. Os RÓTULOS ficam de fora do atributo de propósito — "Repetições"/"Reps" é exatamente
+// o que alguém que traduziu a página quer ler na própria língua, e eles só mudam quando o
+// locale muda.
+//
 // Fase Inicial: SÉRIE fixo em 1 (circuitos são evolução), REPETIÇÕES sem meta,
 // ÂNGULO ao vivo vem do cliente (T-044), KCAL exibe "--" (MET é evolução).
 import { useT } from '../i18n'
@@ -29,7 +39,9 @@ export function StatsBar() {
       <div className="stats__item">
         <IconSeries className="stats__icon" />
         <div>
-          <p className="stats__value tabular">{CURRENT_SERIES}</p>
+          <p className="stats__value tabular" translate="no">
+            {CURRENT_SERIES}
+          </p>
           <p className="stats__label">{t('session:label.series')}</p>
         </div>
       </div>
@@ -37,7 +49,9 @@ export function StatsBar() {
       <div className="stats__item">
         <IconPulse className="stats__icon" />
         <div>
-          <p className="stats__value tabular">{repCount}</p>
+          <p className="stats__value tabular" translate="no">
+            {repCount}
+          </p>
           <p className="stats__label">{t('session:label.reps')}</p>
         </div>
       </div>
@@ -45,7 +59,9 @@ export function StatsBar() {
       <div className="stats__item">
         <IconAngle className="stats__icon" />
         <div>
-          <p className="stats__value tabular">{angulo}</p>
+          <p className="stats__value tabular" translate="no">
+            {angulo}
+          </p>
           <p className="stats__label">{t('session:label.angle')}</p>
         </div>
       </div>
@@ -53,7 +69,9 @@ export function StatsBar() {
       <div className="stats__item">
         <IconFlame className="stats__icon stats__icon--flame" />
         <div>
-          <p className="stats__value tabular">{NOT_AVAILABLE}</p>
+          <p className="stats__value tabular" translate="no">
+            {NOT_AVAILABLE}
+          </p>
           <p className="stats__label">{t('session:label.kcal_short')}</p>
         </div>
       </div>

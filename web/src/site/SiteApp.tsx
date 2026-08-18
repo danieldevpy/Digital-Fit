@@ -14,12 +14,19 @@
 // (não indexado) é a errada aqui (indexado, rastreado por URL). `setState` direto, não
 // `setLocale()`: a escolha é da URL desta visita, não uma preferência para persistir em
 // `digitalfit.locale` — visitar `/en/` não deve trocar o idioma que o app abre depois.
+import { DEFAULT_LOCALE, matchLocale } from '../i18n/locale'
 import { useI18nStore } from '../i18n/store'
 import { AboutScreen } from './AboutScreen'
 import { IndexScreen } from './IndexScreen'
 import { useSiteRoute } from './nav'
 
-const localeDoSite = document.documentElement.lang === 'en' ? 'en' : 'pt-BR'
+// `matchLocale()` e não `=== 'en'` (T-162): a comparação por igualdade respondia certo para
+// exatamente dois valores e mandaria um `/es/` futuro para o PORTUGUÊS, em silêncio — o pior
+// modo de falha, porque a página estaria em espanhol e o dicionário em português sem ninguém
+// receber erro. `matchLocale` já normaliza por prefixo e já é a função que o app usa; o
+// fallback é `DEFAULT_LOCALE` pelo mesmo motivo que o `x-default` da SPEC-026 aponta para
+// `/en/`: `en` é a resposta para "não sei quem é você", e as duas pontas dizem a mesma coisa.
+const localeDoSite = matchLocale(document.documentElement.lang) ?? DEFAULT_LOCALE
 if (useI18nStore.getState().locale !== localeDoSite) {
   useI18nStore.setState({ locale: localeDoSite })
 }

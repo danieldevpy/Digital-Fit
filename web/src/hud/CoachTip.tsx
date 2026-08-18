@@ -1,4 +1,14 @@
 // Card "Dica do Treinador" — superfície do feedback engine (SPEC-013 §4).
+//
+// `translate="no"` no corpo (T-162, SPEC-026 §Escopo). É o texto que MAIS muda durante a sessão
+// — troca a cada `feedback.issued` —, e é por isso a superfície mais exposta à classe de falha
+// que a tradução de página introduz: o Google Translate embrulha cada nó de texto num `<font>`
+// e o React segue tratando o nó como filho direto do elemento.
+//
+// A escolha custa alguma coisa e é bom dizer qual: quem traduziu a página perde justamente a
+// frase do treinador. Foi decidido assim porque o app já existe em duas línguas curadas, e
+// perder a dica é melhor que perder a sessão no meio do treino. O botão de detalhes fica FORA
+// do atributo — é rótulo de interface, não conteúdo ao vivo.
 import { useState } from 'react'
 import { useT } from '../i18n'
 import { getExercise } from '../session/catalog'
@@ -30,7 +40,7 @@ export function CoachTip() {
       <div className="tip__avatar">
         <IconUser className="tip__avatar-icon" />
       </div>
-      <div className="tip__body">
+      <div className="tip__body" translate="no">
         <p className="tip__title">{card.title}</p>
         <p className="tip__text">{card.text}</p>
         {showHint && card.hint && <p className="tip__hint">{card.hint}</p>}

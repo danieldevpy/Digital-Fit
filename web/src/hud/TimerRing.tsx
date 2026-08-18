@@ -1,3 +1,9 @@
+// Anel do cronômetro da sessão.
+//
+// `translate="no"` no relógio (T-162, SPEC-026 §Escopo): é texto que o React reescreve uma vez
+// por segundo, o pior caso para a classe de falha que a tradução de página introduz (o `<font>`
+// que o Google Translate embrulha em cada nó de texto). O rótulo "restantes" fica de fora — é
+// palavra, e traduzir palavra é o que a pessoa pediu ao ligar a tradução.
 import { useT } from '../i18n'
 import { formatClock } from '../session/countdown'
 
@@ -47,7 +53,9 @@ export function TimerRing({ secondsLeft, secondsTotal }: TimerRingProps) {
         />
       </svg>
       <div className="ring__content">
-        <p className="ring__time tabular">{formatClock(secondsLeft)}</p>
+        <p className="ring__time tabular" translate="no">
+          {formatClock(secondsLeft)}
+        </p>
         <p className="ring__label">{t('session:timer.remaining')}</p>
       </div>
     </div>

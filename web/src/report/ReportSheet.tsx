@@ -1,5 +1,10 @@
 // Tela de relatório (SPEC-010). Sobe sobre a sessão quando ela termina.
 //
+// `translate="no"` nos NÚMEROS (T-162, SPEC-026 §Escopo): contagem, cadência, duração e o modo
+// da sessão. Mesma regra do HUD — número não se traduz, e é o texto que o React reescreve
+// quando o relatório chega. Título, rótulo e a lista de melhorias ficam de fora: são frases, e
+// são o que alguém que ligou a tradução da página quer ler na própria língua.
+//
 // A SPEC-013 não define esta tela — ela é da SPEC-010. O visual segue os tokens da 013
 // mesmo assim (glass, accent, tabular-nums), porque um relatório com outra linguagem visual
 // pareceria outro aplicativo.
@@ -34,7 +39,9 @@ export function ReportSheet() {
             <p className="report__title">{t('report:loading.title')}</p>
             {/* O número que a pessoa acabou de ver ao vivo, para a tela não ficar vazia
                 enquanto o relatório não chega. */}
-            <p className="report__reps tabular">{repCount}</p>
+            <p className="report__reps tabular" translate="no">
+              {repCount}
+            </p>
             <p className="report__hint">{t('report:loading.hint')}</p>
           </>
         )}
@@ -42,7 +49,9 @@ export function ReportSheet() {
         {status === 'error' && (
           <>
             <p className="report__title">{t('report:error.title')}</p>
-            <p className="report__reps tabular">{repCount}</p>
+            <p className="report__reps tabular" translate="no">
+              {repCount}
+            </p>
             <p className="report__hint">{t('report:error.hint')}</p>
           </>
         )}
@@ -54,22 +63,32 @@ export function ReportSheet() {
                 Progresso e do Analytics, "Série completa · 12 repetições" não diz de quê. */}
             <p className="report__ex">{getExercise(report.exercise).display_name}</p>
             <p className="report__title">{reasonText(report.reason)}</p>
-            <p className="report__reps tabular">{report.rep_count}</p>
+            <p className="report__reps tabular" translate="no">
+              {report.rep_count}
+            </p>
             <p className="report__hint">{t('report:reps_label')}</p>
 
             <XpLine xp={report.xp} />
 
             <div className="report__stats">
               <div className="report__stat">
-                <p className="report__stat-value tabular">{report.cadence_rpm.toFixed(0)}</p>
+                <p className="report__stat-value tabular" translate="no">
+                  {report.cadence_rpm.toFixed(0)}
+                </p>
                 <p className="report__stat-label">{t('report:stat.rpm')}</p>
               </div>
               <div className="report__stat">
-                <p className="report__stat-value tabular">{formatDuration(report.duration_ms)}</p>
+                <p className="report__stat-value tabular" translate="no">
+                  {formatDuration(report.duration_ms)}
+                </p>
                 <p className="report__stat-label">{t('report:stat.valid_time')}</p>
               </div>
               <div className="report__stat">
-                <p className="report__stat-value">{report.mode}</p>
+                {/* `edge`/`cloud` é vocabulário de contrato (SPEC-025 §Entidade), não frase:
+                    continua em inglês no fio e não passa por tradução de máquina. */}
+                <p className="report__stat-value" translate="no">
+                  {report.mode}
+                </p>
                 <p className="report__stat-label">{t('report:stat.mode')}</p>
               </div>
             </div>
@@ -103,7 +122,7 @@ export function ReportSheet() {
                   {improvements(report).map((item) => (
                     <li className="report__item" key={item.code}>
                       <span>{item.text}</span>
-                      <span className="report__count tabular">
+                      <span className="report__count tabular" translate="no">
                         {t('report:count_suffix', { n: item.count })}
                       </span>
                     </li>

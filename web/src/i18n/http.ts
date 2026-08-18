@@ -13,7 +13,18 @@
 // responder por ele.
 import { useI18nStore } from './store'
 
-/** `Accept-Language` com o locale ativo. Safelisted de CORS — não gera preflight. */
+/**
+ * `Accept-Language` com o locale ativo. Safelisted de CORS — não gera preflight.
+ *
+ * **O que viaja aqui é o locale RESOLVIDO, nunca o do navegador** (T-162, SPEC-026 §Escopo).
+ * A distinção parece detalhe e não é: quem abre o app em francês recebe `en` do
+ * `resolveLocale()` (não há catálogo em francês, e `DEFAULT_LOCALE` é a resposta da casa para
+ * "não sei quem é você"), então o cabeçalho diz `en` e o servidor responde a mesma língua que a
+ * tela está mostrando. Repassar o `navigator.language` cru mandaria `fr`, o servidor cairia no
+ * próprio fallback e responderia `en` de qualquer jeito — mas por acidente, e o dia em que
+ * existir um catálogo `fr` parcial no servidor a tela ficaria meio em francês e meio em inglês.
+ * O cliente é quem sabe em que língua ele está; o cabeçalho é onde ele conta.
+ */
 export function localeHeaders(): Record<string, string> {
   return { 'Accept-Language': useI18nStore.getState().locale }
 }
