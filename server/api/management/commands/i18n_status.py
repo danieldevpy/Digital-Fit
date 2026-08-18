@@ -62,9 +62,7 @@ class Command(BaseCommand):
             plural = "passo" if gap.passos_faltando == 1 else "passos"
             partes.append(f"{gap.passos_faltando} {plural} do guia")
         detalhe = "; ".join(partes)
-        return self.style.ERROR(
-            f"exercicio  {gap.slug:<20} [{gap.locale}]  falta: {detalhe}"
-        )
+        return self.style.ERROR(f"exercicio  {gap.slug:<20} [{gap.locale}]  falta: {detalhe}")
 
     def _linha_plano(self, gap: Any) -> str:
         detalhe = ", ".join(gap.campos_faltando)

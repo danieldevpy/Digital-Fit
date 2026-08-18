@@ -154,9 +154,7 @@ def test_a_vista_escolhida_atravessa_a_admissao_ate_o_evento() -> None:
     _, _, bus = criar(pedido=pedido)
 
     envelope = next(
-        e
-        for e in bus.published_in(Stream.POSE_FRAMES)
-        if e.type is EventType.SESSION_STARTED
+        e for e in bus.published_in(Stream.POSE_FRAMES) if e.type is EventType.SESSION_STARTED
     )
     assert SessionStarted.from_data(envelope.data).view is CameraView.PROFILE
 
@@ -168,9 +166,7 @@ def test_sessao_sem_vista_continua_valendo() -> None:
     assert pedido.view is None
     _, _, bus = criar(pedido=pedido)
     envelope = next(
-        e
-        for e in bus.published_in(Stream.POSE_FRAMES)
-        if e.type is EventType.SESSION_STARTED
+        e for e in bus.published_in(Stream.POSE_FRAMES) if e.type is EventType.SESSION_STARTED
     )
     # Ausente no payload, e não `""`: quem lê não precisa saber que vazio quer dizer "não sei".
     assert "view" not in envelope.data

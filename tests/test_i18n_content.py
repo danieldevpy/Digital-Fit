@@ -73,9 +73,7 @@ def test_fk_exclusiva_um_par_exercicio_locale_so() -> None:
     ExerciseTranslation.objects.create(exercise=exercicio, locale="en", display_name="Squat")
 
     with pytest.raises(IntegrityError):
-        ExerciseTranslation.objects.create(
-            exercise=exercicio, locale="en", display_name="Squat 2"
-        )
+        ExerciseTranslation.objects.create(exercise=exercicio, locale="en", display_name="Squat 2")
 
 
 def test_migration_nao_criou_traducao_nenhuma() -> None:

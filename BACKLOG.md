@@ -1241,4 +1241,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   (`uv run ruff format .`) e sai em commit `operação:` próprio, para não misturar diff de seis
   arquivos alheios com o escopo de uma task. Lição irmã da Descoberta `[T-154]`: gate que
   ninguém olha é gate que não existe — este roda no CI e mesmo assim passou despercebido, porque
-  o AGENTS.md §Fluxo lista `ruff check` e **não** lista `ruff format --check`.
+  o AGENTS.md §Fluxo lista `ruff check` e **não** lista `ruff format --check`. **Resolvido**
+  (2026-08-18, commit `operação:`): `ruff format .` aplicado nos seis, e o comando que faltava
+  entrou no AGENTS.md §Fluxo 5 e na checklist de gates da skill `df-executor` — o conserto sem
+  a checklist teria durado até a próxima task esquecer de novo.

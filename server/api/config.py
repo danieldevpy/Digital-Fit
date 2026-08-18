@@ -578,9 +578,11 @@ def _traduzir_plano(
     from api.models import PlanTranslation
 
     try:
-        linha = PlanTranslation.objects.filter(plan__slug=plan_slug, locale=locale).values(
-            "nome", "quota_message"
-        ).first()
+        linha = (
+            PlanTranslation.objects.filter(plan__slug=plan_slug, locale=locale)
+            .values("nome", "quota_message")
+            .first()
+        )
     except Exception:  # P2: mesma degradação da tradução do catálogo.
         logger.warning(
             "traducao do plano indisponivel; caindo para %s", SOURCE_LOCALE, exc_info=True

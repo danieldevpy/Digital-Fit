@@ -171,9 +171,7 @@ def register(request: Request) -> Response:
     except IntegrityError:
         # Corrida entre dois cadastros do mesmo e-mail — o banco é quem decide, não um
         # `exists()` antes que sempre teria janela.
-        return Response(
-            {"detail": i18n_messages.load(locale).error("email_taken")}, status=409
-        )
+        return Response({"detail": i18n_messages.load(locale).error("email_taken")}, status=409)
 
     adotadas = adotar_sessoes_do_aparelho(usuario, quota.device_id_declarado(request.headers))
     # O número volta no corpo para que a tela possa confirmar a promessa que o CTA fez ("crie

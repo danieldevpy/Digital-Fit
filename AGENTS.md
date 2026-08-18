@@ -30,7 +30,9 @@ Pedido que não caiba em nenhuma → seguir o fluxo manual abaixo, que continua 
    `localeHeaders()` junto. Os quatro portões que cobram isto já rodam nos gates do item
    seguinte; nenhum deles depende de alguém lembrar.
 5. **Executar gates** antes de encerrar:
-   - `ruff check` + `pytest` (workers/api)
+   - `ruff check .` **+ `ruff format --check .`** + `pytest` (workers/api). Os dois de `ruff`: o
+     CI roda os dois, e a checklist só nomeava o primeiro — foi assim que o `master` ficou seis
+     arquivos com o formatador reprovando, sem ninguém ver (Descoberta `[T-156]`).
    - `npm run lint` + `npm run typecheck` + `npm run test` (web), quando tocada
    - docker-compose sobe sem erro se infra foi tocada
 6. **Registrar no DEVLOG.md**: data, task, o que foi feito, decisões tomadas, pendências geradas.

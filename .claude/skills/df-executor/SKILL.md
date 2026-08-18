@@ -70,6 +70,7 @@ Regras de teste da casa:
 
 ```bash
 uv run ruff check .
+uv run ruff format --check .   # o CI roda os dois; a checklist antiga só nomeava o primeiro
 uv run pytest
 # se web/ foi tocado:
 cd web && npm run lint && npm run typecheck && npm run test

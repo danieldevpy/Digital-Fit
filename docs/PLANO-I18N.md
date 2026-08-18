@@ -215,11 +215,12 @@ Então:
 ```python
 class Translation(models.Model):
     """Tradução de conteúdo do painel. As colunas do modelo base SÃO o pt-BR."""
-    locale  = models.CharField(max_length=8)          # 'en'
+
+    locale = models.CharField(max_length=8)  # 'en'
     # FK para exatamente um dos três, com constraint de exclusividade
     exercise / plan / guide_step
-    campo   = models.CharField(...)                   # 'display_name', 'quota_message', ...
-    texto   = models.TextField()
+    campo = models.CharField(...)  # 'display_name', 'quota_message', ...
+    texto = models.TextField()
 ```
 
 Ou três tabelas pequenas e explícitas (`ExerciseTranslation`, `PlanTranslation`,
