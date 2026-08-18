@@ -1,7 +1,7 @@
 // Tela Guia / exemplo passo a passo (SPEC-015). Estática de propósito: aqui não monta
 // câmera nem sessão — é o respiro entre escolher e treinar.
 import { useState } from 'react'
-import { CENA_PADRAO, exerciseSubtitle, getExercise } from '../session/catalog'
+import { cenaPadrao, exerciseSubtitle, getExercise } from '../session/catalog'
 import { setViewPreference, viewPreference, viewsOf } from '../session/exerciseViews'
 import { setGuideSeen } from '../session/preferences'
 import { navigate } from '../shell/nav'
@@ -20,7 +20,7 @@ export function GuideScreen({ exercise }: { exercise: string }) {
   const views = viewsOf(exercise)
   const view = views?.find((v) => v.id === viewId) ?? views?.[0]
   const passos = view?.guide_steps ?? info.guide_steps
-  const cena = view?.scene_tip ?? info.scene_tip ?? CENA_PADRAO
+  const cena = view?.scene_tip ?? info.scene_tip ?? cenaPadrao()
   // A foto grande também é da vista: ela é a primeira coisa que a tela diz, e dizer «de frente»
   // no botão com uma foto de perfil no alto é ensinar duas cenas ao mesmo tempo.
   const demo = view?.demo_img ?? info.demo_img

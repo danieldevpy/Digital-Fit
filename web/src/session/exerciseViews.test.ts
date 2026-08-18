@@ -1,14 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { installStorage, uninstallStorage } from '../auth/testStorage'
+import { useI18nStore } from '../i18n/store'
 import { requestSession } from './admission'
-import {
-  EXERCISE_VIEWS,
-  currentView,
-  setViewPreference,
-  viewPreference,
-  viewsOf,
-} from './exerciseViews'
+import { currentView, setViewPreference, viewPreference, viewsOf } from './exerciseViews'
+
+// `label`/`phone`/`scene_tip`/`guide_steps` são getters resolvidos por `t()` (T-152) — as
+// fixtures deste arquivo checam texto em pt-BR, então o locale precisa estar travado nele.
+useI18nStore.getState().setLocale('pt-BR')
 
 afterEach(() => {
   uninstallStorage()
@@ -73,7 +72,7 @@ describe('variação de câmera (T-111)', () => {
   it('cada variação traz cena e passos próprios — é isso que ela muda', () => {
     // Se as duas dessem a mesma instrução, a escolha não teria consequência nenhuma: o que a
     // pessoa faz ANTES de deitar no chão é o conteúdo inteiro desta decisão.
-    const [lado, frente] = EXERCISE_VIEWS.flexao!
+    const [lado, frente] = viewsOf('flexao')!
 
     expect(lado!.scene_tip).not.toBe(frente!.scene_tip)
     expect(lado!.phone).toContain('deitado')
@@ -86,7 +85,7 @@ describe('variação de câmera (T-111)', () => {
     // Um `-1`/`-2` sobrando aqui é uma tela que diz «de frente» e desenha o celular deitado no
     // chão — o erro que a variação existe para não cometer. E como a foto grande é a primeira
     // coisa que a pessoa vê, ela conta junto com os passos.
-    const frente = EXERCISE_VIEWS.flexao!.find((v) => v.id === 'frontal')!
+    const frente = viewsOf('flexao')!.find((v) => v.id === 'frontal')!
     const fotos = [frente.demo_img!, ...frente.guide_steps.map((p) => p.img)]
 
     expect(fotos.every((src) => src.includes('flexao-frente-'))).toBe(true)
@@ -95,7 +94,21 @@ describe('variação de câmera (T-111)', () => {
   it('os ids são os do contrato de eventos, e não rótulos de tela', () => {
     // "De lado" é o que a pessoa lê; `profile` é o que o `session.started` carrega. Trocar um
     // pelo outro faria a escolha atravessar a rede e não significar nada no worker.
-    expect(EXERCISE_VIEWS.flexao!.map((v) => v.id)).toEqual(['profile', 'frontal'])
+    expect(viewsOf('flexao')!.map((v) => v.id)).toEqual(['profile', 'frontal'])
+  })
+
+  it('as duas variações existem nas duas línguas — o texto não congela no idioma do import (T-152)', () => {
+    try {
+      useI18nStore.getState().setLocale('en')
+      const [lado, frente] = viewsOf('flexao')!
+
+      expect(lado!.label).toBe('From the side')
+      expect(frente!.label).toBe('From the front')
+      expect(lado!.phone).toContain('floor')
+      expect(frente!.phone).toContain('upright')
+    } finally {
+      useI18nStore.getState().setLocale('pt-BR')
+    }
   })
 })
 

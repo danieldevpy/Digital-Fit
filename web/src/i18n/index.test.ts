@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { useI18nStore } from './store'
-import { resolveFromTable, t, translate } from './index'
+import { resolveFromTable, t, tDynamic, translate } from './index'
 
 describe('translate — namespace real (shell), as duas línguas', () => {
   it('resolve a mesma chave nas duas línguas', () => {
@@ -95,5 +95,20 @@ describe('t() — lê o locale ativo no store (fora de componente)', () => {
 
     useI18nStore.getState().setLocale('en')
     expect(t('shell:tab.perfil')).toBe('Profile')
+  })
+})
+
+describe('tDynamic — chave montada em tempo de execução (critério da T-152)', () => {
+  it('resolve uma chave existente, lendo o locale do store como o t()', () => {
+    useI18nStore.getState().setLocale('pt-BR')
+    expect(tDynamic('shell:tab.perfil', 'x')).toBe('Perfil')
+
+    useI18nStore.getState().setLocale('en')
+    expect(tDynamic('shell:tab.perfil', 'x')).toBe('Profile')
+  })
+
+  it('chave sem entrada no dicionário cai no fallback, não na chave namespaced', () => {
+    useI18nStore.getState().setLocale('pt-BR')
+    expect(tDynamic('catalog:category.hiit', 'hiit')).toBe('hiit')
   })
 })

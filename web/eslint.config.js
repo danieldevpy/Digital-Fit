@@ -77,4 +77,23 @@ export default tseslint.config(
       ],
     },
   },
+  // T-152, namespace `catalog` (SPEC-025 Onda 2): o catálogo embutido de exercícios
+  // (`session/catalog.ts`), as variações de câmera (`session/exerciseViews.ts`), o embutido de
+  // `CODE_MESSAGES` do card do treinador (`session/coachCard.ts`, herança da T-144) e o registro
+  // de figuras (`ui/exerciseFigures.ts`, sem texto — entra pela mesma doutrina de "pasta
+  // migrada", não por ter algo a pegar). Arquivos explícitos, e não uma pasta inteira: o resto
+  // de `session/` (`admission.ts`, `useSession.ts`, ...) pertence a outras raias da Onda 2
+  // (T-149) e ainda não migrou.
+  {
+    files: [
+      'src/session/catalog.ts',
+      'src/session/exerciseViews.ts',
+      'src/session/coachCard.ts',
+      'src/ui/exerciseFigures.ts',
+    ],
+    plugins: { i18next },
+    rules: {
+      'i18next/no-literal-string': ['error', { mode: 'jsx-only' }],
+    },
+  },
 )

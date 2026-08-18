@@ -1,7 +1,12 @@
 // O agrupamento por categoria da tela Escolha (SPEC-020). Cobre a regra pura; o desenho da
 // faixa é CSS e não tem o que cobrar aqui — a suíte do web roda em `node`, sem DOM.
 import { describe, expect, it } from 'vitest'
+import { useI18nStore } from '../i18n/store'
 import { EXERCISE_CATALOG, EXERCISE_KEYS, groupByCategory, type ExerciseInfo } from './catalog'
+
+// `categoryLabel` (usada por `groupByCategory`) resolve por `t()` — o teste do rótulo conhecido
+// checa texto em pt-BR ('Força').
+useI18nStore.getState().setLocale('pt-BR')
 
 function ex(category: string): ExerciseInfo {
   return {

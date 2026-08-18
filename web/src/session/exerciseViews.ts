@@ -17,6 +17,12 @@
 // O valor viaja no `POST /sessions` → `session.started` → analisador. Os identificadores são
 // os do contrato (`CameraView` em `workers/shared/events.py`): quem renomear um lado aqui tem
 // de renomear lá, e é de propósito que sejam a mesma string.
+//
+// **`label`/`short`/`phone`/`scene_tip`/`guide_steps[].text` são getters** (T-152, namespace
+// `catalog`: `view.<exercise>.<view>.*`) — mesma razão de `EXERCISE_CATALOG` em
+// `session/catalog.ts`: `EXERCISE_VIEWS` é montado uma vez só, no import, e sem getter o texto
+// congelaria no idioma detectado nesse instante.
+import { t } from '../i18n'
 
 /** Espelho de `CameraView` no contrato de eventos. */
 export type ViewId = 'frontal' | 'profile'
@@ -62,52 +68,61 @@ export const EXERCISE_VIEWS: Record<string, ExerciseView[]> = {
   flexao: [
     {
       id: 'profile',
-      label: 'De lado',
-      short: 'Lado',
-      phone: 'celular deitado no chão',
-      scene_tip:
-        'celular deitado no chão, de lado, a uns 2 metros — a tela precisa ver seu corpo inteiro de perfil, da cabeça aos pés.',
-      guide_steps: [
-        {
-          img: '/img/guia/flexao-1.jpg',
-          text: 'Deite o celular no chão, de lado, e fique de perfil para ele — ele precisa ver você da cabeça aos pés.',
-        },
-        {
-          img: '/img/guia/flexao-1.jpg',
-          text: 'Comece na prancha: mãos abaixo dos ombros, braço estendido, corpo numa linha reta da cabeça aos calcanhares.',
-        },
-        {
-          img: '/img/guia/flexao-2.jpg',
-          text: 'Desça dobrando o cotovelo até uns 90°, com o peito perto do chão, e suba estendendo o braço — a subida completa conta a repetição.',
-        },
-      ],
+      get label() {
+        return t('catalog:view.flexao.profile.label')
+      },
+      get short() {
+        return t('catalog:view.flexao.profile.short')
+      },
+      get phone() {
+        return t('catalog:view.flexao.profile.phone')
+      },
+      get scene_tip() {
+        return t('catalog:view.flexao.profile.scene_tip')
+      },
+      get guide_steps() {
+        return [
+          { img: '/img/guia/flexao-1.jpg', text: t('catalog:view.flexao.profile.guide_step.0') },
+          { img: '/img/guia/flexao-1.jpg', text: t('catalog:view.flexao.profile.guide_step.1') },
+          { img: '/img/guia/flexao-2.jpg', text: t('catalog:view.flexao.profile.guide_step.2') },
+        ]
+      },
     },
     {
       id: 'frontal',
-      label: 'De frente',
-      short: 'Frente',
-      phone: 'celular em pé, à sua frente',
-      scene_tip:
-        'celular em pé no chão, à sua frente, a uns 2 metros — a tela precisa ver seus ombros, cotovelos e mãos. Os pés podem ficar fora do quadro.',
+      get label() {
+        return t('catalog:view.flexao.frontal.label')
+      },
+      get short() {
+        return t('catalog:view.flexao.frontal.short')
+      },
+      get phone() {
+        return t('catalog:view.flexao.frontal.phone')
+      },
+      get scene_tip() {
+        return t('catalog:view.flexao.frontal.scene_tip')
+      },
       // As fotos são a própria lição desta vista: enquadramento errado num exercício de chão
       // zera a sessão, e a foto de perfil ensinava a cena errada para quem escolheu «De frente».
       // Nenhuma imagem de perfil sobra aqui — o `-1` é a prancha e o `-2` é a descida, as duas
       // enquadradas como o celular em pé enxerga.
       demo_img: '/img/guia/flexao-frente-2.jpg',
-      guide_steps: [
-        {
-          img: '/img/guia/flexao-frente-1.jpg',
-          text: 'Apoie o celular em pé no chão e fique de frente para ele, com a cabeça na direção da tela.',
-        },
-        {
-          img: '/img/guia/flexao-frente-1.jpg',
-          text: 'Comece na prancha: mãos abaixo dos ombros, braço estendido, corpo numa linha reta da cabeça aos calcanhares.',
-        },
-        {
-          img: '/img/guia/flexao-frente-2.jpg',
-          text: 'Desça dobrando o cotovelo até uns 90° e suba estendendo o braço — a subida completa conta a repetição. Desta vista o app conta, mas não corrige a linha do quadril.',
-        },
-      ],
+      get guide_steps() {
+        return [
+          {
+            img: '/img/guia/flexao-frente-1.jpg',
+            text: t('catalog:view.flexao.frontal.guide_step.0'),
+          },
+          {
+            img: '/img/guia/flexao-frente-1.jpg',
+            text: t('catalog:view.flexao.frontal.guide_step.1'),
+          },
+          {
+            img: '/img/guia/flexao-frente-2.jpg',
+            text: t('catalog:view.flexao.frontal.guide_step.2'),
+          },
+        ]
+      },
     },
   ],
 }
