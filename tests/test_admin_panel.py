@@ -292,6 +292,16 @@ def test_editar_o_plano_no_painel_muda_a_admissao_sem_restart(client, operador) 
     campos["daily_sessions"] = 5
     campos["allow_cloud"] = "on"
     campos["flags"] = "{}"
+    # O management form do inline de tradução (T-146): sem ele o Django recusa o POST inteiro
+    # com um erro que não é de campo nenhum — `adminform.form.errors` continuaria vazio.
+    campos.update(
+        {
+            "translations-TOTAL_FORMS": "0",
+            "translations-INITIAL_FORMS": "0",
+            "translations-MIN_NUM_FORMS": "0",
+            "translations-MAX_NUM_FORMS": "1000",
+        }
+    )
 
     resposta = client.post(f"{PAINEL}api/plan/{anon.pk}/change/", data=campos)
 

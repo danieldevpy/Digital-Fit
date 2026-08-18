@@ -30,7 +30,10 @@ from django.http import HttpRequest
 from api.models import (
     Exercise,
     ExerciseGuideStep,
+    ExerciseGuideStepTranslation,
+    ExerciseTranslation,
     Plan,
+    PlanTranslation,
     SessionClaim,
     SessionResult,
     SiteConfig,
@@ -145,6 +148,20 @@ class UserAdmin(DjangoUserAdmin):
     readonly_fields = ("is_staff", "last_login", "date_joined")
 
 
+class PlanTranslationInline(admin.TabularInline):
+    """Tradução de `nome`/`quota_message` (SPEC-025 §Tabela de tradução, T-146).
+
+    Uma linha por idioma além do pt-BR — hoje só `en`, e cresce sozinha se um terceiro locale
+    entrar em `api.i18n.LOCALES`. Em branco não é "traduzido como vazio": `config.config_payload`
+    cai para a coluna do `Plan` quando o campo está em branco, e `manage.py i18n_status` é quem
+    avisa antes do release.
+    """
+
+    model = PlanTranslation
+    extra = 1
+    fields = ("locale", "nome", "quota_message")
+
+
 @admin.register(Plan)
 class PlanAdmin(admin.ModelAdmin):
     """Planos — a razão de a SPEC-018 existir.
@@ -155,6 +172,7 @@ class PlanAdmin(admin.ModelAdmin):
     (faixas plausíveis) e o P2 — nunca a boa intenção de quem edita.
     """
 
+    inlines = (PlanTranslationInline,)
     list_display = (
         "nome",
         "slug",
@@ -223,6 +241,19 @@ class GuideStepInline(admin.TabularInline):
     fields = ("ordem", "img", "texto")
 
 
+class ExerciseTranslationInline(admin.TabularInline):
+    """Tradução dos campos de apresentação do exercício (SPEC-025 §Tabela de tradução, T-146).
+
+    Uma linha por idioma além do pt-BR, ao lado do `GuideStepInline` — mesma doutrina do
+    `PlanTranslationInline`: branco cai para a coluna base (`config.exercises_for`), nunca
+    aparece vazio nem em chave crua no cliente.
+    """
+
+    model = ExerciseTranslation
+    extra = 1
+    fields = ("locale", "display_name", "muscle_group", "default_tip", "scene_tip")
+
+
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
     """Catálogo — a apresentação que virou dado (SPEC-018 §B).
@@ -231,7 +262,7 @@ class ExerciseAdmin(admin.ModelAdmin):
     deploy. A FSM continua em código: esta tela não tem nem terá limiar (P3).
     """
 
-    inlines = (GuideStepInline,)
+    inlines = (GuideStepInline, ExerciseTranslationInline)
     list_display = ("display_name", "slug", "category", "maturity", "met", "enabled", "ordem")
     list_filter = ("enabled", "category", "maturity")
     list_editable = ("enabled", "ordem")
@@ -278,6 +309,33 @@ class ExerciseAdmin(admin.ModelAdmin):
     #: por outro slug VÁLIDO, que é como se perde a ficha de um exercício.
     def get_readonly_fields(self, request: HttpRequest, obj: Any = None) -> tuple[str, ...]:
         return ("slug",) if obj else ()
+
+
+class GuideStepTranslationInline(admin.TabularInline):
+    """Tradução de `ExerciseGuideStep.texto` (SPEC-025 §Tabela de tradução, T-146)."""
+
+    model = ExerciseGuideStepTranslation
+    extra = 1
+    fields = ("locale", "texto")
+
+
+@admin.register(ExerciseGuideStep)
+class ExerciseGuideStepAdmin(admin.ModelAdmin):
+    """Edição direta de um passo do guia — a porta para preencher a tradução dele (T-146).
+
+    O passo nasce e se reordena no inline de `ExerciseAdmin` (SPEC-015) — esta tela não muda
+    isso. Ela existe só porque o admin do Django não aninha `TabularInline` dentro de
+    `TabularInline`: a tradução do passo (`ExerciseGuideStepTranslation`) precisa de uma FK
+    direta ao modelo da página em que aparece como inline, e `ExerciseGuideStep` deixou de ser
+    esse modelo no dia em que virou inline de `Exercise`. Registrar esta tela de novo, à parte,
+    é o jeito de ainda assim ter um lugar para editar a tradução ao lado do passo.
+    """
+
+    inlines = (GuideStepTranslationInline,)
+    list_display = ("exercise", "ordem", "texto")
+    list_filter = ("exercise",)
+    search_fields = ("exercise__slug", "exercise__display_name", "texto")
+    ordering = ("exercise", "ordem")
 
 
 @admin.register(SiteConfig)

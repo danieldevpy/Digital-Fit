@@ -100,7 +100,7 @@ def config(request: Request) -> Response:
     if request.headers.get("If-None-Match") == etag:
         resposta = Response(status=304)
     else:
-        resposta = Response(config_payload(usuario))
+        resposta = Response(config_payload(usuario, locale=locale))
 
     resposta["ETag"] = etag
     resposta["Cache-Control"] = "private, must-revalidate"

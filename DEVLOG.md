@@ -5,7 +5,153 @@
 
 ---
 
-## 2026-08-18 (69) · T-152 — Namespace `catalog`: o embutido offline nasce nas duas línguas
+## 2026-08-18 (69) · T-146 — Tradução do conteúdo do banco: três tabelas, um fallback só
+
+**O que foi feito.** A "Tabela de tradução" que a SPEC-025 §3.6 já tinha desenhado (e a
+alternativa rejeitada — `JSONField` chave-valor) virou código: três tabelas novas
+(`ExerciseTranslation`, `ExerciseGuideStepTranslation`, `PlanTranslation`), uma migration
+(`0022_traducoes`, schema puro, nenhum dado migrado — as colunas de `Exercise`/`Plan`/
+`ExerciseGuideStep` continuam sendo o pt-BR), `exercises_for()`/`config_payload()` resolvendo
+por locale com fallback campo a campo, inline no painel admin, e `manage.py i18n_status`.
+
+**A forma da tabela.** Cada uma tem FK exclusiva para a linha que traduz (`exercise`, `plan`,
+`guide_step`) + `locale` (`UniqueConstraint` no par) + as colunas tipadas espelhando as da
+fonte — `display_name`/`muscle_group`/`default_tip`/`scene_tip` para exercício, `nome`/
+`quota_message` para plano, `texto` para passo do guia. `locale` sai de
+`TRANSLATABLE_LOCALE_CHOICES = [(l, l) for l in LOCALES if l != SOURCE_LOCALE]` — hoje só
+`en`, e um terceiro idioma entra em `api.i18n.LOCALES` sem tocar nesta tabela. `clean()`
+recusa uma linha em `pt-BR`: a fonte não tem linha própria aqui, teria o dado duplicado dentro
+de si mesmo.
+
+**O fallback é campo a campo, não linha a linha.** `_traduzir_catalogo`/`_traduzir_plano` (novas,
+em `config.py`) sobrepõem só o que a tradução preencheu; campo em branco na tradução — ou
+tradução ausente inteira — cai na coluna base. Testado explicitamente: uma tradução com
+`muscle_group=""` mantém o `display_name` traduzido e usa o `muscle_group` do pt-BR, nunca os
+dois em branco. Guia por passo usa o mesmo princípio, casado pela FK real ao `ExerciseGuideStep`
+(não por índice de lista) — a lição de não confiar em posição quando existe identidade.
+
+**Onde a tradução entra sem tocar no que já era de outra task.** `exercises_for(locale=
+SOURCE_LOCALE)` por padrão — quem chama sem passar locale (a admissão, em `sessions.py`)
+recebe exatamente o comportamento de ontem. `config_payload` ganhou o mesmo parâmetro e passou
+a sobrescrever `plan.name`/`plan.quota_message` com a tradução resolvida **depois** de chamar
+`capabilities_for` (intocada) — não dava para tocar nela sem sair do escopo combinado com o
+orquestrador (`config_etag` e `_mensagens_de_feedback` são de outras tasks). A única mudança
+fora de `config.py` foi `views.py`: `config_payload(usuario)` virou `config_payload(usuario,
+locale=locale)` — sem isso o `locale` já resolvido pela T-143 entraria no ETag e nunca no corpo.
+
+**Painel.** `ExerciseTranslationInline` ao lado do `GuideStepInline` em `ExerciseAdmin`, e
+`PlanTranslationInline` em `PlanAdmin` — diretos, porque a FK de cada um aponta pro modelo da
+própria tela. A tradução do passo do guia não coube nesse padrão: o admin do Django não aninha
+`TabularInline` dentro de `TabularInline`, e a FK de `ExerciseGuideStepTranslation` é para
+`ExerciseGuideStep`, que só existia como inline. Solução: registrar `ExerciseGuideStep` também
+como tela própria (`ExerciseGuideStepAdmin`), só para hospedar o inline da tradução — o passo
+continua nascendo e se reordenando onde sempre nasceu, dentro do exercício.
+
+**`manage.py i18n_status`** (`api/i18n_status.py` + comando, no padrão do `exercise_health`
+da T-104): varre `Exercise`/`ExerciseGuideStep`/`Plan` habilitados e lista, por locale, todo
+campo com conteúdo na fonte e sem contrapartida traduzida. A regra que evita ruído: campo em
+branco na própria fonte (ex. `Exercise.scene_tip` do agachamento, `Plan.quota_message` do
+assinante) não é buraco — não há o que traduzir ali, e reportar isso teria acostumado quem lê o
+comando a ignorar a lista. `--todos` inclui exercício desligado; `--json` para CI/DEVLOG.
+
+**Testes** (`tests/test_i18n_content.py`, 33 novos): forma da tabela (choices, `clean()`,
+`UniqueConstraint`), fallback campo a campo em `exercises_for`/`config_payload` (completo,
+parcial, ausente, degradação de banco fora do ar), `i18n_status` acusando e deixando de
+acusar um buraco real, e quatro testes ponta a ponta pelo painel de verdade (`client.post` no
+formulário do admin, com o `management_form` do inline) — não só a função pura. Um teste
+existente (`test_editar_o_plano_no_painel_muda_a_admissao_sem_restart`) precisou do
+`management_form` do novo inline (`translations-TOTAL_FORMS` etc.) para continuar postando; sem
+isso o Django recusa o POST com um erro que não aparece em `adminform.form.errors`.
+
+**Gates.** `ruff check .` limpo. `pytest -q`: 1132 passed (929 antes desta task + os 33 novos +
+o ajuste do teste do painel). `makemigrations --check --dry-run` sem pendência.
+
+**Pendências.** Nenhuma. `docs/PLANO-I18N.md §3.6` previa "sugestão automática de tradução no
+painel" para a Fase Evolução (SPEC-025) — não entrou aqui, e não deveria.
+
+---
+
+## 2026-08-18 (68) · T-145 — Texto do servidor sai do código, entra em arquivo
+
+Escopo: `server/api/i18n/messages.{pt-BR,en}.yaml` + o carregador; `ACHIEVEMENTS` perde nome e
+descrição; `detail` de erro voltado ao cliente em `auth.py`/`sessions.py`; teste de paridade.
+Worktree isolado, em paralelo com a T-146 (tradução do conteúdo do banco) — não toquei em
+`server/api/config.py`, que é território dela.
+
+### O que saiu
+
+- **`server/api/i18n/messages.py`**: `Messages` (dataclass `achievements`/`errors`) + `load(locale)`
+  com `lru_cache(maxsize=8)`, mesmo padrão do `_mensagens_de_feedback` em `config.py`. Fallback é
+  **por chave**, não por arquivo inteiro (diferença proposital em relação ao `FeedbackCatalog`,
+  T-144): uma conquista ou um erro ausente no locale pedido cai na entrada de `SOURCE_LOCALE`
+  sem derrubar o resto do arquivo — rede de segurança para um deploy no meio de uma tradução,
+  não um caminho planejado, porque o teste de paridade já cobra os dois arquivos com o mesmo
+  conjunto de chaves.
+- **`server/api/i18n/messages.{pt-BR,en}.yaml`**: duas seções, `achievements` (as 7 conquistas
+  de `ACHIEVEMENTS`, chave = slug) e `errors` (9 chaves usadas em `auth.py`/`sessions.py`).
+  Interpolação por `str.format` (`{ceiling_s}`, `{email}`).
+- **`Conquista` (`api/engagement.py`) perdeu `nome`/`descricao`** — fica só `slug` + `predicado`,
+  e `to_dict()` devolve só `{"slug", "earned"}`. O módulo continua sem I/O e sem saber de locale
+  (a promessa do topo do arquivo, cobrada por `test_o_modulo_puro_nao_importa_django`).
+- **`engagement_cache._derivar(usuario, *, locale)`** ganhou o parâmetro que faltava — antes
+  ignorava `locale` de propósito ("o conteúdo ainda não varia por língua"), que era exatamente o
+  buraco que esta task fecha. `_conquistas_traduzidas()` acrescenta `name`/`description` a cada
+  conquista a partir do YAML, e o resultado é o que vai para o cache — a chave já levava o locale
+  desde a T-143, só o conteúdo é que ainda não variava.
+- **`auth.py`**: `email_required`, `email_invalid` (com `{email!r}` interpolado), `password_required`,
+  `email_taken`, `invalid_credentials`, `refresh_required`, `refresh_invalid`, `auth_required`
+  saíram do código para o catálogo, resolvidos por `resolve_locale(request)` em cada view.
+  `Credentials.parse()` ganhou `locale` como parâmetro.
+- **`sessions.py`**: `CountedUnavailable` — a recusa do modo contado (403, "seu plano não chega
+  lá") — monta o texto pelo catálogo; `resolve_set()` ganhou `locale` (default `SOURCE_LOCALE`,
+  porque também é chamada sem requisição — `evalctl`, teste). `views.py._admitir` resolve o
+  locale da requisição e passa adiante; é a única linha que toquei em `views.py`.
+
+### O que ficou como estava (e por quê)
+
+Mensagem de contrato/desenvolvedor não entrou no catálogo — quem a lê é quem manda a requisição
+errada, não quem preenche formulário:
+
+- `"corpo deve ser objeto JSON"` (`auth.py` × 2, `sessions.py`): dado explicitamente pela task
+  como o exemplo do que fica.
+- `sessions.py::SessionRequest.parse` — `"exercicio desconhecido: ..."`, `"requested_mode
+  invalido: ..."`, `"probe_result deve ser objeto"`: violação de contrato do corpo, não erro de
+  digitação de gente (o exercício e o modo vêm de catálogo fechado do cliente).
+- `auth.py::_atualizar_perfil` — `"meta invalida: ...Use um de: ..."`, `"nenhum campo editavel no
+  corpo"`: `daily_goal` é escolhido por seletor fixo na UI; só dispara com corpo malformado.
+- `validate_password` (Django) continua fora do catálogo: o texto é do próprio
+  `django.contrib.auth.password_validation`, e o projeto não ativa `django.utils.translation`
+  (painel fica em `USE_I18N = False`, SPEC-025 §Escopo) — já não segue `locale` hoje, e ligar a
+  tradução dele é escopo maior que esta task.
+
+### Descoberta registrada, não corrigida
+
+`server/api/views.py` também tem `detail` de erro claramente voltado ao cliente ("quota
+indisponivel agora", "este exercicio nao esta disponivel...", "autenticacao necessaria" duplicado
+em `_historico`/`engagement`, "relatorio nao encontrado"/"ainda nao disponivel" etc.) que a
+spec/backlog não citaram no escopo desta task — só `auth.py` e `sessions.py`. Fica pela metade:
+um `en-US` que esbarra numa quota estourada ainda lê português. Registrado no BACKLOG
+(`[T-145]`) para task própria.
+
+### Medições
+
+- `ruff check .`: limpo.
+- `pytest -q`: 1128 testes coletados, suíte inteira verde (`exit 0`).
+- Critérios de aceite conferidos: (1) `GET /api/engagement` em `en` não devolve nome/descrição em
+  português (`test_conquista_traz_nome_e_descricao_no_locale_pedido`); (2) trocar `Accept-Language`
+  muda o corpo na mesma leitura, sem esperar cache expirar (mesmo teste, mais os de
+  `test_auth.py` para `detail`); (5) paridade de chaves entre `messages.pt-BR.yaml` e
+  `messages.en.yaml` é teste vermelho se uma faltar (`tests/test_i18n_messages.py`). Critérios 3
+  e 4 são do site/painel — fora do alcance desta task (server, catálogo de código).
+
+### Pendências geradas
+
+- `views.py` sem localizar (Descoberta acima) — falta task.
+- Terceiro idioma, tradução assistida no painel: Fase Evolução da spec, não tocada.
+
+---
+
+## 2026-08-18 (67) · T-152 — Namespace `catalog`: o embutido offline nasce nas duas línguas
 
 Escopo: SPEC-025 Onda 2, namespace `catalog`. Migrou o catálogo embutido de exercícios
 (`session/catalog.ts`), as variações de câmera da flexão (`session/exerciseViews.ts`) e —
@@ -85,7 +231,9 @@ antes de começar: o branch tinha sido criado antes de T-141/T-142/T-143/T-144 a
 Nenhuma nova. `ui/exerciseFigures.ts` não tinha texto a migrar — entrou no override do ESLint
 só por doutrina de pasta, não por ter algo a corrigir.
 
-## 2026-08-18 (68) · T-147 — Namespace `site`: a landing e o Sobre em duas línguas, e um terceiro entry point
+---
+
+## 2026-08-18 (66) · T-147 — Namespace `site`: a landing e o Sobre em duas línguas, e um terceiro entry point
 
 Onda 2 da SPEC-025, primeira raia a fechar. Escopo: `site/IndexScreen`, `AboutScreen`,
 `SiteBar`, `SiteApp` migrados para `t('site:...')`, mais o `index.html` por idioma que a spec
@@ -225,84 +373,6 @@ reprova; restaurei e voltou a ficar limpo.
   T-154, como o plano já previa.
 - A árvore já tinha, de sessão anterior e não mexida aqui, `web/public/img/herofamale.png`
   (untracked) — mencionado também na entrada da T-141, segue fora do escopo desta task.
-
-## 2026-08-18 (66) · T-145 — Texto do servidor sai do código, entra em arquivo
-
-Escopo: `server/api/i18n/messages.{pt-BR,en}.yaml` + o carregador; `ACHIEVEMENTS` perde nome e
-descrição; `detail` de erro voltado ao cliente em `auth.py`/`sessions.py`; teste de paridade.
-Worktree isolado, em paralelo com a T-146 (tradução do conteúdo do banco) — não toquei em
-`server/api/config.py`, que é território dela.
-
-### O que saiu
-
-- **`server/api/i18n/messages.py`**: `Messages` (dataclass `achievements`/`errors`) + `load(locale)`
-  com `lru_cache(maxsize=8)`, mesmo padrão do `_mensagens_de_feedback` em `config.py`. Fallback é
-  **por chave**, não por arquivo inteiro (diferença proposital em relação ao `FeedbackCatalog`,
-  T-144): uma conquista ou um erro ausente no locale pedido cai na entrada de `SOURCE_LOCALE`
-  sem derrubar o resto do arquivo — rede de segurança para um deploy no meio de uma tradução,
-  não um caminho planejado, porque o teste de paridade já cobra os dois arquivos com o mesmo
-  conjunto de chaves.
-- **`server/api/i18n/messages.{pt-BR,en}.yaml`**: duas seções, `achievements` (as 7 conquistas
-  de `ACHIEVEMENTS`, chave = slug) e `errors` (9 chaves usadas em `auth.py`/`sessions.py`).
-  Interpolação por `str.format` (`{ceiling_s}`, `{email}`).
-- **`Conquista` (`api/engagement.py`) perdeu `nome`/`descricao`** — fica só `slug` + `predicado`,
-  e `to_dict()` devolve só `{"slug", "earned"}`. O módulo continua sem I/O e sem saber de locale
-  (a promessa do topo do arquivo, cobrada por `test_o_modulo_puro_nao_importa_django`).
-- **`engagement_cache._derivar(usuario, *, locale)`** ganhou o parâmetro que faltava — antes
-  ignorava `locale` de propósito ("o conteúdo ainda não varia por língua"), que era exatamente o
-  buraco que esta task fecha. `_conquistas_traduzidas()` acrescenta `name`/`description` a cada
-  conquista a partir do YAML, e o resultado é o que vai para o cache — a chave já levava o locale
-  desde a T-143, só o conteúdo é que ainda não variava.
-- **`auth.py`**: `email_required`, `email_invalid` (com `{email!r}` interpolado), `password_required`,
-  `email_taken`, `invalid_credentials`, `refresh_required`, `refresh_invalid`, `auth_required`
-  saíram do código para o catálogo, resolvidos por `resolve_locale(request)` em cada view.
-  `Credentials.parse()` ganhou `locale` como parâmetro.
-- **`sessions.py`**: `CountedUnavailable` — a recusa do modo contado (403, "seu plano não chega
-  lá") — monta o texto pelo catálogo; `resolve_set()` ganhou `locale` (default `SOURCE_LOCALE`,
-  porque também é chamada sem requisição — `evalctl`, teste). `views.py._admitir` resolve o
-  locale da requisição e passa adiante; é a única linha que toquei em `views.py`.
-
-### O que ficou como estava (e por quê)
-
-Mensagem de contrato/desenvolvedor não entrou no catálogo — quem a lê é quem manda a requisição
-errada, não quem preenche formulário:
-
-- `"corpo deve ser objeto JSON"` (`auth.py` × 2, `sessions.py`): dado explicitamente pela task
-  como o exemplo do que fica.
-- `sessions.py::SessionRequest.parse` — `"exercicio desconhecido: ..."`, `"requested_mode
-  invalido: ..."`, `"probe_result deve ser objeto"`: violação de contrato do corpo, não erro de
-  digitação de gente (o exercício e o modo vêm de catálogo fechado do cliente).
-- `auth.py::_atualizar_perfil` — `"meta invalida: ...Use um de: ..."`, `"nenhum campo editavel no
-  corpo"`: `daily_goal` é escolhido por seletor fixo na UI; só dispara com corpo malformado.
-- `validate_password` (Django) continua fora do catálogo: o texto é do próprio
-  `django.contrib.auth.password_validation`, e o projeto não ativa `django.utils.translation`
-  (painel fica em `USE_I18N = False`, SPEC-025 §Escopo) — já não segue `locale` hoje, e ligar a
-  tradução dele é escopo maior que esta task.
-
-### Descoberta registrada, não corrigida
-
-`server/api/views.py` também tem `detail` de erro claramente voltado ao cliente ("quota
-indisponivel agora", "este exercicio nao esta disponivel...", "autenticacao necessaria" duplicado
-em `_historico`/`engagement`, "relatorio nao encontrado"/"ainda nao disponivel" etc.) que a
-spec/backlog não citaram no escopo desta task — só `auth.py` e `sessions.py`. Fica pela metade:
-um `en-US` que esbarra numa quota estourada ainda lê português. Registrado no BACKLOG
-(`[T-145]`) para task própria.
-
-### Medições
-
-- `ruff check .`: limpo.
-- `pytest -q`: 1128 testes coletados, suíte inteira verde (`exit 0`).
-- Critérios de aceite conferidos: (1) `GET /api/engagement` em `en` não devolve nome/descrição em
-  português (`test_conquista_traz_nome_e_descricao_no_locale_pedido`); (2) trocar `Accept-Language`
-  muda o corpo na mesma leitura, sem esperar cache expirar (mesmo teste, mais os de
-  `test_auth.py` para `detail`); (5) paridade de chaves entre `messages.pt-BR.yaml` e
-  `messages.en.yaml` é teste vermelho se uma faltar (`tests/test_i18n_messages.py`). Critérios 3
-  e 4 são do site/painel — fora do alcance desta task (server, catálogo de código).
-
-### Pendências geradas
-
-- `views.py` sem localizar (Descoberta acima) — falta task.
-- Terceiro idioma, tradução assistida no painel: Fase Evolução da spec, não tocada.
 
 ---
 
@@ -552,6 +622,8 @@ casa, porque são o tipo de coisa que se perde se só viver num documento de pla
 - A árvore já tinha, antes desta sessão, `web/src/session/exerciseViews.ts` modificado e duas
   imagens novas em `web/public/img/` (`guia/flexao-frente-1.jpg`, `herofamale.png`) — trabalho de
   outra sessão, não mexido e não commitado aqui.
+
+---
 
 ## 2026-08-17 (61) · T-136 — A série resolvida na admissão: modo, meta e teto do servidor
 

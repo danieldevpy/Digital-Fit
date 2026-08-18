@@ -40,7 +40,7 @@ from typing import Any
 from django.core.cache import cache
 from django.db.models import F
 
-from api.i18n import DEFAULT_LOCALE
+from api.i18n import DEFAULT_LOCALE, SOURCE_LOCALE
 from api.models import MATURITY_RANK, Maturity
 from api.quota import FREE_LIMIT, FREE_MESSAGE, TRIAL_LIMIT, TRIAL_MESSAGE
 
@@ -404,7 +404,9 @@ def capabilities_for(user=None, *, now: datetime | None = None) -> Capabilities:
     )
 
 
-def exercises_for(user=None, *, now: datetime | None = None) -> dict[str, dict[str, Any]]:
+def exercises_for(
+    user=None, *, now: datetime | None = None, locale: str = SOURCE_LOCALE
+) -> dict[str, dict[str, Any]]:
     """Os exercícios que este solicitante pode ver **e abrir**, por slug.
 
     **Um resolvedor só para as duas perguntas.** O `GET /api/config` é este dicionário
@@ -422,6 +424,13 @@ def exercises_for(user=None, *, now: datetime | None = None) -> dict[str, dict[s
     resolve, o exercício some. Fechar o resto também deixaria a tela Escolha vazia num soluço de
     banco; deixar a exclusividade aberta entregaria conteúdo pago de graça. Os dois lados falham
     para o lado certo de cada um.
+
+    **`locale`** (SPEC-025 §Tabela de tradução, T-146): default `SOURCE_LOCALE` — quem não pede
+    idioma nenhum (a admissão, que só quer saber se o slug está na lista) recebe exatamente o
+    comportamento de ontem, colunas base sem overlay nenhum. Pedido noutro idioma sobrepõe os
+    campos de apresentação (`display_name`, `muscle_group`, `default_tip`, `scene_tip`,
+    `guide_steps[].text`) com a tradução encontrada — e falta de tradução (linha ausente ou
+    campo em branco) cai na própria coluna base, nunca em branco (ver `_traduzir_catalogo`).
     """
     from workers.analysis_worker.exercises import EXERCISES
 
@@ -453,7 +462,10 @@ def exercises_for(user=None, *, now: datetime | None = None) -> dict[str, dict[s
             if minha_ordem is None or ordem_exigida is None or minha_ordem < ordem_exigida:
                 continue
         visiveis[ex["slug"]] = ex
-    return visiveis
+
+    if locale == SOURCE_LOCALE or not visiveis:
+        return visiveis
+    return _traduzir_catalogo(visiveis, locale)
 
 
 def _visivel_por_maturidade(maturidade: Any, *, min_maturity: str, is_admin: bool) -> bool:
@@ -482,18 +494,130 @@ def _visivel_por_maturidade(maturidade: Any, *, min_maturity: str, is_admin: boo
     return MATURITY_RANK.get(texto, -1) >= MATURITY_RANK.get(min_maturity, 0)
 
 
-def config_payload(user=None, *, now: datetime | None = None) -> dict[str, Any]:
-    """Corpo do `GET /api/config` — catálogo e capacidades num payload só (SPEC-018)."""
+#: Campos de apresentação de `Exercise` que `ExerciseTranslation` sobrepõe. Espelha os campos
+#: da tabela de tradução (SPEC-025 §Tabela de tradução) — mudou um lado, muda o outro.
+_CAMPOS_TRADUZIVEIS_DO_EXERCICIO = ("display_name", "muscle_group", "default_tip", "scene_tip")
+
+
+def _traduzir_catalogo(
+    catalogo: dict[str, dict[str, Any]], locale: str
+) -> dict[str, dict[str, Any]]:
+    """Sobrepõe `catalogo` (colunas base, sempre `SOURCE_LOCALE`) com a tradução de `locale`.
+
+    **Fallback é a regra, não a exceção** (SPEC-025 §Tabela de tradução, critério 4): exercício
+    sem `ExerciseTranslation` para este locale, ou campo deixado em branco na linha que existe,
+    mantém o valor da coluna base — nunca aparece em branco, nunca em chave crua. É por isso que
+    o `manage.py i18n_status` existe: sem ele, este fallback tornaria o buraco de tradução
+    silencioso.
+
+    Não passa pelo cache de `_snapshot()` de propósito: aquele snapshot é o retrato do
+    catálogo em `SOURCE_LOCALE`, compartilhado por todo locale, e cada consulta às tabelas de
+    tradução aqui é uma leitura pequena e independente — não vale duplicar o cache por idioma
+    para economizar uma consulta que já é rara (o catálogo tem poucas dezenas de linhas).
+    Qualquer falha de banco degrada para o catálogo original (P2): tradução indisponível é
+    exatamente o mesmo caso de "sem tradução ainda", nunca um erro na tela.
+    """
+    from api.models import Exercise, ExerciseGuideStepTranslation, ExerciseTranslation
+
+    slugs = list(catalogo.keys())
+    try:
+        traducoes = {
+            linha["exercise__slug"]: linha
+            for linha in ExerciseTranslation.objects.filter(
+                exercise__slug__in=slugs, locale=locale
+            ).values("exercise__slug", *_CAMPOS_TRADUZIVEIS_DO_EXERCICIO)
+        }
+        passos_traduzidos: dict[int, str] = {
+            linha["guide_step_id"]: linha["texto"]
+            for linha in ExerciseGuideStepTranslation.objects.filter(
+                guide_step__exercise__slug__in=slugs, locale=locale
+            ).values("guide_step_id", "texto")
+            if linha["texto"]
+        }
+        passos_por_exercicio: dict[str, list[dict[str, str]]] = {}
+        if passos_traduzidos:
+            consulta = Exercise.objects.filter(slug__in=slugs).prefetch_related("guide_steps")
+            for ex in consulta:
+                passos_por_exercicio[ex.slug] = [
+                    {"img": passo.img, "text": passos_traduzidos.get(passo.pk) or passo.texto}
+                    for passo in ex.guide_steps.all()
+                ]
+    except Exception:  # P2: tradução indisponível é "sem tradução ainda", nunca erro na tela.
+        logger.warning(
+            "traducao do catalogo indisponivel; caindo para %s", SOURCE_LOCALE, exc_info=True
+        )
+        return catalogo
+
+    resultado: dict[str, dict[str, Any]] = {}
+    for slug, ex in catalogo.items():
+        traduzido = dict(ex)
+        linha = traducoes.get(slug)
+        if linha:
+            for campo in _CAMPOS_TRADUZIVEIS_DO_EXERCICIO:
+                valor = linha.get(campo)
+                if valor:
+                    traduzido[campo] = valor
+        if slug in passos_por_exercicio:
+            traduzido["guide_steps"] = passos_por_exercicio[slug]
+        resultado[slug] = traduzido
+    return resultado
+
+
+def _traduzir_plano(
+    plan_slug: str, locale: str, *, nome: str, quota_message: str
+) -> dict[str, str]:
+    """`Plan.nome`/`Plan.quota_message` no idioma pedido, com o mesmo fallback do catálogo.
+
+    Recebe os valores já resolvidos por `capabilities_for` (base, `SOURCE_LOCALE`) e devolve o
+    par pronto para o payload — nunca chama `capabilities_for` de novo, porque a fonte da
+    verdade sobre QUAL plano vale já foi decidida por quem chamou.
+    """
+    if locale == SOURCE_LOCALE:
+        return {"nome": nome, "quota_message": quota_message}
+
+    from api.models import PlanTranslation
+
+    try:
+        linha = PlanTranslation.objects.filter(plan__slug=plan_slug, locale=locale).values(
+            "nome", "quota_message"
+        ).first()
+    except Exception:  # P2: mesma degradação da tradução do catálogo.
+        logger.warning(
+            "traducao do plano indisponivel; caindo para %s", SOURCE_LOCALE, exc_info=True
+        )
+        return {"nome": nome, "quota_message": quota_message}
+
+    if not linha:
+        return {"nome": nome, "quota_message": quota_message}
+    return {
+        "nome": linha["nome"] or nome,
+        "quota_message": linha["quota_message"] or quota_message,
+    }
+
+
+def config_payload(
+    user=None, *, now: datetime | None = None, locale: str = SOURCE_LOCALE
+) -> dict[str, Any]:
+    """Corpo do `GET /api/config` — catálogo e capacidades num payload só (SPEC-018).
+
+    `locale` (SPEC-025, T-146): default `SOURCE_LOCALE` para quem chama sem resolver locale
+    nenhum continuar recebendo exatamente o payload de ontem. O idioma sobrepõe os campos de
+    apresentação do catálogo (`exercises_for`) e o nome/mensagem de quota do plano — nunca as
+    capacidades em si, que são número e booleano, não texto.
+    """
     caps = capabilities_for(user, now=now)
-    catalogo = exercises_for(user, now=now)
+    catalogo = exercises_for(user, now=now, locale=locale)
+    plano_traduzido = _traduzir_plano(
+        caps.plan_slug, locale, nome=caps.plan_name, quota_message=caps.quota_message
+    )
 
     return {
         "config_version": caps.config_version,
         "plan": {
             "slug": caps.plan_slug,
-            "name": caps.plan_name,
+            "name": plano_traduzido["nome"],
             "daily_sessions": caps.daily_sessions,
-            "quota_message": caps.quota_message,
+            "quota_message": plano_traduzido["quota_message"],
             "allow_cloud": caps.allow_cloud,
             "history_limit": caps.history_limit,
             "kcal_accumulation": caps.kcal_accumulation,
