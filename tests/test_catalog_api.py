@@ -247,8 +247,10 @@ def test_config_responde_privado_e_com_etag(client) -> None:
     assert resposta.status_code == 200
     assert resposta["Cache-Control"] == "private, must-revalidate"
     # `Accept` é acrescentado pela negociação de conteúdo do DRF; o que esta task garante é o
-    # `Authorization`, sem o qual um cache serviria a mesma entrada para dois usuários.
+    # `Authorization` e, desde a SPEC-025, o `Accept-Language` — sem eles um cache serviria a
+    # mesma entrada para dois usuários, ou para duas línguas diferentes do mesmo usuário.
     assert "Authorization" in resposta["Vary"]
+    assert "Accept-Language" in resposta["Vary"]
     assert resposta["ETag"]
 
 
@@ -282,6 +284,69 @@ def test_is_admin_muda_o_etag() -> None:
     dev = User.objects.create_user(email="g@x.com", password=SENHA, is_admin=True)
 
     assert config_etag(comum) != config_etag(dev)
+
+
+# --------------------------------------------------------------------------------------
+# O locale como quarta dimensão do ETag (SPEC-025, T-143)
+#
+# `config_payload` ainda não traduz nada (o catálogo é da T-144/T-146) — o que estes testes
+# provam é o MECANISMO: sem o locale no ETag, trocar `Accept-Language` reaproveitaria o
+# `If-None-Match` de uma visita anterior e a rota devolveria `304` (corpo nenhum) para uma
+# língua que ela nunca serviu.
+# --------------------------------------------------------------------------------------
+
+
+def test_locale_diferente_muda_o_etag() -> None:
+    from api.config import config_etag
+
+    assert config_etag(None, locale="pt-BR") != config_etag(None, locale="en")
+
+
+@pytest.mark.django_db
+def test_trocar_de_locale_nao_devolve_304(client) -> None:
+    """Critério de aceite 6 (SPEC-025), na rota de verdade: o `If-None-Match` obtido em pt-BR
+    não pode custar `304` quando o próximo pedido chega em inglês — tem de vir um corpo novo."""
+    em_pt = client.get("/api/config", HTTP_ACCEPT_LANGUAGE="pt-BR")
+    assert em_pt.status_code == 200
+
+    em_en = client.get(
+        "/api/config", HTTP_ACCEPT_LANGUAGE="en", headers={"If-None-Match": em_pt["ETag"]}
+    )
+
+    assert em_en.status_code == 200
+    assert em_en.content  # um corpo de verdade, não o vazio de um 304
+    assert em_en["ETag"] != em_pt["ETag"]
+
+
+@pytest.mark.django_db
+def test_mesmo_locale_continua_custando_304(client) -> None:
+    """O contrapositivo do teste acima: a revalidação normal não quebrou com a dimensão nova."""
+    primeira = client.get("/api/config", HTTP_ACCEPT_LANGUAGE="pt-BR")
+
+    segunda = client.get(
+        "/api/config", HTTP_ACCEPT_LANGUAGE="pt-BR", headers={"If-None-Match": primeira["ETag"]}
+    )
+
+    assert segunda.status_code == 304
+
+
+@pytest.mark.django_db
+def test_normalizacao_do_accept_language_produz_o_mesmo_etag(client) -> None:
+    """`pt`, `pt-br` e `pt-BR;q=0.9` são o mesmo locale (critério 1) — e por isso o mesmo ETag."""
+    canonico = client.get("/api/config", HTTP_ACCEPT_LANGUAGE="pt-BR")["ETag"]
+
+    for variante in ("pt", "pt-br", "pt_BR", "pt-BR;q=0.9"):
+        resposta = client.get("/api/config", HTTP_ACCEPT_LANGUAGE=variante)
+        assert resposta["ETag"] == canonico, f"variante {variante!r} divergiu do ETag canônico"
+
+
+@pytest.mark.django_db
+def test_locale_via_query_param_vence_o_cabecalho_tambem_na_rota(client) -> None:
+    """O `?locale=` explícito da SPEC-025 §1 tem de valer na rota real, não só na função pura."""
+    via_override = client.get("/api/config?locale=en", HTTP_ACCEPT_LANGUAGE="pt-BR")
+    via_cabecalho = client.get("/api/config", HTTP_ACCEPT_LANGUAGE="en")
+
+    assert via_override["ETag"] == via_cabecalho["ETag"]
 
 
 @pytest.mark.django_db

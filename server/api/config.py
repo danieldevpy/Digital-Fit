@@ -40,6 +40,7 @@ from typing import Any
 from django.core.cache import cache
 from django.db.models import F
 
+from api.i18n import DEFAULT_LOCALE
 from api.models import MATURITY_RANK, Maturity
 from api.quota import FREE_LIMIT, FREE_MESSAGE, TRIAL_LIMIT, TRIAL_MESSAGE
 
@@ -578,17 +579,26 @@ def _catalogo_serializado(catalogo: dict[str, dict[str, Any]]) -> list[dict[str,
     return [{k: v for k, v in ex.items() if k not in _INTERNO} for ex in completos]
 
 
-def config_etag(user=None, *, now: datetime | None = None) -> str:
-    """ETag por (versão, plano, `is_admin`) — as três dimensões que mudam o corpo.
+def config_etag(user=None, *, now: datetime | None = None, locale: str = DEFAULT_LOCALE) -> str:
+    """ETag por (versão, plano, `is_admin`, locale) — as quatro dimensões que mudam o corpo.
 
     Um ETag só sobre `config_version` seria um vazamento: o payload varia por plano (capacidades
     e, com a SPEC-020, o próprio conteúdo do catálogo), então um proxy no caminho serviria a
     resposta do assinante para o próximo Free que revalidasse. Junto com `Cache-Control: private`
     na view, é o que impede a trava de plano de ser furada por cache.
+
+    **O locale é o mesmo bug pelo eixo do idioma (SPEC-025).** `config_payload` ainda não varia
+    o próprio conteúdo por língua — isso chega com o catálogo de tradução (T-144/T-146) — mas o
+    ETag já precisa contar essa dimensão hoje: sem ela, quem troca o app de português para inglês
+    manda o mesmo `If-None-Match` de antes, recebe `304` (nenhum corpo novo, "sua cópia continua
+    valendo") e a tela fica presa na língua da primeira visita até a configuração mudar por outro
+    motivo qualquer. O default (`DEFAULT_LOCALE`) é só para quem chama esta função sem resolver
+    locale nenhum (ex.: código anterior a esta task) continuar coerente com o que
+    `api.i18n.resolve_locale` devolveria para a mesma ausência de sinal.
     """
     caps = capabilities_for(user, now=now)
     is_admin = bool(getattr(user, "is_admin", False))
-    cru = f"{caps.config_version}|{caps.plan_slug}|{int(is_admin)}"
+    cru = f"{caps.config_version}|{caps.plan_slug}|{int(is_admin)}|{locale}"
     return '"' + hashlib.sha256(cru.encode()).hexdigest()[:16] + '"'
 
 

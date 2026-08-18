@@ -24,7 +24,11 @@ ALLOWED_METHODS = "GET, POST, OPTIONS"
 #: "trial zerado", não como CORS.
 #: `If-None-Match` entra na T-074: sem ele no preflight, a revalidação do `GET /api/config`
 #: nem sai do navegador.
-ALLOWED_HEADERS = "Content-Type, Authorization, X-Device-Id, If-None-Match"
+#: `Accept-Language` entra na SPEC-025 (T-143): é cabeçalho simples só dentro de um formato
+#: restrito (RFC), e o cliente pode setá-lo à mão para um seletor de idioma que não segue o
+#: automático do navegador — nesse caso ele deixa de ser simples e o preflight passa a exigi-lo
+#: aqui, do mesmo jeito que `If-None-Match` precisou entrar para a revalidação do `/api/config`.
+ALLOWED_HEADERS = "Content-Type, Authorization, X-Device-Id, If-None-Match, Accept-Language"
 #: Cabeçalhos de resposta que o JavaScript consegue **ler**. Sem esta lista o navegador entrega
 #: a resposta e esconde o `ETag`: `resposta.headers.get('ETag')` devolve `null` cross-origin, e
 #: o cliente nunca guarda o que precisaria para revalidar. O sintoma não é erro nenhum — é o

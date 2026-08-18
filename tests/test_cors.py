@@ -99,3 +99,17 @@ def test_o_preflight_aceita_o_cabecalho_de_revalidacao(debug_ligado) -> None:
     )
 
     assert "If-None-Match" in resposta["Access-Control-Allow-Headers"]
+
+
+def test_o_preflight_aceita_o_cabecalho_de_idioma(debug_ligado) -> None:
+    """`Accept-Language` (SPEC-025, T-143): um seletor de idioma que o cliente define à mão
+    deixa de ser cabeçalho simples, e sem ele na lista o preflight recusaria a requisição antes
+    dela sair."""
+    resposta = Client().options(
+        "/api/config",
+        HTTP_ORIGIN=ORIGEM,
+        HTTP_ACCESS_CONTROL_REQUEST_METHOD="GET",
+        HTTP_ACCESS_CONTROL_REQUEST_HEADERS="Accept-Language",
+    )
+
+    assert "Accept-Language" in resposta["Access-Control-Allow-Headers"]

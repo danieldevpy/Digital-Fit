@@ -5,6 +5,154 @@
 
 ---
 
+## 2026-08-18 (63) · T-143 — Negociação de locale, e os caches que não sabiam que ela existia
+
+Escopo: servidor apenas (SPEC-025, Bloco de i18n — T-144 traduz conteúdo, T-146 cataloga; esta
+task é o mecanismo de transporte por baixo dos dois). Worktree isolado, em paralelo com a T-144
+mexendo em `config.py` no mesmo arquivo — por isso o diff em `config.py` é uma função só.
+
+### Um desvio que precisa ficar registrado antes do resto
+
+`specs/SPEC-025-internacionalizacao.md` e `docs/PLANO-I18N.md`, que o contrato desta task manda
+ler, **não existem neste worktree** — `specs/` para em SPEC-024, `docs/` não tem `PLANO-I18N.md`,
+e `BACKLOG.md` não tem linha para T-143 (nem para T-141…T-146; a última linha real é a T-140).
+Busquei em todo o worktree (case-insensitive, `i18n`/`internacional`/`plano-i18n`) e no histórico
+de commits deste branch — nenhum rastro. As três outras worktrees paralelas partem do mesmo
+commit (`2078df0`), então não é um branch desatualizado em relação aos outros.
+
+O que a instrução da task continha, porém, era um contrato completo e conferível: assinaturas,
+prioridade de resolução, as três dimensões de cache exatas com os valores de HOJE citados
+literalmente (`config_etag` era `(config_version, plan_slug, is_admin)`; `chave_de_cache` era
+`(user_pk, dia)`; o `Vary` de `/api/config` era só `Authorization`). Conferi cada uma dessas
+afirmações contra o código antes de escrever a primeira linha — todas bateram, inclusive o
+detalhe de que `Conquista.to_dict()` embute `name`/`description` como texto pronto dentro do
+payload que o cache guarda. Decidi implementar por esse contrato (é preciso, testável e bate com
+a realidade do código), e registrar a lacuna aqui em vez de tentar adivinhar ou de travar a
+sessão inteira. **Pendência real**: alguém com acesso ao histórico completo (ou à conversa que
+gerou a task) precisa commitar `SPEC-025`/`PLANO-I18N.md` de verdade, reconciliados com o que
+saiu daqui — abri uma sugestão de sessão separada para isso. Não toquei em `BACKLOG.md` (não
+está na lista de arquivos da task, e a linha da T-143 não existe para eu marcar `done`).
+
+### As decisões desta task
+
+**1. `resolve_locale` pesa o `Accept-Language` por `q`, não pega o primeiro item.** A spec cita
+quatro exemplos de normalização (`pt`, `pt-br`, `pt_BR`, `pt-BR;q=0.9`) como se o cabeçalho
+trouxesse um valor só, mas um cabeçalho de verdade é `en-US,en;q=0.9,pt-BR;q=0.8` — pegar o
+primeiro item por posição erraria a preferência real sempre que o navegador listar um idioma não
+suportado na frente. Implementei o parser completo (separa por vírgula, lê `;q=`, ordena por
+peso com a ordem de chegada como desempate) porque os quatro exemplos são um subconjunto do que
+esta função precisa resolver todo santo dia, e resolver só o subconjunto seria escrever o defeito
+que os testes não pegariam (nenhum dos quatro exemplos tem mais de um idioma).
+
+**2. `?locale=` desconhecido cai no `DEFAULT_LOCALE`, não volta a espiar o cabeçalho.** A spec
+diz "`?locale=` (override explícito) > `Accept-Language` > `'en'`" e não cobre o caso de um
+override que não normaliza para nada. Duas leituras possíveis: ignorar o override ruim e cair
+para o cabeçalho, ou tratá-lo como qualquer valor desconhecido (→ default). Escolhi a segunda:
+"override explícito" quer dizer que a pessoa pediu aquele idioma explicitamente, e inventar uma
+segunda regra de prioridade escondida dentro da primeira (override presente mas ignorado)
+seria menos previsível que a normalização de sempre. Testado nos dois arquivos (função pura em
+`test_i18n.py`, rota real em `test_locale_via_query_param_vence_o_cabecalho_tambem_na_rota`).
+
+**3. `DEFAULT_LOCALE = "en"` é literal da spec, e o código teria puxado para `pt-BR` sem ela.**
+Todo conteúdo hoje é português hardcoded — seria fácil "corrigir" o default para `SOURCE_LOCALE`
+por analogia. Mantive `en` porque é isso que a task pede e faz sentido de produto (visitante sem
+cabeçalho reconhecível tem mais chance de estar fora do Brasil que dentro), mas registro que os
+dois papéis — "língua de origem do conteúdo" e "língua de quem não disse nada" — são
+deliberadamente distintos (`SOURCE_LOCALE` vs `DEFAULT_LOCALE`), e um teste
+(`test_default_locale_e_en`) trava essa distinção contra o instinto óbvio de igualá-los.
+
+**4. `engagement_cache.chave_de_cache` existe como função nova, e não como edição da de
+`engagement.py`.** A task nomeia literalmente `engagement_cache.chave_de_cache(...)`, mas a
+função pura que hoje monta `df:eng:{user}:{data}` mora em `api/engagement.py` — que está na
+lista de proibidos (T-144 não mexe nela, mas o motivo dela ser pura e pequena é o mesmo motivo
+de eu não dever mexer: SPEC-019 promete `(user, dia)` sem I/O e sem locale, e locale é harness de
+transporte da SPEC-025, não regra de derivação). Resolvido compondo por cima: uma função NOVA,
+literalmente acessível como `engagement_cache.chave_de_cache(user_id, hoje, locale)`, que chama
+`regra.chave_de_cache(user_id, hoje)` (a de `engagement.py`, intocada) e acrescenta `:{locale}`.
+Satisfaz a letra do critério 4 (a chave é alcançável exatamente pelo caminho que a task nomeia)
+sem tocar no arquivo proibido nem no contrato puro da SPEC-019.
+
+**5. A invalidação varre `LOCALES` inteiro, não só o locale de quem escreveu.** `_limpar` roda
+fora de qualquer requisição — é `post_save` de `SessionResult`/`User`, sem `Accept-Language`
+nenhum para escolher UMA chave. Se ela apagasse só uma, a outra ficaria servindo engajamento
+velho até a próxima escrita ou a meia-noite — o mesmo bug do critério 4, só que pela porta da
+invalidação. `test_invalidar_apaga_a_chave_de_todo_locale` prova as duas metades juntas: os dois
+locales aquecidos, o `post_save` disparado, os dois apagados, os dois recalculando fresco.
+
+**6. `GET /api/engagement` não ganhou `Vary: Accept-Language`.** É a única rota afetada que já
+usa `Cache-Control: no-store` — sem cache HTTP nenhum, `Vary` não tem o que declarar. A dimensão
+de locale dela mora inteira do lado do Redis (`chave_de_cache`), não do lado do navegador/proxy.
+Documentei a omissão no próprio comentário da view para quem for procurar o `Vary` e não achar.
+
+### O que foi feito
+
+- `server/api/i18n/__init__.py` (novo pacote): `LOCALES`, `SOURCE_LOCALE`, `DEFAULT_LOCALE`,
+  `resolve_locale(request)` — duck-typed para `rest_framework.request.Request` (`.query_params`)
+  e `django.http.HttpRequest` (`.GET`), sem depender de nenhum dos dois para ser testado.
+- `server/api/config.py`: só `config_etag` — ganhou `locale: str = DEFAULT_LOCALE` como quarta
+  dimensão do hash. Nada mais no arquivo mudou (import de `DEFAULT_LOCALE` à parte).
+- `server/api/engagement_cache.py`: `chave_de_cache` nova (locale sobre a chave pura),
+  `payload_de(usuario, *, locale=DEFAULT_LOCALE)`, `_limpar` varrendo `LOCALES`.
+- `server/api/views.py`: `config()` resolve locale, repassa a `config_etag`, `Vary` ganha
+  `Accept-Language`; `engagement()` resolve locale e repassa a `payload_de`.
+- `server/core/cors.py`: `Accept-Language` em `ALLOWED_HEADERS` (preflight).
+- Nada em `models.py`, `engagement.py`, `auth.py`, `sessions.py`, `workers/`, `web/` — conferido
+  por `git diff --stat` ao final, não só por intenção.
+
+### Verificação dos critérios de aceite
+
+- **1** (`resolve_locale`, normalização, constantes): `tests/test_i18n.py` — 20 testes, pura,
+  sem banco. Cobre os quatro exemplos literais da spec, variantes de inglês, cabeçalho com peso
+  (incluindo `;q=` malformado), prioridade do override e o fallback `.GET`/`.query_params`.
+- **2** (locale na quarta dimensão do ETag): `test_locale_diferente_muda_o_etag` (unitário) e
+  `test_trocar_de_locale_nao_devolve_304` (rota real: ETag obtido em pt-BR, pedido em en com o
+  mesmo `If-None-Match`, **200 com corpo**, não 304) em `tests/test_catalog_api.py`. O
+  contrapositivo (`test_mesmo_locale_continua_custando_304`) prova que a revalidação normal não
+  quebrou. `test_normalizacao_do_accept_language_produz_o_mesmo_etag` prova que `pt`/`pt-br`/
+  `pt_BR`/`pt-BR;q=0.9` colapsam no mesmo ETag — a normalização não é só da função pura.
+- **3** (`Vary` inclui `Accept-Language`): assert acrescentado em
+  `test_config_responde_privado_e_com_etag` (continua provando `Authorization` junto).
+- **4** (`chave_de_cache` inclui locale): `test_locale_diferente_nao_le_o_cache_do_outro_locale`
+  (semear a chave de um locale com um valor sentinela não vaza para o outro),
+  `test_mesmo_locale_continua_lendo_do_proprio_cache` (contrapositivo) e
+  `test_invalidar_apaga_a_chave_de_todo_locale`, em `tests/test_engagement_api.py`.
+- **5** (CORS aceita `Accept-Language`): `test_o_preflight_aceita_o_cabecalho_de_idioma` em
+  `tests/test_cors.py`, no mesmo padrão do teste existente para `If-None-Match`.
+- **6** (mecanismo, não texto): coberto pelos testes acima — nenhum depende de
+  `catalog.en.yaml` ou de conteúdo traduzido; todos comparam ETags/corpos/chaves com o mesmo
+  payload em português nos dois locales, provando o transporte, não a tradução.
+
+### Medições
+
+- `uv run ruff check .` — limpo.
+- `uv run ruff format --check .` — limpo nos arquivos desta task; **um arquivo pré-existente,
+  fora do escopo** (`tests/test_sessions.py`, dois `next(...)` que o formatador colapsaria numa
+  linha) já estava fora de formato no commit-base deste worktree, antes de qualquer edição minha
+  (`git status`/`git diff --stat` confirmam que nunca toquei nele). Não corrigido — não está na
+  lista de arquivos desta task.
+- `uv run pytest` — suíte completa: **1095 passed**. Rodando só os arquivos tocados: 197 passed.
+- Durante a sessão, `/home` bateu em 0 bytes livres por alguns minutos (provável concorrência das
+  worktrees paralelas de T-144/T-145 no mesmo disco) e `ruff format`/cache falharam com ENOSPC.
+  Contornado redirecionando `RUFF_CACHE_DIR`/`TMPDIR` para `/tmp` (partição diferente, com
+  espaço) só para os comandos desta sessão — nenhum arquivo do projeto foi apagado ou movido. O
+  disco já tinha ~5 GB livres de novo antes do fim da sessão; registrado caso volte a acontecer
+  em sessões-irmãs.
+
+### Pendências geradas
+
+- `specs/SPEC-025-internacionalizacao.md` e `docs/PLANO-I18N.md` precisam existir de verdade no
+  branch, reconciliados com esta entrada (é o registro mais próximo do contrato que existe hoje).
+  `BACKLOG.md` também precisa das linhas T-141…T-146 (a última linha real é T-140).
+- O corpo de `GET /api/engagement` ainda não varia por locale — só a chave que o guarda. Isso é
+  correto para esta task (T-144/T-146 trazem o catálogo de tradução), mas quem for ligar a
+  tradução do nome/descrição de conquista precisa passar `locale` para dentro de `_derivar`, que
+  hoje ignora esse parâmetro de propósito.
+- `_mensagens_de_feedback()` (o dicionário código→texto pt-BR do `GET /api/config`) não entrou
+  nesta task por estar explicitamente reservada à T-144 em paralelo — ela também não passa por
+  `resolve_locale` ainda, e vai precisar quando a T-144 chegar lá.
+
+---
+
 ## 2026-08-18 (62) · T-141 — SPEC-025: o plano vira spec, e nada foi decidido de novo
 
 Sessão de projeto, não de código. Fonte única: `docs/PLANO-I18N.md`, já escrito e com todo o
