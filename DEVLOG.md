@@ -5,6 +5,98 @@
 
 ---
 
+## 2026-08-18 (77) · T-157 — SPEC-026: o site existe e ninguém consegue achar
+
+**O que foi feito.** `docs/PLANO-SEO.md` (o mapeamento e o sequenciamento em ondas),
+`specs/SPEC-026-descoberta-e-idioma-de-acesso.md` (o contrato, em `draft`), a **ADR-012** no
+`ARCHITECTURE.md` e o bloco **Fase 8** no `BACKLOG.md` com dez tasks (T-157…T-166). Nenhuma
+linha de código: esta é a task que decide o que as outras nove vão fazer.
+
+**A pergunta que abriu a frente.** Depois da Fase 7, o produto fala duas línguas — e continua
+invisível. A conversa começou em "o site não vai ter SEO né?", e o mapeamento respondeu pior do
+que a suspeita: não é que falte SEO, é que **as anotações que existem estão inertes**. A T-147
+escreveu `hreflang` com `href="/"` e `href="/en/"`, e a especificação exige URL absoluta com
+esquema e host — relativa é ignorada em silêncio. O par pt/en que a Onda 2 da i18n entregou, e
+que o `LocaleSwitch` respeita corretamente, **não existe para o Google**. Somado a isso: o site
+tem duas URLs indexáveis no mundo inteiro (o `#/sobre` é fragmento, não URL) e as duas chegam ao
+robô como `<div id="root"></div>`.
+
+### As decisões
+
+**A descoberta que reordenou o plano inteiro: o pré-render é o que liga a tradução do
+navegador.** O Chrome decide se oferece "Traduzir esta página" analisando o texto do HTML da
+*resposta* — com o `<body>` vazio, não há idioma para detectar e a oferta não aparece de forma
+confiável. A prioridade declarada pelo Daniel ("qualquer estrangeiro usa uma das duas ou traduz
+automaticamente se quiser") e a correção de SEO são, portanto, **a mesma tarefa**. Isso pôs a
+T-159 no caminho crítico e deixou T-160/T-161 dependendo só das URLs, não do pré-render — a
+prioridade fecha antes da metade do plano.
+
+**Metade da prioridade já estava entregue e ninguém tinha percebido.** Um francês abre `/app/`
+hoje e recebe inglês: `resolveLocale(null, ['fr-FR','fr'])` → `matchLocale('fr')` devolve `null`
+→ `DEFAULT_LOCALE`. O `en` como fallback (e não `pt-BR`) foi escolhido na T-142 exatamente com o
+argumento "`en` é a resposta certa para não sei quem é você". O `x-default` da SPEC-026 aponta
+para `/en/` pelo mesmo motivo — as duas pontas passam a dizer a mesma coisa, e é assim que devem
+ser lidas. O furo era inteiramente a raiz do site.
+
+**Rejeitado: migrar para Next — e virou ADR-012, porque é a pergunta que volta.** A proporção
+decide: `site/` + `entries/` somam 466 linhas de 22.516 em `web/src/`; a superfície que precisa
+de SEO é 2% do frontend, e os 98% restantes (câmera, MediaPipe WASM, máquina de sessão por
+frame) virariam uma ilha `'use client'` onde tudo que o Next tem de valioso fica inerte. Três
+agravantes que fecham a conta: a fonte de conteúdo é o **Postgres**, não o sistema de arquivos —
+o que anula o trunfo de roteamento por arquivo e exigiria em produção um processo Node que a VPS
+de 4 vCPU (com dois pose-workers) não tem folga para hospedar; o encanamento atual foi *medido*
+e é caro de refazer (o `gzip_http_version 1.0` que transformou 11.532.084 bytes em 3,2 MB no
+waterfall de um celular real); e a coerência com a régua que a SPEC-025 já aplicou ao recusar
+50 KB de `i18next`. O substituto tem ~150 linhas de script de build. A ADR-010 é o que torna a
+decisão barata de errar: SITE e APP já são bundles e origens distintos, então o site sai para
+artefato próprio no dia em que virar operação de conteúdo — e o `/app/` nunca vai junto.
+
+**Rejeitado, de novo e por um motivo novo: decidir idioma por IP.** A SPEC-025 já havia recusado
+GeoIP pelo argumento da pessoa (quem mora fora e fala português deve receber português). Apareceu
+um segundo argumento, independente e mais duro: **o Googlebot rastreia dos Estados Unidos** —
+redirecionar `/` por IP ou por `Accept-Language` faria o robô ver só a versão inglesa e apagaria
+a portuguesa do índice. Virou invariante escrita da SPEC-026: nenhuma das três camadas do idioma
+de acesso redireciona ninguém. O aviso client-side substitui o redirect, e vai **na língua de
+destino** — um francês em `/` lê `View in English →`, não uma frase em português explicando que
+existe inglês.
+
+**Curado × traduzido, como promessa de produto.** `pt-BR` e `en` são curados (tom de treinador,
+revisados, layout conferido); qualquer outra língua é tradução automática **do navegador**, e o
+produto não promete qualidade nela. Rejeitado traduzir os dicionários por máquina para N idiomas:
+a string passaria a morar no bundle com a marca do produto em cima, assumindo uma qualidade não
+revisada, e multiplicaria a T-155 por N a cada release. É o que permite ser global sem prometer
+quarenta idiomas.
+
+**Metadados de rota mudam de endereço: saem do HTML e entram no dicionário.** `title` e
+`description` viram chaves do namespace `site`, resolvidas no pré-render. A consequência é o
+ponto todo: `tsc -b` passa a reprovar rota nova sem título em inglês, pelo portão que a T-142 já
+construiu — sem regra nova e sem ninguém lembrar de conferir. É o critério 7 da spec, irmão do
+critério 5 da SPEC-025.
+
+**Uma tabela de rotas, quatro saídas.** Roteador, pré-render, `sitemap.xml` e `hreflang` passam a
+ser derivados de `web/src/site/routes.ts`. Foi a independência entre esses quatro que produziu o
+`hreflang` inerte: quatro lugares que precisam concordar e nenhum mecanismo obrigando. Com fonte
+única, "rota nova sem sitemap" deixa de ser *possível* em vez de deixar de ser *esquecido* — a
+mesma doutrina do dicionário tipado da SPEC-025.
+
+### Descobertas registradas no caminho
+
+Cinco armadilhas foram para o §Notas técnicas da spec, cada uma com a task dona: o `hreflang`
+relativo (T-160); o `<font>` que o Google Translate embrulha em cada nó de texto e faz o React
+quebrar com `removeChild` ao redesenhar — risco concentrado em `hud/StatsBar.tsx` e
+`hud/CoachTip.tsx`, que trocam texto durante o treino (T-162); o `try_files` que devolve **200**
+com a home para qualquer URL errada, o *soft 404* (T-158); `SiteApp.tsx:22` decidindo idioma por
+`=== 'en'` em vez de `matchLocale()`, que mandaria `/es/` para o português em silêncio (T-162); e
+`/en/index.html` sem a regra de `no-cache` que os outros dois entries têm — irmão exato do bug
+que aquelas linhas existem para evitar (T-158).
+
+### Pendências
+
+- A SPEC-026 está em **`draft`**. Vai para `approved` na revisão do Daniel, e é o que libera as
+  outras nove tasks.
+- A **T-155** (revisão de tradução e layout da Fase 7) continua `todo` e não foi absorvida por
+  esta frente — é trabalho de qualidade da i18n, não de descoberta.
+
 ## 2026-08-18 (76) · T-156 — O fuso do fogo: a virada do dia passa a ser a de quem treina
 
 **O que foi feito.** `FUSO_DO_FOGO` deixou de ser São Paulo para todo mundo. O dia a que uma

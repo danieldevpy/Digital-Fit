@@ -331,6 +331,47 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 |---|---|---|---|
 | T-156 | **Fuso do fogo por usuário.** `FUSO_DO_FOGO` deixa de ser constante de São Paulo: a virada do dia (streak, meta diária, TTL do cache) passa a ser resolvida pelo fuso de quem treina, com o do aparelho como default. Descoberta do mapeamento de i18n (plano §2.5) — não é idioma, é o mesmo "não se restringir a um país" pelo eixo do tempo, e ninguém percebe que está errado até o streak quebrar sozinho. Não depende de nenhuma outra task desta frente *(Tam: M)* | 025/019 | **feito** (2026-08-18) |
 
+## Fase 8 — Descoberta e idioma de acesso (SPEC-026)
+
+Origem: `docs/PLANO-SEO.md` — o plano de execução (mapa da descoberta hoje, armadilhas, decisões
+de arquitetura, sequenciamento em ondas). Dez tasks: a T-157 abre e bloqueia tudo; a T-158 (rotas
+reais) destrava a Onda 2 inteira; a T-162 não depende de nada além do contrato e já entrega um
+terço da prioridade declarada. Meta declarada: **acertar o idioma de acesso** (T-160, T-161,
+T-162) sobre uma base que torna o site encontrável (T-158, T-159).
+
+Irmão do `PLANO-I18N.md`: aquela frente construiu a máquina de conteúdo multilíngue e ela
+funciona — esta existe porque a frente de descoberta nunca foi escrita.
+
+### Onda 0 — o contrato (bloqueia tudo)
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-157 | **SPEC-026 — Descoberta e idioma de acesso.** A tabela de rotas como fonte única (roteador, pré-render, sitemap, hreflang); a regra das três camadas (plano §3.2) com **"nunca redirecionar"** como invariante declarada — o Googlebot rastreia dos EUA, e redirecionar por IP/`Accept-Language` apaga a versão pt do índice; `x-default` → `/en/` amarrado ao `DEFAULT_LOCALE` de `i18n/locale.ts`; a distinção **curado × traduzido** (plano §3.3) como promessa de produto; o `/app/` permanecendo `noindex`; os portões (plano §4) como critério permanente. ADR-012 no `ARCHITECTURE.md` com o "por que não Next" (plano §3.1). Fora de escopo explícito: moeda, unidade de medida, GeoIP *(Tam: M)* | 026 | todo |
+
+### Onda 1 — a base (2 raias; a T-162 não depende da T-158)
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-158 | **Rotas reais no lugar do hash.** `web/src/site/routes.ts` como tabela tipada (rota × locale × chave de `title`/`description`); `site/nav.ts` passa a ler `location.pathname` em vez de `window.location.hash`; `/sobre/` e `/en/about/` viram URLs de verdade; `shell/origins.ts` e `siteLocaleHref` acompanham; nginx com `location` por prefixo de idioma, **`404.html` de verdade no lugar do soft-404** (plano §2.6) e a regra `no-cache` faltante para `/en/index.html` (plano §2.8); 301 dos `#/sobre` antigos. Depende de T-157 *(Tam: G)* | 026/014 | todo |
+| T-162 | **Tradução do navegador sem quebrar o app.** `translate="no"` nas regiões voláteis do `/app/` (`hud/StatsBar`, `hud/CoachTip`, `hud/TimerRing`, números do `report/ReportSheet`), com o motivo escrito no código: o Google Translate embrulha cada nó de texto num `<font>` e o React quebra com `removeChild` ao redesenhar (plano §2.4); `site/SiteApp.tsx:22` passa a usar `matchLocale()` em vez de comparar com `'en'` (plano §2.7); comentário explícito no wrapper de `fetch` sobre mandar o locale **resolvido** no `Accept-Language`, não o do navegador. Teste que simula o embrulho em `<font>` e prova que o HUD sobrevive a um redesenho. Depende só de T-157 *(Tam: M)* | 026/025/013 | todo |
+
+### Onda 2 — descoberta e idioma de acesso (4 raias; dependem da T-158)
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-159 | **Pré-render em tempo de build.** Passo de build que percorre `rotas × locales`, renderiza com `renderToString` (o `react-dom` já é dependência — sem dependência de runtime nova) e injeta HTML, `<title>`, `<meta description>` e `canonical` em cada entry; hidratação verificada nas duas línguas. Critério que não pode faltar: `curl` da URL, com JS fora da conta, devolve o `<h1>` e o texto. É também o que **liga a tradução automática do navegador** (plano §2.3): sem texto no HTML da resposta, o Chrome não oferece traduzir. Depende de T-158 *(Tam: G)* | 026 | todo |
+| T-160 | **`hreflang` absoluto + `x-default` + `canonical`.** Host vindo de `VITE_SITE_URL` no build — hoje os `href` são relativos (`/`, `/en/`) e por isso **ignorados em silêncio** pelo Google (plano §2.1); recíproco entre `/` e `/en/` para cada rota; `x-default` → `/en/` (plano §2.2). Teste sobre o HTML **gerado**, não sobre o template. Depende de T-158 *(Tam: M)* | 026/025 | todo |
+| T-161 | **Aviso de idioma no site.** Client-side, depois da hidratação (fora do HTML pré-renderizado, para não haver sombra de cloaking), quando `matchLocale(navigator.languages)` discorda do `lang` da página; escrito **na língua de destino**, não na da página — um francês não lê "esta página também está em inglês" em português; dispensável e lembrado; **nunca redireciona**. Reaproveita o `LocaleSwitch` que a T-153 já deixou pronto para as duas superfícies. Depende de T-158 *(Tam: M)* | 026/025 | todo |
+| T-163 | **`robots.txt` + `sitemap.xml` + descoberta.** Ambos gerados da tabela de rotas no build; `sitemap` com `<xhtml:link>` de idioma alternativo por URL; `robots.txt` liberando o site, mantendo o `/app/` fora e apontando o sitemap. Decisão a registrar na task: política para rastreadores de LLM (GPTBot, ClaudeBot, PerplexityBot) — recomendação é **permitir**, porque parte da descoberta de produto hoje acontece dentro de um chat, e nenhum deles executa o bundle. Depende de T-158 *(Tam: M)* | 026 | todo |
+| T-164 | **Open Graph + JSON-LD.** `og:*` e `twitter:card` por rota e por idioma, com imagem própria; JSON-LD `SoftwareApplication` + `Organization`. Hoje o link compartilhado mostra caixa cinza sem título e sem imagem — e o WhatsApp é o canal que motiva a task, então o critério de aceite é verificado num WhatsApp real, não só no validador. Depende de T-159 *(Tam: M)* | 026/014 | todo |
+
+### Onda 3 — conteúdo, e o fecho
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-165 | **Páginas públicas por exercício.** `/exercicios/<slug>/` e `/en/exercises/<slug>/` a partir de `Exercise` + `Translation` + `ExerciseGuideStep` (plano §3.4), consumidos pelo pré-render em build; cada página linka o app com o exercício já escolhido; exercício despublicado sai do sitemap. É a task que transforma a tradução já paga (T-146/T-152) em tráfego: ninguém procura "Digital Fit", procuram "como fazer agachamento correto" e "squat form check app". Depende de T-159 e T-163 *(Tam: G)* | 026/020/018 | todo |
+| T-166 | **Os portões.** Teste do build que cobra, para cada rota gerada: `canonical` presente, `hreflang` recíproco **e absoluto**, `x-default` existente, `title`/`description` não vazios e diferentes entre idiomas; teste da tabela de rotas (roteador ↔ sitemap, nos dois sentidos); a regra da rota nova no `AGENTS.md` e na skill `df-spec`. É o portão que impede o §2.1 de acontecer de novo. Depende da Onda 2 completa *(Tam: P)* | 026 | todo |
+
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
 - **[T-135] `target_reached` não cai em nenhum balde do `exercise_health` — a série contada some

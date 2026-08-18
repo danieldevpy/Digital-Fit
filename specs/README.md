@@ -34,6 +34,7 @@ Cada etapa do pipeline é uma **entidade** com duas fases:
 | [SPEC-023](SPEC-023-treino-series-e-ritmo.md) | Treino: séries, ritmo e modos de sessão (contado × livre, descanso, prontidão) | Fase 6 |
 | [SPEC-024](SPEC-024-historico-e-frescor.md) | Histórico como fonte única no cliente & contrato de frescor (Progresso, Analytics, Perfil) | Fase 5 (antes do M1) |
 | [SPEC-025](SPEC-025-internacionalizacao.md) | Internacionalização (pt-BR + en) — dicionário tipado no cliente, negociação de locale (cliente/API/HTML), tradução de conteúdo no banco | Fase 7 |
+| [SPEC-026](SPEC-026-descoberta-e-idioma-de-acesso.md) | Descoberta & Idioma de Acesso — tabela de rotas como fonte única, pré-render no build, `hreflang`/`x-default`, curado × traduzido | Fase 8 |
 
 ## Template
 
