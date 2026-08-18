@@ -4657,3 +4657,42 @@ a {
   background: rgba(11, 15, 26, 0.9);
   backdrop-filter: blur(16px);
 }
+
+/* ---------------------------------------------------------------------------
+   404 do site (T-158, SPEC-026)
+   Pele mínima: a página existe para dizer "não existe" e oferecer a saída. Reaproveita
+   `.app__phone` e `.v2-cta`, que já são a moldura e o botão do site.
+   --------------------------------------------------------------------------- */
+.notfound {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 60vh;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.notfound__code {
+  font-family: 'Space Grotesk', ui-monospace, monospace;
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.5;
+  margin: 0;
+}
+
+.notfound__title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 4px 0 0;
+}
+
+.notfound__text {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 12px;
+  max-width: 34ch;
+}

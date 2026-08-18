@@ -6,8 +6,9 @@
 // Desde a T-067 esta tela é o SITE: todo botão que leva a treinar é um `<a href>` para o
 // app, não um `navigate()`. O app pode estar em outro host, e ali `#/preparar` não existe.
 import { useT } from '../i18n'
+import { useI18nStore } from '../i18n/store'
 import { DEFAULT_EXERCISE } from '../session/catalog'
-import { appHref } from '../shell/origins'
+import { appHref, siteRouteHref } from '../shell/origins'
 import {
   IconAngle,
   IconCounter,
@@ -53,6 +54,13 @@ const FEATURES = [
 
 export function IndexScreen() {
   const t = useT()
+  // O rodapé aponta dez links institucionais para o Sobre — a tela que ainda não existe
+  // separada para cada assunto (Planos, Privacidade, Termos...). Desde a T-158 é um CAMINHO
+  // (`/sobre/`, `/en/about/`), não `#/sobre`: fragmento não viaja no pedido e o buscador nunca
+  // via essas páginas. O idioma vem do store, que o `SiteApp` sincroniza com o `<html lang>`
+  // deste documento — ou seja, com a URL.
+  const locale = useI18nStore((state) => state.locale)
+  const sobreHref = siteRouteHref('sobre', locale)
 
   return (
     <div className="landing">
@@ -170,22 +178,22 @@ export function IndexScreen() {
             <h3>{t('site:footer.heading.resources')}</h3>
             <a href={appHref(`#/guia/${DEFAULT_EXERCISE}`)}>{t('site:footer.link.how_it_works')}</a>
             <a href={appHref('#/exercicios')}>{t('site:footer.link.exercises')}</a>
-            <a href="#/sobre">{t('site:footer.link.benefits')}</a>
-            <a href="#/sobre">{t('site:footer.link.plans')}</a>
+            <a href={sobreHref}>{t('site:footer.link.benefits')}</a>
+            <a href={sobreHref}>{t('site:footer.link.plans')}</a>
           </div>
           <div className="landing__footer-col">
             <h3>{t('site:footer.heading.about')}</h3>
-            <a href="#/sobre">{t('site:footer.link.who_we_are')}</a>
-            <a href="#/sobre">{t('site:footer.link.privacy')}</a>
-            <a href="#/sobre">{t('site:footer.link.terms')}</a>
-            <a href="#/sobre">{t('site:footer.link.contact')}</a>
+            <a href={sobreHref}>{t('site:footer.link.who_we_are')}</a>
+            <a href={sobreHref}>{t('site:footer.link.privacy')}</a>
+            <a href={sobreHref}>{t('site:footer.link.terms')}</a>
+            <a href={sobreHref}>{t('site:footer.link.contact')}</a>
           </div>
           <div className="landing__footer-col">
             <h3>{t('site:footer.heading.support')}</h3>
-            <a href="#/sobre">{t('site:footer.link.help_center')}</a>
-            <a href="#/sobre">{t('site:footer.link.faq')}</a>
-            <a href="#/sobre">{t('site:footer.link.talk_to_us')}</a>
-            <a href="#/sobre">{t('site:footer.link.status')}</a>
+            <a href={sobreHref}>{t('site:footer.link.help_center')}</a>
+            <a href={sobreHref}>{t('site:footer.link.faq')}</a>
+            <a href={sobreHref}>{t('site:footer.link.talk_to_us')}</a>
+            <a href={sobreHref}>{t('site:footer.link.status')}</a>
           </div>
           <p className="landing__copyright">{t('site:footer.copyright')}</p>
         </footer>

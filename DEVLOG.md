@@ -5,6 +5,93 @@
 
 ---
 
+## 2026-08-18 (80) · T-158 — O site ganha URLs, e uma URL errada passa a doer
+
+**O que foi feito.** `src/site/routes.ts` (a tabela de rotas), o roteador lendo
+`location.pathname` no lugar de `window.location.hash`, `/sobre/` e `/en/about/` como
+documentos de verdade no build, uma tela de 404, o `try_files` do site trocado por `=404` com
+`error_page`, e a regra de `no-cache` que faltava para três dos cinco `index.html`.
+
+**O problema, em uma frase.** O site tinha duas URLs indexáveis no mundo inteiro. `#/sobre` é
+fragmento, e fragmento não viaja no pedido HTTP: o servidor nunca o vê e o buscador trata `/` e
+`/#/sobre` como a mesma página. Nenhuma quantidade de metadado conserta isso — não havia o que
+anotar.
+
+### As decisões
+
+**Uma tabela, quatro saídas.** Roteador, pré-render (T-159), `hreflang` (T-160) e `sitemap.xml`
+(T-163) respondem à mesma pergunta — "quais páginas existem, em que idiomas, com que endereço" —
+e até aqui cada um responderia por conta própria. Foi essa independência que produziu o bug que
+abriu a Fase 8: a T-147 escreveu `hreflang` à mão, relativo, e ficou inerte por meses sem nada
+acusar. `routes.ts` passa a ser a fonte, e o `routes.test.ts` confronta a tabela com a lista de
+entries do `vite.config.ts` — as duas listas que precisam concordar agora se conhecem.
+
+**Slug traduzido, decidido pelo Daniel.** `/sobre/` ↔ `/en/about/`, e não `/en/sobre/`. A
+palavra na URL é sinal de busca, que é o objetivo declarado da frente; o custo é uma entrada a
+mais por rota, no lugar onde ela deve doer.
+
+**Navegação de documento, não SPA.** Sumiu o `useSyncExternalStore` de `hashchange`: com cada
+tela num documento próprio, a rota não muda durante a vida da página e o `subscribe` estaria
+assinando um evento que não acontece. O custo é uma ida à rede por clique, e é barato — o bundle
+do site já está em cache e não há estado de sessão a preservar. Em troca, cada URL vira um
+documento, que é a condição para o pré-render e para o sitemap existirem.
+
+**Cada rota virou entry do Vite, e isso é o que torna o 404 possível.** Enquanto o site fosse
+servido por fallback (`try_files ... /index.html`), qualquer caminho errado devolveria **200 com
+a landing** — o *soft 404*. Com `sobre/index.html`, `en/about/index.html` e `404.html` no build,
+o nginx pôde passar a `=404` de verdade. A ordem das duas coisas não é escolha: 404 exige
+arquivo conhecido.
+
+**A 404 é uma tela React, não um HTML com frases dentro.** Um `404.html` escrito à mão seria a
+única superfície do produto fora do portão do texto nas duas línguas (AGENTS §Fluxo 4) — e
+justamente a que ninguém abre para conferir. E o idioma dela segue a **preferência do aparelho**,
+divergindo do resto do site de propósito: "site por URL" existe porque o buscador escolhe pela
+URL, e aqui a URL não existe. Sem URL para perguntar, a pergunta certa é a do `/app/`.
+
+**O `internal` no `location = /404.html`.** Sem ele a página de erro teria URL própria e
+responderia 200 — o soft 404 voltando pela porta dos fundos, agora com endereço fixo.
+
+**O "301" do `#/sobre` é do lado do cliente, e não podia ser diferente.** O fragmento não chega
+ao servidor: ele recebe `GET /` e não tem como saber que havia um `#/sobre`. Roda antes do React
+montar, com `location.replace` e não `history.replaceState` — a navegação de verdade traz o
+documento certo (título, canonical, hreflang daquela rota), enquanto o `replaceState` mudaria a
+barra de endereço e deixaria os metadados da página anterior. Meia-correção é o que esta frente
+existe para não repetir.
+
+**Título e descrição saíram do HTML e entraram no dicionário.** `site:meta.<rota>.*`. É a
+consequência que paga a mudança: `tsc -b` passa a reprovar rota nova sem título em inglês, pelo
+gate que a T-142 já construiu. Os `<title>` estáticos dos HTML ficaram como cópia temporária,
+anotada em cada arquivo — a T-159 passa a gerá-los da tabela e a duplicação morre com ela.
+
+### As medições
+
+Com o `dist/` real servido pelo `docker/web-nginx.conf` real (`nginx:1.27-alpine`, porta 8099):
+
+| URL | status |
+|---|---|
+| `/` · `/sobre/` · `/en/` · `/en/about/` · `/app/` | **200** |
+| `/app/qualquer-coisa` | **200** (fallback do SPA preservado — o app é `noindex`) |
+| `/nao-existe` | **404** |
+| `/404.html` direto | **404** (o `internal` funcionando) |
+
+- `Cache-Control: no-cache` presente nos **cinco** `index.html`. Antes eram dois; `/en/index.html`
+  estava sem desde a T-147.
+- Corpo servido em `/nao-existe`: a 404 de verdade, com `noindex` e
+  `<title>Page not found — Digital Fit</title>`.
+- Build: seis HTMLs (`index`, `en/index`, `sobre/index`, `en/about/index`, `404`, `app/index`).
+- Gates: `ruff check` + `ruff format --check` limpos, `pytest` verde, `npm run lint` e
+  `typecheck` sem saída, `npm run test` com **708 testes em 63 arquivos**.
+
+### Pendências e descobertas
+
+- **O bundle do site passou de 8,8 kB para 11,27 kB** (2,84 kB gzip). Vem da tela de 404 e da
+  tabela de rotas. A ADR-010 cita o número antigo ao justificar a fronteira SITE|APP; a ordem de
+  grandeza contra os 291 kB do app não mudou, então a ADR continua válida — mas o número dela
+  está velho e fica registrado aqui.
+- Os `<title>`/`<meta description>` estáticos dos seis HTML duplicam o dicionário até a T-159.
+  É hand-off declarado, não dívida esquecida: está escrito em cada arquivo.
+- A SPEC-026 segue em **`draft`**.
+
 ## 2026-08-18 (79) · T-162 — Deixar traduzir sem deixar quebrar
 
 **O que foi feito.** `translate="no"` nas regiões que o React reescreve durante a sessão —

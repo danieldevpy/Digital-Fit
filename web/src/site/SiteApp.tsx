@@ -18,6 +18,7 @@ import { DEFAULT_LOCALE, matchLocale } from '../i18n/locale'
 import { useI18nStore } from '../i18n/store'
 import { AboutScreen } from './AboutScreen'
 import { IndexScreen } from './IndexScreen'
+import { NotFoundScreen } from './NotFoundScreen'
 import { useSiteRoute } from './nav'
 
 // `matchLocale()` e não `=== 'en'` (T-162): a comparação por igualdade respondia certo para
@@ -33,6 +34,14 @@ if (useI18nStore.getState().locale !== localeDoSite) {
 
 export function SiteApp() {
   const route = useSiteRoute()
+
+  if (route.screen === 'nao_encontrada') {
+    return (
+      <div className="app">
+        <NotFoundScreen />
+      </div>
+    )
+  }
 
   return (
     <div className="app">

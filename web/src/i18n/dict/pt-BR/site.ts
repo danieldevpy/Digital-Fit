@@ -5,6 +5,23 @@
 // Chaves reaproveitadas entre `IndexScreen` e `AboutScreen` quando o texto É o mesmo na UI
 // (o rodapé institucional aparece nas duas telas) — não é acidente, é a mesma frase.
 export const site = {
+  // Metadados de cada rota (T-158, SPEC-026 §Escopo). Saíram do `<head>` de cada `index.html`
+  // e vieram para cá de propósito: no HTML eram o único texto do produto sem portão de
+  // paridade, justamente o que o Google lê. Aqui o `tsc` reprova rota nova sem título em
+  // inglês, pelo gate que já existia. Quem os escreve no HTML é o pré-render (T-159).
+  'meta.index.title': 'Digital Fit — Treine melhor. Evolua sempre.',
+  'meta.index.description':
+    'O Digital Fit usa visão computacional para analisar seus movimentos em tempo real, contar repetições e corrigir sua execução.',
+  'meta.about.title': 'Sobre o Digital Fit — visão computacional para treinar melhor',
+  'meta.about.description':
+    'Privacidade em primeiro lugar, treinos para todos os níveis e evolução constante: o que o Digital Fit é e como ele analisa seu movimento.',
+  'meta.not_found.title': 'Página não encontrada — Digital Fit',
+  'meta.not_found.description': 'O endereço pedido não existe no Digital Fit.',
+
+  'not_found.title': 'Esta página não existe',
+  'not_found.text': 'O endereço que você abriu não está no ar. Talvez o link esteja velho.',
+  'not_found.home': 'Ir para o início',
+
   'nav.enter': 'Entrar',
 
   'brand.tagline': 'Seu treino. Sua evolução.',

@@ -4,7 +4,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { SiteApp } from '../site/SiteApp'
+import { redirecionarHashLegado } from '../site/nav'
 import '../styles.css'
+
+// Antes de montar, e não em `useEffect` (T-158): quem chega por um `#/sobre` salvo deve ver a
+// página certa, não a landing piscando antes dela. É o "301" desta migração, e ele tem de ser
+// do lado do cliente porque o fragmento nunca chega ao servidor — ver `site/nav.ts`.
+redirecionarHashLegado()
 
 const container = document.getElementById('root')
 if (!container) throw new Error('#root não encontrado no index.html')

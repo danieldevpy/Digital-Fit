@@ -1,0 +1,38 @@
+<!doctype html>
+<!-- SITE — Sobre, em pt-BR (T-158, SPEC-026 §Escopo). Documento próprio, e não mais o
+     fragmento `#/sobre`: fragmento não viaja no pedido HTTP, então o buscador via `/` e
+     `/#/sobre` como a mesma página. O `lang` estático é o que o `SiteApp` lê para decidir
+     o locale — site por URL, app por preferência (SPEC-025 §Escopo).
+
+     `<title>` e `<meta description>` estão aqui em cópia do dicionário (`site:meta.about.*`)
+     porque ainda não há quem os escreva: a T-159 (pré-render) passa a gerá-los a partir de
+     `src/site/routes.ts`, e esta duplicação morre com ela. -->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#05070d" />
+    <title>Sobre o Digital Fit — visão computacional para treinar melhor</title>
+    <meta name="description" content="Privacidade em primeiro lugar, treinos para todos os níveis e evolução constante: o que o Digital Fit é e como ele analisa seu movimento." />
+    <!-- Par recíproco desta rota. `href` relativo é o que existe hoje e a T-160 o torna
+         absoluto (a especificação exige esquema e host; relativo é ignorado em silêncio — é o
+         bug que abriu a Fase 8) e acrescenta o `x-default`. `vite-ignore`: por padrão o plugin
+         de HTML do Vite trata qualquer `href` de `<link>` como asset a copiar, sem olhar o
+         `rel`, e tentaria ler o diretório como arquivo. -->
+    <link rel="alternate" hreflang="pt-BR" href="/sobre/" vite-ignore />
+    <link rel="alternate" hreflang="en" href="/en/about/" vite-ignore />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/entries/site.tsx"></script>
+  </body>
+</html>

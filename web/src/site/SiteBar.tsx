@@ -6,9 +6,8 @@
 import { useT } from '../i18n'
 import { LocaleSwitch } from '../i18n/LocaleSwitch'
 import { useI18nStore } from '../i18n/store'
-import { appHref, siteLocaleHref } from '../shell/origins'
+import { appHref, siteRouteHref } from '../shell/origins'
 import { IconDumbbell, IconHome, IconLogo } from '../ui/icons'
-import { siteRouteHash } from './nav'
 
 export function SiteBar({ active }: { active: 'index' | 'sobre' }) {
   const t = useT()
@@ -22,18 +21,19 @@ export function SiteBar({ active }: { active: 'index' | 'sobre' }) {
           uma propriedade da página inteira. Aqui ele é um par de LINKS (`hrefOf`) porque no
           site o idioma mora na URL — `/` e `/en/`, as mesmas que os `hreflang` de cada
           `index.html` declaram uma à outra (SPEC-025 §Escopo). O hash viaja junto: quem está
-          em Sobre e troca de idioma continua em Sobre. */}
+          em Sobre e troca de idioma continua em Sobre — agora por CAMINHO (`/sobre/` ↔
+          `/en/about/`), não por fragmento: é a T-158 que os transformou em documentos. */}
       <LocaleSwitch
         className="langsw--site"
         value={locale}
-        hrefOf={(alvo) => siteLocaleHref(alvo, siteRouteHash({ screen: active }))}
+        hrefOf={(alvo) => siteRouteHref(active, alvo)}
       />
 
       <nav className="tabbar-v2" aria-label={t('site:bar.aria_label')}>
         <a
           className={`tabv2 ${active === 'index' ? 'tabv2--active' : ''}`}
           aria-current={active === 'index' ? 'page' : undefined}
-          href={siteRouteHash({ screen: 'index' })}
+          href={siteRouteHref('index', locale)}
         >
           <IconHome className="tabv2__icon" />
           <span>{t('site:bar.home')}</span>
@@ -41,7 +41,7 @@ export function SiteBar({ active }: { active: 'index' | 'sobre' }) {
         <a
           className={`tabv2 ${active === 'sobre' ? 'tabv2--active' : ''}`}
           aria-current={active === 'sobre' ? 'page' : undefined}
-          href={siteRouteHash({ screen: 'sobre' })}
+          href={siteRouteHref('sobre', locale)}
         >
           <IconLogo className="tabv2__icon" />
           <span>{t('site:bar.about')}</span>

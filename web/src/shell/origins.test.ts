@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hrefFrom, normalizeBase, siteLocaleHref } from './origins'
+import { hrefFrom, normalizeBase, siteRouteHref } from './origins'
 
 describe('normalizeBase', () => {
   it('cai no fallback quando a variável não veio ou veio vazia', () => {
@@ -33,15 +33,16 @@ describe('hrefFrom', () => {
   })
 })
 
-describe('siteLocaleHref — o idioma do SITE mora na URL (T-153)', () => {
-  it('pt-BR é a raiz e en é `/en/` — as mesmas URLs dos `hreflang`', () => {
-    expect(siteLocaleHref('pt-BR')).toBe('/')
-    expect(siteLocaleHref('en')).toBe('/en/')
+describe('siteRouteHref — a tela E o idioma moram na URL (T-158)', () => {
+  it('a landing de cada idioma é a raiz e `/en/`', () => {
+    expect(siteRouteHref('index', 'pt-BR')).toBe('/')
+    expect(siteRouteHref('index', 'en')).toBe('/en/')
   })
 
-  it('a tela atual viaja junto: quem está em Sobre continua em Sobre', () => {
+  it('a tela viaja junto na troca de idioma — e agora por caminho, não por fragmento', () => {
     // Perder a tela na troca seria mandar a pessoa para a home como preço de escolher o idioma.
-    expect(siteLocaleHref('en', '#/sobre')).toBe('/en/#/sobre')
-    expect(siteLocaleHref('pt-BR', '#/sobre')).toBe('/#/sobre')
+    // A diferença da T-153 para cá é que existe uma URL para o buscador ver.
+    expect(siteRouteHref('sobre', 'pt-BR')).toBe('/sobre/')
+    expect(siteRouteHref('sobre', 'en')).toBe('/en/about/')
   })
 })

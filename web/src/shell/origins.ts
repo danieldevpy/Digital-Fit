@@ -8,6 +8,8 @@
 //
 // Default por caminho (`/` e `/app/`): é o deploy de hoje, um domínio só. Migrar para
 // subdomínio é mexer no `.env.prod`, não no código.
+import type { Locale } from '../i18n/locale'
+import { caminhoDaRota, type SiteScreen } from '../site/routes'
 
 /** Base sempre com barra no fim: é o que faz `base + '#/x'` render URL válida. */
 export function normalizeBase(bruto: string | undefined, fallback: string): string {
@@ -39,17 +41,18 @@ export function siteHref(hash = ''): string {
 }
 
 /**
- * `href` da versão do SITE em cada idioma (T-153): `/` é o pt-BR e `/en/` é o inglês — as
- * mesmas duas URLs que os `hreflang` de `index.html`/`en/index.html` declaram uma à outra.
+ * `href` de uma tela do SITE, num idioma (T-158, SPEC-026 §Escopo).
  *
- * O `hash` da tela atual viaja junto: quem está em `#/sobre` e troca de idioma continua em
- * Sobre, na outra língua. Perder a tela na troca seria mandar a pessoa para a home como preço
- * de ter escolhido o idioma.
+ * Sucede o `siteLocaleHref(locale, hash)` da T-153, e a troca é a task inteira em miniatura: o
+ * idioma continua morando na URL, mas a TELA também passa a morar — `/sobre/` e `/en/about/`
+ * são documentos, não fragmentos. Quem está em Sobre e troca de idioma continua em Sobre, como
+ * antes; a diferença é que agora existe uma URL para dizer isso ao buscador.
  *
- * Não passa pelo `siteHref` de propósito: aquele responde "onde mora o site", e esta pergunta é
- * "onde mora a versão EM TAL LÍNGUA do site" — que é um subcaminho dele, não outro host.
+ * O caminho vem da tabela de rotas (`site/routes.ts`), única fonte — este arquivo só sabe ONDE
+ * o site mora (`/` ou `site.dominio.com`, decidido no build pela `VITE_SITE_URL`), nunca quais
+ * páginas ele tem. É a mesma separação que já existia entre `siteHref` e o antigo
+ * `siteLocaleHref`, agora com a metade de cima num lugar só.
  */
-export function siteLocaleHref(locale: 'pt-BR' | 'en', hash = ''): string {
-  const base = locale === 'en' ? `${SITE_BASE}en/` : SITE_BASE
-  return hrefFrom(base, hash)
+export function siteRouteHref(screen: SiteScreen, locale: Locale): string {
+  return SITE_BASE + caminhoDaRota(screen, locale)
 }

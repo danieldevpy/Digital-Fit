@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- SITE — About, em inglês (T-158). Espelho de `sobre/index.html`, mesmo bundle; muda o
+     `lang` estático e o slug, que é traduzido de propósito (`about`, não `sobre`): a
+     palavra na URL é sinal de busca, e é o objetivo declarado da frente. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#05070d" />
+    <title>About Digital Fit — computer vision for better training</title>
+    <meta name="description" content="Privacy first, workouts for every level, and constant evolution: what Digital Fit is and how it reads your movement." />
+    <!-- Par recíproco desta rota. `href` relativo é o que existe hoje e a T-160 o torna
+         absoluto (a especificação exige esquema e host; relativo é ignorado em silêncio — é o
+         bug que abriu a Fase 8) e acrescenta o `x-default`. `vite-ignore`: por padrão o plugin
+         de HTML do Vite trata qualquer `href` de `<link>` como asset a copiar, sem olhar o
+         `rel`, e tentaria ler o diretório como arquivo. -->
+    <link rel="alternate" hreflang="pt-BR" href="/sobre/" vite-ignore />
+    <link rel="alternate" hreflang="en" href="/en/about/" vite-ignore />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/entries/site.tsx"></script>
+  </body>
+</html>

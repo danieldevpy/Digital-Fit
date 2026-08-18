@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- A 404 do SITE (T-158, SPEC-026 §Escopo). Servida pelo `error_page` do nginx, com
+     status 404 de verdade — até aqui o `try_files` devolvia 200 com a landing para
+     qualquer caminho errado, o *soft 404* que o Google trata como sinal de site ruim.
+
+     `noindex`: é a resposta para uma página que não existe, não uma página.
+
+     Sem `lang` fixo: esta URL não existe, então não há idioma a deduzir dela. Quem decide
+     é a preferência do aparelho, e quem a escreve é o `NotFoundScreen` — a mesma regra do
+     `/app/`, e pelo mesmo motivo (não é indexada). -->
+<html>
+  <head>
+    <meta name="robots" content="noindex" />
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#05070d" />
+    <title>Page not found — Digital Fit</title>
+    <meta name="description" content="The address you asked for does not exist on Digital Fit." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/entries/site.tsx"></script>
+  </body>
+</html>

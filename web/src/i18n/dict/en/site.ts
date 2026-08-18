@@ -4,6 +4,19 @@
 import type { Site } from '../pt-BR/site'
 
 export const site: Site = {
+  'meta.index.title': 'Digital Fit — Train smarter. Keep evolving.',
+  'meta.index.description':
+    'Digital Fit uses computer vision to analyze your movements in real time, count your reps, and correct your form.',
+  'meta.about.title': 'About Digital Fit — computer vision for better training',
+  'meta.about.description':
+    'Privacy first, workouts for every level, and constant evolution: what Digital Fit is and how it reads your movement.',
+  'meta.not_found.title': 'Page not found — Digital Fit',
+  'meta.not_found.description': 'The address you asked for does not exist on Digital Fit.',
+
+  'not_found.title': 'This page does not exist',
+  'not_found.text': 'The address you opened is not live. The link may be an old one.',
+  'not_found.home': 'Go to the home page',
+
   'nav.enter': 'Log in',
 
   'brand.tagline': 'Your workout. Your evolution.',
