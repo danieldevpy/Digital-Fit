@@ -6,7 +6,7 @@
 // pause) estão na tabela §Desvios da SPEC-014. O kcal deixou de ser um deles na T-063: ele
 // tem MET servido pelo catálogo e tempo real de sessão, e só o peso é premissa — declarada
 // na própria tela como "estimado" (SPEC-016, critério 3).
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { CameraView } from '../capture/CameraView'
 import { useT } from '../i18n'
 import { FireChip } from '../engagement/FireChip'
@@ -31,6 +31,7 @@ import {
 import { useCountdown } from '../session/countdown'
 import { setViewPreference, viewPreference, viewsOf, type ViewId } from '../session/exerciseViews'
 import { estadoDoExemplo, temConta } from '../session/guideGate'
+import { prepWindowInsets } from '../session/prepWindow'
 import { shouldConfirmView } from '../session/viewGate'
 import { estimatedLabel, formatKcal, liveKcal } from '../session/kcal'
 import { exercisePreference, guideSeen } from '../session/preferences'
@@ -42,7 +43,15 @@ import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
 import { ExerciseIcon } from '../ui/exerciseIcon'
-import { IconAngle, IconCamera, IconFlame, IconMirror, IconPlay, IconStop } from '../ui/icons'
+import {
+  IconAngle,
+  IconCamera,
+  IconFlame,
+  IconFrameFull,
+  IconMirror,
+  IconPlay,
+  IconStop,
+} from '../ui/icons'
 import { ViewPicker } from '../ui/ViewPicker'
 
 /** Silhueta-guia ciano do protótipo — sobre a câmera na pré-configuração. */
@@ -145,6 +154,55 @@ function StepperCell({ label, value, onDec, onInc, disabled, disabledTitle, smal
   )
 }
 
+/**
+ * Devolve à janela nítida o espaço que o cromo realmente ocupa (T-167).
+ *
+ * As bordas de cima e de baixo eram duas constantes em CSS desde a T-080 (`64px` e `150px`), e
+ * a de baixo foi medida num rodapé sem `env(safe-area-inset-bottom)`. Em iPhone com entalhe o
+ * rodapé real é ~34px mais alto, então a janela reivindicava uma faixa que a tab bar cobria —
+ * e essa faixa é onde ficam os PÉS de quem está se enquadrando. Constante nova só adiaria o
+ * problema para o próximo aparelho; medir resolve para todos, e ainda cobre título que quebra
+ * em duas linhas noutro idioma (SPEC-025) e CTA que muda de altura entre os dois degraus.
+ *
+ * A conta é pura e mora no `session/prepWindow.ts`; aqui só entram as medidas e sai o estilo.
+ */
+function usePrepWindow(
+  palcoRef: RefObject<HTMLDivElement | null>,
+  cabecalhoRef: RefObject<HTMLElement | null>,
+  rodapeRef: RefObject<HTMLDivElement | null>,
+  ativo: boolean,
+) {
+  useLayoutEffect(() => {
+    const palco = palcoRef.current
+    if (!palco) return
+    if (!ativo) return
+
+    const medir = () => {
+      const { top, bottom } = prepWindowInsets({
+        stageH: palco.clientHeight,
+        headH: cabecalhoRef.current?.offsetHeight ?? 0,
+        bottomH: rodapeRef.current?.offsetHeight ?? 0,
+      })
+      palco.style.setProperty('--prep-win-top', `${top}px`)
+      palco.style.setProperty('--prep-win-bottom', `${bottom}px`)
+    }
+
+    medir()
+
+    // `ResizeObserver` e não uma medição só na montagem: o rodapé muda de altura DEPOIS do
+    // primeiro layout — a fonte Manrope termina de carregar, a barra do navegador do celular
+    // some e volta com o scroll (nem todo aparelho dispara `resize` nisso), e o CTA troca
+    // "Ligar câmera" por "Iniciar Exercício". Sem o observador, a janela ficaria certa no
+    // primeiro quadro e errada no resto da visita.
+    if (typeof ResizeObserver === 'undefined') return
+    const observador = new ResizeObserver(medir)
+    observador.observe(palco)
+    if (cabecalhoRef.current) observador.observe(cabecalhoRef.current)
+    if (rodapeRef.current) observador.observe(rodapeRef.current)
+    return () => observador.disconnect()
+  }, [palcoRef, cabecalhoRef, rodapeRef, ativo])
+}
+
 export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   const t = useT()
   const cameraStatus = useSessionStore((state) => state.cameraStatus)
@@ -172,6 +230,22 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   // seguinte passar direto, sem perguntar duas vezes o que a pessoa acabou de responder.
   const [travaAberta, setTravaAberta] = useState(false)
   const [confirmadoPara, setConfirmadoPara] = useState<string | null>(null)
+  // Conferência de quadro (T-167): o cromo sai da frente e sobra a imagem inteira. É o gesto
+  // de quem apoia o celular e anda para trás — a decisão que se toma aí é "cabe meu corpo
+  // todo?", e para isso os cards das colunas são exatamente o que atrapalha.
+  //
+  // O estado guarda só a INTENÇÃO; quem vale é o `quadroCheio` derivado logo abaixo. Sair da
+  // pré-configuração ou perder a imagem tem de devolver os controles — sem isso a pessoa
+  // volta para uma tela sem botão nenhum —, e isso é uma conta de render, não um efeito que
+  // corrige o estado depois (a regra `set-state-in-effect` está certa: seria um render a mais
+  // com a tela errada no meio).
+  const [pediuQuadroCheio, setPediuQuadroCheio] = useState(false)
+
+  const palcoRef = useRef<HTMLDivElement>(null)
+  const cabecalhoRef = useRef<HTMLElement>(null)
+  const rodapeRef = useRef<HTMLDivElement>(null)
+  const quadroCheio = pediuQuadroCheio && mode === 'preparar' && cameraStatus === 'ready'
+  usePrepWindow(palcoRef, cabecalhoRef, rodapeRef, mode === 'preparar' && !quadroCheio)
 
   // Persistência fora do updater: dois toques rápidos no stepper não podem perder um
   // incremento (closure velha), e o updater funcional tem de continuar puro.
@@ -281,16 +355,19 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   const duracaoFmt = `00:${String(FIXED_DURATION_S).padStart(2, '0')}`
 
   return (
-    <div className="sess">
+    <div
+      ref={palcoRef}
+      className={`sess ${quadroCheio ? 'sess--quadro-cheio' : ''}`}
+    >
       <div className={`sess__cam ${mode === 'preparar' ? 'sess__cam--prep' : 'sess__cam--live'}`}>
         <CameraView compactCover={mode === 'preparar'} checkScene={mode === 'preparar'} />
 
         {mode === 'preparar' && (
           <div className="prep__overlay">
             {/* A câmera é a tela inteira (T-080); estes quatro painéis é que devolvem a
-                moldura, desfocando e escurecendo tudo que está FORA da janela nítida —
-                exatamente a área onde os cards flutuam. A janela ficou na largura de sempre:
-                quem se enquadrou antes continua enquadrado. */}
+                moldura, velando o que está FORA da janela nítida — exatamente a área onde os
+                cards flutuam. Desde a T-167 é VÉU e não cortina: dá para ler o cômodo através
+                dele, porque é o cômodo que decide onde o celular vai no chão. */}
             <div className="prep__blur prep__blur--top" />
             <div className="prep__blur prep__blur--bottom" />
             <div className="prep__blur prep__blur--left" />
@@ -300,6 +377,35 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
               <div className="prep__grid-bg" />
               <div className="prep__scanline v2-scan" />
               <SilhouetteGuide />
+
+              {/* Conferência de quadro (T-167). O que esta tela nunca deu foi a resposta à
+                  pergunta que se faz com o celular já apoiado no chão e o corpo a três metros:
+                  "cabe tudo?". Duas colunas de cards tapam metade da largura, e nenhum ajuste
+                  de desfoque muda isso — card não é transparente. Então o cromo sai inteiro e
+                  volta num toque. Só com imagem: sem câmera pronta, quadro cheio é tela preta
+                  cheia. */}
+              {cameraReady &&
+                (quadroCheio ? (
+                  <button
+                    type="button"
+                    className="prep__frame-exit"
+                    onClick={() => setPediuQuadroCheio(false)}
+                  >
+                    {/* A saída é a tela toda, e não um X de 24px no canto: quem tocar está
+                        voltando de longe e mira mal. O texto só diz onde tocar. */}
+                    <span className="prep__frame-exit-pill">{t('session:prep.frame_check_exit')}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="prep__frame-check"
+                    onClick={() => setPediuQuadroCheio(true)}
+                    aria-label={t('session:prep.frame_check_aria')}
+                  >
+                    <IconFrameFull className="prep__frame-check-icon" />
+                    {t('session:prep.frame_check')}
+                  </button>
+                ))}
               {/* Um canal só de estado da cena (T-085), e não um aviso novo empilhado: o
                   conselho de luz/nitidez toma o lugar da dica de enquadramento enquanto vale.
                   Enquadramento a silhueta-guia já ensina sozinha; lente suja e luz fraca são
@@ -328,7 +434,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
 
       {mode === 'preparar' ? (
         <>
-          <header className="prep__head">
+          <header className="prep__head" ref={cabecalhoRef}>
             <h1 className="prep__title">{t('session:prep.title')}</h1>
             <p className="prep__sub">{t('session:prep.subtitle')}</p>
             {/* O fogo mora na Início (SPEC-019 §Superfícies): é a tela em que se chega ao
@@ -446,7 +552,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
             />
           )}
 
-          <div className="prep__bottom">
+          <div className="prep__bottom" ref={rodapeRef}>
             <div className="prep__cta">
               {/* Dois degraus (`session/startGate.ts`): com a câmera desligada este botão é o
                   interruptor dela, e só quando há imagem ele vira a porta do treino. O ícone

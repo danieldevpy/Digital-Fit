@@ -89,6 +89,9 @@ export const session: Session = {
   'prep.duration_soon': 'Configurable duration: coming soon',
   'prep.pill_aligned': 'You’re in frame · line up with the guide',
   'prep.pill_turn_on': 'Turn on the camera to frame yourself',
+  'prep.frame_check': 'Full frame',
+  'prep.frame_check_aria': 'See the camera’s full frame',
+  'prep.frame_check_exit': 'Tap to go back to the settings',
   'stepper.decrease': 'Decrease {label}',
   'stepper.increase': 'Increase {label}',
 

@@ -100,7 +100,7 @@ Título central "Escolha seu exercício"; subtítulo "Treinos rápidos, / **resu
 Header: "Pré-configuração" + "Vamos preparar seu treino". Corpo em 3 colunas sobre a câmera:
 
 - Coluna esquerda (92px): card EXERCÍCIO (ícone ciano + nome; toque troca/volta à Escolha), card SÉRIE (valor + steppers − / + , 1–9), card REPETIÇÕES (5–30), card DURAÇÃO (mm:ss, passos de 10s, 10–300s). Steppers funcionais; valores persistem em `session/preferences`.
-- Centro: câmera ao vivo (CameraView) em moldura com borda azulada e glow; overlay de grade 28px, varredura `dfScan`, silhueta-guia ciano tracejada (`dfGlow`), pill inferior "Você já está visível · alinhe-se à guia". **Desde a T-080 a câmera ocupa a tela inteira** e essa moldura é o recorte nítido dela — ver Revisão (3).
+- Centro: câmera ao vivo (CameraView) em moldura com borda azulada e glow; overlay de grade 28px, varredura `dfScan`, silhueta-guia ciano tracejada (`dfGlow`), pill inferior "Você já está visível · alinhe-se à guia". **Desde a T-080 a câmera ocupa a tela inteira** e essa moldura é o recorte nítido dela — ver Revisão (3). **Desde a T-167** o entorno é véu e não cortina, a janela é medida a partir do cromo, e a moldura ganhou o chip “quadro cheio” — ver Revisão 2026-08-18.
 - Coluna direita (96px): botão Espelhar (liga/desliga o espelhamento do palco), card FREQUÊNCIA CARDÍACA (`--` BPM + onda `dfWave` — sem sensor, placeholder honesto), card ÂNGULO (ao vivo, T-044), card CALORIAS ESTIMADAS (`--` kcal, anel pontilhado).
 
 CTA (pill glow) em **dois degraus desde a T-120**: com a câmera desligada ele é "Ligar câmera 📷" e apenas liga, sem sair da tela; com a câmera pronta vira "Iniciar Exercício ▶" → sessão (GetReady 3-2-1 existente) e navegação para Treino ao Vivo. Tab bar embaixo. Ver Revisão 2026-08-06.
@@ -232,6 +232,44 @@ Pedido do Daniel: **só se inicia o exercício com a câmera já ligada.**
 4. A regra vive numa função pura (`web/src/session/startGate.ts`), como o portão de partida da
    T-069: é uma regra de ORDEM, e regra se testa com tabela de estados, não montando React.
 
+## Revisão 2026-08-18 — a janela para de esconder o quadro (T-167)
+
+Pedido do Daniel depois de usar o app: **a parte nítida é pequena demais e o borrado é forte
+demais, e por isso não dá para perceber o espaço ao redor do corpo** — que é o que decide onde o
+celular fica apoiado.
+
+1. **Os quatro painéis da T-080 são um VÉU, não uma cortina.** De
+   `blur(16px) brightness(.42) saturate(.85)` + preto chapado de 34% (o entorno ficava em ~28%
+   da luz original) para `blur(5px) brightness(.66) saturate(.92)` + escurecimento em GRADIENTE:
+   denso na borda da tela, onde mora o texto sem card, quase transparente na borda da janela,
+   onde mora o corpo. Gradiente como `background` no mesmo elemento — máscara sobre
+   `backdrop-filter` continua fora (mesma razão da T-080: Safari de iOS).
+   - Os laterais são os mais leves dos quatro: 92 dos 106px da faixa esquerda já estão cobertos
+     por cards, então o wash dali não comprava legibilidade — só tapava o espaço ao redor.
+   - O cromo passou a se sustentar sozinho para o véu poder clarear: `.prep-cell` de `--surface`
+     (0.8) para `rgba(10,14,26,.9)`, e título/subtítulo com `text-shadow`.
+2. **As bordas de cima e de baixo da janela deixam de ser constantes.** `--prep-win-bottom: 150px`
+   foi medido num rodapé sem `env(safe-area-inset-bottom)`: em aparelho com entalhe a borda de
+   baixo caía **dentro da tab bar**, escondendo a faixa onde ficam os pés. Agora `usePrepWindow`
+   mede cabeçalho e rodapé (`ResizeObserver`) e a conta pura vive em `session/prepWindow.ts` com
+   tabela de testes. As duas horizontais continuam constantes — dependem da largura das colunas,
+   que é decisão de layout — e apertaram para 8+92+6 / 8+96+6 sem encolher os cards.
+3. **A silhueta-guia é proporcional à janela.** Era `170px` fixos numa janela de **162px** em
+   viewport de 390: com `overflow: hidden`, pulsos e pernas saíam cortados, e só em 430px (o
+   máximo do `.phone`) a guia cabia inteira — por isso ninguém tinha visto. Virou
+   `min(82%, 210px)` com `aspect-ratio: 2/3`.
+4. **Chip "quadro cheio" na janela.** Tira todo o cromo e mostra a imagem de borda a borda com a
+   guia; toque em qualquer lugar volta. Existe porque **card não é transparente**: duas colunas
+   tapam metade da largura da tela e nenhum ajuste de desfoque muda isso, e a pergunta que se faz
+   com o celular já no chão é "cabe meu corpo todo?". Só aparece com a câmera pronta.
+
+**A nota de honestidade que fica.** A janela nítida **nunca foi** o recorte que a análise usa: a
+pose sai do `<video>` inteiro (`detectPose(landmarker, video)` em `useEdgePipeline`), então o
+quadro de verdade é a tela. A moldura comunicava o contrário — e essa é a explicação mecânica do
+relato. A T-167 tratou o sintoma; a pergunta de produto (**a guia deve pedir o corpo dentro da
+janela ou dentro da tela?**) está aberta nas Descobertas do BACKLOG, porque responder "da tela"
+muda o que a moldura é, e isso é revisão desta spec.
+
 ## Desvios da referência (honestidade > fidelidade)
 
 | Referência mostra | Produto faz | Por quê |
@@ -242,7 +280,7 @@ Pedido do Daniel: **só se inicia o exercício com a câmera já ligada.**
 | Botão música e ⏮/⏭ | removidos do rodapé | eram placeholders desabilitados, e o posicionamento absoluto deles colidia com pill e barra do navegador em aparelho real (T-068) |
 | Player flutuante | FAB no meio da tab bar | um rodapé só; empilhamento pelo fluxo não colide por construção |
 | Status bar iOS (10:32, 5G) | nada | é browser, não app nativo |
-| Moldura da câmera com `--radius-cam` (18px) | janela nítida com 8px | desde a T-080 a moldura é um RECORTE por subtração (quatro painéis desfocados ao redor): com raio grande, os cantos vazariam imagem nítida por fora da borda. Máscara sobre `backdrop-filter` resolveria, mas ainda é terreno instável no Safari de iOS — e o produto é usado em celular |
+| Moldura da câmera com `--radius-cam` (18px) | janela nítida com 10px (8px até a T-167) | desde a T-080 a moldura é um RECORTE por subtração (quatro painéis desfocados ao redor): com raio grande, os cantos vazariam imagem nítida por fora da borda. Máscara sobre `backdrop-filter` resolveria, mas ainda é terreno instável no Safari de iOS — e o produto é usado em celular |
 | Tab bar: Início · Exercícios · Progresso · Perfil | Início · Progresso · Analytics · Perfil | decisão do Daniel no teste de 2026-07-30: "Início" é a pré-configuração (a landing virou site, T-067) e a escolha de exercício já tem porta melhor no card EXERCÍCIO. Progresso e Analytics são abas distintas — evolução ao longo do tempo × leitura fina do treino |
 
 ## Eventos (consome / produz)

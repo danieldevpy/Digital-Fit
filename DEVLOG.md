@@ -5,6 +5,77 @@
 
 ---
 
+## 2026-08-18 (78) · T-167 — A pré-configuração para de esconder o quadro
+
+**O pedido.** Daniel, usando o app: *"a janela onde mostra com nitidez a pessoa está muito
+pequena e o borrado está muito forte; não dá pra perceber o espaço ao redor da pessoa com
+facilidade, atrapalhando o posicionamento do celular."*
+
+**O que foi feito.** Quatro mudanças na pré-configuração, todas na mesma direção — devolver a
+leitura do quadro a quem está do outro lado do celular:
+
+1. **Cortina → véu.** Os quatro painéis da T-080 iam de `blur(16px) brightness(.42) saturate(.85)`
+   mais um preto chapado de 34% — o entorno ficava em ~28% da luz original. Agora é
+   `blur(5px) brightness(.66) saturate(.92)` e o escurecimento virou GRADIENTE: denso na borda da
+   tela, que é onde mora o texto sem card, quase transparente na borda da janela, que é onde mora
+   o corpo. Os dois laterais são os mais leves dos quatro, porque 92 dos 106px da faixa esquerda
+   já estão cobertos por cards — ali o wash não comprava legibilidade nenhuma, só tapava a única
+   coisa que a pessoa precisava ver de lado.
+2. **A janela cresceu, e nas quatro bordas.** Horizontal: as colunas encostaram na borda (8+92+6
+   e 8+96+6, contra 12+92+8 e 12+96+8) — os cards **não** encolheram, porque o chip "ver exemplo"
+   já ocupa a largura inteira deles; o que saiu foi margem morta. Vertical: as duas constantes
+   viraram medição (ver abaixo). E saiu o `inset 0 0 50px rgba(5,7,13,.45)` da moldura, que numa
+   janela de 174px de largura não era acabamento de borda — vinhetava a janela inteira.
+3. **A silhueta-guia parou de ser cortada.** Ela era `170px` fixos dentro de uma janela que tinha
+   **162px** num iPhone de 390: com `overflow: hidden`, pulsos e pernas saíam cortados. A guia
+   ensinava um enquadramento que não cabia nela mesma. Virou `min(82%, 210px)` com
+   `aspect-ratio: 2/3` (o do `viewBox`).
+4. **Chip "quadro cheio".** Toque e o cromo inteiro sai — cabeçalho, colunas, rodapé, os quatro
+   véus —, sobrando a imagem de borda a borda com a guia. Toque em qualquer lugar volta.
+
+### As decisões
+
+**A janela deixou de ter constante vertical, e isso é conserto de bug, não refinamento.**
+`--prep-win-bottom: 150px` foi medido num rodapé sem `env(safe-area-inset-bottom)`. Em iPhone com
+entalhe o rodapé real é ~34px mais alto, então a borda de baixo da janela caía **dentro da tab
+bar** — e a faixa que ela prometia mostrar e não mostrava é onde ficam os PÉS de quem se
+enquadra. Constante nova só adiaria o problema para o próximo aparelho. Agora o `usePrepWindow`
+mede cabeçalho e rodapé com `ResizeObserver` e a conta pura mora em `session/prepWindow.ts`, com
+tabela de testes — mesma doutrina do `startGate`. Vem de graça: título que quebra em duas linhas
+noutro idioma (SPEC-025) e o CTA trocando de altura entre os dois degraus da T-120 deixam de
+desalinhar a janela.
+
+**O achado que explica o relato inteiro: a janela nítida nunca foi o recorte que a análise usa.**
+A pose sai do `<video>` inteiro (`detectPose(landmarker, video)` em `useEdgePipeline`). O quadro
+de verdade é a TELA — tudo que a cortina escondia estava sendo analisado. A moldura comunicava
+"seu quadro é isto" sobre uma coisa que não era o quadro, e quem se posicionava pela janela se
+posicionava por uma borda que o modelo não conhece. É por isso que o chip de quadro cheio não é
+enfeite: é a única superfície da tela que mostra o que a análise realmente vê. A pergunta de
+produto que sobra — a guia deveria pedir o corpo dentro da janela ou dentro da tela? — ficou
+registrada nas Descobertas, porque responder "da tela" é revisão de spec, não ajuste de CSS.
+
+**Estado derivado e não efeito.** A primeira versão do quadro cheio corrigia o estado num
+`useEffect` quando a câmera caía ou a tela trocava; o `react-hooks/set-state-in-effect` reprovou,
+e com razão — seria um render a mais com a tela errada no meio. O estado guarda só a intenção
+(`pediuQuadroCheio`) e o valor que vale é uma conta de render.
+
+**O véu clareou porque o card passou a se sustentar sozinho.** `.prep-cell` foi de
+`--surface` (0.8) para `rgba(10,14,26,.9)`, e título/subtítulo — o único texto da tela sem fundo
+próprio — ganharam `text-shadow`. O contraste do cromo vinha metade dele mesmo e metade da
+cortina; sem trocar essa dependência, clarear o fundo teria custado legibilidade.
+
+**Gates.** `npm run lint`, `npm run typecheck` e `npm run test` (61 arquivos, 690 testes) verdes;
+`ruff check` + `ruff format --check` + `pytest` verdes (nada de Python foi tocado).
+
+**Pendências geradas.** Duas Descobertas no BACKLOG: a pergunta da guia (janela × tela), e os
+vizinhos do rodapé (`.sess__cam--prep .stage__banner`/`.stage__dev` e o pill de saída) que
+continuam se posicionando por soma de constantes — o mesmo tipo de conta que pôs a janela dentro
+da tab bar.
+
+**Não verificado por mim.** Câmera e área segura precisam de aparelho real com HTTPS; o Daniel
+testa no celular. O que rodou aqui foi a tabela de geometria e os gates.
+
+---
 ## 2026-08-18 (77) · T-157 — SPEC-026: o site existe e ninguém consegue achar
 
 **O que foi feito.** `docs/PLANO-SEO.md` (o mapeamento e o sequenciamento em ondas),

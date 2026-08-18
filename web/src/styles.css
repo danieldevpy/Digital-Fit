@@ -2213,13 +2213,22 @@ a {
   min-height: 0;
   overflow: hidden;
 
-  /* Geometria da janela nítida da pré-configuração — as mesmas medidas de sempre (colunas de
-     12+92+8 à esquerda e 12+96+8 à direita), agora num lugar só: o recorte, a moldura e os
-     quatro painéis desfocados leem daqui. Mexer na largura das colunas é mexer aqui. */
+  /* Geometria da janela nítida da pré-configuração: o recorte, a moldura e os quatro painéis
+     desfocados leem daqui.
+
+     HORIZONTAL (T-167): as colunas encostaram na borda — 8+92+6 à esquerda e 8+96+6 à direita,
+     contra os 12+92+8 / 12+96+8 da T-080. Os cards não encolheram (o chip "ver exemplo" já
+     ocupa a largura toda deles); o que saiu foi margem morta. Mexer na largura das colunas
+     continua sendo mexer aqui.
+
+     VERTICAL (T-167): estes dois são só o VALOR DE PARTIDA, do primeiro quadro até a primeira
+     medição. Quem manda depois é o `usePrepWindow` do SessionScreen, que lê a altura real do
+     cabeçalho e do rodapé — `150px` era um número medido sem `env(safe-area-inset-bottom)` e,
+     em aparelho com entalhe, punha a borda de baixo da janela dentro da tab bar. */
   --prep-win-top: 64px;
   --prep-win-bottom: 150px;
-  --prep-win-left: 112px;
-  --prep-win-right: 116px;
+  --prep-win-left: 106px;
+  --prep-win-right: 110px;
 }
 
 /* Contexto de empilhamento próprio (T-080). Duas coisas dependem disto agora que a câmera
@@ -2252,10 +2261,14 @@ a {
   text-align: center;
 }
 
+/* Sombra e não caixa: título e subtítulo são o único texto da tela sem fundo próprio, e desde
+   que o véu da T-167 clareou eles podem cair sobre uma parede branca ou uma janela de dia. A
+   sombra custa nada e não devolve a cortina. */
 .prep__title {
   margin: 0;
   font-size: 1.0625rem;
   font-weight: 700;
+  text-shadow: 0 1px 14px rgba(5, 7, 13, 0.95);
 }
 
 .prep__sub {
@@ -2263,6 +2276,7 @@ a {
   color: var(--text-dim);
   font-size: 0.6875rem;
   font-weight: 500;
+  text-shadow: 0 1px 12px rgba(5, 7, 13, 0.95);
 }
 
 .prep__side {
@@ -2277,13 +2291,13 @@ a {
 }
 
 .prep__side--left {
-  left: 12px;
-  width: calc(var(--prep-win-left) - 20px);
+  left: 8px;
+  width: calc(var(--prep-win-left) - 14px);
 }
 
 .prep__side--right {
-  right: 12px;
-  width: calc(var(--prep-win-right) - 20px);
+  right: 8px;
+  width: calc(var(--prep-win-right) - 14px);
 }
 
 .prep__bottom {
@@ -2303,7 +2317,10 @@ a {
   padding: 10px 8px;
   border: 1px solid var(--surface-border);
   border-radius: var(--radius);
-  background: var(--surface);
+  /* Um pouco mais denso que `--surface` desde a T-167: o contraste do card vinha metade dele
+     mesmo e metade da cortina atrás. Com a cortina virando véu, ele passa a se sustentar
+     sozinho — e é por isso que o véu pôde ficar claro. */
+  background: rgba(10, 14, 26, 0.9);
   text-align: center;
   color: var(--text);
 }
@@ -2498,16 +2515,48 @@ a {
    `-webkit-` explícito: o Safari só dispensou o prefixo na 18, e o produto é usado em
    celular. Sem ele o painel viraria um vidro fosco chapado — ainda legível, mas sem a
    câmera atrás. */
+/* T-167: os painéis eram uma CORTINA e viraram um VÉU.
+
+   `blur(16px) brightness(.42)` mais um preto de 34% deixava o entorno em ~28% da luz original:
+   quem está do outro lado do celular não conseguia dizer se o pé estava dentro do quadro, se
+   havia parede atrás ou quanto sobrava de cada lado — e é essa leitura que decide onde o
+   celular vai no chão. O detalhe que tornava o desenho errado, e não só forte: a pose é
+   detectada no `<video>` INTEIRO (`detectPose(landmarker, video)` em `useEdgePipeline`), ou
+   seja, a análise usa tudo que está na tela, inclusive o que a cortina escondia. A janela
+   dizia "seu quadro é isto" sobre uma coisa que não era o quadro.
+
+   O véu ainda separa o cromo da imagem — `blur(5px)` já basta para o texto não disputar com
+   textura de vídeo —, mas agora se enxerga o cômodo através dele.
+
+   O escurecimento virou GRADIENTE em vez de banho chapado: dá densidade na borda da tela, que
+   é onde mora o texto sem card (título, subtítulo), e chega quase transparente na borda da
+   janela, que é onde mora o corpo. É `background` comum sobre o mesmo elemento — nada de
+   máscara sobre `backdrop-filter`, que continua sendo terreno instável no Safari de iOS.
+
+   `-webkit-` explícito pelo mesmo motivo da T-080: o Safari só dispensou o prefixo na 18. */
 .prep__blur {
   position: absolute;
-  -webkit-backdrop-filter: blur(16px) brightness(0.42) saturate(0.85);
-  backdrop-filter: blur(16px) brightness(0.42) saturate(0.85);
-  background: rgba(5, 7, 13, 0.34);
+  -webkit-backdrop-filter: blur(5px) brightness(0.66) saturate(0.92);
+  backdrop-filter: blur(5px) brightness(0.66) saturate(0.92);
 }
 
+/* Sem `backdrop-filter` não há desfoque nenhum, e o wash é a única separação que sobra — mas
+   chapado a 0.9 ele reconstruía a cortina. Fica opaco onde o texto está e abre na janela. */
 @supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
-  .prep__blur {
-    background: rgba(5, 7, 13, 0.9);
+  .prep__blur--top {
+    background: linear-gradient(180deg, rgba(5, 7, 13, 0.92), rgba(5, 7, 13, 0.28));
+  }
+
+  .prep__blur--bottom {
+    background: linear-gradient(0deg, rgba(5, 7, 13, 0.92), rgba(5, 7, 13, 0.28));
+  }
+
+  .prep__blur--left {
+    background: linear-gradient(90deg, rgba(5, 7, 13, 0.8), rgba(5, 7, 13, 0.24));
+  }
+
+  .prep__blur--right {
+    background: linear-gradient(270deg, rgba(5, 7, 13, 0.8), rgba(5, 7, 13, 0.24));
   }
 }
 
@@ -2516,6 +2565,12 @@ a {
   left: 0;
   right: 0;
   height: var(--prep-win-top);
+  background: linear-gradient(
+    180deg,
+    rgba(5, 7, 13, 0.68) 0%,
+    rgba(5, 7, 13, 0.46) 60%,
+    rgba(5, 7, 13, 0.04) 100%
+  );
 }
 
 .prep__blur--bottom {
@@ -2523,13 +2578,24 @@ a {
   left: 0;
   right: 0;
   height: var(--prep-win-bottom);
+  background: linear-gradient(
+    0deg,
+    rgba(5, 7, 13, 0.68) 0%,
+    rgba(5, 7, 13, 0.4) 55%,
+    rgba(5, 7, 13, 0.04) 100%
+  );
 }
 
+/* Os laterais são os mais leves dos quatro, e de propósito: 92 dos 106px da faixa esquerda já
+   estão cobertos por cards com fundo próprio, então o wash daqui quase não serve para
+   legibilidade — só tapava a única coisa que a pessoa precisava ver de lado, que é quanto
+   espaço sobra ao redor dela. */
 .prep__blur--left {
   top: var(--prep-win-top);
   bottom: var(--prep-win-bottom);
   left: 0;
   width: var(--prep-win-left);
+  background: linear-gradient(90deg, rgba(5, 7, 13, 0.44), rgba(5, 7, 13, 0.03));
 }
 
 .prep__blur--right {
@@ -2537,11 +2603,14 @@ a {
   bottom: var(--prep-win-bottom);
   right: 0;
   width: var(--prep-win-right);
+  background: linear-gradient(270deg, rgba(5, 7, 13, 0.44), rgba(5, 7, 13, 0.03));
 }
 
-/* A janela nítida: mesma medida da moldura antiga, e os overlays de enquadramento (grade,
-   varredura, silhueta, pill) vivem DENTRO dela — soltos na tela cheia, a silhueta-guia
-   apontaria para um enquadramento que a análise não usa. */
+/* A janela nítida, e os overlays de enquadramento (grade, varredura, silhueta, pill) dentro
+   dela. Nota de honestidade da T-167: ela não é o recorte que a análise usa — a pose sai do
+   `<video>` inteiro (`detectPose` em `useEdgePipeline`), então o quadro de verdade é a TELA.
+   A janela é onde a guia pede o corpo, que é uma pergunta diferente; quem quiser ver o quadro
+   inteiro tem o chip "quadro cheio" (`.prep__frame-check`). */
 .prep__window {
   position: absolute;
   top: var(--prep-win-top);
@@ -2549,17 +2618,24 @@ a {
   left: var(--prep-win-left);
   right: var(--prep-win-right);
   overflow: hidden;
-  border-radius: 8px;
-  border: 1px solid rgba(107, 140, 255, 0.32);
-  box-shadow: 0 0 36px rgba(77, 140, 255, 0.14), inset 0 0 50px rgba(5, 7, 13, 0.45);
+  border-radius: 10px;
+  border: 1px solid rgba(107, 140, 255, 0.24);
+  /* A T-167 tirou o `inset 0 0 50px rgba(5,7,13,.45)` que estava aqui. Numa janela de 174px de
+     largura um vinheta de 50px de raio não é acabamento de borda: ele escurecia a janela
+     INTEIRA, dos dois lados, e era o segundo motivo (junto com a cortina) de a imagem nítida
+     não parecer nítida. O glow de fora fica — ele desenha a moldura sem tocar no que está
+     dentro dela. */
+  box-shadow: 0 0 30px rgba(77, 140, 255, 0.12);
 }
 
+/* Mais discreta desde a T-167: a grade existe para dar leitura de profundidade, mas sobre uma
+   janela agora clara ela competia com a silhueta-guia. */
 .prep__grid-bg {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(107, 140, 255, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(107, 140, 255, 0.07) 1px, transparent 1px);
+    linear-gradient(rgba(107, 140, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(107, 140, 255, 0.05) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 
@@ -2575,14 +2651,21 @@ a {
 .v2-scan { animation: dfScan 3.4s linear infinite; }
 .v2-glow { animation: dfGlow 2.6s ease-in-out infinite; }
 
+/* Proporcional à janela desde a T-167, e não 170px fixos.
+   O bug que isso conserta é aritmético: num iPhone de 390px a janela tinha 162px de largura
+   (112+116 de faixa) e a guia tinha 170. Com `overflow: hidden` na janela, os pulsos e a
+   abertura das pernas saíam CORTADOS na borda — a guia ensinava um enquadramento que não cabia
+   nela mesma. Só em viewport de 430px (o máximo do `.phone`) é que ela cabia inteira, e é por
+   isso que ninguém tinha visto. `aspect-ratio` de 2/3 é o do `viewBox` (200×300). */
 .prep__silhouette {
   position: absolute;
   left: 50%;
   top: 52%;
   transform: translate(-50%, -50%);
-  width: 170px;
-  height: 255px;
-  opacity: 0.65;
+  width: min(82%, 210px);
+  height: auto;
+  aspect-ratio: 2 / 3;
+  opacity: 0.6;
 }
 
 .prep__hint-pill {
@@ -2605,9 +2688,87 @@ a {
   text-align: center;
 }
 
+/* ---- conferência de quadro (T-167) ----
+
+   O chip liga o modo em que o cromo inteiro some e sobra a imagem. Ele vive DENTRO da janela
+   (`.prep__overlay` é `pointer-events: none`, daí o `auto` explícito) e no canto de cima à
+   direita, que é o único canto da janela sem silhueta, sem pill e sem card encostando. */
+.prep__frame-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 140, 255, 0.42);
+  background: rgba(5, 8, 15, 0.72);
+  color: rgba(255, 255, 255, 0.88);
+  font: 700 0.59375rem var(--font-ui);
+  pointer-events: auto;
+}
+
+.prep__frame-check-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* A saída é a tela inteira. Quem toca aqui está voltando de três metros e mira mal — um X de
+   24px no canto seria um alvo que essa pessoa erra. */
+.prep__frame-exit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  pointer-events: auto;
+}
+
+.prep__frame-exit-pill {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(5, 8, 15, 0.7);
+  color: rgba(255, 255, 255, 0.75);
+  font: 600 0.625rem var(--font-ui);
+}
+
+/* O modo em si: tudo que não é imagem sai de cena. Os quatro véus inclusive — o objetivo é
+   ver o QUADRO, e véu nenhum é honesto quando a pergunta é "cabe meu corpo todo?". */
+.sess--quadro-cheio .prep__head,
+.sess--quadro-cheio .prep__side,
+.sess--quadro-cheio .prep__bottom,
+.sess--quadro-cheio .prep__blur,
+.sess--quadro-cheio .prep__grid-bg,
+.sess--quadro-cheio .prep__hint-pill,
+.sess--quadro-cheio .brand-mark--float {
+  display: none;
+}
+
+/* A janela vira a tela: sem moldura, porque a borda do quadro agora É a borda do aparelho —
+   que é exatamente o que a pose enxerga (`detectPose` roda no `<video>` inteiro). */
+.sess--quadro-cheio .prep__window {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* A guia continua, e é o ponto: é ela que diz onde o corpo deveria estar dentro do quadro
+   cheio. Um pouco mais apagada porque agora tem a tela toda para atravessar. */
+.sess--quadro-cheio .prep__silhouette {
+  opacity: 0.45;
+}
+
 /* Conselho de cena (T-085). Âmbar e não vermelho: nada aqui está errado nem bloqueado — é um
-   lembrete de que a imagem pode ficar melhor. A janela nítida tem 202px, então o texto quebra
-   em duas linhas e o pill precisa caber nelas. */
+   lembrete de que a imagem pode ficar melhor. A janela nítida é estreita (174px num iPhone de
+   390, 214px no máximo de 430 desde a T-167), então o texto quebra em duas linhas e o pill
+   precisa caber nelas. */
 .prep__hint-pill--aviso span {
   max-width: 100%;
   border-color: rgba(245, 168, 61, 0.5);

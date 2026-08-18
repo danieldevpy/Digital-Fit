@@ -131,6 +131,9 @@ export const session = {
   'prep.duration_soon': 'Duração configurável: em breve',
   'prep.pill_aligned': 'Você já está visível · alinhe-se à guia',
   'prep.pill_turn_on': 'Ligue a câmera para se enquadrar',
+  'prep.frame_check': 'Quadro cheio',
+  'prep.frame_check_aria': 'Ver o quadro inteiro da câmera',
+  'prep.frame_check_exit': 'Toque para voltar aos ajustes',
   'stepper.decrease': 'Diminuir {label}',
   'stepper.increase': 'Aumentar {label}',
 

@@ -31,7 +31,7 @@ interface CameraViewProps {
   /**
    * Capa compacta (SPEC-014 §3): dentro da moldura da pré-configuração as escolhas de
    * exercício/preparação já têm casa própria nas colunas — repetir os chips aqui viraria
-   * ruído dentro de uma janela de 180px.
+   * ruído dentro de uma janela estreita.
    */
   compactCover?: boolean
   /**

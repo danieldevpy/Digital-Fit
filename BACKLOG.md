@@ -371,8 +371,32 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
 |---|---|---|---|
 | T-165 | **Páginas públicas por exercício.** `/exercicios/<slug>/` e `/en/exercises/<slug>/` a partir de `Exercise` + `Translation` + `ExerciseGuideStep` (plano §3.4), consumidos pelo pré-render em build; cada página linka o app com o exercício já escolhido; exercício despublicado sai do sitemap. É a task que transforma a tradução já paga (T-146/T-152) em tráfego: ninguém procura "Digital Fit", procuram "como fazer agachamento correto" e "squat form check app". Depende de T-159 e T-163 *(Tam: G)* | 026/020/018 | todo |
 | T-166 | **Os portões.** Teste do build que cobra, para cada rota gerada: `canonical` presente, `hreflang` recíproco **e absoluto**, `x-default` existente, `title`/`description` não vazios e diferentes entre idiomas; teste da tabela de rotas (roteador ↔ sitemap, nos dois sentidos); a regra da rota nova no `AGENTS.md` e na skill `df-spec`. É o portão que impede o §2.1 de acontecer de novo. Depende da Onda 2 completa *(Tam: P)* | 026 | todo |
+## Pré-configuração: o quadro que a pessoa não conseguia ler (SPEC-014)
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-167 | **A janela da pré-configuração para de esconder o quadro.** Relato do Daniel usando o app: a parte nítida é pequena demais e o borrado é forte demais, e por isso não dá para perceber o espaço ao redor do corpo — que é justamente o que decide onde o celular fica. Quatro frentes: (a) os painéis viram véu (`blur(5px) brightness(.66)` + gradiente) em vez de cortina (`blur(16px) brightness(.42)` + preto chapado); (b) a janela cresce — colunas encostam na borda e as bordas de cima/baixo passam a ser MEDIDAS do cromo real, corrigindo o entalhe do iPhone; (c) a silhueta-guia deixa de ser cortada em tela de 390px; (d) chip "quadro cheio", que tira o cromo inteiro da frente para a conferência de longe *(Tam: M)* | 014 | **feito** (2026-08-18) |
+
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-167] A janela nítida nunca foi o recorte que a análise usa, e o desenho dizia que era.**
+  A pose sai do `<video>` inteiro (`detectPose(landmarker, video)` em `useEdgePipeline`): o quadro
+  de verdade é a TELA, não a janela entre as duas colunas. A moldura da T-080 — borda azul, grade,
+  vinheta interna, tudo fora escurecido a ~28% da luz — comunicava o contrário, e é a explicação
+  mecânica do relato "não dá pra perceber o espaço ao redor da pessoa": quem se enquadrava pela
+  janela estava se enquadrando por uma borda que o modelo não conhece. A T-167 tratou o sintoma
+  (véu no lugar de cortina, e o chip de quadro cheio para ver o que a análise vê) e deixou de pé
+  a pergunta de produto: **a guia deveria pedir o corpo dentro da janela ou dentro da tela?** Hoje
+  a silhueta pede dentro da janela. Se a resposta for "da tela", a moldura inteira vira outra
+  coisa — e isso é revisão de SPEC-014, não ajuste de CSS.
+- **[T-167] Ninguém sabe a altura real do rodapé, e três lugares chutam a mesma constante.**
+  Os avisos da CameraView na pré-config (`.sess__cam--prep .stage__banner` / `.stage__dev`) e o
+  pill de saída do quadro cheio ainda se posicionam por soma de constantes (`+44px`, `+12px`,
+  `28px + env(safe-area-inset-bottom)`). A janela deixou de fazer isso na T-167 (mede), mas os
+  vizinhos não — e foi exatamente esse tipo de constante que pôs a borda de baixo dentro da tab
+  bar no iPhone. Ou eles passam a ler a mesma medição, ou a próxima mudança de rodapé reabre o
+  bug da T-071 pela terceira vez.
 
 - **[T-135] `target_reached` não cai em nenhum balde do `exercise_health` — a série contada some
   da saúde do exercício.** O `server/api/exercise_health.py` classifica sessão por `reason` em

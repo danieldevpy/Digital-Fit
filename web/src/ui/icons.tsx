@@ -214,6 +214,18 @@ export function IconZoom({ className }: IconProps) {
   )
 }
 
+/** Cantos de expansão: "ver o quadro inteiro" da pré-configuração (T-167). */
+export function IconFrameFull({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M3 9V4.5A1.5 1.5 0 0 1 4.5 3H9" />
+      <path d="M15 3h4.5A1.5 1.5 0 0 1 21 4.5V9" />
+      <path d="M21 15v4.5a1.5 1.5 0 0 1-1.5 1.5H15" />
+      <path d="M9 21H4.5A1.5 1.5 0 0 1 3 19.5V15" />
+    </svg>
+  )
+}
+
 export function IconTimer({ className }: IconProps) {
   return (
     <svg {...base} className={className} aria-hidden="true">
