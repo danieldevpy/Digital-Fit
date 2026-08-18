@@ -29,6 +29,21 @@ def outra_pessoa(db) -> User:
     return User.objects.create_user(email="bruno@exemplo.com", password=SENHA)
 
 
+def chave_real(user_id: int, dia, locale: str = "pt-BR") -> str:
+    """A chave que o servidor de fato usa hoje, com fuso e selo de versão (T-156).
+
+    Existe porque dois testes plantam um valor envenenado sob a chave EXATA para provar que a
+    leitura não o alcança — e desde que a chave ganhou dimensões (locale na T-143, fuso e selo
+    na T-156), montá-la à mão em cada teste seria três cópias de uma decisão que muda junta.
+    """
+    from api.engagement_cache import _versao_de
+    from api.fuso import FUSO_PADRAO
+
+    return engagement_cache.chave_de_cache(
+        user_id, dia, locale, f"{FUSO_PADRAO}:{_versao_de(user_id)}"
+    )
+
+
 def autorizacao(client, email: str = "ana@exemplo.com") -> dict[str, str]:
     resposta = client.post(
         "/api/auth/login",
@@ -266,8 +281,8 @@ def test_a_chave_de_ontem_nao_e_servida_hoje(client, usuario) -> None:
     — ou seja, exatamente até deixar de precisar da informação.
     """
     treino(usuario, dias_atras=0)
-    ontem = eng.dia_sp(timezone.now()) - timedelta(days=1)
-    cache.set(eng.chave_de_cache(usuario.pk, ontem), {"streak": 999}, 3600)
+    ontem = eng.dia_do_fogo(timezone.now()) - timedelta(days=1)
+    cache.set(chave_real(usuario.pk, ontem), {"streak": 999}, 3600)
 
     corpo = client.get("/api/engagement", **autorizacao(client)).json()
 
@@ -288,8 +303,8 @@ def test_a_chave_de_ontem_nao_e_servida_hoje(client, usuario) -> None:
 
 def test_locale_diferente_nao_le_o_cache_do_outro_locale(client, usuario) -> None:
     treino(usuario, dias_atras=0)
-    hoje = eng.dia_sp(timezone.now())
-    cache.set(engagement_cache.chave_de_cache(usuario.pk, hoje, "pt-BR"), {"streak": 999}, 3600)
+    hoje = eng.dia_do_fogo(timezone.now())
+    cache.set(chave_real(usuario.pk, hoje, "pt-BR"), {"streak": 999}, 3600)
 
     corpo = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="en", **autorizacao(client)).json()
 
@@ -308,21 +323,24 @@ def test_mesmo_locale_continua_lendo_do_proprio_cache(client, usuario) -> None:
     assert fria == quente == {**fria, "streak": 1}
 
 
-def test_invalidar_apaga_a_chave_de_todo_locale(client, usuario) -> None:
+def test_invalidar_vale_para_todo_locale(client, usuario) -> None:
     """A invalidação roda fora de requisição (signal do `SessionResult`), sem `Accept-Language`
-    para escolher UMA chave — tem de apagar o cache de TODO locale, ou metade de quem lê
-    continuaria vendo o engajamento de antes da sessão nova até a virada do dia."""
+    nem `X-Timezone` para escolher UMA chave — tem de valer para TODO locale e todo fuso, ou
+    metade de quem lê continuaria vendo o engajamento de antes da sessão nova até a virada.
+
+    **Cobra o efeito, e não o mecanismo** (T-156): desde que a chave ganhou o fuso, a
+    invalidação parou de apagar chave e passou a trocar o selo de versão (`_versao_de`) — o fuso
+    não se enumera, e o `for` sobre locales que a T-143 escreveu não escalava para a dimensão
+    nova. Um teste que espiasse `cache.get(chave)` estaria testando a implementação de ontem; o
+    que a spec promete é que a leitura seguinte enxergue a sessão nova.
+    """
     cabecalho = autorizacao(client)
-    client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="pt-BR", **cabecalho)
-    client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="en", **cabecalho)
-    hoje = eng.dia_sp(timezone.now())
-    assert cache.get(engagement_cache.chave_de_cache(usuario.pk, hoje, "pt-BR")) is not None
-    assert cache.get(engagement_cache.chave_de_cache(usuario.pk, hoje, "en")) is not None
+    antes_pt = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="pt-BR", **cabecalho).json()
+    antes_en = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="en", **cabecalho).json()
+    assert antes_pt["streak"] == antes_en["streak"] == 0
 
     treino(usuario, dias_atras=0)  # dispara o post_save -> invalidar_por_resultado
 
-    assert cache.get(engagement_cache.chave_de_cache(usuario.pk, hoje, "pt-BR")) is None
-    assert cache.get(engagement_cache.chave_de_cache(usuario.pk, hoje, "en")) is None
     depois_pt = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="pt-BR", **cabecalho).json()
     depois_en = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="en", **cabecalho).json()
     assert depois_pt["streak"] == depois_en["streak"] == 1

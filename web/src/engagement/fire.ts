@@ -18,29 +18,49 @@
 import type { SessionReport } from '../report/sessionReport'
 
 /**
- * Fuso do fogo: **America/Sao_Paulo fixo**, igual ao servidor (SPEC-019 §Fuso).
+ * Fuso do fogo: **o do aparelho** (T-156), e continua igual ao do servidor — que é o ponto.
  *
- * Diverge de `aggregates.diaLocal`, que usa o fuso de quem lê — e a divergência é o ponto. Ali
- * a pergunta é "que dia foi para mim"; aqui é "que dia o servidor vai dizer que foi", porque
- * este número tem de bater com o que a conta mostra no instante seguinte ao cadastro. Um fogo
- * fantasma de 3 que vira 2 assim que a conta existe destruiria a confiança na mecânica no
- * primeiro contato — e seria culpa de um fuso, não de um treino.
+ * Era `'America/Sao_Paulo'` fixo, escolhido para bater com o servidor, que também era fixo. A
+ * razão daquela escolha está intacta e é ela que exige a mudança: este número tem de bater com
+ * o que a conta mostra no instante seguinte ao cadastro, e um fogo fantasma de 3 que virasse 2
+ * assim que a conta existe destruiria a confiança na mecânica no primeiro contato. Agora o
+ * servidor resolve a virada pelo `X-Timezone` que este mesmo aparelho manda (`lib/tz.ts`) —
+ * então continuar fixo em SP é que passaria a divergir, para todo mundo fora do Brasil.
+ *
+ * `aggregates.diaLocal` já usava o fuso de quem lê, e a divergência que existia entre os dois
+ * deixou de existir junto com o motivo dela.
  */
-export const FUSO_DO_FOGO = 'America/Sao_Paulo'
+const formatoPorFuso = new Map<string, Intl.DateTimeFormat>()
 
-const FORMATO_DO_DIA = new Intl.DateTimeFormat('en-CA', {
-  timeZone: FUSO_DO_FOGO,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
+function formatoDoDia(timeZone?: string): Intl.DateTimeFormat {
+  const chave = timeZone ?? ''
+  let formato = formatoPorFuso.get(chave)
+  if (!formato) {
+    // Sem `timeZone`, o `Intl` usa o do aparelho — que é exatamente o que se quer no caminho
+    // real. `en-CA` já formata como AAAA-MM-DD; `formatToParts` seria o caminho longo.
+    formato = new Intl.DateTimeFormat('en-CA', {
+      ...(timeZone ? { timeZone } : {}),
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+    formatoPorFuso.set(chave, formato)
+  }
+  return formato
+}
 
-/** Dia-calendário de um instante em São Paulo, como `AAAA-MM-DD`. `null` se a data não presta. */
-export function diaDoFogo(iso: string | Date): string | null {
+/**
+ * Dia-calendário de um instante, `AAAA-MM-DD`. `null` se a data não presta.
+ *
+ * `timeZone` é opcional e existe para o TESTE poder falar de um fuso concreto: sem ele a
+ * resposta depende do relógio da máquina que roda a suíte, e um teste que só passa em quem
+ * mora no Brasil não prova coisa nenhuma sobre o produto (era o estado deste arquivo antes da
+ * T-156). O app nunca passa o argumento — o fuso dele é o do aparelho, por definição.
+ */
+export function diaDoFogo(iso: string | Date, timeZone?: string): string | null {
   const data = typeof iso === 'string' ? new Date(iso) : iso
   if (Number.isNaN(data.getTime())) return null
-  // `en-CA` já formata como AAAA-MM-DD; `formatToParts` seria o caminho longo para o mesmo.
-  return FORMATO_DO_DIA.format(data)
+  return formatoDoDia(timeZone).format(data)
 }
 
 /**

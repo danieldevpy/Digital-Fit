@@ -51,12 +51,29 @@ duas informações ficam legíveis separadas.
 
 ## Fuso horário (decisão explícita)
 
-A virada do dia do fogo é **meia-noite de America/Sao_Paulo, fixo**, para todo mundo, na Fase
-Inicial. A SPEC-016 escolheu UTC para a *quota* — e lá está certo, porque quota é proteção de
-capacidade e "renova em Xh" resolve a comunicação. Fogo é outra coisa: meia-noite UTC é 21h no
-Brasil, e "treinei às 22h e o app disse que foi amanhã" mata a mecânica no primeiro contato. O
-produto é pt-BR; fuso por usuário é Evolução. As duas escolhas divergem e esta linha existe
-para dizer que é de propósito.
+A virada do dia do fogo é a **meia-noite de quem treina** — o fuso do aparelho, com
+America/Sao_Paulo como default de quem não o declara. A SPEC-016 escolheu UTC para a *quota* — e
+lá está certo, porque quota é proteção de capacidade e "renova em Xh" resolve a comunicação.
+Fogo é outra coisa: meia-noite UTC é 21h no Brasil, e "treinei às 22h e o app disse que foi
+amanhã" mata a mecânica no primeiro contato. As duas escolhas divergem e esta linha existe para
+dizer que é de propósito.
+
+**Era São Paulo fixo até a T-156** (implementada em 2026-08-18), e a frase acima descrevia o
+produto pt-BR de então. O mesmo argumento que escolheu SP contra UTC passou a valer contra SP:
+quem treina às 22h em Lisboa via a sessão cair no dia seguinte e o streak quebrar sozinho — o
+modo de falha silencioso, do lado de quem estava certo.
+
+**O fuso vem do APARELHO por cabeçalho (`X-Timezone`), e não de um campo no perfil** — a Fase
+Evolução desta spec previa "campo no perfil, default SP", e a implementação divergiu de
+propósito: a mesma pessoa treina no celular em viagem e no notebook em casa, e "hoje" é o do
+relógio que ela está olhando. Um campo no perfil exigiria conta (treinar sem conta é garantia da
+SPEC-011) e manteria sincronizada à mão uma resposta que o navegador já dá sozinho
+(`Intl.DateTimeFormat().resolvedOptions().timeZone`). Mesma doutrina do `Accept-Language` da
+SPEC-025 §3.4: o cliente resolve, o servidor obedece. Um campo de perfil continua possível como
+override explícito, e aí sim seria preferência — não é o que existe hoje.
+
+O fuso decide **três** coisas, e as três se movem juntas: o dia a que uma sessão pertence, a
+meta diária, e o TTL do cache do engajamento (`api/fuso.py`, `api/engagement.py`).
 
 ## Derivação (como se calcula)
 
@@ -64,7 +81,7 @@ Módulo puro em `server/api/engagement.py` (mesma filosofia da FSM: função sem
 
 ```
 sessao_valida(result, scoring)     -> bool          # §Vocabulário — reps ou hold
-dias_ativos(sessions, scoring_por_slug) -> set[date]  # sessões válidas do usuário, no fuso SP
+dias_ativos(sessions, scoring_por_slug, fuso) -> set[date]  # válidas do usuário, no fuso de quem lê
 streak(dias, hoje, protecoes_mes)  -> StreakInfo    # corrente, melhor, proteções usadas no mês
 xp_da_sessao(result, scoring)      -> int           # §XP — recebe um SessionResult
 xp_total(results, scoring_por_slug) -> int
@@ -287,7 +304,8 @@ Nenhum número da UI nasce no cliente para usuário logado — chip e painel lee
 
 Missões (catálogo em dado, admin da SPEC-018); ligas por coorte de XP semanal; push/e-mail com
 opt-in explícito; reacender pago (`streak_amnesty`, com carimbo no painel de quem usou);
-fuso por usuário (campo no perfil, default SP); XP ao vivo no HUD via `rep.detected`;
+fuso por usuário **como campo de perfil** (override explícito do fuso do aparelho, que já vale
+desde a T-156 — ver §Fuso horário); XP ao vivo no HUD via `rep.detected`;
 conquistas por categoria/trilha (SPEC-020); "modo férias" (pausa declarada que não queima
 proteção — honestidade > punição).
 

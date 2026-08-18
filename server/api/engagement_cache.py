@@ -14,6 +14,7 @@ tem nada que ver com o registro de FSMs; a fronteira aqui evita a dependência a
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date
 from typing import Any
 
@@ -22,7 +23,8 @@ from django.utils import timezone
 
 from api import engagement as regra
 from api.config import capabilities_for
-from api.i18n import DEFAULT_LOCALE, LOCALES
+from api.fuso import FUSO_PADRAO
+from api.i18n import DEFAULT_LOCALE
 from api.i18n import messages as i18n_messages
 
 __all__ = [
@@ -65,8 +67,37 @@ def sessoes_de(usuario) -> list[regra.Sessao]:
     ]
 
 
-def chave_de_cache(user_id: int, hoje: date, locale: str) -> str:
-    """`{chave pura de engagement.py}:{locale}` — a quarta dimensão da chave (SPEC-025, T-143).
+def _versao_de(user_id: int) -> str:
+    """O selo que invalida o cache deste usuário sem apagar chave nenhuma (T-156).
+
+    **Por que deixou de ser `cache.delete`.** A chave ganhou o fuso como quinta dimensão, e
+    fuso não se enumera: são centenas de nomes IANA, e o `_limpar` roda FORA de qualquer
+    requisição (signal de `SessionResult`/`User`), sem `X-Timezone` nenhum para saber quais
+    existem. O truque de percorrer os locales — que já era um remendo declarado na T-143 —
+    simplesmente não escala para a dimensão nova, e varrer por padrão (`KEYS df:eng:*`) é a
+    operação que trava um Redis em produção.
+
+    Então a invalidação para de apagar e passa a **mudar o endereço**: o selo entra na chave, e
+    trocá-lo torna inalcançável tudo o que foi escrito antes, em qualquer fuso e qualquer
+    idioma, de uma vez. O lixo some sozinho pelo TTL, que nunca passa de um dia.
+
+    Custa uma leitura a mais por payload. Vale: o `_limpar` deixou de ter um `for` sobre uma
+    dimensão e de estar errado sobre a outra.
+    """
+    try:
+        selo = cache.get(_chave_de_versao(user_id))
+    except Exception:
+        logger.warning("cache indisponivel ao ler a versao do engajamento", exc_info=True)
+        return "0"
+    return str(selo) if selo is not None else "0"
+
+
+def _chave_de_versao(user_id: int) -> str:
+    return f"df:eng:v:{user_id}"
+
+
+def chave_de_cache(user_id: int, hoje: date, locale: str, fuso: str = str(FUSO_PADRAO)) -> str:
+    """`{chave pura}:{locale}:{fuso}` — as dimensões de transporte da chave (T-143, T-156).
 
     **Composta aqui em cima da chave pura, e não dentro dela.** `api.engagement.chave_de_cache`
     é a metade sem I/O do engajamento (contrato da SPEC-019: função pura, sem locale, sem nada
@@ -79,8 +110,14 @@ def chave_de_cache(user_id: int, hoje: date, locale: str) -> str:
     na chave, a primeira leitura do dia grava UM idioma sob a chave `(user, dia)`, e todo mundo
     que ler depois — inclusive alguém que troque o app para outra língua no mesmo dia — recebe
     essa mesma resposta pronta até a meia-noite de São Paulo, mesmo pedindo em outra língua.
+
+    **Por que o fuso também precisa estar na chave** (T-156). O `hoje` já é o dia resolvido no
+    fuso de quem pediu — mas duas pessoas em fusos diferentes podem estar no MESMO dia-calendário
+    e mesmo assim discordar sobre a que dia pertence uma sessão das 23h30. O payload guardado
+    traz o streak e a meta de hoje já contados; sem o fuso na chave, o primeiro a ler grava a
+    contagem do fuso dele para quem vier depois no mesmo dia.
     """
-    return f"{regra.chave_de_cache(user_id, hoje)}:{locale}"
+    return f"{regra.chave_de_cache(user_id, hoje)}:{locale}:{fuso}"
 
 
 def _conquistas_traduzidas(conquistas: list[dict[str, Any]], locale: str) -> list[dict[str, Any]]:
@@ -104,13 +141,14 @@ def _conquistas_traduzidas(conquistas: list[dict[str, Any]], locale: str) -> lis
     return traduzidas
 
 
-def _derivar(usuario, *, locale: str) -> dict[str, Any]:
+def _derivar(usuario, *, locale: str, fuso=FUSO_PADRAO) -> dict[str, Any]:
     """Deriva do banco, sem tocar no cache. É o caminho que o cache existe para evitar — e o
     caminho que responde igual quando o Redis está fora (P2 da SPEC-018)."""
     caps = capabilities_for(usuario)
     corpo = regra.resumo(
         sessoes_de(usuario),
-        hoje=regra.dia_sp(timezone.now()),
+        hoje=regra.dia_do_fogo(timezone.now(), fuso),
+        fuso=fuso,
         protecoes_mes=caps.streak_protections_month,
         meta=usuario.daily_goal,
         # Vazio até a T-098: nenhum exercício é `hold` hoje, e slug ausente do mapa vale `reps`.
@@ -122,7 +160,7 @@ def _derivar(usuario, *, locale: str) -> dict[str, Any]:
     return corpo
 
 
-def payload_de(usuario, *, locale: str = DEFAULT_LOCALE) -> dict[str, Any]:
+def payload_de(usuario, *, locale: str = DEFAULT_LOCALE, fuso=FUSO_PADRAO) -> dict[str, Any]:
     """Corpo do `GET /api/engagement`, do cache quando houver.
 
     Cache é otimização, nunca fonte: as duas travessias estão em `try` porque Redis fora do ar
@@ -132,21 +170,28 @@ def payload_de(usuario, *, locale: str = DEFAULT_LOCALE) -> dict[str, Any]:
     resolve nome/descrição de conquista neste idioma antes de guardar. O default
     (`DEFAULT_LOCALE`) só cobre quem chama sem resolver locale nenhum, coerente com
     `api.i18n.resolve_locale` na mesma ausência de sinal.
+
+    `fuso` faz o mesmo pelo eixo do tempo (T-156): decide qual dia é "hoje", entra na chave e
+    manda no TTL. O default (`FUSO_PADRAO`) mantém intacto o comportamento de quem não manda
+    `X-Timezone` — cliente antigo, `evalctl`, teste.
     """
-    chave = chave_de_cache(usuario.pk, regra.dia_sp(timezone.now()), locale)
+    agora = timezone.now()
+    chave = chave_de_cache(
+        usuario.pk, regra.dia_do_fogo(agora, fuso), locale, f"{fuso}:{_versao_de(usuario.pk)}"
+    )
 
     try:
         guardado = cache.get(chave)
     except Exception:
         logger.warning("cache indisponivel ao ler engajamento; derivando direto", exc_info=True)
-        return _derivar(usuario, locale=locale)
+        return _derivar(usuario, locale=locale, fuso=fuso)
 
     if guardado is not None:
         return guardado
 
-    corpo = _derivar(usuario, locale=locale)
+    corpo = _derivar(usuario, locale=locale, fuso=fuso)
     try:
-        cache.set(chave, corpo, regra.ttl_ate_a_virada(timezone.now()))
+        cache.set(chave, corpo, regra.ttl_ate_a_virada(agora, fuso))
     except Exception:
         logger.warning("falha ao gravar o engajamento no cache", exc_info=True)
     return corpo
@@ -213,16 +258,14 @@ def invalidar_por_usuario(instance=None, **_kwargs) -> None:
 
 
 def _limpar(user_id: int) -> None:
-    """Apaga a chave de HOJE, em todo locale.
+    """Muda o selo de versão deste usuário — o que torna inalcançável TODA chave anterior.
 
-    Só a de hoje: as de ontem já expiraram sozinhas pelo TTL, e varrer chaves por padrão
-    (`KEYS df:eng:*`) é a operação que trava um Redis em produção. Em todo locale e não só um,
-    porque a invalidação roda fora de qualquer requisição — signal de `SessionResult`/`User`,
-    sem `Accept-Language` nenhum para escolher UMA chave — e o dado mudou para quem lê em
-    qualquer língua suportada. Apagar só a chave de um locale deixaria as outras servindo
-    engajamento velho até a próxima escrita ou a virada do dia, o mesmo bug que esta task existe
-    para fechar, só que pela porta da invalidação em vez da leitura.
+    Uma escrita, e acabou: vale para qualquer locale (o `for` que a T-143 precisava) e para
+    qualquer fuso (que a T-156 não teria como enumerar). Ver `_versao_de` para o porquê de a
+    invalidação ter deixado de apagar chave.
+
+    O selo é o instante em nanossegundos, e não um contador: `cache.incr` exige a chave já
+    existir, e o caso mais comum aqui é justamente a primeira invalidação de um usuário. Sem
+    expiração de propósito — um selo que vencesse devolveria o cache velho ao alcance.
     """
-    hoje = regra.dia_sp(timezone.now())
-    for locale in LOCALES:
-        cache.delete(chave_de_cache(user_id, hoje, locale))
+    cache.set(_chave_de_versao(user_id), str(time.time_ns()), None)

@@ -28,15 +28,28 @@ function meioDia(dia: string): string {
 }
 
 describe('diaDoFogo', () => {
-  it('usa America/Sao_Paulo, e não o fuso de quem lê', () => {
-    // 15/08 01h30 UTC é 14/08 22h30 em SP. Este é o caso que o §Fuso da SPEC-019 nomeia:
-    // "treinei às 22h e o app disse que foi amanhã" mata a mecânica no primeiro contato.
-    expect(diaDoFogo('2026-08-15T01:30:00Z')).toBe('2026-08-14')
+  it('a virada é a meia-noite de quem treina, não a de um país (T-156)', () => {
+    // 15/08 01h30 UTC é 14/08 22h30 em São Paulo e já 15/08 02h30 em Lisboa. O §Fuso da
+    // SPEC-019 nomeia o caso: "treinei às 22h e o app disse que foi amanhã" mata a mecânica no
+    // primeiro contato — e era o que acontecia com QUEM NÃO ESTÁ NO BRASIL até a T-156, porque
+    // o fuso era São Paulo fixo para todo mundo.
+    expect(diaDoFogo('2026-08-15T01:30:00Z', 'America/Sao_Paulo')).toBe('2026-08-14')
+    expect(diaDoFogo('2026-08-15T01:30:00Z', 'Europe/Lisbon')).toBe('2026-08-15')
+    expect(diaDoFogo('2026-08-15T01:30:00Z', 'Asia/Tokyo')).toBe('2026-08-15')
   })
 
-  it('a virada cai na meia-noite de São Paulo', () => {
-    expect(diaDoFogo('2026-08-15T02:59:00Z')).toBe('2026-08-14')
-    expect(diaDoFogo('2026-08-15T03:01:00Z')).toBe('2026-08-15')
+  it('a virada de São Paulo continua às 03h UTC — o que mudou é ela não valer para todos', () => {
+    expect(diaDoFogo('2026-08-15T02:59:00Z', 'America/Sao_Paulo')).toBe('2026-08-14')
+    expect(diaDoFogo('2026-08-15T03:01:00Z', 'America/Sao_Paulo')).toBe('2026-08-15')
+  })
+
+  it('sem fuso explícito usa o do APARELHO — é o mesmo que o servidor vai receber', () => {
+    // O `X-Timezone` que o cliente manda (`lib/tz.ts`) sai desta mesma fonte, e é isso que faz
+    // o fogo fantasma do visitante bater com o da conta no instante seguinte ao cadastro.
+    const doAparelho = Intl.DateTimeFormat().resolvedOptions().timeZone
+    expect(diaDoFogo('2026-08-15T01:30:00Z')).toBe(
+      diaDoFogo('2026-08-15T01:30:00Z', doAparelho),
+    )
   })
 
   it('data inválida devolve null em vez de inventar um dia', () => {

@@ -329,7 +329,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-156 | **Fuso do fogo por usuário.** `FUSO_DO_FOGO` deixa de ser constante de São Paulo: a virada do dia (streak, meta diária, TTL do cache) passa a ser resolvida pelo fuso de quem treina, com o do aparelho como default. Descoberta do mapeamento de i18n (plano §2.5) — não é idioma, é o mesmo "não se restringir a um país" pelo eixo do tempo, e ninguém percebe que está errado até o streak quebrar sozinho. Não depende de nenhuma outra task desta frente *(Tam: M)* | 025/019 | todo |
+| T-156 | **Fuso do fogo por usuário.** `FUSO_DO_FOGO` deixa de ser constante de São Paulo: a virada do dia (streak, meta diária, TTL do cache) passa a ser resolvida pelo fuso de quem treina, com o do aparelho como default. Descoberta do mapeamento de i18n (plano §2.5) — não é idioma, é o mesmo "não se restringir a um país" pelo eixo do tempo, e ninguém percebe que está errado até o streak quebrar sozinho. Não depende de nenhuma outra task desta frente *(Tam: M)* | 025/019 | **feito** (2026-08-18) |
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
@@ -1231,3 +1231,14 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   build de imagens"), que continua `todo` — e ela deixou de ser tarefa de higiene para virar a
   outra metade do critério de aceite 5 da SPEC-025. Enquanto não rodar, a frase "não passa nos
   gates que já existem" vale para a sessão de trabalho, não para o repositório.
+- **[T-156] `ruff format --check .` está vermelho no `master`, e o CI roda isso.** Seis arquivos
+  pedem formatação — `server/api/auth.py`, `server/api/config.py`,
+  `server/api/management/commands/i18n_status.py`, `tests/test_i18n_content.py`,
+  `tests/test_sessions.py` e `docs/PLANO-I18N.md` —, todos das tasks T-145/T-146. Confirmado que
+  **não** vem desta task: com as mudanças da T-156 guardadas (`git stash`), o comando continua
+  reprovando os mesmos seis. O `.github/workflows/ci.yml` roda `ruff format --check .` no passo
+  de lint, então o CI está reprovando no `master` desde então. O conserto é mecânico
+  (`uv run ruff format .`) e sai em commit `operação:` próprio, para não misturar diff de seis
+  arquivos alheios com o escopo de uma task. Lição irmã da Descoberta `[T-154]`: gate que
+  ninguém olha é gate que não existe — este roda no CI e mesmo assim passou despercebido, porque
+  o AGENTS.md §Fluxo lista `ruff check` e **não** lista `ruff format --check`.

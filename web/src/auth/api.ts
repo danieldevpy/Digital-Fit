@@ -7,6 +7,7 @@
 
 import { t } from '../i18n'
 import { localeHeaders } from '../i18n/http'
+import { timezoneHeaders } from '../lib/tz'
 import type { SessionReport } from '../report/sessionReport'
 import { apiBaseUrl } from '../session/admission'
 import { clearTokens, deviceHeaders, identityHeaders, storeTokens, storedTokens } from './storage'
@@ -103,6 +104,10 @@ export async function authedFetch(
         ...(init.headers as Record<string, string> | undefined),
         ...identityHeaders(),
         ...localeHeaders(),
+        // O fuso do aparelho (T-156). Só aqui, e não nas outras chamadas: quem depende dele é
+        // o `GET /api/engagement`, que exige conta e portanto passa por este wrapper. O fogo
+        // do visitante é derivado no próprio cliente (`engagement/fire.ts`), com o mesmo fuso.
+        ...timezoneHeaders(),
       },
     })
 

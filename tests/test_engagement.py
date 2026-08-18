@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from api import engagement as eng
 from api.engagement import (
-    FUSO_DO_FOGO,
+    FUSO_PADRAO_DO_FOGO,
     LEVELS,
     METAS,
     PROTECOES_TETO,
@@ -29,7 +29,7 @@ from api.engagement import (
     XP_TETO_REPS,
     Sessao,
     chave_de_cache,
-    dia_sp,
+    dia_do_fogo,
     dias_ativos,
     nivel,
     resumo,
@@ -50,7 +50,7 @@ _MEIO_DIA_SP = 12
 
 def sessao_em(dia: date, *, reps: int = 10, limpa: bool = True, exercicio: str = "squat") -> Sessao:
     """Uma sessão válida naquele dia de São Paulo, gravada em UTC como o banco grava."""
-    local = datetime(dia.year, dia.month, dia.day, _MEIO_DIA_SP, tzinfo=FUSO_DO_FOGO)
+    local = datetime(dia.year, dia.month, dia.day, _MEIO_DIA_SP, tzinfo=FUSO_PADRAO_DO_FOGO)
     return Sessao(
         created_at=local.astimezone(UTC),
         exercise=exercicio,
@@ -76,20 +76,20 @@ def test_treino_de_22h30_em_sao_paulo_conta_no_dia_de_sao_paulo() -> None:
     """
     gravado_em_utc = datetime(2026, 8, 15, 1, 30, tzinfo=UTC)
 
-    assert dia_sp(gravado_em_utc) == date(2026, 8, 14)
+    assert dia_do_fogo(gravado_em_utc) == date(2026, 8, 14)
 
 
 def test_timestamp_ingenuo_e_lido_como_utc() -> None:
     """`created_at` chega do banco com fuso; sem ele, UTC é a única leitura honesta."""
-    assert dia_sp(datetime(2026, 8, 15, 1, 30)) == date(2026, 8, 14)
+    assert dia_do_fogo(datetime(2026, 8, 15, 1, 30)) == date(2026, 8, 14)
 
 
 def test_a_virada_do_dia_cai_na_meia_noite_de_sao_paulo() -> None:
-    ultimo_instante = datetime(2026, 8, 14, 23, 59, tzinfo=FUSO_DO_FOGO)
-    primeiro_instante = datetime(2026, 8, 15, 0, 1, tzinfo=FUSO_DO_FOGO)
+    ultimo_instante = datetime(2026, 8, 14, 23, 59, tzinfo=FUSO_PADRAO_DO_FOGO)
+    primeiro_instante = datetime(2026, 8, 15, 0, 1, tzinfo=FUSO_PADRAO_DO_FOGO)
 
-    assert dia_sp(ultimo_instante) == date(2026, 8, 14)
-    assert dia_sp(primeiro_instante) == date(2026, 8, 15)
+    assert dia_do_fogo(ultimo_instante) == date(2026, 8, 14)
+    assert dia_do_fogo(primeiro_instante) == date(2026, 8, 15)
 
 
 # ======================================================================================
@@ -452,7 +452,7 @@ def test_a_chave_do_cache_carrega_a_data() -> None:
 
 
 def test_o_ttl_morre_na_virada_do_dia_em_sao_paulo() -> None:
-    quase_meia_noite = datetime(2026, 8, 15, 23, 50, tzinfo=FUSO_DO_FOGO)
+    quase_meia_noite = datetime(2026, 8, 15, 23, 50, tzinfo=FUSO_PADRAO_DO_FOGO)
 
     ttl = ttl_ate_a_virada(quase_meia_noite)
 
@@ -460,14 +460,14 @@ def test_o_ttl_morre_na_virada_do_dia_em_sao_paulo() -> None:
 
 
 def test_o_ttl_de_manha_cobre_o_dia_inteiro() -> None:
-    manha = datetime(2026, 8, 15, 8, 0, tzinfo=FUSO_DO_FOGO)
+    manha = datetime(2026, 8, 15, 8, 0, tzinfo=FUSO_PADRAO_DO_FOGO)
 
     assert ttl_ate_a_virada(manha) > 15 * 3600
 
 
 def test_o_ttl_e_medido_em_sao_paulo_mesmo_recebendo_utc() -> None:
     """O mesmo instante, escrito nos dois fusos, tem de dar o mesmo TTL."""
-    em_sp = datetime(2026, 8, 15, 23, 50, tzinfo=FUSO_DO_FOGO)
+    em_sp = datetime(2026, 8, 15, 23, 50, tzinfo=FUSO_PADRAO_DO_FOGO)
 
     assert ttl_ate_a_virada(em_sp.astimezone(UTC)) == ttl_ate_a_virada(em_sp)
 
@@ -477,7 +477,7 @@ def test_fuso_de_outro_lugar_nao_muda_o_dia_do_fogo() -> None:
     toquio = ZoneInfo("Asia/Tokyo")
     instante = datetime(2026, 8, 15, 10, 0, tzinfo=toquio)  # 14/08 22h em SP
 
-    assert dia_sp(instante) == date(2026, 8, 14)
+    assert dia_do_fogo(instante) == date(2026, 8, 14)
 
 
 def test_o_modulo_puro_nao_importa_django() -> None:

@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from api import engagement_cache
 from api import quota as quota_rule
 from api.config import capabilities_for, config_etag, config_payload, exercises_for
+from api.fuso import resolve_fuso
 from api.i18n import resolve_locale
 from api.models import SessionClaim, SessionResult
 from api.sessions import (
@@ -367,7 +368,12 @@ def engagement(request: Request) -> Response:
         return Response({"detail": "autenticacao necessaria"}, status=401)
 
     locale = resolve_locale(request)
-    resposta = Response(engagement_cache.payload_de(usuario, locale=locale))
+    # O fuso de quem treina (T-156): decide qual dia e "hoje" para o fogo e para a meta, e por
+    # quanto tempo esta resposta vale. Sem o cabecalho, cai no padrao de Sao Paulo — que e
+    # exatamente o comportamento de antes desta task.
+    resposta = Response(
+        engagement_cache.payload_de(usuario, locale=locale, fuso=resolve_fuso(request))
+    )
     # O corpo vira sozinho a meia-noite de Sao Paulo e a cada sessao concluida. Deixar um proxy
     # guardando isto poria o fogo de ontem na tela de hoje — o mesmo bug que a data na chave do
     # Redis existe para evitar, so que fora do nosso alcance para invalidar. Nao precisa de

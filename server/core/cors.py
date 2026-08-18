@@ -28,7 +28,12 @@ ALLOWED_METHODS = "GET, POST, OPTIONS"
 #: restrito (RFC), e o cliente pode setá-lo à mão para um seletor de idioma que não segue o
 #: automático do navegador — nesse caso ele deixa de ser simples e o preflight passa a exigi-lo
 #: aqui, do mesmo jeito que `If-None-Match` precisou entrar para a revalidação do `/api/config`.
-ALLOWED_HEADERS = "Content-Type, Authorization, X-Device-Id, If-None-Match, Accept-Language"
+#: `X-Timezone` entra na T-156: o fuso de quem treina decide a virada do dia do fogo. Cabeçalho
+#: `X-` nunca é simples, então sem ele aqui o preflight barra a requisição inteira — e o sintoma
+#: seria "o engajamento não carrega", nunca "falta um cabeçalho no CORS".
+ALLOWED_HEADERS = (
+    "Content-Type, Authorization, X-Device-Id, If-None-Match, Accept-Language, X-Timezone"
+)
 #: Cabeçalhos de resposta que o JavaScript consegue **ler**. Sem esta lista o navegador entrega
 #: a resposta e esconde o `ETag`: `resposta.headers.get('ETag')` devolve `null` cross-origin, e
 #: o cliente nunca guarda o que precisaria para revalidar. O sintoma não é erro nenhum — é o

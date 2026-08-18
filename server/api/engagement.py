@@ -42,13 +42,13 @@ from __future__ import annotations
 import bisect
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo
 
 __all__ = [
     "ACHIEVEMENTS",
-    "FUSO_DO_FOGO",
+    "FUSO_PADRAO_DO_FOGO",
     "HOLD_VALIDO_MS",
     "LEVELS",
     "METAS",
@@ -71,7 +71,7 @@ __all__ = [
     "chave_de_cache",
     "conquistas",
     "decomposicao_de_xp",
-    "dia_sp",
+    "dia_do_fogo",
     "dias_ativos",
     "nivel",
     "resumo",
@@ -82,11 +82,17 @@ __all__ = [
     "xp_total",
 ]
 
-#: A virada do dia do fogo. Fixo, para todo mundo, e **divergente da quota** (que conta em UTC,
-#: SPEC-016). A spec dedica um parágrafo a isso: quota é contabilidade de carga, fogo é o dia que
-#: a pessoa chama de dia — e meia-noite UTC é 21 h no Brasil, o que faria "treinei às 22h" contar
-#: para amanhã. Fuso por usuário é Fase Evolução.
-FUSO_DO_FOGO = ZoneInfo("America/Sao_Paulo")
+#: A virada do dia do fogo de quem **não disse** em que fuso vive (T-156).
+#:
+#: Era fixo para todo mundo até a T-156, e continua sendo o default por escolha conservadora:
+#: cliente antigo, `evalctl`, teste e qualquer chamada sem `X-Timezone` veem exatamente o dia de
+#: antes. O fuso de verdade entra por parâmetro em `dia_do_fogo`/`ttl_ate_a_virada`/`resumo`,
+#: resolvido por `api.fuso.resolve_fuso` na borda — este módulo continua sem saber o que é uma
+#: requisição (contrato da SPEC-019: derivação pura).
+#:
+#: Continua **divergente da quota** (que conta em UTC, SPEC-016), e o parágrafo da spec segue
+#: valendo: quota é contabilidade de carga, fogo é o dia que a pessoa chama de dia.
+FUSO_PADRAO_DO_FOGO = ZoneInfo("America/Sao_Paulo")
 
 #: Versão da fórmula de XP (SPEC-019 §XP). Mudou a fórmula, incrementa **e recalcula tudo** — é
 #: derivado, é barato, e evita o museu de pontos incomparáveis. Vai no payload para que qualquer
@@ -129,15 +135,18 @@ PROTECOES_TETO = 2
 _FOLGA_TTL_S = 60
 
 
-def dia_sp(quando: datetime) -> date:
-    """O dia-calendário de um instante, no fuso do fogo.
+def dia_do_fogo(quando: datetime, fuso: tzinfo = FUSO_PADRAO_DO_FOGO) -> date:
+    """O dia-calendário de um instante, no fuso de quem treina (T-156).
+
+    Chamava-se `dia_sp` até a T-156, e o nome passou a mentir no instante em que o fuso deixou
+    de ser sempre o de São Paulo — por isso o rename, e não um parâmetro novo num nome velho.
 
     Ingênuo é lido como UTC — é o que o banco guarda (`USE_TZ=True`), e adivinhar outro fuso
     aqui deslocaria o dia de quem treina de noite, que é justamente o caso que o fuso protege.
     """
     if quando.tzinfo is None:
         quando = quando.replace(tzinfo=UTC)
-    return quando.astimezone(FUSO_DO_FOGO).date()
+    return quando.astimezone(fuso).date()
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,9 +177,14 @@ class Sessao:
         """
         return not self.feedback_counts and not self.scene_warning_counts
 
-    @property
-    def dia(self) -> date:
-        return dia_sp(self.created_at)
+    def dia_em(self, fuso: tzinfo = FUSO_PADRAO_DO_FOGO) -> date:
+        """O dia-calendário desta sessão, no fuso de quem lê (T-156).
+
+        Método e não `@property` desde a T-156: com o fuso variável, uma propriedade sem
+        argumento só poderia responder pelo default — e responderia com a cara de quem sabe a
+        resposta certa, que é exatamente como um bug de fuso passa despercebido.
+        """
+        return dia_do_fogo(self.created_at, fuso)
 
 
 def sessao_valida(sessao: Sessao, scoring: str = SCORING_REPS) -> bool:
@@ -195,10 +209,12 @@ def _validas(sessoes: Iterable[Sessao], scoring_por_slug: Mapping[str, str] | No
 
 
 def dias_ativos(
-    sessoes: Iterable[Sessao], scoring_por_slug: Mapping[str, str] | None = None
+    sessoes: Iterable[Sessao],
+    scoring_por_slug: Mapping[str, str] | None = None,
+    fuso: tzinfo = FUSO_PADRAO_DO_FOGO,
 ) -> set[date]:
-    """Dias-calendário (em SP) com ao menos uma sessão válida."""
-    return {sessao.dia for sessao in _validas(sessoes, scoring_por_slug)}
+    """Dias-calendário (no fuso de quem treina) com ao menos uma sessão válida."""
+    return {sessao.dia_em(fuso) for sessao in _validas(sessoes, scoring_por_slug)}
 
 
 @dataclass(frozen=True, slots=True)
@@ -517,7 +533,9 @@ def _melhor_sequencia_de_meta(por_dia: Mapping[date, int], alvo: int) -> int:
     return melhor
 
 
-def _agregar(validas: list[Sessao], *, melhor_streak: int, alvo: int) -> Agregados:
+def _agregar(
+    validas: list[Sessao], *, melhor_streak: int, alvo: int, fuso: tzinfo = FUSO_PADRAO_DO_FOGO
+) -> Agregados:
     """Uma passada só sobre as sessões válidas, alimentando todos os predicados."""
     por_exercicio: dict[str, int] = {}
     por_dia: dict[date, int] = {}
@@ -527,7 +545,8 @@ def _agregar(validas: list[Sessao], *, melhor_streak: int, alvo: int) -> Agregad
     for sessao in validas:
         reps_totais += sessao.rep_count
         por_exercicio[sessao.exercise] = por_exercicio.get(sessao.exercise, 0) + sessao.rep_count
-        por_dia[sessao.dia] = por_dia.get(sessao.dia, 0) + 1
+        dia = sessao.dia_em(fuso)
+        por_dia[dia] = por_dia.get(dia, 0) + 1
         if sessao.limpa:
             limpas += 1
 
@@ -549,6 +568,7 @@ def resumo(
     meta: str = META_PADRAO,
     scoring_por_slug: Mapping[str, str] | None = None,
     protecoes_historicas: int = PROTECOES_TETO,
+    fuso: tzinfo = FUSO_PADRAO_DO_FOGO,
 ) -> Engajamento:
     """A derivação inteira, de uma vez. É o que a view serializa.
 
@@ -557,8 +577,8 @@ def resumo(
     dia em que só um deles fosse corrigido.
     """
     validas = _validas(sessoes, scoring_por_slug)
-    dias = {s.dia for s in validas}
-    hoje_validas = sum(1 for s in validas if s.dia == hoje)
+    dias = {s.dia_em(fuso) for s in validas}
+    hoje_validas = sum(1 for s in validas if s.dia_em(fuso) == hoje)
 
     info = streak(dias, hoje, protecoes_mes, protecoes_historicas=protecoes_historicas)
     alvo = METAS.get(meta, METAS[META_PADRAO])
@@ -593,12 +613,15 @@ def chave_de_cache(user_id: int | str, hoje: date) -> str:
     return f"df:eng:{user_id}:{hoje.isoformat()}"
 
 
-def ttl_ate_a_virada(agora: datetime) -> int:
-    """Segundos até a meia-noite seguinte em São Paulo, mais folga."""
+def ttl_ate_a_virada(agora: datetime, fuso: tzinfo = FUSO_PADRAO_DO_FOGO) -> int:
+    """Segundos até a meia-noite seguinte **no fuso de quem treina**, mais folga (T-156).
+
+    O TTL é a terceira coisa que o fuso decide: com ele fixo em São Paulo, o cache de alguém em
+    Lisboa expirava às 4h da manhã de lá — quatro horas depois de o dia dessa pessoa já ter
+    virado, servindo o fogo de ontem numa tela que já era de hoje.
+    """
     if agora.tzinfo is None:
         agora = agora.replace(tzinfo=UTC)
-    local = agora.astimezone(FUSO_DO_FOGO)
-    virada = datetime.combine(
-        local.date() + timedelta(days=1), datetime.min.time(), tzinfo=FUSO_DO_FOGO
-    )
+    local = agora.astimezone(fuso)
+    virada = datetime.combine(local.date() + timedelta(days=1), datetime.min.time(), tzinfo=fuso)
     return max(1, int((virada - local).total_seconds()) + _FOLGA_TTL_S)

@@ -5,6 +5,92 @@
 
 ---
 
+## 2026-08-18 (76) · T-156 — O fuso do fogo: a virada do dia passa a ser a de quem treina
+
+**O que foi feito.** `FUSO_DO_FOGO` deixou de ser São Paulo para todo mundo. O dia a que uma
+sessão pertence, a meta diária e o TTL do cache do engajamento passam a ser resolvidos no fuso
+de quem treina, declarado pelo aparelho num cabeçalho `X-Timezone`. Módulo novo
+(`server/api/fuso.py`), `dia_sp` → `dia_do_fogo(quando, fuso)`, `Sessao.dia` → `dia_em(fuso)`,
+`resumo(..., fuso=)`, `ttl_ate_a_virada(agora, fuso)`, o fuso na chave do cache, `X-Timezone` no
+CORS, e o cliente mandando o fuso e alinhando o fogo fantasma do visitante ao mesmo relógio.
+
+**O bug não aparece como erro — aparece como streak que quebra sozinho.** Quem treina às 22h em
+Lisboa tinha a sessão contada no dia seguinte, e via a sequência zerar por causa de um fuso, não
+de um treino. É o pior modo de falha possível numa mecânica de retenção: silencioso, e do lado de
+quem estava certo. O argumento que a SPEC-019 usou para escolher SP contra UTC ("meia-noite UTC é
+21h no Brasil") passou a valer, palavra por palavra, contra o próprio SP.
+
+### As decisões
+
+**Cabeçalho do aparelho, e não campo no perfil — divergindo do que a spec previa.** A Fase
+Evolução da SPEC-019 dizia "fuso por usuário (campo no perfil, default SP)". Implementei
+diferente e atualizei a spec dizendo por quê: a mesma pessoa treina no celular em viagem e no
+notebook em casa, e "hoje" é o do relógio que ela está olhando. Campo no perfil exigiria conta —
+treinar sem conta é garantia da SPEC-011 — e manteria sincronizada à mão uma resposta que o
+navegador já dá sozinho. É a mesma doutrina do `Accept-Language` (SPEC-025 §3.4): o cliente
+resolve, o servidor obedece. O campo de perfil continua fazendo sentido como **override**
+explícito, e ficou registrado na Evolução como isso.
+
+**O default continua São Paulo, e é conservador de propósito.** Cliente antigo, `evalctl`, teste
+e qualquer chamada sem o cabeçalho veem exatamente o dia de antes. Trocar o default para UTC
+seria uma "correção" que quebraria streaks reais para consertar um caso que ainda não existe.
+
+**`dia_sp` virou `dia_do_fogo`, e o rename é o ponto.** O nome passou a mentir no instante em que
+o fuso deixou de ser sempre o de São Paulo — um parâmetro novo num nome velho teria deixado a
+mentira no código. Mesma razão de `Sessao.dia` (`@property`) virar `dia_em(fuso)`: uma
+propriedade sem argumento só poderia responder pelo default, e responderia **com a cara de quem
+sabe a resposta certa**, que é exatamente como um bug de fuso passa despercebido.
+
+**A invalidação do cache parou de apagar chave.** A chave ganhou o fuso como quinta dimensão, e
+fuso não se enumera: são centenas de nomes IANA, e o `_limpar` roda fora de qualquer requisição
+(signal de `SessionResult`/`User`), sem `X-Timezone` nenhum para saber quais existem. O `for`
+sobre os locales que a T-143 escreveu — já declarado lá como remendo — simplesmente não escala
+para a dimensão nova, e varrer por padrão (`KEYS df:eng:*`) é a operação que trava um Redis em
+produção. Então a invalidação passou a **mudar o endereço**: um selo de versão por usuário entra
+na chave, e trocá-lo torna inalcançável tudo que foi escrito antes, em qualquer fuso e qualquer
+idioma, de uma vez. Custa uma leitura a mais por payload; em troca, o `_limpar` deixou de ter um
+`for` sobre uma dimensão e de estar errado sobre a outra.
+
+**Por que o fuso precisa estar na chave se o dia já está.** Duas pessoas podem estar no mesmo
+dia-calendário e discordar sobre a que dia pertence uma sessão da madrugada. O payload guardado
+traz streak e meta **já contados**; sem o fuso na chave, o primeiro a ler grava a contagem dele
+para quem vier depois no mesmo dia.
+
+**Três testes existentes foram reescritos para cobrar efeito, não mecanismo.** Eles espiavam
+`cache.get(chave)` para provar a invalidação — o que testava a implementação de ontem. O que a
+spec promete é que a leitura seguinte enxergue a sessão nova, e é isso que eles cobram agora. Um
+helper (`chave_real`) concentra a montagem da chave para os dois testes que ainda plantam valor
+envenenado de propósito.
+
+**O fogo fantasma do cliente seguiu junto, e pela razão original.** `engagement/fire.ts` fixava
+`America/Sao_Paulo` com uma justificativa explícita: o número do visitante tem de bater com o da
+conta no instante seguinte ao cadastro. A justificativa está intacta e é ela que exigiu a
+mudança — com o servidor resolvendo pelo `X-Timezone` do aparelho, continuar fixo em SP é que
+passaria a divergir, para todo mundo fora do Brasil.
+
+**E o teste dele só passava no Brasil.** `diaDoFogo` ganhou um parâmetro `timeZone` opcional que
+**só o teste usa**: as asserções antigas (`'2026-08-15T01:30:00Z'` → `'2026-08-14'`) dependiam do
+relógio da máquina que roda a suíte. Um teste que só passa em quem mora no Brasil não prova nada
+sobre um produto que a task existe para tirar do Brasil.
+
+**Medições.** `ruff check .` limpo; `pytest` 1177 passed (1161 + 16 novos em `tests/test_fuso.py`).
+`npm run lint`, `typecheck` limpos; `npm run test` 684/684 (+4); `build` OK. As três coisas que o
+fuso decide têm teste próprio, incluindo o **cruzado** que é o bug em si: derivar com o fuso de um
+e perguntar "hoje" com o do outro devolve zero sessão hoje.
+
+**Não verificado nesta sessão**: o caminho real com um aparelho fora do Brasil. O teste ponta a
+ponta prova que o cabeçalho chega e separa a chave, mas "abrir o app em Lisboa às 22h e ver o
+fogo aceso" é medição de aparelho real — entra na T-155.
+
+**Pendências.** Uma, em Descobertas (`[T-156]`), e ela **não é desta task**: `ruff format --check .`
+está vermelho no `master` desde a T-145/T-146 — seis arquivos, confirmado com as mudanças desta
+task guardadas no `stash`. O CI roda esse comando, então ele está reprovando. Sai em commit
+`operação:` próprio, logo a seguir. Lição irmã da `[T-154]`: o AGENTS.md §Fluxo lista
+`ruff check` e **não** lista `ruff format --check` — gate que a checklist não nomeia é gate que
+ninguém roda.
+
+---
+
 ## 2026-08-18 (75) · T-154 — Os portões: dois novos, e os dois acharam bug na primeira execução
 
 **O que foi feito.** O critério 5 da SPEC-025 — *"um commit que acrescenta uma frase em
