@@ -4,8 +4,9 @@ Entra `quality.signal` (execução, da FSM) e `scene.warning` (cena); sai `feedb
 o que o HUD mostra. Entre um e outro há três regras, e todas existem para o app não virar um
 alarme:
 
-1. **Catálogo** (`catalog.pt-BR.yaml`): código → mensagem, dica, severidade e prioridade. Texto
-   fora do código, um arquivo por idioma.
+1. **Catálogo** (`catalog.<locale>.yaml`, um arquivo por idioma — `pt-BR` e `en`, SPEC-025):
+   código → mensagem, dica, severidade e prioridade. Severidade e prioridade são regra e não
+   mudam entre idiomas; só a mensagem e a dica mudam.
 2. **Prioridade**: cena antes de execução — não faz sentido criticar a amplitude do braço de
    quem está fora do quadro. E **no máximo um feedback por vez** no HUD.
 3. **Throttle por código**: o mesmo código sai 1×/4 s no máximo. Rep preguiçosa repetida gera
@@ -44,6 +45,17 @@ DEFAULT_CATALOG_PATH = Path(__file__).resolve().parent / "catalog.pt-BR.yaml"
 SCENE_CODES: frozenset[Code] = frozenset({Code.OUT_OF_FRAME, Code.TOO_FAR, Code.TOO_CLOSE})
 
 
+def _catalog_path_for(locale: str) -> Path:
+    """Resolve `catalog.<locale>.yaml` ao lado deste módulo.
+
+    Idioma sem arquivo próprio cai no pt-BR — nunca estoura (`FileNotFoundError`), nunca
+    devolve catálogo vazio. É a promessa que o cabeçalho do YAML já fazia ("um arquivo por
+    idioma"), cumprida em código (SPEC-025 §Escopo — YAML por idioma).
+    """
+    candidato = DEFAULT_CATALOG_PATH.parent / f"catalog.{locale}.yaml"
+    return candidato if candidato.exists() else DEFAULT_CATALOG_PATH
+
+
 @dataclass(frozen=True, slots=True)
 class CatalogEntry:
     """Uma entrada do catálogo."""
@@ -57,16 +69,24 @@ class CatalogEntry:
 
 @dataclass(frozen=True, slots=True)
 class FeedbackCatalog:
-    """Mensagens por código, carregadas de YAML."""
+    """Mensagens por código, carregadas de YAML — um arquivo por idioma (SPEC-025)."""
 
     entries: dict[Code, CatalogEntry]
 
     @classmethod
-    def load(cls, path: Path | None = None) -> FeedbackCatalog:
-        """Lê o catálogo. Código desconhecido no arquivo é erro — não silencia typo."""
+    def load(cls, locale: str = "pt-BR", *, path: Path | None = None) -> FeedbackCatalog:
+        """Lê o catálogo do idioma pedido (resolve `catalog.<locale>.yaml`).
+
+        Idioma sem arquivo próprio cai no pt-BR — nunca estoura, nunca devolve catálogo vazio
+        (ver `_catalog_path_for`). `path` é uma escotilha para apontar um arquivo específico,
+        ignorando a resolução por `locale`; usada pelos testes de validação de conteúdo, que
+        precisam de um YAML malformado de propósito.
+
+        Código desconhecido no arquivo é erro — não silencia typo.
+        """
         import yaml
 
-        caminho = Path(path) if path else DEFAULT_CATALOG_PATH
+        caminho = Path(path) if path is not None else _catalog_path_for(locale)
         bruto: dict[str, Any] = yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
         entries: dict[Code, CatalogEntry] = {}
         for chave, valor in bruto.items():

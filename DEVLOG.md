@@ -5,6 +5,49 @@
 
 ---
 
+## 2026-08-18 (64) · T-144 — Feedback por idioma, e a autoridade de texto que mudou de lado
+
+Escopo: catálogo do worker + a prioridade do texto no cliente (SPEC-025, Onda 1). Worktree
+isolado, em paralelo com a T-143 — as duas tocaram `server/api/config.py`, mas em funções
+diferentes (`_mensagens_de_feedback` aqui, `config_etag` lá), e o merge fechou por hunk.
+
+### O que saiu
+
+- **`workers/analysis_worker/feedback/catalog.en.yaml`**, par do `catalog.pt-BR.yaml`. Tradução
+  em tom de treinador, não literal — `severity` e `priority` são regra, não texto, e ficaram
+  idênticos de propósito.
+- **`FeedbackCatalog.load(locale="pt-BR", *, path=None)`** resolve `catalog.<locale>.yaml` ao
+  lado do módulo. Idioma sem arquivo cai no pt-BR: nunca estoura, nunca devolve catálogo vazio.
+  `path` continua existindo como escotilha para os testes que precisam de um YAML malformado.
+- **`_mensagens_de_feedback(locale)`** com `lru_cache(maxsize=8)` em vez de `maxsize=1`. O cache
+  antigo era global de processo: o primeiro cliente a pedir decidia a língua de todo mundo até o
+  processo reiniciar.
+- **Testes**: resolução por locale, ausência de arquivo caindo no pt-BR, e paridade de chaves
+  entre idiomas com cobertura de todo o enum `Code` — chave nova em um idioma só é teste
+  vermelho, não bug descoberto em produção.
+
+### A decisão que vale registrar
+
+**A autoridade do texto do feedback passou do evento para o catálogo local**
+(`web/src/session/coachCard.ts`): era `entry.message ?? textForCode(code)`, virou
+`textForCode(code)` primeiro, com `message` como último recurso. O worker só fala pt-BR e não vai
+receber o locale — levá-lo até lá custaria três camadas de encanamento (cliente → `POST
+/sessions` → estado no Redis → worker) para um problema que o cliente já resolve sozinho, porque
+recebe o catálogo inteiro na própria língua pelo `GET /api/config`. A detecção de "catálogo local
+não conhece este código" usa o eco do próprio código que `textForCode` devolve nesse caso.
+`FeedbackIssued` ganhou o docstring correspondente em `workers/shared/events.py`: campo aditivo,
+nada quebra, `PROTOCOL_VERSION` não sobe.
+
+### Pendências geradas
+
+- O embutido de `CODE_MESSAGES` nas duas línguas saiu do escopo desta task e foi para a **T-152**
+  (namespace `catalog`): ele precisa do runtime de i18n que a T-142 está construindo, que não
+  existia nesta árvore. É o fallback offline — sem rede, o card ainda cai em pt-BR.
+- `config_payload` ainda não resolve locale; quem passa o idioma para `_mensagens_de_feedback`
+  chega com a T-146.
+
+---
+
 ## 2026-08-18 (63) · T-143 — Negociação de locale, e os caches que não sabiam que ela existia
 
 Escopo: servidor apenas (SPEC-025, Bloco de i18n — T-144 traduz conteúdo, T-146 cataloga; esta

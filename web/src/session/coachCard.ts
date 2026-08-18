@@ -79,12 +79,21 @@ function isFresh(entry: CoachEntry | null, now: number, ttlMs: number): entry is
 }
 
 /**
- * O `message` do evento vence tudo: ele é o texto que o servidor escolheu para AQUELA emissão,
- * já resolvido pelo catálogo do worker. Sem ele (é o caso do `scene.warning`), cai na mesma
- * escada do relatório — e assim o HUD e o relatório dizem a mesma frase sobre o mesmo código.
+ * Prioridade invertida (SPEC-025 §Eventos, T-144): o catálogo local vence, e o `message` do
+ * evento vira último recurso — não mais "o servidor escolheu para AQUELA emissão vence tudo".
+ *
+ * O worker só fala pt-BR (nunca recebeu o locale da sessão, de propósito — ver o docstring de
+ * `FeedbackIssued`), então deixar `message` vencer travava o card em português mesmo com o
+ * cliente já resolvendo o idioma certo em `textForCode` (servidor, via `GET /api/config`,
+ * → embutido). `textForCode` sempre devolve uma string — quando não conhece o código, ecoa o
+ * próprio código de volta — e é esse eco que usamos para detectar "catálogo local não sabe":
+ * só aí o `message` do fio (pt-BR, mas pelo menos legível) e por fim o código cru entram como
+ * último e penúltimo recursos. O HUD e o relatório continuam dizendo a mesma frase sobre o
+ * mesmo código, porque os dois passam pelo mesmo `textForCode`.
  */
 function textOf(entry: CoachEntry): string {
-  return entry.message ?? textForCode(entry.code)
+  const local = textForCode(entry.code)
+  return local !== entry.code ? local : (entry.message ?? local)
 }
 
 export interface ResolveCoachCardInput {

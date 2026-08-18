@@ -78,7 +78,7 @@ def test_codigo_desconhecido_no_catalogo_e_erro(tmp_path) -> None:
     arquivo.write_text("CODIGO_INVENTADO:\n  message: oi\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="codigo desconhecido"):
-        FeedbackCatalog.load(arquivo)
+        FeedbackCatalog.load(path=arquivo)
 
 
 def test_entrada_sem_mensagem_e_erro(tmp_path) -> None:
@@ -86,19 +86,63 @@ def test_entrada_sem_mensagem_e_erro(tmp_path) -> None:
     arquivo.write_text("ARMS_TOO_LOW:\n  hint: sem mensagem\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="sem `message`"):
-        FeedbackCatalog.load(arquivo)
+        FeedbackCatalog.load(path=arquivo)
 
 
 def test_catalogo_de_outro_idioma_pode_ser_carregado(tmp_path) -> None:
-    """i18n é estrutura de arquivo, não código."""
+    """i18n é estrutura de arquivo, não código: `path` carrega qualquer YAML, de qualquer nome."""
     arquivo = tmp_path / "catalog.en-US.yaml"
     arquivo.write_text(
         "ARMS_TOO_LOW:\n  message: Extend your arms overhead\n  priority: 20\n", encoding="utf-8"
     )
 
-    catalogo = FeedbackCatalog.load(arquivo)
+    catalogo = FeedbackCatalog.load(path=arquivo)
 
     assert catalogo.get(Code.ARMS_TOO_LOW).message == "Extend your arms overhead"
+
+
+def test_load_resolve_por_locale() -> None:
+    """Critério de aceite da T-144: `load(locale=...)` resolve `catalog.<locale>.yaml`."""
+    pt = FeedbackCatalog.load(locale="pt-BR")
+    en = FeedbackCatalog.load(locale="en")
+
+    assert pt.get(Code.OUT_OF_FRAME).message == "Apareça inteiro no quadro"
+    assert en.get(Code.OUT_OF_FRAME).message == "Get your whole body in frame"
+    # Regra, não texto: severidade e prioridade não mudam entre idiomas.
+    assert pt.get(Code.OUT_OF_FRAME).severity == en.get(Code.OUT_OF_FRAME).severity
+    assert pt.get(Code.OUT_OF_FRAME).priority == en.get(Code.OUT_OF_FRAME).priority
+
+
+def test_load_sem_argumento_continua_pt_br() -> None:
+    """`FeedbackCatalog.load()` (sem locale) é o caminho que `FeedbackEngine` usa — pt-BR."""
+    assert FeedbackCatalog.load().get(Code.ARMS_TOO_LOW).message == (
+        FeedbackCatalog.load(locale="pt-BR").get(Code.ARMS_TOO_LOW).message
+    )
+
+
+def test_idioma_sem_arquivo_cai_no_pt_br() -> None:
+    """Idioma sem catálogo próprio nunca estoura e nunca devolve catálogo vazio."""
+    catalogo = FeedbackCatalog.load(locale="fr")  # não existe catalog.fr.yaml
+
+    assert catalogo.missing() == set()
+    assert catalogo.get(Code.OUT_OF_FRAME).message == "Apareça inteiro no quadro"
+
+
+def test_paridade_de_chaves_e_cobertura_total_por_idioma() -> None:
+    """Todo `catalog.<locale>.yaml` cobre o enum `Code` inteiro (SPEC-025 §Escopo).
+
+    `missing()` já garante isso por arquivo; este teste roda por idioma — é o que impede um
+    código novo de nascer só em português. Cobertura total dos dois lados implica paridade de
+    chaves entre eles (ambos os conjuntos de chaves são exatamente `set(Code)`).
+    """
+    arquivos = sorted(DEFAULT_CATALOG_PATH.parent.glob("catalog.*.yaml"))
+    locales = [arquivo.stem.removeprefix("catalog.") for arquivo in arquivos]
+
+    assert set(locales) >= {"pt-BR", "en"}, "esperado ao menos pt-BR e en"
+
+    for locale in locales:
+        catalogo = FeedbackCatalog.load(locale=locale)
+        assert catalogo.missing() == set(), f"catalog.{locale}.yaml não cobre todo o enum Code"
 
 
 # --------------------------------------------------------------------------------------
