@@ -891,7 +891,19 @@ class SceneWarning:
 
 @dataclass(frozen=True, slots=True)
 class FeedbackIssued:
-    """Feedback já priorizado e com throttle, pronto para o HUD (SPEC-008)."""
+    """Feedback já priorizado e com throttle, pronto para o HUD (SPEC-008).
+
+    **`message` deixou de ser autoridade de texto (SPEC-025 §Eventos, T-144).** O worker só fala
+    pt-BR — nunca recebeu o locale de quem treina, e não vai receber: levá-lo até aqui custaria
+    três camadas de encanamento (cliente → `POST /sessions` → estado da sessão no Redis →
+    worker) para um problema que o cliente já resolve sozinho, porque ele recebe o catálogo
+    completo, na própria língua, por `GET /api/config`. Quem lê este evento resolve o texto pelo
+    `code`, no catálogo local (servidor ou embutido); `message` vira diagnóstico/legado — o que
+    aparece em log e dataset, e o degrau final de quem ainda não tem catálogo local nenhum.
+
+    Campo aditivo-compatível: continua existindo, nenhum produtor/consumidor quebra,
+    `PROTOCOL_VERSION` não sobe.
+    """
 
     TYPE: ClassVar[EventType] = EventType.FEEDBACK_ISSUED
 

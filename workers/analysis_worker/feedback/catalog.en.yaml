@@ -1,0 +1,78 @@
+# Catálogo de feedback — en (SPEC-008, Fase Inicial; idioma via SPEC-025).
+#
+# Tradução em tom de treinador, não literal: o texto tem de soar como alguém corrigindo o
+# movimento ao vivo ("Get your whole body in frame"), não como frase traduzida palavra por
+# palavra ("Appear entire in the frame"). `severity` e `priority` são regra, não texto — idênticos
+# ao `catalog.pt-BR.yaml` de propósito: o teste de paridade cobra isso.
+#
+# priority: menor vence. Cena (o dado está ruim) antes de execução (o movimento está ruim),
+# porque corrigir enquadramento é pré-requisito para qualquer crítica de execução.
+# severity: `info` orienta, `warning` atrapalha a medição.
+
+OUT_OF_FRAME:
+  message: Get your whole body in frame
+  hint: Step back until your shoulders and ankles are visible
+  severity: warning
+  priority: 10
+
+TOO_FAR:
+  message: Move in closer to the camera
+  hint: Your body should fill more than half the screen height
+  severity: warning
+  priority: 11
+
+TOO_CLOSE:
+  message: Back up from the camera
+  hint: Step back until you're fully visible head to toe
+  severity: warning
+  priority: 11
+
+ARMS_TOO_LOW:
+  message: Reach your arms higher overhead
+  hint: Get your hands above shoulder height
+  severity: info
+  priority: 20
+
+LEGS_TOO_CLOSED:
+  message: Widen your stance
+  hint: Take your feet out past shoulder width
+  severity: info
+  priority: 21
+
+SQUAT_TOO_SHALLOW:
+  message: Squat down deeper
+  hint: Drop until your thighs are parallel to the floor
+  severity: info
+  priority: 22
+
+PUSHUP_TOO_SHALLOW:
+  message: Lower deeper on the push-up
+  hint: Bend your elbows to about 90°, chest close to the floor
+  severity: info
+  priority: 23
+
+# Quadril fora da linha é a crítica que separa flexão de flexão bem feita, e vem antes das de
+# amplitude: quem está com a lombar cedendo precisa ouvir isso antes de "desça mais".
+HIPS_SAGGING:
+  message: Brace your core
+  hint: Your hips are dropping — hold a straight line from head to heels
+  severity: info
+  priority: 20
+
+HIPS_PIKED:
+  message: Drop your hips down
+  hint: Your hips are piking up — keep your body aligned from head to heels
+  severity: info
+  priority: 20
+
+CRUNCH_TOO_SHALLOW:
+  message: Curl up a little higher
+  hint: Lift your shoulder blades off the floor without lifting your lower back
+  severity: info
+  priority: 23
+
+CRUNCH_TOO_FAST:
+  message: Slow it down
+  hint: Swinging up uses your hips — take two counts on the way up
+  severity: info
+  priority: 21

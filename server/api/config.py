@@ -530,9 +530,10 @@ def config_payload(user=None, *, now: datetime | None = None) -> dict[str, Any]:
     }
 
 
-@lru_cache(maxsize=1)
-def _mensagens_de_feedback() -> dict[str, dict[str, str]]:
-    """Código → texto em pt-BR, do mesmo YAML que o feedback engine carrega (SPEC-018 §C).
+@lru_cache(maxsize=8)
+def _mensagens_de_feedback(locale: str = "pt-BR") -> dict[str, dict[str, str]]:
+    """Código → texto no idioma pedido, do mesmo YAML que o feedback engine carrega (SPEC-018
+    §C, SPEC-025 §Escopo — YAML por idioma).
 
     **Por que o cliente precisa disto.** O `feedback.issued` que chega ao vivo traz a frase
     pronta, mas o relatório (SPEC-010) guarda só `{código: contagem}` — e aí o cliente tem de
@@ -544,12 +545,16 @@ def _mensagens_de_feedback() -> dict[str, dict[str, str]]:
     que maior: dois arquivos de texto para manter em sincronia, e a promessa da SPEC-018 §C
     ("reescrever sem deploy") valendo para o HUD e não para o relatório.
 
-    `lru_cache` porque o arquivo é do deploy, não do banco: mudou o YAML, mudou o processo.
+    `lru_cache` **por locale** (SPEC-025 §Notas técnicas): o arquivo é do deploy, não do banco —
+    mudou o YAML, mudou o processo — mas antes desta task o cache era `maxsize=1` global de
+    processo, e o primeiro cliente a pedir decidia a língua de todo mundo até o processo
+    reiniciar. `locale` entra na chave do cache automaticamente por ser parâmetro da função;
+    quem resolve qual `locale` chega aqui é o chamador (`config_payload`), não esta função.
     """
     try:
         from workers.analysis_worker.feedback import FeedbackCatalog
 
-        entradas = FeedbackCatalog.load().entries
+        entradas = FeedbackCatalog.load(locale=locale).entries
     except Exception:  # P2: configuração indisponível nunca derruba a resposta.
         logger.warning("catalogo de feedback indisponivel; cliente cai no embutido", exc_info=True)
         return {}

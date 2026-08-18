@@ -53,7 +53,9 @@ describe('prioridade (critério 3 da SPEC-013)', () => {
   it('feedback vence a dica padrão', () => {
     const card = resolveCoachCard({ ...base, feedback: feedback() })
     expect(card.tone).toBe('feedback')
-    expect(card.text).toBe('Suba mais os braços até se tocarem.')
+    // Inversão da T-144 (SPEC-025 §Eventos): o catálogo local resolve `ARMS_TOO_LOW`, então
+    // vence o `message` do evento — não é mais o texto solto na fixture `feedback()`.
+    expect(card.text).toBe('Estenda mais os braços acima da cabeça')
   })
 
   it('cena expirada devolve a vez ao feedback ainda válido', () => {
@@ -97,10 +99,24 @@ describe('expiração', () => {
 })
 
 describe('texto dos códigos', () => {
-  it('usa message quando o evento traz (feedback.issued)', () => {
+  it('o catálogo local vence o message do evento (SPEC-025 §Eventos, T-144)', () => {
+    // `feedback()` carimba um `message` próprio (`'Suba mais os braços até se tocarem.'`) para
+    // um código que o catálogo local conhece (`ARMS_TOO_LOW`) — é exatamente o caso que separa
+    // as duas prioridades. O catálogo vence; o `message` do fio nem entra na conta aqui.
     expect(resolveCoachCard({ ...base, feedback: feedback() }).text).toBe(
-      'Suba mais os braços até se tocarem.',
+      'Estenda mais os braços acima da cabeça',
     )
+  })
+
+  it('o message do evento é o último recurso quando o catálogo local não conhece o código', () => {
+    const card = resolveCoachCard({
+      ...base,
+      feedback: feedback({
+        code: 'CODIGO_QUE_NAO_EXISTE' as unknown as Code,
+        message: 'texto do worker',
+      }),
+    })
+    expect(card.text).toBe('texto do worker')
   })
 
   it('traduz o código quando não há message (scene.warning)', () => {
