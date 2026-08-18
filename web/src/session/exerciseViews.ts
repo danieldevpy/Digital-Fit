@@ -36,6 +36,15 @@ export interface ExerciseView {
   phone: string
   /** Como montar a cena para esta variação (substitui o `scene_tip` do exercício). */
   scene_tip: string
+  /**
+   * A foto grande do Guia desta variação, quando ela existe — `undefined` cai na do catálogo.
+   *
+   * É a maior imagem da tela e a primeira que a pessoa vê, então é ela que ensina a vista antes
+   * de qualquer texto: deixar a foto de perfil no alto de uma tela que diz «de frente» é
+   * contradizer a própria instrução no tamanho grande. Opcional porque a foto por vista é um
+   * luxo — vista sem acervo próprio continua usando a do exercício em vez de não mostrar nada.
+   */
+  demo_img?: string
   /** Passos do exemplo guiado desta variação (SPEC-015). */
   guide_steps: { img: string; text: string }[]
 }
@@ -80,17 +89,22 @@ export const EXERCISE_VIEWS: Record<string, ExerciseView[]> = {
       phone: 'celular em pé, à sua frente',
       scene_tip:
         'celular em pé no chão, à sua frente, a uns 2 metros — a tela precisa ver seus ombros, cotovelos e mãos. Os pés podem ficar fora do quadro.',
+      // As fotos são a própria lição desta vista: enquadramento errado num exercício de chão
+      // zera a sessão, e a foto de perfil ensinava a cena errada para quem escolheu «De frente».
+      // Nenhuma imagem de perfil sobra aqui — o `-1` é a prancha e o `-2` é a descida, as duas
+      // enquadradas como o celular em pé enxerga.
+      demo_img: '/img/guia/flexao-frente-2.jpg',
       guide_steps: [
         {
-          img: '/img/guia/flexao-1.jpg',
+          img: '/img/guia/flexao-frente-1.jpg',
           text: 'Apoie o celular em pé no chão e fique de frente para ele, com a cabeça na direção da tela.',
         },
         {
-          img: '/img/guia/flexao-1.jpg',
+          img: '/img/guia/flexao-frente-1.jpg',
           text: 'Comece na prancha: mãos abaixo dos ombros, braço estendido, corpo numa linha reta da cabeça aos calcanhares.',
         },
         {
-          img: '/img/guia/flexao-2.jpg',
+          img: '/img/guia/flexao-frente-2.jpg',
           text: 'Desça dobrando o cotovelo até uns 90° e suba estendendo o braço — a subida completa conta a repetição. Desta vista o app conta, mas não corrige a linha do quadril.',
         },
       ],

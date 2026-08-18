@@ -21,6 +21,9 @@ export function GuideScreen({ exercise }: { exercise: string }) {
   const view = views?.find((v) => v.id === viewId) ?? views?.[0]
   const passos = view?.guide_steps ?? info.guide_steps
   const cena = view?.scene_tip ?? info.scene_tip ?? CENA_PADRAO
+  // A foto grande também é da vista: ela é a primeira coisa que a tela diz, e dizer «de frente»
+  // no botão com uma foto de perfil no alto é ensinar duas cenas ao mesmo tempo.
+  const demo = view?.demo_img ?? info.demo_img
 
   // "Pular" também marca como visto: pular é uma resposta, não uma falha do funil.
   const seguir = () => {
@@ -38,10 +41,10 @@ export function GuideScreen({ exercise }: { exercise: string }) {
 
         {/* Sem foto, a figura do exercício. Um `src` vazio renderiza ícone de imagem
             quebrada, que é pior que não prometer fotografia nenhuma. */}
-        {info.demo_img ? (
+        {demo ? (
           <img
             className="guide__demo"
-            src={info.demo_img}
+            src={demo}
             alt={`Demonstração do exercício ${info.display_name}`}
           />
         ) : (

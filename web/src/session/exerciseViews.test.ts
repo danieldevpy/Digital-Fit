@@ -82,6 +82,16 @@ describe('variação de câmera (T-111)', () => {
     expect(frente!.guide_steps).toHaveLength(3)
   })
 
+  it('a vista de frente não mostra nenhuma foto de perfil', () => {
+    // Um `-1`/`-2` sobrando aqui é uma tela que diz «de frente» e desenha o celular deitado no
+    // chão — o erro que a variação existe para não cometer. E como a foto grande é a primeira
+    // coisa que a pessoa vê, ela conta junto com os passos.
+    const frente = EXERCISE_VIEWS.flexao!.find((v) => v.id === 'frontal')!
+    const fotos = [frente.demo_img!, ...frente.guide_steps.map((p) => p.img)]
+
+    expect(fotos.every((src) => src.includes('flexao-frente-'))).toBe(true)
+  })
+
   it('os ids são os do contrato de eventos, e não rótulos de tela', () => {
     // "De lado" é o que a pessoa lê; `profile` é o que o `session.started` carrega. Trocar um
     // pelo outro faria a escolha atravessar a rede e não significar nada no worker.
