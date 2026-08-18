@@ -1,9 +1,34 @@
 import { describe, expect, it } from 'vitest'
 
 import { funnel as funnelEn } from './dict/en/funnel'
+import { session as sessionEn } from './dict/en/session'
 import { funnel as funnelPtBR } from './dict/pt-BR/funnel'
+import { session as sessionPtBR } from './dict/pt-BR/session'
 import { useI18nStore } from './store'
 import { resolveFromTable, t, tDynamic, translate } from './index'
+
+/**
+ * `tsc` cobra paridade de CHAVE (`dict/typeParity.proof.ts`), NÃO de placeholder: uma tradução
+ * que esqueça o `{exercise}` compila limpa, passa no lint e só some com o nome do exercício em
+ * produção, na língua que ninguém abre para conferir. Esta é a outra metade do portão.
+ *
+ * Vale hoje para os namespaces que a Onda 2 já migrou com interpolação (`funnel`, `session`);
+ * generalizar para os nove é a T-154 (Descoberta `[T-148]` do BACKLOG) — o corpo já é genérico,
+ * falta só quem chame.
+ */
+function esperaMesmosPlaceholders(
+  ptBR: Record<string, string>,
+  en: Record<string, string>,
+): void {
+  const placeholders = (texto: string) => [...texto.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
+
+  for (const [chave, textoPtBR] of Object.entries(ptBR)) {
+    expect({ chave, ph: placeholders(en[chave] ?? '') }).toEqual({
+      chave,
+      ph: placeholders(textoPtBR),
+    })
+  }
+}
 
 describe('translate — namespace real (shell), as duas línguas', () => {
   it('resolve a mesma chave nas duas línguas', () => {
@@ -144,17 +169,26 @@ describe('namespace funnel — a moldura do funil nas duas línguas (T-148)', ()
   })
 
   it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
-    // `tsc` cobra paridade de CHAVE (`dict/typeParity.proof.ts`), NÃO de placeholder: uma
-    // tradução que esqueça o `{exercise}` compila limpa e some com o nome do exercício só em
-    // produção, na língua que ninguém abre para conferir. Este é o outro metade do portão.
-    const placeholders = (texto: string) => [...texto.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
+    esperaMesmosPlaceholders(funnelPtBR, funnelEn)
+  })
+})
 
-    for (const [chave, textoPtBR] of Object.entries(funnelPtBR)) {
-      const textoEn = funnelEn[chave as keyof typeof funnelEn]
-      expect({ chave, ph: placeholders(textoEn) }).toEqual({
-        chave,
-        ph: placeholders(textoPtBR),
-      })
-    }
+describe('namespace session — o treino nas duas línguas (T-149)', () => {
+  it('resolve a mesma chave nas duas línguas', () => {
+    expect(translate('pt-BR', 'session:cta.start_exercise')).toBe('Iniciar Exercício')
+    expect(translate('en', 'session:cta.start_exercise')).toBe('Start Exercise')
+  })
+
+  it('o balde .zero da preparação vale nas duas línguas: zero tem frase própria', () => {
+    // A regra que um `if (n === 0)` no componente teria escondido: "sem preparação" não é o
+    // singular de nada, é outra frase — e cada língua escolhe a sua.
+    expect(translate('pt-BR', 'session:countdown.value', { n: 0 })).toBe('sem preparação')
+    expect(translate('pt-BR', 'session:countdown.value', { n: 5 })).toBe('5s de preparação')
+    expect(translate('en', 'session:countdown.value', { n: 0 })).toBe('no countdown')
+    expect(translate('en', 'session:countdown.value', { n: 5 })).toBe('5s countdown')
+  })
+
+  it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
+    esperaMesmosPlaceholders(sessionPtBR, sessionEn)
   })
 })

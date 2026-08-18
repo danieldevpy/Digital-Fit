@@ -10,6 +10,7 @@
 //
 // Mora na pré-configuração, ao lado de Espelhar: mesma lógica de mostrar só onde a escolha
 // importa, e travar depois que o exercício começa.
+import { useT } from '../i18n'
 import { useSessionStore } from '../store/session'
 import { IconZoom } from '../ui/icons'
 
@@ -18,6 +19,7 @@ function formatZoom(value: number): string {
 }
 
 export function ZoomControl() {
+  const t = useT()
   const zoomCapabilities = useSessionStore((state) => state.zoomCapabilities)
   const zoomValue = useSessionStore((state) => state.zoomValue)
   const cameraControls = useSessionStore((state) => state.cameraControls)
@@ -28,7 +30,7 @@ export function ZoomControl() {
 
   return (
     <div className="prep-cell prep-cell--zoom">
-      <p className="v2-label">Zoom</p>
+      <p className="v2-label">{t('session:zoom.label')}</p>
       <p className="prep-cell__value prep-cell__value--sm tabular">
         <IconZoom className="prep-cell__hud-icon prep-cell__hud-icon--blue" /> {formatZoom(zoomValue)}
       </p>
@@ -40,9 +42,12 @@ export function ZoomControl() {
         step={zoomCapabilities.step}
         value={zoomValue}
         onChange={(event) => cameraControls?.setZoom(Number(event.target.value))}
-        aria-label={`Zoom da câmera: ${formatZoom(zoomValue)}. Arraste para menos e caiba mais perto da câmera.`}
+        aria-label={t('session:zoom.aria', {
+          value: formatZoom(zoomValue),
+          hint: t('session:zoom.hint'),
+        })}
       />
-      <p className="prep-cell__hint">Arraste para menos e caiba mais perto da câmera.</p>
+      <p className="prep-cell__hint">{t('session:zoom.hint')}</p>
     </div>
   )
 }

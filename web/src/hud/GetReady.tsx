@@ -14,6 +14,7 @@
 // é a mesma ideia visual: um tempo que corre. Aprender duas linguagens para dois relógios no
 // mesmo produto seria custo sem retorno.
 import { useEffect, useState } from 'react'
+import { useT } from '../i18n'
 import { getExercise } from '../session/catalog'
 import {
   DIAL_CIRCUMFERENCE,
@@ -26,6 +27,7 @@ import {
 import { useSessionStore } from '../store/session'
 
 export function GetReady() {
+  const t = useT()
   const sessionStatus = useSessionStore((state) => state.sessionStatus)
   const countingFrom = useSessionStore((state) => state.countingFrom)
   const exerciseKey = useSessionStore((state) => state.exerciseKey)
@@ -59,7 +61,9 @@ export function GetReady() {
 
   return (
     <div className="getready" role="status" aria-live="assertive">
-      <p className="getready__eyebrow">{comecou ? 'valendo' : 'prepare-se'}</p>
+      <p className="getready__eyebrow">
+        {comecou ? t('session:getready.eyebrow.go') : t('session:getready.eyebrow.prepare')}
+      </p>
 
       <div className={`getready__dial ${comecou ? 'getready__dial--go' : ''}`}>
         <svg width={DIAL_SIZE} height={DIAL_SIZE} viewBox={`0 0 ${DIAL_SIZE} ${DIAL_SIZE}`} aria-hidden="true">
@@ -98,7 +102,7 @@ export function GetReady() {
           key={comecou ? 'go' : restam}
           className={`getready__tick ${comecou ? 'getready__tick--go' : ''} tabular`}
         >
-          {comecou ? 'VAI!' : restam}
+          {comecou ? t('session:getready.go') : restam}
         </p>
       </div>
 
@@ -107,8 +111,11 @@ export function GetReady() {
       {!comecou && (
         <p className="getready__hint">
           {/* Singular de propósito: pluralizar com `+ "s"` funcionaria para "polichinelo" e
-              quebraria no primeiro exercício com nome que não aceita o sufixo. */}
-          Fique parado. Comece o <strong>{exercicio}</strong> quando aparecer <strong>VAI!</strong>
+              quebraria no primeiro exercício com nome que não aceita o sufixo. Quebrada em
+              `_lead`/`_mid` porque o nome do exercício e o "VAI!" são `<strong>` no meio da
+              frase — mesma solução do `view.why.*` na T-148. */}
+          {t('session:getready.hint_lead')} <strong>{exercicio}</strong>{' '}
+          {t('session:getready.hint_mid')} <strong>{t('session:getready.go')}</strong>
         </p>
       )}
     </div>

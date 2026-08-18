@@ -6,6 +6,7 @@
 // T-048 — quem chama é o painel, nunca a UI de produto.
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import { loadVideoFile } from '../dev/videoSource'
+import { t } from '../i18n'
 import { useSessionStore } from '../store/session'
 import { setZoomPreference, zoomPreference } from './zoomPrefs'
 
@@ -146,11 +147,11 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
       streamRef.current = null
       if (isPermissionDenied(error)) {
         setCameraStatus('denied')
-        setError('Permissão de câmera negada. Libere o acesso e tente de novo.')
+        setError(t('session:camera.denied_detail'))
         return
       }
       setCameraStatus('error')
-      setError(error instanceof Error ? error.message : 'Falha ao abrir a câmera.')
+      setError(error instanceof Error ? error.message : t('session:camera.open_failed'))
     }
   }, [applyZoomFromTrack, setCameraStatus, setError, setVideoResolution, videoRef])
 
@@ -201,7 +202,7 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
       } catch (error) {
         releaseFileRef.current = null
         setCameraStatus('error')
-        setError(error instanceof Error ? error.message : 'Falha ao abrir o vídeo.')
+        setError(error instanceof Error ? error.message : t('session:camera.video_failed'))
       }
     },
     [applyZoomFromTrack, setCameraStatus, setError, setVideoResolution, setVideoSource, stop, videoRef],

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { useI18nStore } from '../i18n/store'
 import {
   AMOSTRA_ALTURA,
   AMOSTRA_LARGURA,
@@ -147,5 +148,24 @@ describe('acumular / confirmado', () => {
     expect(confirmado(streak)).toBe(true)
     streak = acumular(streak, null)
     expect(confirmado(streak)).toBe(false)
+  })
+})
+
+describe('o conselho de cena existe nas duas línguas (T-149)', () => {
+  afterEach(() => useI18nStore.getState().setLocale('pt-BR'))
+
+  it('o CÓDIGO não muda de idioma; a frase muda', () => {
+    // O `SceneCode` é contrato — é ele que o `acumular`/`confirmado` conta e o que os testes
+    // acima cobram. Só o `text` passa pelo dicionário, e ele é resolvido na CHAMADA (getter),
+    // não no import do módulo: sem isso o conselho congelaria no idioma do primeiro render.
+    useI18nStore.getState().setLocale('pt-BR')
+    const ptBR = avaliarCena({ ...cenaBoa, luz: 40 })
+    expect(ptBR?.code).toBe('LUZ_FRACA')
+    expect(ptBR?.text).toBe('Está escuro · acenda uma luz')
+
+    useI18nStore.getState().setLocale('en')
+    const en = avaliarCena({ ...cenaBoa, luz: 40 })
+    expect(en?.code).toBe('LUZ_FRACA')
+    expect(en?.text).toBe('It’s dark · turn on a light')
   })
 })

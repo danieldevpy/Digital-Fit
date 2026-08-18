@@ -15,6 +15,9 @@
 // diferença entre esperar e achar que travou.
 
 /** Quanto já veio dos assets. `total` é `null` quando o servidor não manda `Content-Length`. */
+import { t } from '../i18n'
+import { formatNumber } from '../i18n/format'
+
 export interface AssetProgress {
   recebidos: number
   total: number | null
@@ -128,12 +131,22 @@ async function totalFromManifest(
 /**
  * Como o aquecimento aparece na tela. Puro: é texto de produto, e a régua de "nunca mostrar
  * número inventado" vale aqui também — sem total conhecido, mostra o que já veio, não um palpite.
+ *
+ * O decimal sai do `formatNumber` (T-149): `.toFixed(1).replace('.', ',')` era a vírgula
+ * brasileira escrita à mão, e "7,4 de 17,3 MB" numa tela em inglês é justamente a armadilha
+ * §2.6 do PLANO-I18N — o número não segue o idioma porque ninguém percebe que ele é texto.
  */
 export function warmupLabel({ recebidos, total }: AssetProgress): string {
-  const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1).replace('.', ',')
+  const mb = (bytes: number) =>
+    formatNumber(bytes / 1024 / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   // `recebidos > total` significa que o total não descreve o que estamos lendo (resposta
   // comprimida que passou pelo HEAD, redirect, servidor mentindo). Mostrar só o que veio é
   // honesto; mostrar "100% · 11,0 de 3,2 MB" seria absurdo na cara de quem espera.
-  if (total === null || total <= 0 || recebidos > total) return `${mb(recebidos)} MB`
-  return `${Math.round((recebidos / total) * 100)}% · ${mb(recebidos)} de ${mb(total)} MB`
+  if (total === null || total <= 0 || recebidos > total)
+    return t('session:warmup.size_mb', { done: mb(recebidos) })
+  return t('session:warmup.progress', {
+    percent: Math.round((recebidos / total) * 100),
+    done: mb(recebidos),
+    total: mb(total),
+  })
 }

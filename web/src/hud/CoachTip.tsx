@@ -1,5 +1,6 @@
 // Card "Dica do Treinador" — superfície do feedback engine (SPEC-013 §4).
 import { useState } from 'react'
+import { useT } from '../i18n'
 import { getExercise } from '../session/catalog'
 import { resolveCoachCard } from '../session/coachCard'
 import { useNow } from '../session/useNow'
@@ -7,6 +8,7 @@ import { useSessionStore } from '../store/session'
 import { IconUser } from '../ui/icons'
 
 export function CoachTip() {
+  const t = useT()
   const exerciseKey = useSessionStore((state) => state.exerciseKey)
   const sceneEntry = useSessionStore((state) => state.sceneEntry)
   const feedbackEntry = useSessionStore((state) => state.feedbackEntry)
@@ -38,9 +40,9 @@ export function CoachTip() {
         className="tip__action"
         onClick={() => setShowHint((value) => !value)}
         disabled={!card.hint}
-        title={card.hint ? undefined : 'Sem detalhes para esta dica'}
+        title={card.hint ? undefined : t('session:coach.no_details')}
       >
-        {showHint ? 'Ocultar' : 'Ver detalhes'}
+        {showHint ? t('session:coach.hide') : t('session:coach.details')}
       </button>
     </article>
   )

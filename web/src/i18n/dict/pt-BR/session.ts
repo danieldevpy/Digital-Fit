@@ -1,6 +1,138 @@
-// Namespace `session` — vazio até a T-149 migrar as telas dele para cá (SPEC-025 Onda 2,
-// BACKLOG.md). Nasce como arquivo próprio (não uma chave a mais num dicionário único) porque é
-// isso que deixa as tasks da Onda 2 rodarem em paralelo sem colidir (PLANO-I18N.md §3.2).
-export const session = {} as const
+// Namespace `session` — o treino em si (T-149, SPEC-025 Onda 2): a capa e os avisos da câmera
+// (`capture/CameraView`, `useCamera`, `useEdgePipeline`), o aquecimento do pipeline
+// (`pose/assetWarmup`), a medição do corpo, os conselhos de cena (`scene/sceneQuality`), as
+// recusas da admissão (`session/admission`, `useSession`), o CTA de dois degraus
+// (`session/startGate`), o HUD (`hud/*`) e as duas telas de `screens/SessionScreen`
+// (pré-configuração e treino ao vivo). Fonte da verdade do tipo (SPEC-025 §3.1): `Session` sai
+// DESTE arquivo, e `dict/en/session.ts` é tipado por ele.
+//
+// **O que NÃO está aqui.** Nome e dica do exercício vêm do `catalog`/servidor; o card do
+// treinador resolve o texto pelo `code` (T-144/T-152); o rótulo "estimado" do kcal é da T-150.
+// E o chip de diagnóstico do `CameraView` (modo, fps, seq, delegate) continua em código cru,
+// com `eslint-disable` explicando: é a mesma exclusão que a SPEC-025 §Escopo dá ao painel
+// admin — ferramenta de operação, não superfície de quem treina.
+export const session = {
+  // --- Câmera: estado na capa e falhas de permissão ---
+  'camera.status.idle': 'Câmera desligada',
+  'camera.status.requesting': 'Pedindo permissão…',
+  'camera.status.ready': 'Câmera pronta',
+  'camera.status.denied': 'Permissão negada',
+  'camera.status.error': 'Erro na câmera',
+  'camera.waiting': 'Aguardando…',
+  'camera.denied_detail': 'Permissão de câmera negada. Libere o acesso e tente de novo.',
+  'camera.open_failed': 'Falha ao abrir a câmera.',
+  'camera.video_failed': 'Falha ao abrir o vídeo.',
 
+  // --- Aquecimento do pipeline (T-069): a janela em que o app baixa ~17 MB e a tela ficaria muda ---
+  'warmup.title': 'Preparando a análise neste aparelho…',
+  'warmup.downloading': 'Baixando o modelo de pose · {progress} (só na primeira vez)',
+  'warmup.first_time': 'No primeiro acesso o modelo de pose é baixado; depois fica no aparelho.',
+  'warmup.failed': 'Não foi possível preparar a análise de pose neste aparelho.',
+  'warmup.measuring': 'Calibrando o dispositivo…',
+  // O progresso do download. O número decimal sai do `formatNumber` (`i18n/format.ts`), não de
+  // um `.replace('.', ',')` — era exatamente a armadilha do plano §2.6: separador de milhar e
+  // de decimal escrito à mão fica preso em português mesmo com a tela inteira em inglês.
+  'warmup.size_mb': '{done} MB',
+  'warmup.progress': '{percent}% · {done} de {total} MB',
+  'pipeline.start_failed': 'Falha ao iniciar o pipeline de pose.',
+
+  // --- Medição do corpo (SPEC-004) ---
+  'calibrating.title': 'Fique em pé, parado',
+  'calibrating.hint':
+    'Braços ao lado do corpo e pés juntos. Estamos medindo você — a contagem começa em seguida.',
+
+  // --- Conexão com o servidor ---
+  'gateway.offline':
+    'Sem conexão com o servidor — a contagem não vai avançar. Verifique sua internet e tente de novo.',
+  'gateway.connecting': 'Conectando ao servidor…',
+  'mode.cloud_banner': 'Modo cloud · a análise roda no servidor, sem esqueleto sobre a imagem.',
+
+  // --- Conselhos de cena (T-085). A chave é o `SceneCode`, que é contrato; a frase é o valor. ---
+  'scene.LUZ_FRACA': 'Está escuro · acenda uma luz',
+  'scene.CONTRALUZ': 'A luz está atrás de você · vire-se',
+  'scene.SEM_NITIDEZ': 'Imagem sem nitidez · limpe a lente',
+
+  // --- Admissão (SPEC-009): as recusas que quem treina lê na tela ---
+  'admission.api_down': 'API fora do ar',
+  'admission.api_down_detail': 'API fora do ar: {reason}',
+  'admission.cloud_denied': 'Modo cloud indisponível agora — tente em modo edge.',
+  'admission.ticket_incomplete': 'Ticket de sessão incompleto (sem ws_url).',
+  'admission.no_redis': 'Servidor sem Redis — sessão não pode ser aberta.',
+  'admission.http_failure': 'Falha ao abrir a sessão (HTTP {status}).',
+  'admission.open_failed': 'Falha ao abrir a sessão.',
+
+  // --- CTA de dois degraus (`session/startGate.ts`) ---
+  'cta.start_exercise': 'Iniciar Exercício',
+  'cta.opening_camera': 'Abrindo câmera…',
+  // A mesma frase serve ao CTA e ao botão da capa da câmera — é o mesmo ato, e são duas
+  // superfícies do mesmo degrau. Chave única de propósito: divergirem seria um bug de produto.
+  'cta.turn_on_camera': 'Ligar câmera',
+
+  // --- Preparação antes de contar (T-049) ---
+  'countdown.label': 'Preparação',
+  // `.zero` é o balde OPCIONAL do `resolveFromTable` (T-142): zero não é "0s de preparação", é
+  // "sem preparação" — e é o `Intl.PluralRules` que continua mandando no resto.
+  'countdown.value.zero': 'sem preparação',
+  'countdown.value': '{n}s de preparação',
+  'countdown.short.zero': 'Off',
+  'countdown.short': '{n}s',
+  'countdown.aria': 'Preparação antes de contar: {value}. Tocar para mudar.',
+
+  // --- Zoom ---
+  'zoom.label': 'Zoom',
+  'zoom.hint': 'Arraste para menos e caiba mais perto da câmera.',
+  // `{hint}` recebe a própria `zoom.hint`: o leitor de tela ouve exatamente a frase que está
+  // escrita embaixo do slider, e não uma segunda redação que envelheceria sozinha.
+  'zoom.aria': 'Zoom da câmera: {value}. {hint}',
+
+  // --- "3, 2, 1" entre o corpo medido e a contagem valer (`hud/GetReady`) ---
+  'getready.eyebrow.prepare': 'prepare-se',
+  'getready.eyebrow.go': 'valendo',
+  'getready.go': 'VAI!',
+  // Quebrada em dois porque o nome do exercício e o "VAI!" aparecem em `<strong>` no meio da
+  // frase — mesma solução do `view.why.*` da T-148: negrito no markup, frase no dicionário.
+  'getready.hint_lead': 'Fique parado. Comece o',
+  'getready.hint_mid': 'quando aparecer',
+
+  // --- Rótulos de métrica, compartilhados entre a pré-config, o HUD ao vivo e a StatsBar ---
+  'label.exercise': 'Exercício',
+  'label.series': 'Série',
+  'label.reps': 'Repetições',
+  'label.angle': 'Ângulo',
+  'label.duration': 'Duração',
+  'label.kcal_short': 'Kcal',
+  // A unidade escrita, ao lado do número. Igual nas duas línguas hoje — e no dicionário assim
+  // mesmo, pelo mesmo motivo do `30s` da T-148: unidade é texto, não número.
+  'label.kcal_unit': 'kcal',
+  'label.calories': 'Calorias',
+  'label.calories_estimated': 'Calorias estimadas',
+
+  // --- Card do treinador (`hud/CoachTip`) ---
+  'coach.details': 'Ver detalhes',
+  'coach.hide': 'Ocultar',
+  'coach.no_details': 'Sem detalhes para esta dica',
+
+  // --- Relógio da sessão ---
+  'timer.remaining': 'Tempo restante',
+
+  // --- Pré-configuração ---
+  'prep.title': 'Pré-configuração',
+  'prep.subtitle': 'Vamos preparar seu treino',
+  'prep.see_example': 'ver exemplo',
+  'prep.mirror': 'Espelhar',
+  'prep.duration_soon': 'Duração configurável: em breve',
+  'prep.pill_aligned': 'Você já está visível · alinhe-se à guia',
+  'prep.pill_turn_on': 'Ligue a câmera para se enquadrar',
+  'stepper.decrease': 'Diminuir {label}',
+  'stepper.increase': 'Aumentar {label}',
+
+  // --- Treino ao vivo ---
+  'live.title': 'Treino ao Vivo',
+  'live.subtitle': '{exercise} • Série 1/{total}',
+  'live.stop_aria': 'Encerrar treino',
+  'live.start_aria': 'Iniciar treino',
+} as const
+
+// `Record<keyof typeof session, string>`, não `typeof session` — o contrato entre `pt-BR` e
+// `en` é paridade de CHAVE, não igualdade de valor (ver `dict/pt-BR/shell.ts`).
 export type Session = Record<keyof typeof session, string>

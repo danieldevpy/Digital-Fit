@@ -77,6 +77,85 @@ export default tseslint.config(
       ],
     },
   },
+  // T-149, namespace `session` (SPEC-025 Onda 2): o treino em si — a capa e os avisos da
+  // câmera, o aquecimento do pipeline, a medição do corpo, os conselhos de cena, as recusas da
+  // admissão, o CTA de dois degraus, o HUD e as duas telas do `SessionScreen`.
+  // `session/preferences.ts` entra fora da lista original da task porque o `countdownLabel` dele
+  // é o texto que o `aria-label` do `CountdownSetting` interpola (ver o docstring lá).
+  //
+  // O chip de diagnóstico do `CameraView` e o conselho de "suba a stack" continuam em português
+  // cru, com `eslint-disable` e justificativa no ponto: são ferramenta de operação, a mesma
+  // exclusão que a SPEC-025 §Escopo dá ao painel admin. Note que `mode: 'jsx-only'` não alcança
+  // string fora de JSX — o que cobre os módulos `.ts` desta raia (`admission`, `sceneQuality`,
+  // `assetWarmup`, …) é o teste de paridade e a revisão, não esta regra.
+  //
+  // `aria-modal`/`aria-labelledby` não aparecem aqui (nenhum arquivo desta lista os usa);
+  // `role`, `aria-hidden`, `aria-live`, `stroke*`, `fill`, `transform` e afins são vocabulário
+  // de SVG/ARIA — contrato de desenho e de leitor de tela, nunca frase que alguém lê.
+  {
+    files: [
+      'src/screens/SessionScreen.tsx',
+      'src/capture/CameraView.tsx',
+      'src/capture/useCamera.ts',
+      'src/capture/useEdgePipeline.ts',
+      'src/hud/CoachTip.tsx',
+      'src/hud/StatsBar.tsx',
+      'src/hud/GetReady.tsx',
+      'src/hud/TimerRing.tsx',
+      'src/hud/CountdownSetting.tsx',
+      'src/hud/ZoomControl.tsx',
+      'src/session/startGate.ts',
+      'src/session/pipelineGate.ts',
+      'src/session/admission.ts',
+      'src/session/useSession.ts',
+      'src/session/preferences.ts',
+      'src/scene/sceneQuality.ts',
+      'src/pose/assetWarmup.ts',
+      'src/probe/runProbe.ts',
+    ],
+    plugins: { i18next },
+    rules: {
+      'i18next/no-literal-string': [
+        'error',
+        {
+          mode: 'jsx-only',
+          'jsx-attributes': {
+            exclude: [
+              'className',
+              'styleName',
+              'style',
+              'type',
+              'key',
+              'id',
+              'width',
+              'height',
+              'role',
+              'aria-hidden',
+              'aria-live',
+              'variant',
+              'viewBox',
+              'fill',
+              'stroke',
+              'strokeWidth',
+              'strokeLinecap',
+              'strokeDasharray',
+              'transform',
+              'x1',
+              'y1',
+              'x2',
+              'y2',
+              'offset',
+              'stopColor',
+              'cx',
+              'cy',
+              'r',
+              'd',
+            ],
+          },
+        },
+      ],
+    },
+  },
   // T-148, namespace `funnel` (SPEC-025 Onda 2): o caminho da SPEC-015 do lado do app —
   // Escolha (`screens/ChooseScreen`, `ExerciseRails`), Guia (`screens/GuideScreen`), a escolha
   // de variação de câmera (`ui/ViewPicker`, `hud/ViewConfirm`), os dois seletores herdados do

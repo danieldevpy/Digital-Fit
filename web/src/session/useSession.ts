@@ -14,6 +14,7 @@ import {
   type SessionCompletedData,
   type SessionStartedData,
 } from '../lib/events'
+import { t } from '../i18n'
 import { connectGateway, gatewayUrl, type GatewayClient } from '../lib/gateway'
 import { toCapabilityData } from '../probe/runProbe'
 import { waitForReport } from '../report/sessionReport'
@@ -202,7 +203,7 @@ export function useSession(enabled: boolean) {
           if (cancelado) return
           const store = useSessionStore.getState()
           store.setError(
-            erro instanceof AdmissionError ? erro.message : 'Falha ao abrir a sessão.',
+            erro instanceof AdmissionError ? erro.message : t('session:admission.open_failed'),
           )
           store.setGatewayStatus('error')
           // Limite diário não é falha de infraestrutura: há uma ação certa a tomar (criar

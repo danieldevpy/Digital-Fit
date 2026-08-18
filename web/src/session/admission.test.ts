@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { deviceId } from '../auth/storage'
 import { installStorage, uninstallStorage } from '../auth/testStorage'
+import { useI18nStore } from '../i18n/store'
 import { Mode } from '../lib/events'
 import type { ProbeOutcome } from '../probe/runProbe'
 import {
@@ -48,6 +49,9 @@ const probe: ProbeOutcome = {
 }
 
 describe('requestSession', () => {
+  beforeEach(() => useI18nStore.getState().setLocale('pt-BR'))
+  afterEach(() => useI18nStore.getState().setLocale('pt-BR'))
+
   it('devolve o ticket do servidor', async () => {
     const ticket = await requestSession(
       { exercise: 'jumping_jack', requestedMode: Mode.EDGE, probe: null },
@@ -105,6 +109,20 @@ describe('requestSession', () => {
         quebrado,
       ),
     ).rejects.toThrow(/API fora do ar/)
+  })
+
+  it('a recusa também sai em inglês — é texto de produto, não de log (T-149)', async () => {
+    const quebrado = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    }) as unknown as typeof fetch
+
+    useI18nStore.getState().setLocale('en')
+    await expect(
+      requestSession(
+        { exercise: 'jumping_jack', requestedMode: Mode.EDGE, probe: null },
+        quebrado,
+      ),
+    ).rejects.toThrow(/API is down/)
   })
 
   it('ticket sem ws_url é recusado', async () => {

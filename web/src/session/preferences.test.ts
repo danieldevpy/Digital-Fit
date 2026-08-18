@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { installStorage, uninstallStorage } from '../auth/testStorage'
+import { useI18nStore } from '../i18n/store'
 import {
   DEFAULT_COUNTDOWN_S,
   clampCountdown,
@@ -73,11 +74,21 @@ describe('ciclo do controle', () => {
 })
 
 describe('rótulo', () => {
-  it('zero fala em português, não em número', () => {
+  beforeEach(() => useI18nStore.getState().setLocale('pt-BR'))
+  afterEach(() => useI18nStore.getState().setLocale('pt-BR'))
+
+  it('zero fala em palavra, não em número', () => {
+    // O balde `.zero` do dicionário (T-149): zero tem frase própria, não é "0s de preparação".
     expect(countdownLabel(0)).toBe('sem preparação')
   })
 
   it('os demais dizem os segundos', () => {
     expect(countdownLabel(3)).toBe('3s de preparação')
+  })
+
+  it('o rótulo existe nas duas línguas, com o mesmo tratamento do zero', () => {
+    useI18nStore.getState().setLocale('en')
+    expect(countdownLabel(0)).toBe('no countdown')
+    expect(countdownLabel(3)).toBe('3s countdown')
   })
 })

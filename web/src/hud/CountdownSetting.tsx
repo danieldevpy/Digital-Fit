@@ -13,6 +13,7 @@
 // valor mostram as quatro paradas do ciclo — o mesmo toque avança para a próxima, e agora dá
 // para ver isso antes mesmo de tocar.
 import { useState } from 'react'
+import { useT } from '../i18n'
 import {
   COUNTDOWN_OPTIONS,
   countdownLabel,
@@ -22,23 +23,24 @@ import {
 } from '../session/preferences'
 import { IconTimer } from '../ui/icons'
 
-function shortLabel(segundos: number): string {
-  return segundos === 0 ? 'Off' : `${segundos}s`
-}
-
 export function CountdownSetting() {
+  const t = useT()
   const [segundos, setSegundos] = useState(() => countdownPreference())
+  // Curto porque a célula tem 92 px: "Off" e "3s" cabem, "sem preparação" não. O balde `.zero`
+  // do dicionário é que decide qual dos dois sai — a mesma máquina do `countdownLabel`, com
+  // outra chave.
+  const curto = t('session:countdown.short', { n: segundos })
 
   return (
     <button
       type="button"
       className="prep-cell prep-cell--action"
       onClick={() => setSegundos(setCountdownPreference(nextCountdown(segundos)))}
-      aria-label={`Preparação antes de contar: ${countdownLabel(segundos)}. Tocar para mudar.`}
+      aria-label={t('session:countdown.aria', { value: countdownLabel(segundos) })}
     >
-      <p className="v2-label">Preparação</p>
+      <p className="v2-label">{t('session:countdown.label')}</p>
       <p className="prep-cell__value prep-cell__value--sm tabular">
-        <IconTimer className="prep-cell__hud-icon prep-cell__hud-icon--cyan" /> {shortLabel(segundos)}
+        <IconTimer className="prep-cell__hud-icon prep-cell__hud-icon--cyan" /> {curto}
       </p>
       <span className="prep-cell__dots" aria-hidden="true">
         {COUNTDOWN_OPTIONS.map((opcao) => (

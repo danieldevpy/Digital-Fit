@@ -11,6 +11,7 @@
 //
 // Função pura e separada do componente pelo mesmo motivo do `pipelineGate`: é uma REGRA de
 // ordem, e regra se testa com uma tabela de estados, não montando React.
+import { t } from '../i18n'
 import type { CameraStatus } from '../store/session'
 
 /** O que o toque no CTA faz agora. `aguardar` não faz nada — é o botão travado. */
@@ -29,7 +30,9 @@ export interface StartCta {
  * tentar de novo depois de liberar a permissão no navegador.
  */
 export function ctaDeInicio(cameraStatus: CameraStatus): StartCta {
-  if (cameraStatus === 'ready') return { action: 'iniciar', label: 'Iniciar Exercício', disabled: false }
-  if (cameraStatus === 'requesting') return { action: 'aguardar', label: 'Abrindo câmera…', disabled: true }
-  return { action: 'ligar', label: 'Ligar câmera', disabled: false }
+  if (cameraStatus === 'ready')
+    return { action: 'iniciar', label: t('session:cta.start_exercise'), disabled: false }
+  if (cameraStatus === 'requesting')
+    return { action: 'aguardar', label: t('session:cta.opening_camera'), disabled: true }
+  return { action: 'ligar', label: t('session:cta.turn_on_camera'), disabled: false }
 }

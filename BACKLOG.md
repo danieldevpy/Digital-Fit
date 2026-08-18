@@ -312,7 +312,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 |---|---|---|---|
 | T-147 | **Namespace `site`.** `site/IndexScreen`, `AboutScreen`, `SiteBar`, `SiteApp`, `nav` **+ `index.html` por idioma, `en/index.html` no Vite, `hreflang` recíproco, `<title>`/`<meta description>` traduzidos** (SPEC-025 §Escopo — site por URL). Depende de T-142 *(Tam: M)* | 025/014 | **feito** (2026-08-18) |
 | T-148 | **Namespace `funnel`.** `screens/ChooseScreen`, `GuideScreen`, `ExerciseCards`, `ExerciseRails`, `funnel`, `ui/ViewPicker`, `ExerciseDemo`, `hud/ViewConfirm`, `ExercisePicker`, `session/guideGate`, `viewGate`. Depende de T-142 *(Tam: M)* | 025/015 | **feito** (2026-08-18) |
-| T-149 | **Namespace `session`.** `screens/SessionScreen`, `capture/CameraView`, `useCamera`, `useEdgePipeline`, `hud/*` (CoachTip, StatsBar, GetReady, TimerRing, CountdownSetting, ZoomControl), `session/startGate`, `pipelineGate`, `admission`, `useSession`, `scene/sceneQuality`, `pose/assetWarmup`, `probe/runProbe`. Depende de T-142 *(Tam: G)* | 025/013 | todo |
+| T-149 | **Namespace `session`.** `screens/SessionScreen`, `capture/CameraView`, `useCamera`, `useEdgePipeline`, `hud/*` (CoachTip, StatsBar, GetReady, TimerRing, CountdownSetting, ZoomControl), `session/startGate`, `pipelineGate`, `admission`, `useSession`, `scene/sceneQuality`, `pose/assetWarmup`, `probe/runProbe`. Depende de T-142 *(Tam: G)* | 025/013 | **feito** (2026-08-18) |
 | T-150 | **Namespaces `report` + `progress`.** `report/ReportSheet`, `reportSummary`, `sessionReport`, `screens/ProgressScreen`, `AnalyticsScreen`, `history/aggregates`, `session/kcal` **+ troca dos `toLocaleDateString('pt-BR')` pelos formatadores (plano §2.6) e do `DIAS_DA_SEMANA` montado à mão**. Depende de T-142 *(Tam: G)* | 025/010/024 | todo |
 | T-151 | **Namespaces `account` + `errors`.** `auth/AccountSheet`, `accountSummary`, `auth/api` (mensagens de rede/falha), `engagement/EngagementSheet`, `EngagementSection`, `FireChip`, `XpLine`, `AchievementGallery`, `AchievementToast`, `format` **+ plural via `Intl.PluralRules` (plano §2.7)**. Depende de T-142 *(Tam: G)* | 025/019/011 | todo |
 | T-152 | **Namespace `catalog`.** `session/catalog.ts` (o catálogo embutido — o fallback offline precisa existir nas duas línguas), `exerciseViews.ts`, `ui/exerciseFigures`, `categoryLabel`. Par com a T-146: o servidor manda o traduzido, o embutido é o que aparece sem rede. Depende de T-142 *(Tam: M)* | 025/020 | **feito** (2026-08-18) |
@@ -1167,3 +1167,24 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   nove namespaces é portão, e portão é a T-154. O teste está escrito em cima de dois objetos
   importados (`funnelPtBR`/`funnelEn`) e vira um `for` sobre `dict/pt-BR/index.ts` inteiro sem
   mudar de forma. Entra na T-154, junto com o `no-literal-string` global.
+- **[T-149] O `no-literal-string` não enxerga string fora de JSX, e metade do texto do cliente
+  mora fora de JSX.** A regra roda em `mode: 'jsx-only'` (escolha da T-142, para pegar
+  `aria-label`/`alt` além de nó de texto), e nesse modo ela olha JSXText e JSXAttribute — nada
+  mais. Toda frase que nasce num módulo `.ts` passa batido: as recusas de `session/admission.ts`,
+  os conselhos de `scene/sceneQuality.ts`, o rótulo do `session/startGate.ts`, o `warmupLabel` de
+  `pose/assetWarmup.ts` — todos texto que a pessoa lê na tela, todos invisíveis para o portão. A
+  T-149 os traduziu à mão, achando-os por leitura; o critério 5 da SPEC-025 ("um commit que
+  acrescenta frase em português e esquece o inglês não passa nos gates") só vale de verdade
+  quando houver regra para eles. Duas saídas possíveis, e a escolha é da T-154: ligar um segundo
+  bloco com `mode: 'all'` restrito aos módulos que produzem texto (ruidoso — pega slug, chave de
+  storage, nome de header), ou um teste que varra `src/**/*.ts` procurando literal com
+  caractere acentuado fora de comentário (mais estreito, e cobre só quem escreve em português —
+  que é justamente a direção do erro que importa).
+- **[T-149] `hud/StatsBar.tsx`, `hud/CoachTip.tsx` e `hud/ExerciseCard.tsx` não são importados
+  por ninguém.** Um `grep` por cada nome em `web/src` só encontra a própria declaração: o HUD da
+  SPEC-013 §1/§4 foi reescrito dentro do `SessionScreen` (cards `hud-card--reps`/`--angle`/
+  `--kcal` e o `live__toast`), e estes três ficaram para trás. Foram traduzidos na T-149 porque
+  a linha da task os nomeia — não porque estavam vivos —, e o custo de traduzir tela morta é o
+  mesmo custo de mantê-la: uma segunda redação das mesmas frases envelhecendo em paralelo com a
+  que aparece. Vale uma task de remoção (as três, mais `hud/placeholders.ts` se ainda existir),
+  com a checagem de que nenhuma é ponto de extensão prometido por spec.

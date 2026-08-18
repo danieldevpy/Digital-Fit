@@ -5,6 +5,7 @@
 // O `ws_url` vem pronto (já com o token na query) e é usado como veio: montar a URL de novo
 // aqui seria uma segunda implementação do mesmo contrato, pronta para divergir.
 import { identityHeaders, rememberDeviceId } from '../auth/storage'
+import { t } from '../i18n'
 import type { ViewId } from './exerciseViews'
 import { countdownPreference } from './preferences'
 import type { Mode } from '../lib/events'
@@ -126,7 +127,9 @@ export async function requestSession(
     })
   } catch (erro) {
     throw new AdmissionError(
-      erro instanceof Error ? `API fora do ar: ${erro.message}` : 'API fora do ar',
+      erro instanceof Error
+        ? t('session:admission.api_down_detail', { reason: erro.message })
+        : t('session:admission.api_down'),
     )
   }
 
@@ -142,10 +145,10 @@ export async function requestSession(
   rememberDeviceId(ticket.device_id)
   if (ticket.mode === DENIED_CLOUD) {
     // Não é erro de programação: o servidor recusou o modo, a sessão não nasceu.
-    throw new AdmissionError('Modo cloud indisponível agora — tente em modo edge.', 200)
+    throw new AdmissionError(t('session:admission.cloud_denied'), 200)
   }
   if (!ticket.ws_url || !ticket.session_id) {
-    throw new AdmissionError('Ticket de sessão incompleto (sem ws_url).')
+    throw new AdmissionError(t('session:admission.ticket_incomplete'))
   }
   return ticket
 }
@@ -168,8 +171,8 @@ async function corpoDeErro(resposta: Response): Promise<ErroDaAdmissao> {
 
 function mensagemPadrao(resposta: Response): string {
   return resposta.status === 503
-    ? 'Servidor sem Redis — sessão não pode ser aberta.'
-    : `Falha ao abrir a sessão (HTTP ${resposta.status}).`
+    ? t('session:admission.no_redis')
+    : t('session:admission.http_failure', { status: resposta.status })
 }
 
 /** O modo que o cliente pede: o override de `?mode=` vence o probe (SPEC-001). */

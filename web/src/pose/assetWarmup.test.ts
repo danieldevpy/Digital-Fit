@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { useI18nStore } from '../i18n/store'
 import { warmAssets, warmupLabel, type AssetProgress } from './assetWarmup'
 
 /**
@@ -143,6 +144,9 @@ describe('warmAssets', () => {
 })
 
 describe('warmupLabel', () => {
+  beforeEach(() => useI18nStore.getState().setLocale('pt-BR'))
+  afterEach(() => useI18nStore.getState().setLocale('pt-BR'))
+
   it('mostra porcentagem e MB quando o total é conhecido', () => {
     expect(warmupLabel({ recebidos: 4_404_019, total: 10_485_760 })).toBe('42% · 4,2 de 10,0 MB')
   })
@@ -154,5 +158,13 @@ describe('warmupLabel', () => {
   it('total menor que o recebido não vira porcentagem: o total é que está errado', () => {
     // É o caso do `.wasm` gzipado: 11,0 MB lidos contra 3,2 MB anunciados na rede.
     expect(warmupLabel({ recebidos: 11_534_336, total: 3_355_443 })).toBe('11,0 MB')
+  })
+
+  it('o separador decimal segue o IDIOMA, não o código (T-149)', () => {
+    // A armadilha §2.6 do PLANO-I18N em um teste: antes desta task o decimal saía de
+    // `.toFixed(1).replace('.', ',')` e a tela em inglês mostrava "4,2 de 10,0 MB".
+    useI18nStore.getState().setLocale('en')
+    expect(warmupLabel({ recebidos: 4_404_019, total: 10_485_760 })).toBe('42% · 4.2 of 10.0 MB')
+    expect(warmupLabel({ recebidos: 2_097_152, total: null })).toBe('2.0 MB')
   })
 })

@@ -4,6 +4,7 @@
 // conta. Uma preferência que só funciona depois de cadastrar seria uma pequena punição por
 // não se cadastrar, no produto que se define por não precisar disso.
 
+import { t } from '../i18n'
 import { DEFAULT_EXERCISE, isExerciseKey } from './catalog'
 
 const COUNTDOWN_KEY = 'digitalfit.countdown_s'
@@ -52,9 +53,17 @@ export function nextCountdown(atual: number): number {
   return COUNTDOWN_OPTIONS[(indice + 1) % COUNTDOWN_OPTIONS.length] ?? DEFAULT_COUNTDOWN_S
 }
 
-/** Texto do controle. "Sem preparação" é mais claro que "0 s" para quem só quer treinar. */
+/**
+ * Texto do controle. "Sem preparação" é mais claro que "0 s" para quem só quer treinar — e é o
+ * balde `.zero` do `resolveFromTable` (T-142) que expressa isso, e não um `if` disfarçado de
+ * plural: zero tem frase PRÓPRIA, não é o singular de nada.
+ *
+ * Este arquivo não estava na lista de arquivos da T-149, e o texto daqui é da T-149 assim
+ * mesmo: é ele que o `aria-label` do `hud/CountdownSetting` interpola, e deixá-lo para depois
+ * seria entregar um controle com metade do rótulo em português.
+ */
 export function countdownLabel(segundos: number): string {
-  return segundos === 0 ? 'sem preparação' : `${segundos}s de preparação`
+  return t('session:countdown.value', { n: segundos })
 }
 
 /**

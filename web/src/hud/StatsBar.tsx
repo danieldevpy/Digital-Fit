@@ -2,6 +2,7 @@
 //
 // Fase Inicial: SÉRIE fixo em 1 (circuitos são evolução), REPETIÇÕES sem meta,
 // ÂNGULO ao vivo vem do cliente (T-044), KCAL exibe "--" (MET é evolução).
+import { useT } from '../i18n'
 import { getExercise } from '../session/catalog'
 import { useSessionStore } from '../store/session'
 import { IconAngle, IconFlame, IconPulse, IconSeries } from '../ui/icons'
@@ -12,6 +13,7 @@ const NOT_AVAILABLE = '--'
 const CURRENT_SERIES = 1
 
 export function StatsBar() {
+  const t = useT()
   const repCount = useSessionStore((state) => state.repCount)
   const armAngleDeg = useSessionStore((state) => state.armAngleDeg)
   const exerciseKey = useSessionStore((state) => state.exerciseKey)
@@ -28,7 +30,7 @@ export function StatsBar() {
         <IconSeries className="stats__icon" />
         <div>
           <p className="stats__value tabular">{CURRENT_SERIES}</p>
-          <p className="stats__label">Série</p>
+          <p className="stats__label">{t('session:label.series')}</p>
         </div>
       </div>
 
@@ -36,7 +38,7 @@ export function StatsBar() {
         <IconPulse className="stats__icon" />
         <div>
           <p className="stats__value tabular">{repCount}</p>
-          <p className="stats__label">Repetições</p>
+          <p className="stats__label">{t('session:label.reps')}</p>
         </div>
       </div>
 
@@ -44,7 +46,7 @@ export function StatsBar() {
         <IconAngle className="stats__icon" />
         <div>
           <p className="stats__value tabular">{angulo}</p>
-          <p className="stats__label">Ângulo</p>
+          <p className="stats__label">{t('session:label.angle')}</p>
         </div>
       </div>
 
@@ -52,7 +54,7 @@ export function StatsBar() {
         <IconFlame className="stats__icon stats__icon--flame" />
         <div>
           <p className="stats__value tabular">{NOT_AVAILABLE}</p>
-          <p className="stats__label">Kcal</p>
+          <p className="stats__label">{t('session:label.kcal_short')}</p>
         </div>
       </div>
     </div>

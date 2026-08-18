@@ -1,7 +1,13 @@
 // Qualidade de cena na pré-configuração (SPEC-003 Fase Evolução, T-085).
 //
-// Função pura: entra um frame pequeno, sai um conselho em português. O `useSceneCheck` só
-// amostra a câmera e chama isto — a regra se testa com um buffer, sem câmera e sem React.
+// Função pura: entra um frame pequeno, sai um conselho na língua de quem treina. O
+// `useSceneCheck` só amostra a câmera e chama isto — a regra se testa com um buffer, sem câmera
+// e sem React.
+//
+// A única dependência do módulo é o `t()` do dicionário (T-149), e ela é do TEXTO, não da
+// medição: `measureScene`/`avaliarCena` continuam decidindo por número, e o `SceneCode` — que é
+// o contrato lido pelos testes e pelo `acumular`/`confirmado` — nunca passa por tradução. Mesmo
+// arranjo que `session/catalog.ts` e `exerciseViews.ts` receberam na T-152.
 //
 // Três decisões de produto que estão no código de propósito:
 //
@@ -49,6 +55,8 @@
 // contraluz de janela, lente com digital). Enquanto não existir, os limiares ficam
 // conservadores: erram para o lado de não avisar, e o custo de um falso positivo é uma frase
 // a mais na tela — nunca um treino impedido.
+
+import { t } from '../i18n'
 
 /** Tamanho da amostra. 160×120 é ~19k pixels: alguns décimos de ms, uma vez por segundo. */
 export const AMOSTRA_LARGURA = 160
@@ -98,10 +106,10 @@ export interface SceneAdvice {
  * nítida, que tem 202px — a dica que já mora ali tem 38 caracteres, e estas ficam na mesma
  * ordem para não virarem um parágrafo em cima da câmera.
  */
-const CONSELHOS: Record<SceneCode, string> = {
-  LUZ_FRACA: 'Está escuro · acenda uma luz',
-  CONTRALUZ: 'A luz está atrás de você · vire-se',
-  SEM_NITIDEZ: 'Imagem sem nitidez · limpe a lente',
+const CONSELHOS: Record<SceneCode, () => string> = {
+  LUZ_FRACA: () => t('session:scene.LUZ_FRACA'),
+  CONTRALUZ: () => t('session:scene.CONTRALUZ'),
+  SEM_NITIDEZ: () => t('session:scene.SEM_NITIDEZ'),
 }
 
 /** Recorte central: 30–70% da largura, 15–85% da altura (a faixa da silhueta-guia). */
@@ -200,12 +208,12 @@ export function measureScene(
  * luz boa, porque no escuro o detalhe cai por outro motivo e o aviso mentiria a causa.
  */
 export function avaliarCena(m: SceneMetrics): SceneAdvice | null {
-  if (m.luz < LUZ_MINIMA) return { code: 'LUZ_FRACA', text: CONSELHOS.LUZ_FRACA }
+  if (m.luz < LUZ_MINIMA) return { code: 'LUZ_FRACA', text: CONSELHOS.LUZ_FRACA() }
   if (m.estourado >= ESTOURO_MAXIMO && m.luzCentro < LUZ_CENTRO_MINIMA) {
-    return { code: 'CONTRALUZ', text: CONSELHOS.CONTRALUZ }
+    return { code: 'CONTRALUZ', text: CONSELHOS.CONTRALUZ() }
   }
   if (m.contraste >= CONTRASTE_MINIMO && m.detalhe < DETALHE_MINIMO) {
-    return { code: 'SEM_NITIDEZ', text: CONSELHOS.SEM_NITIDEZ }
+    return { code: 'SEM_NITIDEZ', text: CONSELHOS.SEM_NITIDEZ() }
   }
   return null
 }

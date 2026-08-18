@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { useI18nStore } from '../i18n/store'
 import { ctaDeInicio } from './startGate'
 import type { CameraStatus } from '../store/session'
 
 describe('ctaDeInicio', () => {
+  // O rótulo do CTA passou a sair do dicionário (T-149): o teste diz em que língua está antes
+  // de cobrar a frase, em vez de herdar o locale que o `detectLocale()` calhar de resolver.
+  beforeEach(() => useI18nStore.getState().setLocale('pt-BR'))
+  afterEach(() => useI18nStore.getState().setLocale('pt-BR'))
+
   it('só deixa iniciar o exercício com a câmera ligada', () => {
     // O critério inteiro desta regra: `iniciar` — a ação que navega para o treino — existe
     // num estado só. Nos outros o CTA é o interruptor da câmera, nunca a porta do treino.
@@ -15,6 +21,17 @@ describe('ctaDeInicio', () => {
 
   it('com a câmera desligada o CTA é o de ligar, e diz isso', () => {
     expect(ctaDeInicio('idle')).toEqual({ action: 'ligar', label: 'Ligar câmera', disabled: false })
+  })
+
+  it('o rótulo segue o idioma, e a AÇÃO não — ela é contrato', () => {
+    useI18nStore.getState().setLocale('en')
+    expect(ctaDeInicio('idle')).toEqual({
+      action: 'ligar',
+      label: 'Turn on camera',
+      disabled: false,
+    })
+    expect(ctaDeInicio('ready').action).toBe('iniciar')
+    expect(ctaDeInicio('ready').label).toBe('Start Exercise')
   })
 
   it('trava só enquanto o navegador decide a permissão', () => {

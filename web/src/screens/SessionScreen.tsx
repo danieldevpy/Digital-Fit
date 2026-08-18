@@ -8,6 +8,7 @@
 // na própria tela como "estimado" (SPEC-016, critério 3).
 import { useEffect, useState } from 'react'
 import { CameraView } from '../capture/CameraView'
+import { useT } from '../i18n'
 import { FireChip } from '../engagement/FireChip'
 import { useEngagementStore } from '../engagement/store'
 import { CountdownSetting } from '../hud/CountdownSetting'
@@ -126,15 +127,17 @@ interface StepperCellProps {
 }
 
 function StepperCell({ label, value, onDec, onInc, disabled, disabledTitle, small }: StepperCellProps) {
+  const t = useT()
+
   return (
     <div className="prep-cell">
       <p className="v2-label">{label}</p>
       <p className={`prep-cell__value tabular ${small ? 'prep-cell__value--sm' : ''}`}>{value}</p>
       <div className="prep-cell__steppers">
-        <button type="button" className="stepper" onClick={onDec} disabled={disabled} title={disabled ? disabledTitle : undefined} aria-label={`Diminuir ${label}`}>
+        <button type="button" className="stepper" onClick={onDec} disabled={disabled} title={disabled ? disabledTitle : undefined} aria-label={t('session:stepper.decrease', { label })}>
           −
         </button>
-        <button type="button" className="stepper" onClick={onInc} disabled={disabled} title={disabled ? disabledTitle : undefined} aria-label={`Aumentar ${label}`}>
+        <button type="button" className="stepper" onClick={onInc} disabled={disabled} title={disabled ? disabledTitle : undefined} aria-label={t('session:stepper.increase', { label })}>
           +
         </button>
       </div>
@@ -143,6 +146,7 @@ function StepperCell({ label, value, onDec, onInc, disabled, disabledTitle, smal
 }
 
 export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
+  const t = useT()
   const cameraStatus = useSessionStore((state) => state.cameraStatus)
   const cameraControls = useSessionStore((state) => state.cameraControls)
   const repCount = useSessionStore((state) => state.repCount)
@@ -309,10 +313,10 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                       ? // Com variação, o pill diz onde o CELULAR vai (T-111) em vez de
                         // "alinhe-se à guia": num exercício de chão a silhueta em pé não
                         // ensina nada, e é a montagem da cena que decide se a sessão conta.
-                        (view?.phone ?? 'Você já está visível · alinhe-se à guia')
+                        (view?.phone ?? t('session:prep.pill_aligned'))
                       : // O treino não começa mais com a câmera desligada: o pill diz o passo
                         // que falta em vez de descrever a janela vazia.
-                        'Ligue a câmera para se enquadrar'}
+                        t('session:prep.pill_turn_on')}
                 </span>
               </div>
             </div>
@@ -325,8 +329,8 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
       {mode === 'preparar' ? (
         <>
           <header className="prep__head">
-            <h1 className="prep__title">Pré-configuração</h1>
-            <p className="prep__sub">Vamos preparar seu treino</p>
+            <h1 className="prep__title">{t('session:prep.title')}</h1>
+            <p className="prep__sub">{t('session:prep.subtitle')}</p>
             {/* O fogo mora na Início (SPEC-019 §Superfícies): é a tela em que se chega ao
                 abrir o app, e o motivo de voltar amanhã tem de estar onde se chega. */}
             <FireChip onOpen={() => abrirEngajamento(true)} />
@@ -339,7 +343,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                 className="prep-cell__ex-main prep-cell--action"
                 onClick={() => navigate({ screen: 'exercicios' })}
               >
-                <p className="v2-label">Exercício</p>
+                <p className="v2-label">{t('session:label.exercise')}</p>
                 {/* A figura segue o exercício selecionado (T-082). Mesma classe de antes: o
                     tamanho, o ciano e o glow continuam vindo do CSS, muda só a pose. */}
                 <ExerciseIcon exercise={exerciseKey} className="prep-cell__ex-icon" />
@@ -356,7 +360,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                 onClick={() => navigate({ screen: 'guia', exercise: exerciseKey })}
               >
                 <IconPlay className="prep-cell__ex-guide-icon" />
-                ver exemplo
+                {t('session:prep.see_example')}
               </button>
             </div>
 
@@ -373,13 +377,13 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
             />
 
             <StepperCell
-              label="Série"
+              label={t('session:label.series')}
               value={String(series)}
               onDec={() => setSeries((v) => Math.max(SERIES_MIN, v - 1))}
               onInc={() => setSeries((v) => Math.min(SERIES_MAX, v + 1))}
             />
             <StepperCell
-              label="Repetições"
+              label={t('session:label.reps')}
               value={String(repsGoal)}
               onDec={() => setRepsGoal((v) => Math.max(REPS_MIN, v - 1))}
               onInc={() => setRepsGoal((v) => Math.min(REPS_MAX, v + 1))}
@@ -387,10 +391,10 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
             {/* Duração travada nos 30s: a autoridade é o servidor (SPEC-009). Fingir que o
                 stepper obedeceu seria mentir — destravamos quando a evolução aceitar. */}
             <StepperCell
-              label="Duração"
+              label={t('session:label.duration')}
               value={duracaoFmt}
               disabled
-              disabledTitle="Duração configurável: em breve"
+              disabledTitle={t('session:prep.duration_soon')}
               small
             />
           </div>
@@ -399,7 +403,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
             <button type="button" className="prep-cell prep-cell--action" onClick={toggleMirrored}>
               <span className="prep-cell__mirror">
                 <IconMirror className="prep-cell__mirror-icon" />
-                <span>Espelhar</span>
+                <span>{t('session:prep.mirror')}</span>
               </span>
             </button>
 
@@ -411,7 +415,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                 sem sensor o card era só ruído — volta quando houver dado (SPEC-014 §Desvios). */}
 
             <div className="prep-cell">
-              <p className="v2-label">Ângulo</p>
+              <p className="v2-label">{t('session:label.angle')}</p>
               <p className="prep-cell__value tabular">
                 <IconAngle className="prep-cell__hud-icon prep-cell__hud-icon--purple" /> {angulo}
               </p>
@@ -421,10 +425,10 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                 ainda não começou, então o gasto até agora é zero — e "0,0 kcal" ao lado do
                 botão de iniciar lê como promessa quebrada, não como estado inicial. */}
             <div className="prep-cell">
-              <p className="v2-label">Calorias estimadas</p>
+              <p className="v2-label">{t('session:label.calories_estimated')}</p>
               <IconFlame className="prep-cell__hud-icon prep-cell__hud-icon--hot" />
               <p className="prep-cell__value prep-cell__value--sm">
-                -- <span className="prep-cell__unit">kcal</span>
+                -- <span className="prep-cell__unit">{t('session:label.kcal_unit')}</span>
               </p>
             </div>
 
@@ -474,10 +478,10 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
           <header className="live__head">
             <p className="live__head-title">
               <span className="live__dot" />
-              Treino ao Vivo
+              {t('session:live.title')}
             </p>
             <p className="live__head-sub">
-              {exercise.display_name} • Série 1/{series}
+              {t('session:live.subtitle', { exercise: exercise.display_name, total: series })}
             </p>
           </header>
 
@@ -489,7 +493,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
           </svg>
 
           <div className="hud-card hud-card--reps">
-            <p className="v2-label">Repetições</p>
+            <p className="v2-label">{t('session:label.reps')}</p>
             <RepsRing count={repCount} goal={repsGoal} />
           </div>
 
@@ -500,16 +504,16 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
           </div>
 
           <div className="hud-card hud-card--angle">
-            <p className="v2-label">Ângulo</p>
+            <p className="v2-label">{t('session:label.angle')}</p>
             <p className="hud-card__big tabular">{angulo}</p>
             <IconAngle className="hud-card__icon hud-card__icon--purple" />
           </div>
 
           <div className="hud-card hud-card--kcal">
-            <p className="v2-label">Calorias</p>
+            <p className="v2-label">{t('session:label.calories')}</p>
             <IconFlame className="hud-card__icon hud-card__icon--hot" />
             <p className="hud-card__big tabular">
-              {kcal} <small>kcal</small>
+              {kcal} <small>{t('session:label.kcal_unit')}</small>
             </p>
             {/* O rótulo aparece só quando há número: sem MET o card mostra `--`, e chamar de
                 "estimado" um traço seria estimar o quê? */}
@@ -546,7 +550,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                   type="button"
                   className="player-btn player-btn--main"
                   onClick={cameraReady ? encerrar : iniciar}
-                  aria-label={cameraReady ? 'Encerrar treino' : 'Iniciar treino'}
+                  aria-label={cameraReady ? t('session:live.stop_aria') : t('session:live.start_aria')}
                 >
                   {cameraReady ? (
                     <IconStop className="player-btn__icon--main" />

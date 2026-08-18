@@ -5,6 +5,100 @@
 
 ---
 
+## 2026-08-18 (71) · T-149 — Namespace `session`: o treino inteiro nas duas línguas
+
+**O que foi feito.** A maior raia da Onda 2 (SPEC-025): 75 chaves em
+`dict/{pt-BR,en}/session.ts` e dezoito arquivos sob a regra — a capa e os avisos da câmera
+(`capture/CameraView`, `useCamera`, `useEdgePipeline`), o aquecimento do pipeline
+(`pose/assetWarmup`), a medição do corpo, os conselhos de cena (`scene/sceneQuality`), as
+recusas da admissão (`session/admission`, `useSession`), o CTA de dois degraus
+(`session/startGate`), o HUD (`hud/CoachTip`, `StatsBar`, `GetReady`, `TimerRing`,
+`CountdownSetting`, `ZoomControl`) e as duas telas do `screens/SessionScreen`.
+
+**A descoberta que muda o desenho do portão: metade deste texto não mora em JSX.** As raias
+anteriores (`site`, `catalog`, `funnel`) eram quase só componente, e ali o
+`i18next/no-literal-string` acha tudo. Aqui não: a recusa de quota, o conselho de luz, o rótulo
+do CTA e o progresso do download nascem em módulo `.ts`, e o `mode: 'jsx-only'` não olha para
+eles. Achei-os por leitura, arquivo a arquivo — o que funciona uma vez e não é portão nenhum.
+Está registrado como Descoberta `[T-149]` com as duas saídas possíveis para a T-154; o que **não**
+fiz foi inventar a regra aqui dentro, porque escolher entre `mode: 'all'` ruidoso e um teste de
+varredura é decisão da task dos portões, não desta.
+
+**O separador decimal era um bug de idioma disfarçado de formatação.** `warmupLabel` montava os
+MB com `.toFixed(1).replace('.', ',')` — a vírgula brasileira escrita à mão. Numa tela em inglês
+o app diria "42% · 4,2 de 10,0 MB" e ninguém chamaria isso de bug de tradução, porque número não
+parece texto. Agora sai do `formatNumber` (`i18n/format.ts`, T-142), e o teste novo cobra os dois
+lados: `'42% · 4,2 de 10,0 MB'` em pt-BR, `'42% · 4.2 of 10.0 MB'` em en. É a armadilha §2.6 do
+PLANO-I18N pega em flagrante.
+
+**Zero tem frase própria, e quem diz isso é o dicionário.** `countdownLabel(0)` era
+`'sem preparação'` por um ternário. Virou o balde `.zero` do `resolveFromTable` (T-142):
+`countdown.value.zero` em cada língua (`'sem preparação'` / `'no countdown'`), com
+`'{n}s de preparação'` / `'{n}s countdown'` para o resto. O mesmo par existe para o rótulo curto
+da célula de 92 px (`Off` / `3s`). Nenhum `if (n === 0)` sobrou no componente — a regra de zero é
+de tradução, não de layout.
+
+**`session/preferences.ts` entrou fora da lista da task, e de propósito.** Ele hospeda o
+`countdownLabel`, que é justamente o que o `aria-label` do `CountdownSetting` (esse sim listado)
+interpola. Deixá-lo para depois entregaria um controle com metade do rótulo em português numa
+tela em inglês. A justificativa está no docstring da função, não só aqui.
+
+**O que ficou em português de propósito.** O chip de diagnóstico do `CameraView` (`pose gpu`,
+`seq 412 · 14,9fps`, `176 lm`, o botão `parar`) e o conselho de "suba a stack
+(`docker compose up`)" continuam crus, com `eslint-disable` de bloco e a razão escrita no ponto:
+são a mesma categoria que a SPEC-025 §Escopo já excluiu ao deixar o painel admin em pt-BR —
+ferramenta de operação do Daniel, não superfície de quem treina. O `devTools` liga por build de
+dev ou conta `is_admin`; ninguém mais os vê.
+
+**Duas frases com `<strong>` no meio, de novo.** A do `GetReady` ("Fique parado. Comece o
+**polichinelo** quando aparecer **VAI!**") virou `hint_lead` + `hint_mid`, com o nome do
+exercício e o `getready.go` reaproveitado no negrito — mesma solução do `view.why.*` da T-148, e
+o "VAI!"/"GO!" sai de uma chave só, usada no dial e na frase.
+
+**`sceneQuality` continua puro onde importa.** `CONSELHOS` deixou de ser
+`Record<SceneCode, string>` (congelado no import) e virou `Record<SceneCode, () => string>` —
+mesma técnica dos getters de `exerciseViews.ts` na T-152. `measureScene`/`avaliarCena` seguem
+decidindo por número, e o `SceneCode`, que é o contrato lido pelo `acumular`/`confirmado` e
+pelos testes antigos, nunca passa por tradução. O teste novo prova exatamente isso: código igual
+nas duas línguas, frase diferente.
+
+**Testes** (+8, total 651): rótulo do CTA nas duas línguas com a AÇÃO inalterada (`ligar`/
+`iniciar` são contrato); `countdownLabel` com o zero nas duas; `warmupLabel` com o separador
+decimal por idioma; recusa da admissão em inglês (`/API is down/`); conselho de cena com código
+estável e texto traduzido; e a paridade de `{placeholder}` estendida ao namespace `session` — o
+helper `esperaMesmosPlaceholders` que a T-148 criou virou função reusável, chamada agora por dois
+namespaces. Verificada por mutação: apagando o `{total}` de `live.subtitle` no `en`, a suíte
+falha nomeando a chave. Quatro testes existentes passaram a fixar o locale antes de cobrar a
+frase, em vez de herdar o que o `detectLocale()` resolver no ambiente do vitest (que, sem
+`localStorage` e sem `navigator.languages`, é `en` — foi assim que eles quebraram, e a quebra
+estava certa).
+
+**Medições** (dev server real, medido por JS):
+
+- `en`, `#/preparar`: "Setup" / "Let’s set up your workout", capa da câmera "Camera off",
+  CTA "Turn on camera", pill "Turn on the camera to frame yourself", rótulos
+  Exercise/Camera/Set/Reps/Duration/Angle/Estimated calories/Get ready, steppers com
+  `aria-label` "Decrease Set"…, `aria-label` da preparação "Countdown before counting starts:
+  3s countdown. Tap to change.", title do stepper travado "Configurable duration: coming soon".
+- `en`, `#/treino`: "Live Workout" / "Push-up • Set 1/1", cards Reps/Angle/Calories, anel
+  "Time left", botão central com `aria-label` "Start workout", unidade "kcal".
+- `pt-BR`, as mesmas duas telas: idênticas ao que eram antes da migração.
+- **Não verificado nesta sessão**: `GetReady`, os banners de aquecimento/cena e o card do
+  treinador ao vivo exigem câmera, e o navegador do painel bloqueia `getUserMedia`. O texto
+  deles está coberto por dicionário + paridade + (no caso da cena) teste próprio, mas a
+  aparência em tela é pendência do Daniel — e cai naturalmente na T-155, que é a passada em
+  aparelho real nas duas línguas.
+
+**Gates.** `npm run lint` limpo (com o bloco novo ligado), `npm run typecheck` limpo,
+`npm run test` 651/651, `npm run build` OK. Python intocado, rodado mesmo assim: `ruff check .`
+limpo, `pytest` 1161 passed.
+
+**Pendências.** Duas, em Descobertas: o buraco do portão fora de JSX (`[T-149]`, para a T-154) e
+os três componentes de HUD que ninguém importa — `StatsBar`, `CoachTip`, `ExerciseCard` —,
+traduzidos porque a linha da task os nomeia, e candidatos a remoção em task própria.
+
+---
+
 ## 2026-08-18 (70) · T-148 — Namespace `funnel`: o caminho de escolher e aprender, nas duas línguas
 
 **O que foi feito.** As onze superfícies da raia `funnel` da Onda 2 (SPEC-025) saíram do

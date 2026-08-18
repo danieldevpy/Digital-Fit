@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { FixtureControls } from '../dev/FixtureControls'
 import { VideoSourceControl } from '../dev/VideoSourceControl'
 import { useDevTools, useRecordMode } from '../dev/gate'
+import { useT, type TKey } from '../i18n'
 import { CountdownSetting } from '../hud/CountdownSetting'
 import { ExercisePicker } from '../hud/ExercisePicker'
 import { GetReady } from '../hud/GetReady'
@@ -13,12 +14,17 @@ import { useSessionStore } from '../store/session'
 import { useCamera } from './useCamera'
 import { useEdgePipeline } from './useEdgePipeline'
 
-const CAMERA_LABEL: Record<string, string> = {
-  idle: 'Câmera desligada',
-  requesting: 'Pedindo permissão…',
-  ready: 'Câmera pronta',
-  denied: 'Permissão negada',
-  error: 'Erro na câmera',
+/**
+ * Estado da câmera na capa. Chave = `CameraStatus` (contrato do store); o valor é a chave do
+ * dicionário, resolvida no render — congelar o texto aqui, no import do módulo, o prenderia
+ * ao idioma detectado naquele instante (mesma lição do `EXERCISE_CATALOG` na T-152).
+ */
+const CAMERA_LABEL: Record<string, TKey> = {
+  idle: 'session:camera.status.idle',
+  requesting: 'session:camera.status.requesting',
+  ready: 'session:camera.status.ready',
+  denied: 'session:camera.status.denied',
+  error: 'session:camera.status.error',
 }
 
 interface CameraViewProps {
@@ -37,6 +43,7 @@ interface CameraViewProps {
 }
 
 export function CameraView({ compactCover = false, checkScene = false }: CameraViewProps) {
+  const t = useT()
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -92,7 +99,7 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
 
       {!isReady && (
         <div className="stage__cover">
-          <p className="stage__status">{CAMERA_LABEL[cameraStatus]}</p>
+          <p className="stage__status">{t(CAMERA_LABEL[cameraStatus] ?? CAMERA_LABEL.idle!)}</p>
           {error && <p className="stage__error">{error}</p>}
           <button
             type="button"
@@ -100,7 +107,9 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
             onClick={start}
             disabled={cameraStatus === 'requesting'}
           >
-            {cameraStatus === 'requesting' ? 'Aguardando…' : 'Ligar câmera'}
+            {cameraStatus === 'requesting'
+              ? t('session:camera.waiting')
+              : t('session:cta.turn_on_camera')}
           </button>
 
           {/* As escolhas só importam aqui, logo antes de treinar: o que fazer (T-051) e
@@ -138,24 +147,26 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
           estava carregando, travado, ou se o app não o via. */}
       {isReady && fase === 'carregando' && (
         <p className="stage__banner">
-          Preparando a análise neste aparelho…
+          {t('session:warmup.title')}
           <span className="stage__banner-sub">
             {poseDownload
               ? // Com números reais: são ~17 MB no primeiro acesso, e "43% · 7,4 de 17,3 MB"
                 // responde a única pergunta que quem espera tem — "está andando?".
-                `Baixando o modelo de pose · ${warmupLabel(poseDownload)} (só na primeira vez)`
-              : 'No primeiro acesso o modelo de pose é baixado; depois fica no aparelho.'}
+                t('session:warmup.downloading', { progress: warmupLabel(poseDownload) })
+              : t('session:warmup.first_time')}
           </span>
         </p>
       )}
 
       {isReady && fase === 'falhou' && (
         <p className="stage__banner stage__banner--offline">
-          {error ?? 'Não foi possível preparar a análise de pose neste aparelho.'}
+          {error ?? t('session:warmup.failed')}
         </p>
       )}
 
-      {isReady && fase === 'medindo' && <p className="stage__banner">Calibrando o dispositivo…</p>}
+      {isReady && fase === 'medindo' && (
+        <p className="stage__banner">{t('session:warmup.measuring')}</p>
+      )}
 
       {/* "3, 2, 1" entre o corpo medido e a contagem valer (T-049). Quem segura a contagem
           é o worker; isto aqui só desenha o mesmo prazo. */}
@@ -165,11 +176,8 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
           vale. Quem encerra esta fase é o servidor (`session.calibrated`). */}
       {isReady && sessionStatus === 'calibrating' && (
         <div className="stage__prepare">
-          <p className="stage__prepare-title">Fique em pé, parado</p>
-          <p className="stage__prepare-hint">
-            Braços ao lado do corpo e pés juntos. Estamos medindo você — a contagem começa em
-            seguida.
-          </p>
+          <p className="stage__prepare-title">{t('session:calibrating.title')}</p>
+          <p className="stage__prepare-hint">{t('session:calibrating.hint')}</p>
         </div>
       )}
 
@@ -181,18 +189,24 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
               `docker compose up` não ajuda ninguém (T-048). */}
           {error ??
             (devTools ? (
+              // Diagnóstico, não produto: só quem tem `devTools` lê isto, e o conselho é
+              // literalmente um comando de terminal. Fica em português pela mesma razão que o
+              // painel admin fica (SPEC-025 §Escopo) — ferramenta de operação não é superfície
+              // de quem treina.
+              /* eslint-disable i18next/no-literal-string */
               <>
                 Sem conexão com o servidor — a contagem não vai avançar. Suba a stack
                 (<code>docker compose up</code>) ou aponte <code>VITE_API_URL</code> para a API.
               </>
             ) : (
-              'Sem conexão com o servidor — a contagem não vai avançar. Verifique sua internet e tente de novo.'
+              /* eslint-enable i18next/no-literal-string */
+              t('session:gateway.offline')
             ))}
         </p>
       )}
 
       {isReady && gatewayStatus === 'connecting' && (
-        <p className="stage__banner">Conectando ao servidor…</p>
+        <p className="stage__banner">{t('session:gateway.connecting')}</p>
       )}
 
       {/* Sem esqueleto por design: no cloud os landmarks nascem no pose-worker, e `pose.frame`
@@ -207,13 +221,15 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
           Escondida durante a medição: naquele instante a instrução "fique em pé, parado" é a
           tela, e um aviso de status não pode disputar espaço com ela. */}
       {isReady && isCloud && sessionStatus !== 'calibrating' && (
-        <p className="stage__banner stage__banner--cloud">
-          Modo cloud · a análise roda no servidor, sem esqueleto sobre a imagem.
-        </p>
+        <p className="stage__banner stage__banner--cloud">{t('session:mode.cloud_banner')}</p>
       )}
 
       {/* Chip de dev — diagnóstico do pipeline, fora da SPEC-013. Não é UI de produto: o
           usuário comum nunca vê isto (T-048). */}
+      {/* Chip de dev: mesma exclusão do bloco acima, e pelo mesmo motivo — `pose gpu`,
+          `seq 412 · 14,9fps`, `176 lm` e o botão `parar` são instrumentos de medição, não
+          produto. Bloco inteiro desligado da regra, com o `enable` logo depois. */}
+      {/* eslint-disable i18next/no-literal-string */}
       {isReady && devTools && (
         <div className="stage__dev">
           <span>{poseStatus === 'ready' ? `pose ${poseDelegate}` : poseStatus}</span>
@@ -254,6 +270,7 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
           </button>
         </div>
       )}
+      {/* eslint-enable i18next/no-literal-string */}
     </div>
   )
 }

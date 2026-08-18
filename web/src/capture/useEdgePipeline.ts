@@ -16,6 +16,7 @@ import {
   makeEnvelope,
   toLandmarkTuples,
 } from '../lib/events'
+import { t } from '../i18n'
 import { getGatewayClient, getSequencer } from '../session/gatewayInstance'
 import { createArmAngleTracker } from '../pose/armAngleTracker'
 import { createEdgePoseLandmarker, detectPose } from '../pose/poseLandmarker'
@@ -266,7 +267,7 @@ export function useEdgePipeline(
       store.setError(
         error instanceof Error
           ? `Falha ao iniciar o pipeline de pose: ${error.message}`
-          : 'Falha ao iniciar o pipeline de pose.',
+          : t('session:pipeline.start_failed'),
       )
     })
 
