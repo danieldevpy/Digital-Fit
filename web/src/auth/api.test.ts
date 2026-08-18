@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { useI18nStore } from '../i18n/store'
 import { authedFetch, fetchHistory, fetchMe, login, logout, refreshAccess, register } from './api'
 import { deviceId, identityHeaders, rememberDeviceId, storeTokens, storedTokens } from './storage'
 import { installStorage, uninstallStorage } from './testStorage'
@@ -130,6 +131,36 @@ describe('authedFetch', () => {
 
     expect(chamadas[0]?.[1]?.method).toBe('POST')
     expect((chamadas[0]?.[1]?.headers as Record<string, string>)['X-Teste']).toBe('1')
+  })
+
+  // SPEC-025 §3.4 / critério 7 da T-142: o cliente manda o locale JÁ RESOLVIDO, não o bruto do
+  // navegador — é o que permite o servidor (T-143, em paralelo) responder `GET /api/config` e
+  // `GET /api/engagement` na língua certa sem rota nova nem parâmetro por chamada.
+  it('manda Accept-Language com o locale resolvido do cliente, não o do navegador', async () => {
+    installStorage()
+    useI18nStore.getState().setLocale('pt-BR')
+    const { impl, chamadas } = fetchSequence({ body: USUARIO })
+
+    await authedFetch('/api/me', {}, impl)
+
+    const headers = chamadas[0]?.[1]?.headers as Record<string, string>
+    expect(headers['Accept-Language']).toBe('pt-BR')
+  })
+
+  it('Accept-Language acompanha a troca de idioma, inclusive na chamada repetida após renovar', async () => {
+    installStorage()
+    storeTokens({ access: 'vencido', refresh: 'r.1' })
+    useI18nStore.getState().setLocale('en')
+    const { impl, chamadas } = fetchSequence(
+      { status: 401, body: {} },
+      { body: { access: 'novo' } },
+      { body: USUARIO },
+    )
+
+    await authedFetch('/api/me', {}, impl)
+
+    const cabecalhoDaRepeticao = chamadas[2]?.[1]?.headers as Record<string, string>
+    expect(cabecalhoDaRepeticao['Accept-Language']).toBe('en')
   })
 })
 

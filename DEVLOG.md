@@ -5,6 +5,94 @@
 
 ---
 
+## 2026-08-18 (63) · T-142 — Runtime i18n do cliente: consertando o que a sessão anterior deixou pela metade
+
+Sessão que retomou trabalho não commitado (a anterior caiu no meio). O grosso de `web/src/i18n/`
+já existia e estava certo — `t()`, plural, interpolação, store, detecção/persistência de locale,
+`<html lang>` no `AppShell`, o namespace piloto `shell` migrado em `TabBar.tsx` e o `Accept-Language`
+no `authedFetch` (que já cobre metade da T-143 do lado do cliente). O trabalho desta sessão foi
+consertar três defeitos concretos e fechar os gates — nenhuma decisão de arquitetura nova.
+
+### Defeito 1 — o tipo do dicionário congelava os valores
+
+`dict/pt-BR/shell.ts` fazia `export type Shell = typeof shell` sobre um objeto `as const`: o
+tipo carregava os LITERAIS ('Início', 'Perfil', ...), então `dict/en/shell.ts` nunca compilava
+('Home' não é atribuível a 'Início'). Trocado, nos nove namespaces (`account`, `catalog`,
+`errors`, `funnel`, `progress`, `report`, `session`, `shell`, `site`), por
+`Record<keyof typeof x, string>` — larga o valor, mantém exatamente as chaves. Chave faltando
+vira erro de propriedade ausente; chave sobrando vira erro de "excess property" (a checagem de
+objeto literal do `tsc`, que só dispara porque `dict/en/<ns>.ts` atribui um objeto literal, não
+uma variável). O mesmo ajuste teve de subir para `i18n/index.ts`: `DICTS` era tipado como
+`Record<Locale, typeof dictPtBR>`, o que forçava o `en` (valores `string` largos) a bater literal
+por literal com o `pt-BR` — trocado por um `DictShape` mapeado (`{ [N in keyof typeof dictPtBR]:
+Record<keyof (typeof dictPtBR)[N], string> }`), que é o mesmo raciocínio do namespace aplicado ao
+dicionário inteiro.
+
+### Defeito 2 — `typeParity.proof.ts` inconsistente
+
+Depois do defeito 1, sobrava um erro no arquivo-prova: o segundo `@ts-expect-error` (chave
+sobrando, `tab.extra`) ficava colado em cima da chamada `aceitaShell({...})`, mas o `tsc` reporta
+erro de "excess property" na PROPRIEDADE em si, não no literal inteiro — o `@ts-expect-error`
+sobrava (`TS2578: Unused directive`) e o erro real (`TS2353`) vazava sem supressão. Movido para
+cima da linha `'tab.extra': 'x',`. Verifiquei a prova de verdade: afrouxei `Shell` para
+`Record<string, string>` de propósito e confirmei que `npm run typecheck` cai (dois
+`Unused '@ts-expect-error'` + um erro em `index.ts`, porque `DictShape` também não bate mais) —
+depois restaurei e o typecheck voltou a ficar verde. O arquivo continua sendo prova de verdade,
+não decoração.
+
+### Defeito 3a — fallback de locale caía em pt-BR em vez de en
+
+`locale.test.ts` cobre "sem `window` nenhum (SSR/Node puro) a leitura não lança" e esperava
+`DEFAULT_LOCALE` (`'en'`), mas `detectLocale()` devolvia `'pt-BR'`. Causa: `idiomasDoNavegador()`
+checava só `typeof navigator === 'undefined'` — e a partir do Node 21 o runtime expõe um
+`navigator` global PRÓPRIO (não é polyfill de teste, é o Node de verdade), com
+`navigator.language` vindo do locale do SISTEMA OPERACIONAL do processo (nesta máquina, `pt-BR`).
+Em ambiente `environment: 'node'` (SSR/testes), isso fazia o boot "adivinhar" o idioma pela
+máquina que roda o servidor, não pelo visitante — o mesmo erro de raciocínio que já tirou GeoIP
+de cogitação na SPEC-025 §3.3. Corrigido checando `typeof window === 'undefined'` primeiro:
+`navigator` só é sinal do idioma do VISITANTE quando existe um `window` por trás — sem `window`
+não há navegador de verdade para perguntar, e a cadeia cai direto no fallback `en`. Não muda
+nenhum outro teste: os que instalam `window` fake (`installStorage()`) continuam decidindo pelo
+`navigator` real do processo, sem cravar o valor (só verificam "não lança").
+
+### Defeito 3b — plural pt-BR, n=0: decisão do balde `.zero`
+
+`Intl.PluralRules('pt-BR').select(0)` devolve `'one'` — é o CLDR, verificado direto no Node desta
+máquina — então `resolveFromTable` batia em `.one` para `n=0` e devolvia "0 repetição", enquanto
+o teste esperava "0 repetições" (o jeito natural de escrever isso em pt-BR). O motor continua
+sendo `Intl.PluralRules`, sem cair para um `if (n === 1)`: acrescentei um balde OPCIONAL `.zero`
+que, quando existe na tabela, vence antes da categoria do CLDR — só para `n === 0`; sem `.zero`
+cadastrado, a categoria do CLDR normal decide (o que, para pt-BR, é `.one`, mesmo `n` sendo
+zero). Comentário no `resolveFromTable` documenta o motivo. `index.test.ts` ganhou dois casos
+novos no lugar do que estava incorreto: um provando que SEM `.zero` a tabela segue o CLDR ao pé
+da letra (`0 repetição`, categoria `.one`), outro provando que COM `.zero` na tabela o balde
+vence (`0 repetições`) sem interferir em `n=1`/`n=2+`.
+
+### O que mais faltava (não listado como defeito, mas parte do escopo da T-142)
+
+`eslint.config.js` já importava `eslint-plugin-i18next` (dependência instalada em `package.json`)
+mas a regra nunca tinha sido de fato ligada — nem no `plugins`, nem em nenhum bloco `files`. Sem
+isso o portão do §4 do plano (a regra de "texto novo entra nas duas línguas na mesma task") não
+existia de verdade. Acrescentado um bloco `files: ['src/shell/**/*.{ts,tsx}',
+'src/app/AppShell.tsx']` com `i18next/no-literal-string` em modo `jsx-only` (o padrão da lib,
+`jsx-text-only`, só pega texto de nó JSX — `jsx-only` também pega string solta em atributo:
+`aria-label`, `alt`, `title`, `placeholder`, como o plano pede). Verifiquei nos dois sentidos:
+reintroduzi uma string literal em `aria-label` do `TabBar.tsx` e confirmei que `npm run lint`
+reprova; restaurei e voltou a ficar limpo.
+
+### Gates (todos verdes)
+
+- `npm run lint` — limpo.
+- `npm run typecheck` (`tsc -b --force`) — limpo.
+- `npm run test` (`vitest run`) — 57 arquivos, 631 testes, todos passando.
+
+### Pendências geradas
+
+- Nenhuma decisão de arquitetura nova em aberto. O caminho segue T-142 → Onda 2 (T-147…T-152) →
+  T-154, como o plano já previa.
+- A árvore já tinha, de sessão anterior e não mexida aqui, `web/public/img/herofamale.png`
+  (untracked) — mencionado também na entrada da T-141, segue fora do escopo desta task.
+
 ## 2026-08-18 (62) · T-141 — SPEC-025: o plano vira spec, e nada foi decidido de novo
 
 Sessão de projeto, não de código. Fonte única: `docs/PLANO-I18N.md`, já escrito e com todo o
