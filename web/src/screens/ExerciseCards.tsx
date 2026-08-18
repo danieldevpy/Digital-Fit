@@ -9,12 +9,14 @@
 // Cada card é um LINK para o app, não um botão: quem decide entre Guia e Pré-config é o
 // `guide_seen` do localStorage do APP, que esta origem não tem como ler. O "selecionado"
 // também não se sabe daqui — a borda acesa só existe do lado do app.
+import { useT } from '../i18n'
 import { categoryLabel, useCatalog } from '../session/catalog'
 import { appHref } from '../shell/origins'
 import { ExerciseDemo } from '../ui/ExerciseDemo'
 import { IconChevronRight, IconWave } from '../ui/icons'
 
 export function ExerciseCards() {
+  const t = useT()
   // Reativo de propósito: o catálogo do servidor chega DEPOIS do primeiro paint (T-074), e um
   // exercício desligado no painel tem que sumir daqui sozinho, sem recarregar.
   const { keys, catalog } = useCatalog()
@@ -29,7 +31,7 @@ export function ExerciseCards() {
           <a key={key} className="ex-card" href={appHref(`#/ex/${key}`)}>
             <p className="ex-card__cat">{categoryLabel(info.category)}</p>
             <h3 className="ex-card__name">{info.display_name}</h3>
-            <span className="ex-card__badge">30s</span>
+            <span className="ex-card__badge">{t('funnel:card.duration')}</span>
             <IconWave className="ex-card__wave" />
             <ExerciseDemo
               exercise={key}

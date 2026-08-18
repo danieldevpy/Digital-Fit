@@ -15,6 +15,7 @@
 // O card GRANDE não morreu: ele continua sendo o do site (`ExerciseCards`), onde a foto é
 // vitrine e a rolagem longa é o comportamento esperado de uma página de marketing.
 import { useState } from 'react'
+import { useT } from '../i18n'
 import { groupByCategory, useCatalog } from '../session/catalog'
 import { exercisePreference } from '../session/preferences'
 import { ExerciseDemo } from '../ui/ExerciseDemo'
@@ -31,6 +32,7 @@ import { chooseExercise } from './funnel'
 const CABEM_NO_QUADRO = 2
 
 export function ExerciseRails() {
+  const t = useT()
   // Reativo pela mesma razão do card do site: o catálogo do servidor chega DEPOIS do primeiro
   // paint (T-074), e um exercício desligado no painel tem que sumir daqui sozinho.
   const { keys, catalog } = useCatalog()
@@ -62,7 +64,7 @@ export function ExerciseRails() {
                     )
                   }
                 >
-                  {aberta ? 'recolher' : 'ver todos'}
+                  {aberta ? t('funnel:rail.collapse') : t('funnel:rail.see_all')}
                 </button>
               )}
             </header>
@@ -71,7 +73,7 @@ export function ExerciseRails() {
                 leitor de tela anuncia ao entrar, e "Cardio" sozinho não diz que há rolagem. */}
             <div
               className={`rail__track ${aberta ? 'rail__track--aberta' : ''}`}
-              aria-label={`Exercícios de ${grupo.label}`}
+              aria-label={t('funnel:rail.track_aria', { category: grupo.label })}
             >
               {grupo.keys.map((key) => {
                 const info = catalog[key]
@@ -89,7 +91,7 @@ export function ExerciseRails() {
                       className="ex-mini__demo"
                       figuraClassName="ex-mini__demo--figura"
                     />
-                    <span className="ex-mini__badge num">30s</span>
+                    <span className="ex-mini__badge num">{t('funnel:card.duration')}</span>
                     <span className="ex-mini__name">{info.display_name}</span>
                     <span className="ex-mini__foot">
                       <span

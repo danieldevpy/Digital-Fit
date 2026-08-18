@@ -311,7 +311,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-147 | **Namespace `site`.** `site/IndexScreen`, `AboutScreen`, `SiteBar`, `SiteApp`, `nav` **+ `index.html` por idioma, `en/index.html` no Vite, `hreflang` recíproco, `<title>`/`<meta description>` traduzidos** (SPEC-025 §Escopo — site por URL). Depende de T-142 *(Tam: M)* | 025/014 | **feito** (2026-08-18) |
-| T-148 | **Namespace `funnel`.** `screens/ChooseScreen`, `GuideScreen`, `ExerciseCards`, `ExerciseRails`, `funnel`, `ui/ViewPicker`, `ExerciseDemo`, `hud/ViewConfirm`, `ExercisePicker`, `session/guideGate`, `viewGate`. Depende de T-142 *(Tam: M)* | 025/015 | todo |
+| T-148 | **Namespace `funnel`.** `screens/ChooseScreen`, `GuideScreen`, `ExerciseCards`, `ExerciseRails`, `funnel`, `ui/ViewPicker`, `ExerciseDemo`, `hud/ViewConfirm`, `ExercisePicker`, `session/guideGate`, `viewGate`. Depende de T-142 *(Tam: M)* | 025/015 | **feito** (2026-08-18) |
 | T-149 | **Namespace `session`.** `screens/SessionScreen`, `capture/CameraView`, `useCamera`, `useEdgePipeline`, `hud/*` (CoachTip, StatsBar, GetReady, TimerRing, CountdownSetting, ZoomControl), `session/startGate`, `pipelineGate`, `admission`, `useSession`, `scene/sceneQuality`, `pose/assetWarmup`, `probe/runProbe`. Depende de T-142 *(Tam: G)* | 025/013 | todo |
 | T-150 | **Namespaces `report` + `progress`.** `report/ReportSheet`, `reportSummary`, `sessionReport`, `screens/ProgressScreen`, `AnalyticsScreen`, `history/aggregates`, `session/kcal` **+ troca dos `toLocaleDateString('pt-BR')` pelos formatadores (plano §2.6) e do `DIAS_DA_SEMANA` montado à mão**. Depende de T-142 *(Tam: G)* | 025/010/024 | todo |
 | T-151 | **Namespaces `account` + `errors`.** `auth/AccountSheet`, `accountSummary`, `auth/api` (mensagens de rede/falha), `engagement/EngagementSheet`, `EngagementSection`, `FireChip`, `XpLine`, `AchievementGallery`, `AchievementToast`, `format` **+ plural via `Intl.PluralRules` (plano §2.7)**. Depende de T-142 *(Tam: G)* | 025/019/011 | todo |
@@ -1158,3 +1158,12 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   fica pela metade sem ele: um `en-US` que bate numa quota estourada ou numa sessão-relatório
   ainda vê "quota indisponivel agora" em português. Falta task própria (ou ampliar o escopo da
   ideia da T-145 para `views.py`).
+- **[T-148] A paridade de `{placeholder}` entre `pt-BR` e `en` só é cobrada no namespace
+  `funnel`.** O `tsc` cobra paridade de CHAVE (é o que `dict/typeParity.proof.ts` prova desde a
+  T-142), mas não olha DENTRO do valor: uma tradução que escreva `'Demo'` onde o `pt-BR` tem
+  `'Demonstração: {exercise}'` compila limpa, passa no lint e some com o nome do exercício só em
+  produção, na língua que ninguém abre para conferir. A T-148 fechou esse buraco com um teste que
+  compara os placeholders chave a chave — mas só sobre `funnel`, porque generalizá-lo para os
+  nove namespaces é portão, e portão é a T-154. O teste está escrito em cima de dois objetos
+  importados (`funnelPtBR`/`funnelEn`) e vira um `for` sobre `dict/pt-BR/index.ts` inteiro sem
+  mudar de forma. Entra na T-154, junto com o `no-literal-string` global.

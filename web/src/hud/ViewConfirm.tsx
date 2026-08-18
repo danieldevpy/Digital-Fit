@@ -13,6 +13,7 @@
 // `minmax` faz isso sem media query e sem medir nada em JS — o card decide sozinho quando não
 // cabe mais ao lado do irmão.
 import { useState } from 'react'
+import { useT } from '../i18n'
 import { setViewPreference, viewsOf, type ViewId } from '../session/exerciseViews'
 import { dismissViewGate } from '../session/viewGate'
 import { IconAngle, IconCamera } from '../ui/icons'
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function ViewConfirm({ exercise, value, onConfirm, onCancel }: Props) {
+  const t = useT()
   const views = viewsOf(exercise)
   const [escolhida, setEscolhida] = useState<ViewId | null>(value)
   // Desmarcado por padrão, e isto é a decisão de produto desta caixa: quem chega aqui pela
@@ -52,19 +54,19 @@ export function ViewConfirm({ exercise, value, onConfirm, onCancel }: Props) {
       <div className="vgate__box">
         <p className="vgate__kicker">
           <IconCamera className="vgate__kicker-icon" aria-hidden="true" />
-          Antes de ligar a câmera
+          {t('funnel:vgate.kicker')}
         </p>
         <h2 className="vgate__title" id="vgate-titulo">
-          Onde você vai colocar o celular?
+          {t('funnel:vgate.title')}
         </h2>
         {/* A frase que justifica a interrupção. Sem ela a trava é só um obstáculo; com ela é
             um aviso, e a diferença entre os dois é a pessoa entender o preço de errar. */}
         <p className="vgate__why">
-          As duas contam suas repetições — mas cada uma precisa do celular num lugar diferente.
-          Com a câmera na posição errada, o treino pode terminar com <strong>zero</strong>.
+          {t('funnel:vgate.why_lead')} <strong>{t('funnel:vgate.why_term')}</strong>
+          {t('funnel:vgate.why_tail')}
         </p>
 
-        <div className="vgate__opts" role="radiogroup" aria-label="Posição da câmera">
+        <div className="vgate__opts" role="radiogroup" aria-label={t('funnel:view.group_aria')}>
           {views.map((view) => {
             const ligada = view.id === atual.id
             return (
@@ -93,20 +95,22 @@ export function ViewConfirm({ exercise, value, onConfirm, onCancel }: Props) {
             onChange={(evento) => setNaoMostrar(evento.target.checked)}
           />
           <span>
-            Não mostrar novamente
+            {t('funnel:vgate.dont_show')}
             {/* Dizer para onde a escolha vai embora. Sem isto, "não mostrar" lê como "perdi o
                 controle", e a pessoa não marca — ou marca e se arrepende sem saber o caminho
                 de volta. */}
-            <small>você continua trocando pelo card “Câmera”, na coluna da esquerda</small>
+            <small>
+              {t('funnel:vgate.dont_show_hint', { card: t('funnel:view.label_compact') })}
+            </small>
           </span>
         </label>
 
         <div className="vgate__acoes">
           <button type="button" className="vgate__voltar" onClick={onCancel}>
-            Voltar
+            {t('funnel:vgate.back')}
           </button>
           <button type="button" className="v2-cta vgate__ok" onClick={confirmar}>
-            Confirmar e ligar câmera
+            {t('funnel:vgate.confirm')}
           </button>
         </div>
       </div>

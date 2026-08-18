@@ -7,6 +7,7 @@
 // só descobriria a outra metade errando a montagem da cena e vendo a sessão contar zero.
 //
 // Por isso as duas ficam visíveis ao mesmo tempo, e a linha de baixo diz onde o celular vai.
+import { useT } from '../i18n'
 import { viewsOf, type ViewId } from '../session/exerciseViews'
 import { IconAngle } from './icons'
 
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function ViewPicker({ exercise, value, onChange, compact = false }: Props) {
+  const t = useT()
   const views = viewsOf(exercise)
   // Exercício sem variação não desenha nada — mesma regra do `offersChoice` do catálogo: a
   // superfície aparece quando existe o que escolher.
@@ -29,9 +31,9 @@ export function ViewPicker({ exercise, value, onChange, compact = false }: Props
   return (
     <div className={`viewpick ${compact ? 'viewpick--compact' : ''}`}>
       <p className="v2-label">
-        {compact ? 'Câmera' : 'De que lado fica a câmera?'}
+        {compact ? t('funnel:view.label_compact') : t('funnel:view.label')}
       </p>
-      <div className="viewpick__opts" role="radiogroup" aria-label="Posição da câmera">
+      <div className="viewpick__opts" role="radiogroup" aria-label={t('funnel:view.group_aria')}>
         {views.map((view) => (
           <button
             key={view.id}
@@ -52,9 +54,9 @@ export function ViewPicker({ exercise, value, onChange, compact = false }: Props
       </p>
       {!compact && (
         <p className="viewpick__why">
-          As duas contam suas repetições. <strong>De lado</strong> o app também avisa se o
-          quadril cair ou empinar; <strong>de frente</strong> ele conta, mas não corrige a linha
-          do corpo — a câmera não enxerga seus pés desse ângulo.
+          {t('funnel:view.why.lead')} <strong>{t('funnel:view.why.profile_term')}</strong>{' '}
+          {t('funnel:view.why.profile_text')}{' '}
+          <strong>{t('funnel:view.why.frontal_term')}</strong> {t('funnel:view.why.frontal_text')}
         </p>
       )}
     </div>

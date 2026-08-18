@@ -5,6 +5,7 @@
 // card do carrossel da Escolha. Escrita duas vezes, ela se perde uma vez: o exercício novo
 // chega antes da foto, e a tela que esqueceu o fallback põe ícone de imagem quebrada no lugar
 // da pose. Aqui a regra é uma só; as telas variam só o `className`.
+import { useT } from '../i18n'
 import type { ExerciseInfo } from '../session/catalog'
 import { ExerciseIcon } from './exerciseIcon'
 
@@ -34,6 +35,8 @@ export function ExerciseDemo({
   figuraClassName,
   lazy = false,
 }: ExerciseDemoProps) {
+  const t = useT()
+
   if (!info.demo_img) {
     return <ExerciseIcon exercise={exercise} className={`${className} ${figuraClassName}`} />
   }
@@ -41,7 +44,7 @@ export function ExerciseDemo({
     <img
       className={className}
       src={info.demo_img}
-      alt={`Demonstração: ${info.display_name}`}
+      alt={t('funnel:demo.alt', { exercise: info.display_name })}
       loading={lazy ? 'lazy' : 'eager'}
     />
   )

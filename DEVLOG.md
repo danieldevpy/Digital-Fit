@@ -5,6 +5,91 @@
 
 ---
 
+## 2026-08-18 (70) · T-148 — Namespace `funnel`: o caminho de escolher e aprender, nas duas línguas
+
+**O que foi feito.** As onze superfícies da raia `funnel` da Onda 2 (SPEC-025) saíram do
+português embutido e passaram a ler `t('funnel:…')`: Escolha (`screens/ChooseScreen`,
+`ExerciseRails`), Guia (`screens/GuideScreen`), a escolha de variação de câmera
+(`ui/ViewPicker`, `hud/ViewConfirm`), os dois herdados do funil antigo (`hud/ExercisePicker`,
+`ui/ExerciseDemo`), o card da vitrine (`screens/ExerciseCards`) e os três módulos sem texto
+(`screens/funnel.ts`, `session/guideGate.ts`, `session/viewGate.ts`). `dict/{pt-BR,en}/funnel.ts`
+nasceram com 31 chaves cada, e o `no-literal-string` foi ligado para esses arquivos.
+
+**A fronteira que este namespace desenha: moldura aqui, conteúdo lá.** Nome do exercício, grupo
+muscular, passos do guia, instrução de cena e rótulo de vista NÃO entraram no `funnel` — vêm do
+`catalog` (T-152) ou do servidor (T-146). É por isso que `guide.demo_alt` guarda
+`'Demonstração do exercício {exercise}'` e não a palavra: o nome não é desta camada. A tela
+verificada no navegador prova a costura — o `alt` da foto grande do Guia lê
+`Demonstração do exercício Flexão de braço` em pt-BR e `Push-up demonstration` em en, com a
+moldura vindo daqui e o nome vindo do catálogo.
+
+**Frase repetida com o namespace `site` é repetição de propósito.** "Escolha seu exercício"
+existe duas vezes (`site:choose.kicker` na vitrine, `funnel:choose.title` no app). São bundles
+diferentes, superfícies diferentes, que podem divergir sem que nenhuma esteja errada —
+compartilhar a chave amarraria a landing à tela de treino por acidente de tradução.
+
+**As duas frases com `<strong>` no meio.** O "por quê" do `ViewPicker` e o do `ViewConfirm`
+carregam negrito DENTRO da oração, e o termo em negrito é o rótulo da vista ("De lado"/"de
+frente") ou a palavra que a frase existe para dizer ("zero"). Uma chave só com HTML embutido
+exigiria `dangerouslySetInnerHTML`; um `<strong>` com literal solto seria exatamente o que a
+regra desta task veio proibir. Solução: pares `<termo>_term` + `<termo>_text`, com o negrito no
+markup e a frase no dicionário. O `vgate.why_tail` (hoje só `'.'` nas duas línguas) existe por
+causa disso — em pt-BR e en a oração acaba logo depois do negrito, mas quem traduzir para uma
+língua que não acaba aí tem onde pôr o resto, sem chave nova.
+
+**`vgate.dont_show_hint` interpola o rótulo do card em vez de escrevê-lo.** A dica manda a
+pessoa procurar um card pelo nome ("você continua trocando pelo card 'Câmera'"), e um nome que
+não bate com o que está na coluna é pior que dica nenhuma. `{card}` recebe
+`t('funnel:view.label_compact')` — a mesma chave que desenha o rótulo. Medido no navegador em
+inglês: a dica diz "Camera" e o card diz CAMERA.
+
+**`card.duration` ('30s') entrou no dicionário, e `role`/`aria-*` não.** A duração da sessão é
+unidade escrita ("30s" e "30 sec" são a mesma sessão em duas línguas), então é texto. Já
+`role="radio"`, `role="dialog"`, `aria-modal`, `aria-labelledby` e `aria-hidden` são vocabulário
+da ARIA — contrato do navegador e do leitor de tela, nunca frase que alguém lê — e entraram no
+`jsx-attributes.exclude` do override, junto de `figuraClassName` (que é `className` com outro
+nome). `aria-label` e `alt` ficaram deliberadamente FORA da exclusão: são os ~30 rótulos de
+acessibilidade que a SPEC-025 §Entidade conta como texto, e é por eles que a regra roda em
+`mode: 'jsx-only'` em vez do padrão `jsx-text-only`.
+
+**O teste que o `tsc` não faz.** `dict/typeParity.proof.ts` garante paridade de CHAVE desde a
+T-142, mas ninguém olhava DENTRO do valor: um `en` que escrevesse `'Demo'` onde o `pt-BR` tem
+`'Demonstração: {exercise}'` compila limpo, passa no lint e só some com o nome do exercício em
+produção, na língua que ninguém abre para conferir. Entrou um teste que compara os placeholders
+chave a chave em `funnel` — e ele foi verificado por mutação, não por fé: apagando o
+`{exercise}` do `en`, a suíte falha nomeando a chave (`{ chave: 'demo.alt', ph: [] }` contra
+`ph: ['exercise']`). Só `funnel` de propósito; generalizar para os nove namespaces é portão, e
+portão é a T-154 (registrado em Descobertas).
+
+**Medições** (dev server real, Chrome do painel, medido por JS — não alegado):
+
+- `en`, `/app/#/exercicios`: "Choose your exercise" / "Quick workouts, real results", faixas com
+  `aria-label` "Cardio exercises" / "Strength exercises" / "Core exercises", selos "30s", alts
+  "Demo: Jumping Jack"…
+- `en`, `/app/#/guia/flexao`: kicker, título de vista, a frase do "por quê" montada inteira
+  ("Both count your reps. From the side … from the front …"), "Set up your scene:", CTA e
+  "Skip the example" — nenhuma palavra em português na tela.
+- `en`, trava da variação (`.vgate`): "Before you turn the camera on" / "Where are you putting
+  your phone?" / "…your workout can end at zero." / "Confirm and turn on camera", `radiogroup`
+  com `aria-label` "Camera position".
+- `pt-BR`, as mesmas três telas: texto **idêntico ao de antes da migração**, incluindo a frase
+  longa do `viewpick__why` conferida caractere a caractere.
+- Site: `/en/` desenha os cards com alt "Demo: …" e `/` com "Demonstração: …" — o
+  `ExerciseDemo`/`ExerciseCards` seguem o locale da URL (regra do `SiteApp`, T-147) mesmo com
+  `digitalfit.locale` em `pt-BR` no aparelho. Era o risco real de componente compartilhado entre
+  os dois bundles, e não se materializou.
+
+**Gates.** `npm run lint` limpo (com a regra nova ligada), `npm run typecheck` limpo,
+`npm run test` 643/643 (639 antes + 4 novos), `npm run build` OK. Lado Python intocado, rodado
+mesmo assim: `ruff check .` limpo, `pytest` 1161 passed.
+
+**Pendências.** Uma, em Descobertas (`[T-148]`): a paridade de `{placeholder}` só cobre
+`funnel`; generalizar na T-154. A raia `session` (T-149) continua em português na
+pré-configuração — é o esperado, e aparece lado a lado com o `funnel` já traduzido em quem
+abrir `#/preparar` agora.
+
+---
+
 ## 2026-08-18 (69) · T-146 — Tradução do conteúdo do banco: três tabelas, um fallback só
 
 **O que foi feito.** A "Tabela de tradução" que a SPEC-025 §3.6 já tinha desenhado (e a

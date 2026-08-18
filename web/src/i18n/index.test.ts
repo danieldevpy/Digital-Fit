@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { funnel as funnelEn } from './dict/en/funnel'
+import { funnel as funnelPtBR } from './dict/pt-BR/funnel'
 import { useI18nStore } from './store'
 import { resolveFromTable, t, tDynamic, translate } from './index'
 
@@ -110,5 +112,49 @@ describe('tDynamic — chave montada em tempo de execução (critério da T-152)
   it('chave sem entrada no dicionário cai no fallback, não na chave namespaced', () => {
     useI18nStore.getState().setLocale('pt-BR')
     expect(tDynamic('catalog:category.hiit', 'hiit')).toBe('hiit')
+  })
+})
+
+describe('namespace funnel — a moldura do funil nas duas línguas (T-148)', () => {
+  it('resolve a mesma chave nas duas línguas', () => {
+    expect(translate('pt-BR', 'funnel:guide.cta')).toBe('Entendi, vamos lá')
+    expect(translate('en', 'funnel:guide.cta')).toBe('Got it, let\u2019s go')
+  })
+
+  it('interpola o nome do exercício, que vem do catálogo e não deste namespace', () => {
+    // A moldura é do `funnel`; o nome é do `catalog`/servidor (T-146/T-152). Por isso a chave
+    // guarda `{exercise}` e não a palavra.
+    expect(translate('pt-BR', 'funnel:demo.alt', { exercise: 'Polichinelo' })).toBe(
+      'Demonstração: Polichinelo',
+    )
+    expect(translate('en', 'funnel:demo.alt', { exercise: 'Jumping Jacks' })).toBe(
+      'Demo: Jumping Jacks',
+    )
+  })
+
+  it('a dica de "não mostrar novamente" cita o card pelo rótulo em vigor, não por um nome fixo', () => {
+    const ptBR = translate('pt-BR', 'funnel:vgate.dont_show_hint', {
+      card: translate('pt-BR', 'funnel:view.label_compact'),
+    })
+    const en = translate('en', 'funnel:vgate.dont_show_hint', {
+      card: translate('en', 'funnel:view.label_compact'),
+    })
+    expect(ptBR).toContain('“Câmera”')
+    expect(en).toContain('“Camera”')
+  })
+
+  it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
+    // `tsc` cobra paridade de CHAVE (`dict/typeParity.proof.ts`), NÃO de placeholder: uma
+    // tradução que esqueça o `{exercise}` compila limpa e some com o nome do exercício só em
+    // produção, na língua que ninguém abre para conferir. Este é o outro metade do portão.
+    const placeholders = (texto: string) => [...texto.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
+
+    for (const [chave, textoPtBR] of Object.entries(funnelPtBR)) {
+      const textoEn = funnelEn[chave as keyof typeof funnelEn]
+      expect({ chave, ph: placeholders(textoEn) }).toEqual({
+        chave,
+        ph: placeholders(textoPtBR),
+      })
+    }
   })
 })

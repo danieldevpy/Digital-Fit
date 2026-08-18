@@ -1,6 +1,7 @@
 // Tela Guia / exemplo passo a passo (SPEC-015). Estática de propósito: aqui não monta
 // câmera nem sessão — é o respiro entre escolher e treinar.
 import { useState } from 'react'
+import { useT } from '../i18n'
 import { cenaPadrao, exerciseSubtitle, getExercise } from '../session/catalog'
 import { setViewPreference, viewPreference, viewsOf } from '../session/exerciseViews'
 import { setGuideSeen } from '../session/preferences'
@@ -12,6 +13,7 @@ import { IconPlay } from '../ui/icons'
 import { ViewPicker } from '../ui/ViewPicker'
 
 export function GuideScreen({ exercise }: { exercise: string }) {
+  const t = useT()
   const info = getExercise(exercise)
   // A variação é escolhida AQUI e na pré-config, e o Guia é o lugar onde ela se explica: é a
   // tela que existe para ensinar a montar a cena, e montar a cena é justamente o que muda
@@ -35,7 +37,7 @@ export function GuideScreen({ exercise }: { exercise: string }) {
     <>
       <div className="guide">
         <BrandMark center />
-        <p className="guide__kicker">Exemplo guiado</p>
+        <p className="guide__kicker">{t('funnel:guide.kicker')}</p>
         <h1 className="guide__title">{info.display_name}</h1>
         <p className="guide__sub">{exerciseSubtitle(info)}</p>
 
@@ -45,7 +47,7 @@ export function GuideScreen({ exercise }: { exercise: string }) {
           <img
             className="guide__demo"
             src={demo}
-            alt={`Demonstração do exercício ${info.display_name}`}
+            alt={t('funnel:guide.demo_alt', { exercise: info.display_name })}
           />
         ) : (
           <ExerciseIcon exercise={exercise} className="guide__demo guide__demo--figura" />
@@ -75,19 +77,19 @@ export function GuideScreen({ exercise }: { exercise: string }) {
         )}
 
         <p className="guide__scene">
-          <strong>Prepare a cena:</strong> {cena}
+          <strong>{t('funnel:guide.scene_label')}</strong> {cena}
         </p>
 
         <div className="guide__cta">
           <button type="button" className="v2-cta" onClick={seguir}>
-            Entendi, vamos lá
+            {t('funnel:guide.cta')}
             <span className="v2-cta__play">
               <IconPlay className="v2-cta__play-icon" />
             </span>
           </button>
         </div>
         <button type="button" className="guide__skip" onClick={seguir}>
-          Pular exemplo
+          {t('funnel:guide.skip')}
         </button>
       </div>
       <TabBar />

@@ -12,10 +12,12 @@
 // sessão abrir. Quando a aba Exercícios existir (T-046) ela vira a superfície de navegar e
 // conhecer; isto continua sendo a escolha rápida de quem já sabe o que veio fazer.
 import { useState } from 'react'
+import { useT } from '../i18n'
 import { useCatalog } from '../session/catalog'
 import { exercisePreference, setExercisePreference } from '../session/preferences'
 
 export function ExercisePicker() {
+  const t = useT()
   const [escolhido, setEscolhido] = useState(() => exercisePreference())
   // Do servidor quando ele chega (T-074): o painel desligar um exercício tem que apagá-lo daqui
   // também, senão sobra um botão que a admissão recusa.
@@ -26,7 +28,7 @@ export function ExercisePicker() {
   return (
     // `radiogroup` e não uma fileira de botões: são opções mutuamente exclusivas com uma já
     // marcada, e é isso que um leitor de tela precisa anunciar.
-    <div className="exercise-pick" role="radiogroup" aria-label="Exercício">
+    <div className="exercise-pick" role="radiogroup" aria-label={t('funnel:picker.aria_label')}>
       {keys.map((chave) => {
         const info = catalog[chave]
         if (!info) return null
