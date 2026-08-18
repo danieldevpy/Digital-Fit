@@ -45,4 +45,36 @@ export default tseslint.config(
       'i18next/no-literal-string': ['error', { mode: 'jsx-only' }],
     },
   },
+  // T-147 (namespace `site`): `site/IndexScreen`, `AboutScreen`, `SiteBar`, `SiteApp`, `nav` —
+  // migrados para `t()`. Mesmo `mode: 'jsx-only'` do override acima, mesma doutrina. `active`
+  // acrescentado ao `jsx-attributes.exclude` (a lista PADRÃO — `context.options[0]` substitui o
+  // default inteiro, não faz merge, então a exclusão de `className`/`style`/... precisa ser
+  // repetida aqui): é o slug da tela em `SiteBar` (`'index' | 'sobre'`), o mesmo
+  // vocabulário-de-contrato que já vale para `Category`/`Code` no resto do projeto — dado, não
+  // frase.
+  {
+    files: ['src/site/**/*.{ts,tsx}'],
+    plugins: { i18next },
+    rules: {
+      'i18next/no-literal-string': [
+        'error',
+        {
+          mode: 'jsx-only',
+          'jsx-attributes': {
+            exclude: [
+              'className',
+              'styleName',
+              'style',
+              'type',
+              'key',
+              'id',
+              'width',
+              'height',
+              'active',
+            ],
+          },
+        },
+      ],
+    },
+  },
 )

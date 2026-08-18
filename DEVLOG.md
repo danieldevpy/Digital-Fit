@@ -5,6 +5,59 @@
 
 ---
 
+## 2026-08-18 (68) · T-147 — Namespace `site`: a landing e o Sobre em duas línguas, e um terceiro entry point
+
+Onda 2 da SPEC-025, primeira raia a fechar. Escopo: `site/IndexScreen`, `AboutScreen`,
+`SiteBar`, `SiteApp` migrados para `t('site:...')`, mais o `index.html` por idioma que a spec
+pede em §Escopo — Site por URL (`/` = pt-BR, `/en/` = en, `hreflang` recíproco). O worktree
+onde a task rodou tinha nascido antes da T-141/T-142 fecharem em `master` — primeiro passo foi
+`git merge master` (fast-forward) para trazer o runtime de i18n e o dicionário vazio de `site`
+antes de escrever qualquer coisa em cima.
+
+- **49 chaves no namespace `site`** (`dict/pt-BR/site.ts` / `dict/en/site.ts`): nav, hero,
+  features, CTA, mini-HUD decorativo, seção "escolha seu exercício", rodapé institucional
+  (reaproveitado entre `IndexScreen` e `AboutScreen` — é o mesmo texto nas duas telas), tela
+  Sobre e a barra do site. Rótulos de acessibilidade inclusos: `alt` da imagem do hero,
+  `aria-label` da nav do `SiteBar`, `title="Em breve"` dos links desativados do Sobre. Tradução
+  em tom de produto — "Treine melhor. / Evolua sempre." virou "Train smarter. / Keep evolving.",
+  não "Train better. Evolve always." (que soaria traduzido, não escrito em inglês).
+- **Título e `<em>` que mudam de escopo entre idiomas**: o `<h1>` do hero e o subtítulo da
+  seção "escolha seu exercício" tinham o `<em>` (só cor de destaque via CSS, não itálico —
+  conferido em `styles.css`) em volta de UMA palavra («Evolua», «resultados reais»). Manter a
+  palavra exata sob `<em>` prenderia a tradução a uma ordem de frase que o inglês não segue.
+  Reestruturado para o `<em>` envolver a LINHA/oração inteira («Evolua sempre.» /
+  «Keep evolving.»), preservando o efeito visual sem prender a estrutura da frase a um idioma.
+- **`index.html` por idioma** (critério 3 da SPEC-025): `en/index.html` novo, terceiro entry no
+  `rollupOptions.input` do Vite (`siteEn`), mesmo bundle `/src/entries/site.tsx` do `index.html`
+  da raiz — só o `<html lang>` estático muda entre os dois. `hreflang` recíproco nos dois
+  (`pt-BR` ↔ `en`), `title`/`meta description` traduzidos. Achado no caminho: o plugin de HTML
+  do Vite trata QUALQUER `<link href>` como referência de asset a copiar/hashear, sem olhar o
+  `rel` (`DEFAULT_HTML_ASSET_SOURCES.link.srcAttributes = ['href']`) — `href="/"` no `hreflang`
+  quebrava o build com `EISDIR` (tentava ler o diretório raiz como arquivo). Resolvido com o
+  atributo `vite-ignore` nos dois `<link rel="alternate">`, que o próprio plugin reconhece para
+  pular o processamento de asset naquele nó.
+- **Decisão nova, registrada aqui porque não estava em nenhum código existente: o site decide o
+  locale pela URL, não pelo `useI18nStore` do app.** `SiteApp.tsx` lê `document.documentElement.lang`
+  no import do módulo (mesmo timing de `detectLocale()` em `i18n/store.ts` — computado de saída,
+  sem flash) e chama `useI18nStore.setState({ locale })` DIRETO, nunca `setLocale()`: a escolha é
+  da URL desta visita, não uma preferência para persistir em `digitalfit.locale` — abrir `/en/`
+  não pode mudar o idioma que o `/app/` abre depois. É a leitura literal de SPEC-025 §Escopo
+  ("site por URL, app por preferência" — regras diferentes de propósito, não inconsistência).
+- **ESLint**: acrescentado `src/site/**/*.{ts,tsx}` ao mesmo padrão de override por pasta que a
+  T-142 abriu (`i18next/no-literal-string`, `mode: 'jsx-only'`). Duas exceções documentadas no
+  próprio código: `active` (prop de `SiteBar`, slug de rota — vocabulário de contrato, não
+  frase) entrou no `jsx-attributes.exclude` do override; `176°` do mini-HUD decorativo
+  (`aria-hidden`) ganhou um `eslint-disable-next-line` pontual — é unidade, não texto de
+  produto, igual às outras leituras de amostra da mesma grade (`1/1`, `12`, `87`, `124`), que já
+  passavam sozinhas por serem só dígitos.
+- Gates: `npm run lint` limpo, `npm run typecheck` limpo, `npm run test` — 57 arquivos / 632
+  testes verdes, `npm run build` — três entries (`site`, `siteEn`, `app`) gerados, `dist/en/index.html`
+  conferido manualmente (lang, title, description, hreflang, bundle `site` compartilhado).
+- Sem pendências novas para o BACKLOG — `nav.ts`/`nav.test.ts` do site não tinham texto visível
+  (roteador puro por hash), ficaram fora da migração por não terem o que migrar.
+
+---
+
 ## 2026-08-18 (65) · T-142 — Runtime i18n do cliente: consertando o que a sessão anterior deixou pela metade
 
 Sessão que retomou trabalho não commitado (a anterior caiu no meio). O grosso de `web/src/i18n/`

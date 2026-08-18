@@ -5,6 +5,7 @@
 //
 // Desde a T-067 esta tela é o SITE: todo botão que leva a treinar é um `<a href>` para o
 // app, não um `navigate()`. O app pode estar em outro host, e ali `#/preparar` não existe.
+import { useT } from '../i18n'
 import { DEFAULT_EXERCISE } from '../session/catalog'
 import { appHref } from '../shell/origins'
 import {
@@ -24,38 +25,35 @@ import { ExerciseCards } from '../screens/ExerciseCards'
 import { SiteBar } from './SiteBar'
 
 function Brand({ mobile = false }: { mobile?: boolean }) {
+  const t = useT()
+
   return (
     <div className={`landing__brand ${mobile ? 'landing__brand--mobile' : ''}`}>
       <IconLogo className="landing__logo" />
       <div>
+        {/* "DIGITAL FIT" é o nome da marca, não texto de produto — fica igual nas duas
+            línguas (mesma razão de `Category` guardar `forca`, não `"Força"`: aqui o
+            valor literal É o dado, não uma frase a traduzir). */}
         <p className="landing__brand-name">
           DIGITAL <em>FIT</em>
         </p>
-        <p className="landing__brand-sub">Seu treino. Sua evolução.</p>
+        <p className="landing__brand-sub">{t('site:brand.tagline')}</p>
       </div>
     </div>
   )
 }
 
+// Só o ícone é estático aqui (T-147, namespace `site`): título e texto vêm de `t()` a cada
+// render, mesmo raciocínio do `TABS` de `shell/TabBar.tsx`.
 const FEATURES = [
-  {
-    Icon: IconTarget,
-    title: 'Análise em Tempo Real',
-    text: 'Feedback instantâneo enquanto você se movimenta.',
-  },
-  {
-    Icon: IconCounter,
-    title: 'Conte Repetições',
-    text: 'Contagem precisa de cada repetição ao longo da série.',
-  },
-  {
-    Icon: IconShieldCheck,
-    title: 'Corrija sua Execução',
-    text: 'Dicas visuais para melhorar sua postura e performance.',
-  },
-]
+  { id: 'realtime', Icon: IconTarget },
+  { id: 'count', Icon: IconCounter },
+  { id: 'correct', Icon: IconShieldCheck },
+] as const
 
 export function IndexScreen() {
+  const t = useT()
+
   return (
     <div className="landing">
       <div className="landing__scroll">
@@ -64,7 +62,7 @@ export function IndexScreen() {
           {/* "Entrar" leva ao app porque é lá que a conta mora: o token fica no localStorage,
               que é por origem — entrar aqui não deixaria ninguém logado no app. */}
           <a className="landing__enter" href={appHref('#/entrar')}>
-            Entrar
+            {t('site:nav.enter')}
           </a>
         </nav>
 
@@ -73,31 +71,28 @@ export function IndexScreen() {
         <div className="landing__hero-grid">
           <div>
             <span className="landing__badge">
-              <IconSpark className="landing__badge-icon" /> Inteligência que te move
+              <IconSpark className="landing__badge-icon" /> {t('site:hero.badge')}
             </span>
             <h1 className="landing__title">
-              Treine melhor.
+              {t('site:hero.title_top')}
               <br />
-              <em>Evolua</em> sempre.
+              <em>{t('site:hero.title_bottom')}</em>
             </h1>
-            <p className="landing__copy">
-              O Digital Fit usa visão computacional para analisar seus movimentos em tempo
-              real, contar repetições, corrigir sua execução e classificar o exercício.
-            </p>
+            <p className="landing__copy">{t('site:hero.copy')}</p>
 
             <div className="landing__hero landing__hero--mobile">
-              <img src="/img/hero-female.jpg" alt="Pessoa treinando com esqueleto de análise neon" />
+              <img src="/img/hero-female.jpg" alt={t('site:hero.image_alt')} />
             </div>
 
             <div className="landing__features">
-              {FEATURES.map(({ Icon, title, text }) => (
-                <div className="feature" key={title}>
+              {FEATURES.map(({ id, Icon }) => (
+                <div className="feature" key={id}>
                   <span className="feature__icon">
                     <Icon />
                   </span>
                   <div>
-                    <p className="feature__title">{title}</p>
-                    <p className="feature__text">{text}</p>
+                    <p className="feature__title">{t(`site:feature.${id}.title`)}</p>
+                    <p className="feature__text">{t(`site:feature.${id}.text`)}</p>
                   </div>
                 </div>
               ))}
@@ -105,7 +100,7 @@ export function IndexScreen() {
 
             <div className="landing__cta">
               <a className="v2-cta" href={appHref('#/exercicios')}>
-                Começar Treino
+                {t('site:cta.start')}
                 <span className="v2-cta__play">
                   <IconPlay className="v2-cta__play-icon" />
                 </span>
@@ -115,7 +110,7 @@ export function IndexScreen() {
                 APP, e o site não a conhece. Prometer "o seu último exercício" aqui seria
                 chutar. */}
             <a className="landing__how" href={appHref(`#/guia/${DEFAULT_EXERCISE}`)}>
-              <IconPlay className="landing__how-icon" /> Ver como funciona
+              <IconPlay className="landing__how-icon" /> {t('site:cta.how_it_works')}
             </a>
           </div>
 
@@ -133,6 +128,9 @@ export function IndexScreen() {
               </div>
               <div className="mock-stats__cell">
                 <IconAngle className="stats__icon" />
+                {/* Número de amostra do mock decorativo (aria-hidden acima) — grau é
+                    unidade, não texto de produto; mesma unidade nas duas línguas. */}
+                {/* eslint-disable-next-line i18next/no-literal-string */}
                 <p className="mock-stats__value">176°</p>
               </div>
               <div className="mock-stats__cell">
@@ -145,17 +143,17 @@ export function IndexScreen() {
               </div>
             </div>
             <div className="mock-pill">
-              <p className="mock-pill__name">POLICHINELO</p>
-              <p className="mock-pill__sub">Cardio • Corpo inteiro</p>
+              <p className="mock-pill__name">{t('site:mock.exercise_name')}</p>
+              <p className="mock-pill__sub">{t('site:mock.exercise_sub')}</p>
             </div>
           </div>
         </div>
 
         <div className="landing__choose">
           <div className="landing__section-title">
-            <p className="guide__kicker">Escolha seu exercício</p>
+            <p className="guide__kicker">{t('site:choose.kicker')}</p>
             <p className="choose__subtitle">
-              Treinos rápidos, <em>resultados reais</em>
+              {t('site:choose.subtitle_top')} <em>{t('site:choose.subtitle_em')}</em>
             </p>
           </div>
           {/* Cada card é um link para o app, que decide Guia ou Pré-config (SPEC-015) — a
@@ -166,30 +164,30 @@ export function IndexScreen() {
         <footer className="landing__footer">
           <div className="landing__footer-col">
             <Brand />
-            <p>Tecnologia de visão computacional para transformar sua forma de treinar.</p>
+            <p>{t('site:footer.tagline')}</p>
           </div>
           <div className="landing__footer-col">
-            <h3>Recursos</h3>
-            <a href={appHref(`#/guia/${DEFAULT_EXERCISE}`)}>Como funciona</a>
-            <a href={appHref('#/exercicios')}>Exercícios</a>
-            <a href="#/sobre">Benefícios</a>
-            <a href="#/sobre">Planos</a>
+            <h3>{t('site:footer.heading.resources')}</h3>
+            <a href={appHref(`#/guia/${DEFAULT_EXERCISE}`)}>{t('site:footer.link.how_it_works')}</a>
+            <a href={appHref('#/exercicios')}>{t('site:footer.link.exercises')}</a>
+            <a href="#/sobre">{t('site:footer.link.benefits')}</a>
+            <a href="#/sobre">{t('site:footer.link.plans')}</a>
           </div>
           <div className="landing__footer-col">
-            <h3>Sobre</h3>
-            <a href="#/sobre">Quem somos</a>
-            <a href="#/sobre">Privacidade</a>
-            <a href="#/sobre">Termos de uso</a>
-            <a href="#/sobre">Contato</a>
+            <h3>{t('site:footer.heading.about')}</h3>
+            <a href="#/sobre">{t('site:footer.link.who_we_are')}</a>
+            <a href="#/sobre">{t('site:footer.link.privacy')}</a>
+            <a href="#/sobre">{t('site:footer.link.terms')}</a>
+            <a href="#/sobre">{t('site:footer.link.contact')}</a>
           </div>
           <div className="landing__footer-col">
-            <h3>Suporte</h3>
-            <a href="#/sobre">Central de ajuda</a>
-            <a href="#/sobre">FAQ</a>
-            <a href="#/sobre">Fale conosco</a>
-            <a href="#/sobre">Status</a>
+            <h3>{t('site:footer.heading.support')}</h3>
+            <a href="#/sobre">{t('site:footer.link.help_center')}</a>
+            <a href="#/sobre">{t('site:footer.link.faq')}</a>
+            <a href="#/sobre">{t('site:footer.link.talk_to_us')}</a>
+            <a href="#/sobre">{t('site:footer.link.status')}</a>
           </div>
-          <p className="landing__copyright">© 2025 Digital Fit. Todos os direitos reservados.</p>
+          <p className="landing__copyright">{t('site:footer.copyright')}</p>
         </footer>
       </div>
 

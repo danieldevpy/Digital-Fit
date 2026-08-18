@@ -310,7 +310,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-147 | **Namespace `site`.** `site/IndexScreen`, `AboutScreen`, `SiteBar`, `SiteApp`, `nav` **+ `index.html` por idioma, `en/index.html` no Vite, `hreflang` recíproco, `<title>`/`<meta description>` traduzidos** (SPEC-025 §Escopo — site por URL). Depende de T-142 *(Tam: M)* | 025/014 | todo |
+| T-147 | **Namespace `site`.** `site/IndexScreen`, `AboutScreen`, `SiteBar`, `SiteApp`, `nav` **+ `index.html` por idioma, `en/index.html` no Vite, `hreflang` recíproco, `<title>`/`<meta description>` traduzidos** (SPEC-025 §Escopo — site por URL). Depende de T-142 *(Tam: M)* | 025/014 | **feito** (2026-08-18) |
 | T-148 | **Namespace `funnel`.** `screens/ChooseScreen`, `GuideScreen`, `ExerciseCards`, `ExerciseRails`, `funnel`, `ui/ViewPicker`, `ExerciseDemo`, `hud/ViewConfirm`, `ExercisePicker`, `session/guideGate`, `viewGate`. Depende de T-142 *(Tam: M)* | 025/015 | todo |
 | T-149 | **Namespace `session`.** `screens/SessionScreen`, `capture/CameraView`, `useCamera`, `useEdgePipeline`, `hud/*` (CoachTip, StatsBar, GetReady, TimerRing, CountdownSetting, ZoomControl), `session/startGate`, `pipelineGate`, `admission`, `useSession`, `scene/sceneQuality`, `pose/assetWarmup`, `probe/runProbe`. Depende de T-142 *(Tam: G)* | 025/013 | todo |
 | T-150 | **Namespaces `report` + `progress`.** `report/ReportSheet`, `reportSummary`, `sessionReport`, `screens/ProgressScreen`, `AnalyticsScreen`, `history/aggregates`, `session/kcal` **+ troca dos `toLocaleDateString('pt-BR')` pelos formatadores (plano §2.6) e do `DIAS_DA_SEMANA` montado à mão**. Depende de T-142 *(Tam: G)* | 025/010/024 | todo |
