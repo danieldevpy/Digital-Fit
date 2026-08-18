@@ -17,6 +17,8 @@ from typing import Any
 
 from django.conf import settings
 
+from api.i18n import SOURCE_LOCALE
+from api.i18n import messages as i18n_messages
 from api.tokens import DEFAULT_TTL_S, issue_token
 from workers.analysis_worker.exercises import EXERCISES
 from workers.shared.bus import RedisBus
@@ -182,19 +184,20 @@ class CountedUnavailable(Exception):
     dois veio — e o chamador que esquecesse admitiria a série contada assim mesmo.
     """
 
-    def __init__(self, *, ceiling_s: int) -> None:
+    def __init__(self, *, ceiling_s: int, locale: str = SOURCE_LOCALE) -> None:
         #: O teto que este plano tem hoje. A régua que ele não alcançou é
         #: `config.COUNTED_MIN_CEILING_S`, e ela não viaja na resposta: para quem lê, o que
         #: importa é o que o plano dele dá, não o número interno que o servidor compara.
         self.ceiling_s = ceiling_s
-        super().__init__(
-            "O modo contado precisa de uma sessão mais longa do que o seu plano permite "
-            f"(o máximo aqui é {ceiling_s} s). Neste plano a série roda no modo livre, "
-            "que conta o máximo de repetições na janela."
-        )
+        # `detail` voltado ao cliente (SPEC-025, T-145): explica um limite de plano de verdade,
+        # não um contrato de API — por isso sai do YAML, resolvido no idioma de quem pediu.
+        # `locale` tem default (`SOURCE_LOCALE`) porque `resolve_set` é chamada também sem
+        # requisição nenhuma (`evalctl`, teste) — nesses casos vale o texto de origem.
+        texto = i18n_messages.load(locale).error("counted_unavailable", ceiling_s=ceiling_s)
+        super().__init__(texto)
 
 
-def resolve_set(request: SessionRequest, caps) -> SetPlan:
+def resolve_set(request: SessionRequest, caps, *, locale: str = SOURCE_LOCALE) -> SetPlan:
     """Resolve a série na admissão: modo, meta, teto e o carimbo de posição no treino.
 
     Junto de quota, duração, countdown e cloud — todos resolvidos aqui, na fronteira da API, uma
@@ -214,13 +217,17 @@ def resolve_set(request: SessionRequest, caps) -> SetPlan:
     `set_index`/`set_total` são carimbo puro (§3): o servidor não é dono do treino na Fase
     Inicial, então ele não tem o que validar aí. Normaliza a incoerência e segue — "série 4 de 3"
     vira sessão avulsa, porque número errado na tela é pior do que número nenhum (SPEC-014).
+
+    `locale` só importa para o texto da recusa (`CountedUnavailable`, SPEC-025, T-145) — não
+    muda meta, teto nem modo. Default `SOURCE_LOCALE` porque esta função também é chamada sem
+    requisição (`evalctl`, teste).
     """
     duracao_livre = caps.duration_s()
     if request.set_mode is not SetMode.CONTADO:
         return SetPlan(duration_s=duracao_livre, **_carimbo(request))
 
     if not caps.allows_counted:
-        raise CountedUnavailable(ceiling_s=caps.session_max_s)
+        raise CountedUnavailable(ceiling_s=caps.session_max_s, locale=locale)
 
     return SetPlan(
         set_mode=SetMode.CONTADO,

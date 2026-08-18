@@ -211,7 +211,9 @@ def _admitir(request: Request) -> Response:
     # quota de propósito — recusar depois de consumir o contador cobraria da pessoa uma sessão
     # que ela não chegou a fazer, e a recusa aqui não é temporária (o dia virar não muda nada).
     try:
-        serie = resolve_set(pedido, caps)
+        # `locale` só alimenta o `detail` da recusa (SPEC-025, T-145) — a resolução de meta,
+        # modo e teto não muda com o idioma.
+        serie = resolve_set(pedido, caps, locale=resolve_locale(request))
     except CountedUnavailable as recusa:
         return Response(
             {

@@ -303,7 +303,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 | T-142 | **Runtime i18n do cliente.** `web/src/i18n/` completo: `t()` com namespace e interpolação, plural por `Intl.PluralRules`, formatadores de data/hora/número, detecção + persistência (`digitalfit.locale`), store, `<html lang>` escrito em runtime. Entrega migrando **um** namespace piloto (`shell`: TabBar, nav, AppShell) para provar o caminho ponta a ponta — e ligando o `no-literal-strings` só nessa pasta. **Não migra o resto.** Tipo do `en` derivado do `pt-BR` desde o primeiro commit. Depende de T-141 *(Tam: G)* | 025/013 | **feito** (2026-08-18) |
 | T-143 | **Negociação de locale no servidor.** `resolve_locale(request)`; `Accept-Language` no wrapper de `fetch` do cliente e na lista do `core/cors.py`; `Vary: Accept-Language` nas rotas afetadas; locale dentro do `config_etag` (SPEC-025 §Notas técnicas); `_mensagens_de_feedback()` com cache por locale; locale na chave do cache de engajamento. Teste que prova os três caches: mesma conta, dois idiomas, duas respostas. Depende de T-141 *(Tam: M)* | 025/018/011 | **feito** (2026-08-18) |
 | T-144 | **Feedback por idioma.** `catalog.en.yaml`; `FeedbackCatalog.load(locale)`; teste de paridade de chaves entre idiomas + cobertura de todo o enum `Code`; inversão da prioridade em `coachCard.textOf()` (catálogo local vence o `message` do fio, SPEC-025 §Eventos), com o embutido de `CODE_MESSAGES` nas duas línguas e a nota no docstring de `events.py`. Depende de T-141 *(Tam: M)* | 025/008/002 | **feito** (2026-08-18) |
-| T-145 | **Texto do servidor em arquivo.** `server/api/i18n/messages.{pt-BR,en}.yaml`; `ACHIEVEMENTS` fica só com slug + predicado, nome e descrição resolvidos na serialização de `GET /api/engagement`; `detail` de erro localizados em `auth.py` e `sessions.py` (só os voltados ao cliente — "corpo deve ser objeto JSON" é para dev e fica); teste de paridade. Depende de T-141 *(Tam: M)* | 025/019/011 | todo |
+| T-145 | **Texto do servidor em arquivo.** `server/api/i18n/messages.{pt-BR,en}.yaml`; `ACHIEVEMENTS` fica só com slug + predicado, nome e descrição resolvidos na serialização de `GET /api/engagement`; `detail` de erro localizados em `auth.py` e `sessions.py` (só os voltados ao cliente — "corpo deve ser objeto JSON" é para dev e fica); teste de paridade. Depende de T-141 *(Tam: M)* | 025/019/011 | **feito** (2026-08-18) |
 | T-146 | **Tradução do conteúdo do banco.** Modelo(s) de tradução (plano §3.6); colunas atuais permanecem sendo o pt-BR; `exercises_for()`/`config_payload()` resolvem por locale com fallback para a base; inline no painel; `manage.py i18n_status`. Integra com a T-143, mas não depende dela para ser escrita. Depende de T-141 *(Tam: G)* | 025/018/020 | todo |
 
 ### Onda 2 — migração das telas (6 raias em paralelo; dependem da T-142; cada uma liga o `no-literal-strings` só na própria pasta ao terminar)
@@ -1141,3 +1141,20 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   `test_feedback` e no e2e do cliente. Não é ruído: cada um deles é um teste de CONTAGEM que
   estava herdando em silêncio uma decisão de produto. Agora dizem no próprio corpo que não
   querem preparação — e o dia em que o default mudar de novo, eles não se mexem.
+- **[T-145] `server/api/views.py` também tem `detail` de erro voltado ao cliente, e ficou de
+  fora.** A SPEC-025 (§Entidade, fonte 4) e a linha da T-145 escopam a localização de `detail`
+  a `auth.py` e `sessions.py`; na prática, boa parte dos corpos `{"detail": ...}` que o cliente
+  realmente recebe nasce em `views.py`, que só chama `str(exc)` sobre o que essas duas funções
+  levantam — "quota indisponivel agora" (`quota`), "este exercicio nao esta disponivel para voce
+  agora" (`_admitir`), "autenticacao necessaria" (`_historico`/`engagement`, duplicado do que
+  virou catálogo em `auth.me`), "use ?mine para listar suas sessoes", "relatorio nao encontrado"/
+  "relatorio ainda nao disponivel" (`session_report`), "nao foi possivel criar a sessao: {exc}".
+  Nenhum deles é mensagem de contrato (tipo "corpo deve ser objeto JSON") — são recusas que uma
+  pessoa de verdade lê na tela. `CountedUnavailable` (sessions.py) foi localizado nesta task
+  porque `resolve_set`/`CountedUnavailable` vivem em `sessions.py`, mas o padrão que ele abriu
+  (mensagem monta no módulo de regra, `locale` resolvido pela view e passado como parâmetro)
+  serve para os de `views.py` também. Não entrou aqui porque a spec/backlog explicitamente não
+  os citou, e views.py não é um dos dois arquivos do escopo — mas é o mesmo tipo de texto, e
+  fica pela metade sem ele: um `en-US` que bate numa quota estourada ou numa sessão-relatório
+  ainda vê "quota indisponivel agora" em português. Falta task própria (ou ampliar o escopo da
+  ideia da T-145 para `views.py`).

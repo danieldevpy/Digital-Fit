@@ -1,0 +1,54 @@
+# Texto do servidor — pt-BR (SPEC-025, T-145).
+#
+# Duas seções, dois donos diferentes:
+#
+# - `achievements`: nome + descrição de cada conquista (`server/api/engagement.py`,
+#   `ACHIEVEMENTS`). O slug e o predicado ficam no código — vocabulário de contrato, não texto
+#   (mesma separação do catálogo de feedback). A chave aqui É o slug.
+# - `errors`: `detail` dos erros 4xx voltados ao CLIENTE, levantados em `api/auth.py` e
+#   `api/sessions.py`. Mensagem de contrato/desenvolvedor ("corpo deve ser objeto JSON") não
+#   entra aqui — continua em código, em português, porque quem a lê é quem manda o corpo errado,
+#   não quem treina.
+#
+# `pt-BR` é `SOURCE_LOCALE` (`api/i18n`): toda chave nasce aqui primeiro, e `messages.en.yaml`
+# segue com a mesma chave. Chave faltando de um lado é teste vermelho (`tests/test_i18n_messages.py`).
+#
+# Interpolação por `str.format`: `{ceiling_s}`, `{email}` etc. viram argumento nomeado em
+# `Messages.error(key, **valores)` — o YAML não executa nada, só declara o molde.
+
+achievements:
+  primeira-sessao:
+    name: Primeira sessão
+    description: Você treinou com o Digital Fit pela primeira vez.
+  fogo-7:
+    name: Uma semana de fogo
+    description: 7 dias seguidos treinando.
+  semana-cheia:
+    name: Semana cheia
+    description: Você bateu sua meta diária 7 dias seguidos.
+  centena:
+    name: Centena
+    description: 100 repetições acumuladas num mesmo exercício.
+  sem-reparo:
+    name: Sem reparo
+    description: 10 sessões sem uma correção sequer.
+  fogo-30:
+    name: Um mês de fogo
+    description: 30 dias seguidos treinando.
+  milheiro:
+    name: Milheiro
+    description: 1000 repetições no total.
+
+errors:
+  email_required: e-mail obrigatorio
+  email_invalid: "e-mail invalido: {email}"
+  password_required: senha obrigatoria
+  email_taken: Já existe uma conta com este e-mail. Tente entrar.
+  invalid_credentials: E-mail ou senha incorretos.
+  refresh_required: refresh obrigatorio
+  refresh_invalid: refresh invalido ou expirado
+  auth_required: autenticacao necessaria
+  counted_unavailable: >-
+    O modo contado precisa de uma sessão mais longa do que o seu plano permite (o máximo aqui é
+    {ceiling_s} s). Neste plano a série roda no modo livre, que conta o máximo de repetições na
+    janela.
