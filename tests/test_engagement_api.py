@@ -274,6 +274,58 @@ def test_a_chave_de_ontem_nao_e_servida_hoje(client, usuario) -> None:
     assert corpo["streak"] == 1
 
 
+# ======================================================================================
+# O locale como quarta dimensão da chave (SPEC-025, T-143)
+#
+# O corpo guardado traz nome e descrição de conquista já prontos (`Conquista.to_dict`) — hoje só
+# em português; a partir do catálogo da T-144/T-146, em qualquer locale suportado. O que estes
+# testes provam é o MECANISMO da chave, não a tradução: sem o locale nela, a primeira leitura do
+# dia grava UM idioma sob `(user, dia)` e prende todo mundo naquela língua até a meia-noite.
+# ======================================================================================
+
+
+def test_locale_diferente_nao_le_o_cache_do_outro_locale(client, usuario) -> None:
+    treino(usuario, dias_atras=0)
+    hoje = eng.dia_sp(timezone.now())
+    cache.set(engagement_cache.chave_de_cache(usuario.pk, hoje, "pt-BR"), {"streak": 999}, 3600)
+
+    corpo = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="en", **autorizacao(client)).json()
+
+    assert corpo["streak"] == 1
+
+
+def test_mesmo_locale_continua_lendo_do_proprio_cache(client, usuario) -> None:
+    """O contrapositivo: duas leituras no MESMO locale continuam batendo no mesmo valor
+    guardado — a chave ganhou uma dimensão, não perdeu a que já tinha."""
+    treino(usuario, dias_atras=0)
+    cabecalho = autorizacao(client)
+
+    fria = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="pt-BR", **cabecalho).json()
+    quente = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="pt-BR", **cabecalho).json()
+
+    assert fria == quente == {**fria, "streak": 1}
+
+
+def test_invalidar_apaga_a_chave_de_todo_locale(client, usuario) -> None:
+    """A invalidação roda fora de requisição (signal do `SessionResult`), sem `Accept-Language`
+    para escolher UMA chave — tem de apagar o cache de TODO locale, ou metade de quem lê
+    continuaria vendo o engajamento de antes da sessão nova até a virada do dia."""
+    cabecalho = autorizacao(client)
+    client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="pt-BR", **cabecalho)
+    client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="en", **cabecalho)
+    hoje = eng.dia_sp(timezone.now())
+    assert cache.get(engagement_cache.chave_de_cache(usuario.pk, hoje, "pt-BR")) is not None
+    assert cache.get(engagement_cache.chave_de_cache(usuario.pk, hoje, "en")) is not None
+
+    treino(usuario, dias_atras=0)  # dispara o post_save -> invalidar_por_resultado
+
+    assert cache.get(engagement_cache.chave_de_cache(usuario.pk, hoje, "pt-BR")) is None
+    assert cache.get(engagement_cache.chave_de_cache(usuario.pk, hoje, "en")) is None
+    depois_pt = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="pt-BR", **cabecalho).json()
+    depois_en = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="en", **cabecalho).json()
+    assert depois_pt["streak"] == depois_en["streak"] == 1
+
+
 def test_relatorio_novo_derruba_o_cache_do_dono(client, usuario) -> None:
     cabecalho = autorizacao(client)
     assert client.get("/api/engagement", **cabecalho).json()["streak"] == 0

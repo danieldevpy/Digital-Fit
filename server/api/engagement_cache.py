@@ -14,6 +14,7 @@ tem nada que ver com o registro de FSMs; a fronteira aqui evita a dependência a
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Any
 
 from django.core.cache import cache
@@ -21,8 +22,10 @@ from django.utils import timezone
 
 from api import engagement as regra
 from api.config import capabilities_for
+from api.i18n import DEFAULT_LOCALE, LOCALES
 
 __all__ = [
+    "chave_de_cache",
     "com_xp",
     "invalidar_por_resultado",
     "invalidar_por_usuario",
@@ -61,6 +64,25 @@ def sessoes_de(usuario) -> list[regra.Sessao]:
     ]
 
 
+def chave_de_cache(user_id: int, hoje: date, locale: str) -> str:
+    """`{chave pura de engagement.py}:{locale}` — a quarta dimensão da chave (SPEC-025, T-143).
+
+    **Composta aqui em cima da chave pura, e não dentro dela.** `api.engagement.chave_de_cache`
+    é a metade sem I/O do engajamento (contrato da SPEC-019: função pura, sem locale, sem nada
+    que não seja `(user, dia)`) — a negociação de locale é harness de transporte da SPEC-025, não
+    regra de derivação, e não é este módulo que decide onde a fronteira entre as duas fica.
+
+    **Por que o locale precisa estar na chave.** O corpo guardado é o payload já renderizado por
+    `payload_de` (`_derivar` → `regra.resumo(...).to_dict()`), e ele traz nome e descrição de
+    conquista prontos como texto (`Conquista.to_dict`) — hoje só em português, e a partir do
+    catálogo de tradução (T-144/T-146) em qualquer locale suportado. Sem o locale na chave, a
+    primeira leitura do dia grava UM idioma sob a chave `(user, dia)`, e todo mundo que ler depois
+    — inclusive alguém que troque o app para outra língua no mesmo dia — recebe essa mesma
+    resposta pronta até a meia-noite de São Paulo, mesmo pedindo em outra língua.
+    """
+    return f"{regra.chave_de_cache(user_id, hoje)}:{locale}"
+
+
 def _derivar(usuario) -> dict[str, Any]:
     """Deriva do banco, sem tocar no cache. É o caminho que o cache existe para evitar — e o
     caminho que responde igual quando o Redis está fora (P2 da SPEC-018)."""
@@ -77,13 +99,18 @@ def _derivar(usuario) -> dict[str, Any]:
     ).to_dict()
 
 
-def payload_de(usuario) -> dict[str, Any]:
+def payload_de(usuario, *, locale: str = DEFAULT_LOCALE) -> dict[str, Any]:
     """Corpo do `GET /api/engagement`, do cache quando houver.
 
     Cache é otimização, nunca fonte: as duas travessias estão em `try` porque Redis fora do ar
     tem de sair mais devagar, não com erro na cara de quem ia ver o próprio fogo.
+
+    `locale` entra na chave (`chave_de_cache`, SPEC-025) e não no cálculo — `_derivar` continua
+    sem saber que locale existe, porque o conteúdo ainda não varia por língua (T-144/T-146). O
+    default (`DEFAULT_LOCALE`) só cobre quem chama sem resolver locale nenhum, coerente com
+    `api.i18n.resolve_locale` na mesma ausência de sinal.
     """
-    chave = regra.chave_de_cache(usuario.pk, regra.dia_sp(timezone.now()))
+    chave = chave_de_cache(usuario.pk, regra.dia_sp(timezone.now()), locale)
 
     try:
         guardado = cache.get(chave)
@@ -163,9 +190,16 @@ def invalidar_por_usuario(instance=None, **_kwargs) -> None:
 
 
 def _limpar(user_id: int) -> None:
-    """Apaga a chave de HOJE.
+    """Apaga a chave de HOJE, em todo locale.
 
     Só a de hoje: as de ontem já expiraram sozinhas pelo TTL, e varrer chaves por padrão
-    (`KEYS df:eng:*`) é a operação que trava um Redis em produção.
+    (`KEYS df:eng:*`) é a operação que trava um Redis em produção. Em todo locale e não só um,
+    porque a invalidação roda fora de qualquer requisição — signal de `SessionResult`/`User`,
+    sem `Accept-Language` nenhum para escolher UMA chave — e o dado mudou para quem lê em
+    qualquer língua suportada. Apagar só a chave de um locale deixaria as outras servindo
+    engajamento velho até a próxima escrita ou a virada do dia, o mesmo bug que esta task existe
+    para fechar, só que pela porta da invalidação em vez da leitura.
     """
-    cache.delete(regra.chave_de_cache(user_id, regra.dia_sp(timezone.now())))
+    hoje = regra.dia_sp(timezone.now())
+    for locale in LOCALES:
+        cache.delete(chave_de_cache(user_id, hoje, locale))

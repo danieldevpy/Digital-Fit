@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from api import engagement_cache
 from api import quota as quota_rule
 from api.config import capabilities_for, config_etag, config_payload, exercises_for
+from api.i18n import resolve_locale
 from api.models import SessionClaim, SessionResult
 from api.sessions import (
     COUNTED_UNAVAILABLE,
@@ -85,13 +86,16 @@ def config(request: Request) -> Response:
     SPEC-020, varia no próprio conteúdo do catálogo — o assinante enxerga o que o Free não
     enxerga. Sem `Cache-Control: private`, um proxy no caminho serviria a resposta do assinante
     para o próximo Free que revalidasse, furando a trava de plano sem ninguém ver. Pelo mesmo
-    motivo o ETag não é só a versão da configuração (ver `config_etag`).
+    motivo o ETag não é só a versão da configuração (ver `config_etag`) — e desde a SPEC-025 o
+    locale é a quarta dimensão dela, pela mesma razão: sem ele, trocar o app de idioma reaproveita
+    o `If-None-Match` de antes e volta `304` (nenhum corpo novo) em vez do payload na língua nova.
 
     O cliente mantém os defaults dele em código para o primeiro paint e para o caso offline: a
     tela não espera por esta rota para desenhar, e o servidor vence quando chega.
     """
     usuario = _usuario(request)
-    etag = config_etag(usuario)
+    locale = resolve_locale(request)
+    etag = config_etag(usuario, locale=locale)
 
     if request.headers.get("If-None-Match") == etag:
         resposta = Response(status=304)
@@ -101,8 +105,8 @@ def config(request: Request) -> Response:
     resposta["ETag"] = etag
     resposta["Cache-Control"] = "private, must-revalidate"
     # Sem isto um cache que respeitasse `private` ainda poderia servir a mesma entrada para
-    # dois usuários da mesma origem.
-    resposta["Vary"] = "Authorization"
+    # dois usuários da mesma origem, ou a mesma entrada em duas línguas diferentes (SPEC-025).
+    resposta["Vary"] = "Authorization, Accept-Language"
     return resposta
 
 
@@ -360,10 +364,13 @@ def engagement(request: Request) -> Response:
     if usuario is None:
         return Response({"detail": "autenticacao necessaria"}, status=401)
 
-    resposta = Response(engagement_cache.payload_de(usuario))
+    locale = resolve_locale(request)
+    resposta = Response(engagement_cache.payload_de(usuario, locale=locale))
     # O corpo vira sozinho a meia-noite de Sao Paulo e a cada sessao concluida. Deixar um proxy
     # guardando isto poria o fogo de ontem na tela de hoje — o mesmo bug que a data na chave do
-    # Redis existe para evitar, so que fora do nosso alcance para invalidar.
+    # Redis existe para evitar, so que fora do nosso alcance para invalidar. Nao precisa de
+    # `Vary: Accept-Language`: `no-store` ja impede qualquer cache HTTP guardar isto, e o locale
+    # que importa e o da chave no Redis (`engagement_cache.chave_de_cache`), nao o desta resposta.
     resposta["Cache-Control"] = "no-store"
     return resposta
 
