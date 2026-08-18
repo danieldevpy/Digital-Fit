@@ -5,6 +5,62 @@
 
 ---
 
+## 2026-08-18 (62) · T-141 — SPEC-025: o plano vira spec, e nada foi decidido de novo
+
+Sessão de projeto, não de código. Fonte única: `docs/PLANO-I18N.md`, já escrito e com todo o
+mapeamento e as decisões de arquitetura tomadas e aprovadas fora desta sessão — o trabalho aqui
+foi **transcrever**, pela skill `df-spec`, para o formato de spec da casa e desdobrar em tasks.
+Nenhuma decisão nova, nenhum código tocado.
+
+### O que saiu
+
+- **`specs/SPEC-025-internacionalizacao.md`**, `Status: approved` direto — não `draft`, porque a
+  aprovação já aconteceu na elaboração do plano, não nesta sessão. `Camada: transversal` (é a
+  primeira spec a levar esse rótulo: toca cliente, api, worker e HTML ao mesmo tempo, sem ser
+  dona de nenhuma camada sozinha). Depende de SPEC-008 (catálogo de feedback), SPEC-011
+  (negociação por `Accept-Language`, conta anônima), SPEC-013 (dicionário do cliente) e SPEC-018
+  (config/painel, tabela de tradução).
+- **Linha nova no índice de `specs/README.md`.**
+- **`## Fase 7 — Internacionalização (SPEC-025)` no `BACKLOG.md`**: as 16 tasks do §5 do plano
+  (T-141…T-156), em cinco tabelas — Onda 0 (o contrato, esta task), Onda 1 (4 raias, fundações),
+  Onda 2 (6 raias, uma por namespace de dicionário), Onda 3 (fechamento) e uma trilha paralela
+  (T-156, fuso). Ondas, dependências e tamanhos (P/M/G) preservados do plano; onde ele não dava
+  um código de spec por task (Ondas 2 e 3 são lá tabelas de Namespace/Arquivos e de Dep, não de
+  Spec), o código foi inferido do conteúdo real de cada uma — por exemplo T-148 (namespace
+  `funnel`) aponta para a SPEC-015 porque é literalmente o funil que ela nomeia, e T-151 (fogo,
+  XP, conquistas) aponta para a SPEC-019 pelo mesmo motivo. É leitura do que já existe, não
+  arquitetura nova.
+- `docs/PLANO-I18N.md` entra no commit junto: é a `Referência` da spec, e ela citar um arquivo
+  de fora do histórico não faria sentido.
+
+### O que a spec registra, e não decide
+
+Duas partes do plano mereciam ficar escritas com o mesmo peso de qualquer outra decisão desta
+casa, porque são o tipo de coisa que se perde se só viver num documento de planejamento:
+
+- **A inversão do `coachCard` é a maior alavanca do plano, e vira decisão de contrato.**
+  `feedback.issued.message` deixa de ser autoridade de texto — o `code` é. O cliente já recebe o
+  dicionário completo no `GET /api/config`, na sua língua; inverter `entry.message ??
+  textForCode(entry.code)` resolve o idioma inteiro sem tocar em `POST /sessions`, Redis ou
+  worker. O campo `message` continua no evento (vira diagnóstico/legado) — mudança
+  aditiva-compatível, `PROTOCOL_VERSION` não sobe. A nota correspondente no docstring de
+  `FeedbackIssued` (`workers/shared/events.py`) fica para a T-144, que é quem codifica a
+  inversão — registrar a decisão aqui e implementá-la lá são sessões diferentes, e escrever a
+  nota no código agora seria tocar código sem task.
+- **As três armadilhas de cache (ETag, `lru_cache(maxsize=1)`, chave de engajamento) viram
+  Notas técnicas da spec e, por tabela, critério de aceite da T-143.** Nenhuma aparece como erro
+  — todas aparecem como "às vezes o app está na língua errada", o tipo de bug que some na
+  primeira tentativa de reproduzir.
+
+### Pendências geradas
+
+- Nenhuma decisão de arquitetura em aberto — o plano já chegou fechado; o que resta é sequenciar.
+  O caminho crítico (plano §6) é T-141 → T-142 → (T-149 ‖ T-150 ‖ T-151) → T-154; a Onda 1
+  inteira roda em paralelo à escrita da T-142, e T-146/T-156 não bloqueiam ninguém.
+- A árvore já tinha, antes desta sessão, `web/src/session/exerciseViews.ts` modificado e duas
+  imagens novas em `web/public/img/` (`guia/flexao-frente-1.jpg`, `herofamale.png`) — trabalho de
+  outra sessão, não mexido e não commitado aqui.
+
 ## 2026-08-17 (61) · T-136 — A série resolvida na admissão: modo, meta e teto do servidor
 
 Terceira perna do Bloco C (SPEC-023). A T-134 escreveu o carimbo, a T-135 ensinou o worker a

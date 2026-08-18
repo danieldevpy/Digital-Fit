@@ -282,6 +282,55 @@ Raia contrato → worker → api → client; T-134 abre e as outras dependem del
 | T-118 | Convite de amigo: indicação (quem indica ganha mês/desconto) e convites de assinante (N por mês, acesso completo temporário a quem for convidado) | 016/011 | todo |
 | T-119 | Card compartilhável semanal (Canvas no cliente): resumo da semana com marca, para auto-divulgação (`docs/IDEIAS…` §2.5). Dado já existe; não depende de motor novo | 014/019 | todo |
 
+## Fase 7 — Internacionalização (SPEC-025)
+
+Origem: `docs/PLANO-I18N.md` — o plano de execução (mapeamento das cinco fontes de texto,
+armadilhas, decisões de arquitetura, sequenciamento em ondas). A SPEC-025 é o contrato aprovado;
+este bloco só desdobra o §5 do plano em tasks. Dezesseis tasks: a T-141 abre e bloqueia tudo; a
+Onda 1 (4 raias) só depende dela; a Onda 2 (6 raias, uma por namespace de dicionário) só depende
+da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não bloqueiam ninguém.
+
+### Onda 0 — o contrato (bloqueia tudo)
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-141 | **SPEC-025 — Internacionalização.** Vocabulário de locale (`pt-BR`, `en`, normalização, fallback); a regra de negociação nas três pontas (cliente, API, HTML); onde cada uma das cinco fontes de texto passa a morar; a inversão de prioridade do `coachCard` declarada como decisão de contrato, com a nota correspondente em `workers/shared/events.py`; a forma da tabela de tradução; a regra do texto novo (plano §4) como critério de aceite permanente. Fora de escopo explícito: painel admin, fuso, moeda *(Tam: M)* | 025 | **feito** (2026-08-18) |
+
+### Onda 1 — fundações (4 raias em paralelo; dependem só da T-141)
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-142 | **Runtime i18n do cliente.** `web/src/i18n/` completo: `t()` com namespace e interpolação, plural por `Intl.PluralRules`, formatadores de data/hora/número, detecção + persistência (`digitalfit.locale`), store, `<html lang>` escrito em runtime. Entrega migrando **um** namespace piloto (`shell`: TabBar, nav, AppShell) para provar o caminho ponta a ponta — e ligando o `no-literal-strings` só nessa pasta. **Não migra o resto.** Tipo do `en` derivado do `pt-BR` desde o primeiro commit. Depende de T-141 *(Tam: G)* | 025/013 | todo |
+| T-143 | **Negociação de locale no servidor.** `resolve_locale(request)`; `Accept-Language` no wrapper de `fetch` do cliente e na lista do `core/cors.py`; `Vary: Accept-Language` nas rotas afetadas; locale dentro do `config_etag` (SPEC-025 §Notas técnicas); `_mensagens_de_feedback()` com cache por locale; locale na chave do cache de engajamento. Teste que prova os três caches: mesma conta, dois idiomas, duas respostas. Depende de T-141 *(Tam: M)* | 025/018/011 | todo |
+| T-144 | **Feedback por idioma.** `catalog.en.yaml`; `FeedbackCatalog.load(locale)`; teste de paridade de chaves entre idiomas + cobertura de todo o enum `Code`; inversão da prioridade em `coachCard.textOf()` (catálogo local vence o `message` do fio, SPEC-025 §Eventos), com o embutido de `CODE_MESSAGES` nas duas línguas e a nota no docstring de `events.py`. Depende de T-141 *(Tam: M)* | 025/008/002 | todo |
+| T-145 | **Texto do servidor em arquivo.** `server/api/i18n/messages.{pt-BR,en}.yaml`; `ACHIEVEMENTS` fica só com slug + predicado, nome e descrição resolvidos na serialização de `GET /api/engagement`; `detail` de erro localizados em `auth.py` e `sessions.py` (só os voltados ao cliente — "corpo deve ser objeto JSON" é para dev e fica); teste de paridade. Depende de T-141 *(Tam: M)* | 025/019/011 | todo |
+| T-146 | **Tradução do conteúdo do banco.** Modelo(s) de tradução (plano §3.6); colunas atuais permanecem sendo o pt-BR; `exercises_for()`/`config_payload()` resolvem por locale com fallback para a base; inline no painel; `manage.py i18n_status`. Integra com a T-143, mas não depende dela para ser escrita. Depende de T-141 *(Tam: G)* | 025/018/020 | todo |
+
+### Onda 2 — migração das telas (6 raias em paralelo; dependem da T-142; cada uma liga o `no-literal-strings` só na própria pasta ao terminar)
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-147 | **Namespace `site`.** `site/IndexScreen`, `AboutScreen`, `SiteBar`, `SiteApp`, `nav` **+ `index.html` por idioma, `en/index.html` no Vite, `hreflang` recíproco, `<title>`/`<meta description>` traduzidos** (SPEC-025 §Escopo — site por URL). Depende de T-142 *(Tam: M)* | 025/014 | todo |
+| T-148 | **Namespace `funnel`.** `screens/ChooseScreen`, `GuideScreen`, `ExerciseCards`, `ExerciseRails`, `funnel`, `ui/ViewPicker`, `ExerciseDemo`, `hud/ViewConfirm`, `ExercisePicker`, `session/guideGate`, `viewGate`. Depende de T-142 *(Tam: M)* | 025/015 | todo |
+| T-149 | **Namespace `session`.** `screens/SessionScreen`, `capture/CameraView`, `useCamera`, `useEdgePipeline`, `hud/*` (CoachTip, StatsBar, GetReady, TimerRing, CountdownSetting, ZoomControl), `session/startGate`, `pipelineGate`, `admission`, `useSession`, `scene/sceneQuality`, `pose/assetWarmup`, `probe/runProbe`. Depende de T-142 *(Tam: G)* | 025/013 | todo |
+| T-150 | **Namespaces `report` + `progress`.** `report/ReportSheet`, `reportSummary`, `sessionReport`, `screens/ProgressScreen`, `AnalyticsScreen`, `history/aggregates`, `session/kcal` **+ troca dos `toLocaleDateString('pt-BR')` pelos formatadores (plano §2.6) e do `DIAS_DA_SEMANA` montado à mão**. Depende de T-142 *(Tam: G)* | 025/010/024 | todo |
+| T-151 | **Namespaces `account` + `errors`.** `auth/AccountSheet`, `accountSummary`, `auth/api` (mensagens de rede/falha), `engagement/EngagementSheet`, `EngagementSection`, `FireChip`, `XpLine`, `AchievementGallery`, `AchievementToast`, `format` **+ plural via `Intl.PluralRules` (plano §2.7)**. Depende de T-142 *(Tam: G)* | 025/019/011 | todo |
+| T-152 | **Namespace `catalog`.** `session/catalog.ts` (o catálogo embutido — o fallback offline precisa existir nas duas línguas), `exerciseViews.ts`, `ui/exerciseFigures`, `categoryLabel`. Par com a T-146: o servidor manda o traduzido, o embutido é o que aparece sem rede. Depende de T-142 *(Tam: M)* | 025/020 | todo |
+
+### Onda 3 — fechar
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-153 | **Seletor de idioma nas configurações.** Entra no Perfil (`AccountSheet`); troca sem reload; persiste em `digitalfit.locale`; força revalidação do `GET /api/config` e do `GET /api/engagement` ao trocar (senão o ETag/cache devolve a língua velha — SPEC-025 §Notas técnicas); reescreve `<html lang>`. No site, o mesmo controle navega entre `/` e `/en/`. Depende de T-142 e T-143 *(Tam: M)* | 025/018/019 | todo |
+| T-154 | **Os portões + o processo.** Regra ESLint `no-literal-strings` global (removendo os overrides por pasta); paridade de tipos já garantida desde a T-142; teste de paridade dos YAML no CI; `i18n_status` no checklist de release; `AGENTS.md` e as skills `df-executor`/`df-spec` ganham a regra do texto novo (plano §4). Depende da Onda 2 completa (T-147…T-152) *(Tam: P)* | 025 | todo |
+| T-155 | **Revisão de tradução e de layout.** Passada ponta a ponta nas duas línguas, nos dois entry points, em aparelho real: qualidade do inglês (tom de treinador, não tradução literal), estouro de layout nos cards e chips ("Repetições" → "Reps" muda a métrica visual), e o caminho novo do primeiro acesso com o navegador em inglês. Depende das Ondas 1 e 2 completas *(Tam: M)* | 025/015 | todo |
+
+### Fora da frente, mesmo objetivo
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-156 | **Fuso do fogo por usuário.** `FUSO_DO_FOGO` deixa de ser constante de São Paulo: a virada do dia (streak, meta diária, TTL do cache) passa a ser resolvida pelo fuso de quem treina, com o do aparelho como default. Descoberta do mapeamento de i18n (plano §2.5) — não é idioma, é o mesmo "não se restringir a um país" pelo eixo do tempo, e ninguém percebe que está errado até o streak quebrar sozinho. Não depende de nenhuma outra task desta frente *(Tam: M)* | 025/019 | todo |
+
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 
 - **[T-135] `target_reached` não cai em nenhum balde do `exercise_health` — a série contada some

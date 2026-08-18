@@ -33,6 +33,7 @@ Cada etapa do pipeline é uma **entidade** com duas fases:
 | [SPEC-022](SPEC-022-treino-do-dia-personalizacao.md) | Treino do Dia & Personalização (objetivo, idade, IMC — assinante) | Fase 5 |
 | [SPEC-023](SPEC-023-treino-series-e-ritmo.md) | Treino: séries, ritmo e modos de sessão (contado × livre, descanso, prontidão) | Fase 6 |
 | [SPEC-024](SPEC-024-historico-e-frescor.md) | Histórico como fonte única no cliente & contrato de frescor (Progresso, Analytics, Perfil) | Fase 5 (antes do M1) |
+| [SPEC-025](SPEC-025-internacionalizacao.md) | Internacionalização (pt-BR + en) — dicionário tipado no cliente, negociação de locale (cliente/API/HTML), tradução de conteúdo no banco | Fase 7 |
 
 ## Template
 
