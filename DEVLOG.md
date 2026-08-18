@@ -5,6 +5,72 @@
 
 ---
 
+## 2026-08-18 (67) · T-146 — Tradução do conteúdo do banco: três tabelas, um fallback só
+
+**O que foi feito.** A "Tabela de tradução" que a SPEC-025 §3.6 já tinha desenhado (e a
+alternativa rejeitada — `JSONField` chave-valor) virou código: três tabelas novas
+(`ExerciseTranslation`, `ExerciseGuideStepTranslation`, `PlanTranslation`), uma migration
+(`0022_traducoes`, schema puro, nenhum dado migrado — as colunas de `Exercise`/`Plan`/
+`ExerciseGuideStep` continuam sendo o pt-BR), `exercises_for()`/`config_payload()` resolvendo
+por locale com fallback campo a campo, inline no painel admin, e `manage.py i18n_status`.
+
+**A forma da tabela.** Cada uma tem FK exclusiva para a linha que traduz (`exercise`, `plan`,
+`guide_step`) + `locale` (`UniqueConstraint` no par) + as colunas tipadas espelhando as da
+fonte — `display_name`/`muscle_group`/`default_tip`/`scene_tip` para exercício, `nome`/
+`quota_message` para plano, `texto` para passo do guia. `locale` sai de
+`TRANSLATABLE_LOCALE_CHOICES = [(l, l) for l in LOCALES if l != SOURCE_LOCALE]` — hoje só
+`en`, e um terceiro idioma entra em `api.i18n.LOCALES` sem tocar nesta tabela. `clean()`
+recusa uma linha em `pt-BR`: a fonte não tem linha própria aqui, teria o dado duplicado dentro
+de si mesmo.
+
+**O fallback é campo a campo, não linha a linha.** `_traduzir_catalogo`/`_traduzir_plano` (novas,
+em `config.py`) sobrepõem só o que a tradução preencheu; campo em branco na tradução — ou
+tradução ausente inteira — cai na coluna base. Testado explicitamente: uma tradução com
+`muscle_group=""` mantém o `display_name` traduzido e usa o `muscle_group` do pt-BR, nunca os
+dois em branco. Guia por passo usa o mesmo princípio, casado pela FK real ao `ExerciseGuideStep`
+(não por índice de lista) — a lição de não confiar em posição quando existe identidade.
+
+**Onde a tradução entra sem tocar no que já era de outra task.** `exercises_for(locale=
+SOURCE_LOCALE)` por padrão — quem chama sem passar locale (a admissão, em `sessions.py`)
+recebe exatamente o comportamento de ontem. `config_payload` ganhou o mesmo parâmetro e passou
+a sobrescrever `plan.name`/`plan.quota_message` com a tradução resolvida **depois** de chamar
+`capabilities_for` (intocada) — não dava para tocar nela sem sair do escopo combinado com o
+orquestrador (`config_etag` e `_mensagens_de_feedback` são de outras tasks). A única mudança
+fora de `config.py` foi `views.py`: `config_payload(usuario)` virou `config_payload(usuario,
+locale=locale)` — sem isso o `locale` já resolvido pela T-143 entraria no ETag e nunca no corpo.
+
+**Painel.** `ExerciseTranslationInline` ao lado do `GuideStepInline` em `ExerciseAdmin`, e
+`PlanTranslationInline` em `PlanAdmin` — diretos, porque a FK de cada um aponta pro modelo da
+própria tela. A tradução do passo do guia não coube nesse padrão: o admin do Django não aninha
+`TabularInline` dentro de `TabularInline`, e a FK de `ExerciseGuideStepTranslation` é para
+`ExerciseGuideStep`, que só existia como inline. Solução: registrar `ExerciseGuideStep` também
+como tela própria (`ExerciseGuideStepAdmin`), só para hospedar o inline da tradução — o passo
+continua nascendo e se reordenando onde sempre nasceu, dentro do exercício.
+
+**`manage.py i18n_status`** (`api/i18n_status.py` + comando, no padrão do `exercise_health`
+da T-104): varre `Exercise`/`ExerciseGuideStep`/`Plan` habilitados e lista, por locale, todo
+campo com conteúdo na fonte e sem contrapartida traduzida. A regra que evita ruído: campo em
+branco na própria fonte (ex. `Exercise.scene_tip` do agachamento, `Plan.quota_message` do
+assinante) não é buraco — não há o que traduzir ali, e reportar isso teria acostumado quem lê o
+comando a ignorar a lista. `--todos` inclui exercício desligado; `--json` para CI/DEVLOG.
+
+**Testes** (`tests/test_i18n_content.py`, 33 novos): forma da tabela (choices, `clean()`,
+`UniqueConstraint`), fallback campo a campo em `exercises_for`/`config_payload` (completo,
+parcial, ausente, degradação de banco fora do ar), `i18n_status` acusando e deixando de
+acusar um buraco real, e quatro testes ponta a ponta pelo painel de verdade (`client.post` no
+formulário do admin, com o `management_form` do inline) — não só a função pura. Um teste
+existente (`test_editar_o_plano_no_painel_muda_a_admissao_sem_restart`) precisou do
+`management_form` do novo inline (`translations-TOTAL_FORMS` etc.) para continuar postando; sem
+isso o Django recusa o POST com um erro que não aparece em `adminform.form.errors`.
+
+**Gates.** `ruff check .` limpo. `pytest -q`: 1132 passed (929 antes desta task + os 33 novos +
+o ajuste do teste do painel). `makemigrations --check --dry-run` sem pendência.
+
+**Pendências.** Nenhuma. `docs/PLANO-I18N.md §3.6` previa "sugestão automática de tradução no
+painel" para a Fase Evolução (SPEC-025) — não entrou aqui, e não deveria.
+
+---
+
 ## 2026-08-18 (65) · T-142 — Runtime i18n do cliente: consertando o que a sessão anterior deixou pela metade
 
 Sessão que retomou trabalho não commitado (a anterior caiu no meio). O grosso de `web/src/i18n/`

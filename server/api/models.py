@@ -26,19 +26,33 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from api.i18n import LOCALES, SOURCE_LOCALE
+
 __all__ = [
     "MATURITY_RANK",
     "Category",
     "DailyGoal",
     "Exercise",
     "ExerciseGuideStep",
+    "ExerciseGuideStepTranslation",
+    "ExerciseTranslation",
     "MainAngle",
     "Maturity",
     "Plan",
+    "PlanTranslation",
     "SessionClaim",
     "SessionResult",
     "SiteConfig",
     "User",
+]
+
+#: Idiomas que uma linha de tradução pode assumir: todo `LOCALES` exceto a própria fonte
+#: (SPEC-025 §Tabela de tradução, T-146). As colunas de `Exercise`/`Plan`/`ExerciseGuideStep`
+#: JÁ SÃO o `SOURCE_LOCALE` — uma linha de tradução em `pt-BR` seria o dado duplicado dentro de
+#: si mesmo. Terceiro idioma entra aqui de graça: é o `LOCALES` de `api.i18n` crescendo uma
+#: tupla, não uma migration de vocabulário.
+TRANSLATABLE_LOCALE_CHOICES: list[tuple[str, str]] = [
+    (locale, locale) for locale in LOCALES if locale != SOURCE_LOCALE
 ]
 
 
@@ -210,6 +224,47 @@ class Plan(models.Model):
             raise ValidationError(erros)
 
 
+class PlanTranslation(models.Model):
+    """Tradução de `Plan.nome`/`Plan.quota_message` (SPEC-025 §Tabela de tradução, T-146).
+
+    `Plan` continua sendo o pt-BR — nada migra para cá. Uma linha aqui é "a versão neste
+    idioma", nunca a fonte. Campo em branco não é "traduzido como vazio": é "sem tradução
+    ainda", e `config.config_payload` cai para a coluna base do `Plan` nesse caso — nunca em
+    branco, nunca em chave crua (critério 4 da spec). É a mesma regra do docstring de `Plan`
+    ("colunas tipadas e não chave-valor"): um `JSONField` aqui contradiria a própria decisão que
+    este projeto já tomou.
+    """
+
+    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name="translations")
+    locale = models.CharField(max_length=8, choices=TRANSLATABLE_LOCALE_CHOICES)
+
+    nome = models.CharField(max_length=60, blank=True)
+    quota_message = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "plan_translation"
+        constraints = [
+            models.UniqueConstraint(fields=["plan", "locale"], name="uniq_plan_translation_locale")
+        ]
+        ordering = ["plan_id", "locale"]
+        verbose_name = "tradução de plano"
+        verbose_name_plural = "traduções de plano"
+
+    def __str__(self) -> str:
+        return f"{self.plan.slug} · {self.locale}"
+
+    def clean(self) -> None:
+        if self.locale not in dict(TRANSLATABLE_LOCALE_CHOICES):
+            raise ValidationError(
+                {
+                    "locale": (
+                        f"{self.locale!r} nao e um idioma traduzivel "
+                        f"(a fonte, {SOURCE_LOCALE!r}, nao tem linha propria aqui)."
+                    )
+                }
+            )
+
+
 class Exercise(models.Model):
     """A **apresentação** de um exercício (SPEC-018 §B). A lógica continua em código.
 
@@ -310,6 +365,50 @@ class Exercise(models.Model):
             )
 
 
+class ExerciseTranslation(models.Model):
+    """Tradução dos campos de apresentação de `Exercise` (SPEC-025 §Tabela de tradução, T-146).
+
+    `display_name`, `muscle_group`, `default_tip` e `scene_tip` em `Exercise` JÁ SÃO o pt-BR —
+    nada migra para cá. Mesma regra do `PlanTranslation`: campo em branco é "sem tradução
+    ainda", não "traduzido como vazio"; quem lê (`config.exercises_for`) cai para a coluna base
+    quando encontra um branco, e `manage.py i18n_status` é quem torna esse buraco visível antes
+    do release, em vez de deixar o inglês mostrar português em silêncio.
+    """
+
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name="translations")
+    locale = models.CharField(max_length=8, choices=TRANSLATABLE_LOCALE_CHOICES)
+
+    display_name = models.CharField(max_length=60, blank=True)
+    muscle_group = models.CharField(max_length=60, blank=True)
+    default_tip = models.TextField(blank=True)
+    scene_tip = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "exercise_translation"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["exercise", "locale"], name="uniq_exercise_translation_locale"
+            )
+        ]
+        ordering = ["exercise_id", "locale"]
+        verbose_name = "tradução de exercício"
+        verbose_name_plural = "traduções de exercício"
+
+    def __str__(self) -> str:
+        return f"{self.exercise.slug} · {self.locale}"
+
+    def clean(self) -> None:
+        if self.locale not in dict(TRANSLATABLE_LOCALE_CHOICES):
+            raise ValidationError(
+                {
+                    "locale": (
+                        f"{self.locale!r} nao e um idioma traduzivel "
+                        f"(a fonte, {SOURCE_LOCALE!r}, nao tem linha propria aqui)."
+                    )
+                }
+            )
+
+
 class ExerciseGuideStep(models.Model):
     """Passos do exemplo guiado (SPEC-015). Inline no painel, nunca tela própria."""
 
@@ -326,6 +425,53 @@ class ExerciseGuideStep(models.Model):
 
     def __str__(self) -> str:
         return f"{self.exercise.slug} #{self.ordem}"
+
+
+class ExerciseGuideStepTranslation(models.Model):
+    """Tradução de `ExerciseGuideStep.texto` (SPEC-025 §Tabela de tradução, T-146).
+
+    FK direta ao passo, não ao exercício: um passo é a unidade que se traduz, e a ordem dos
+    passos pode variar sem que a tradução perca a referência. `texto` em branco cai para o
+    `ExerciseGuideStep.texto` correspondente — a mesma regra de fallback das outras duas tabelas
+    desta task.
+
+    O admin não aninha `TabularInline` dentro de `TabularInline`: por isso este modelo aparece
+    como inline em `ExerciseGuideStepAdmin` (tela própria, registrada só para hospedar esta
+    tradução — ver `api/admin.py`), e não dentro do inline de passos que já vive em
+    `ExerciseAdmin`.
+    """
+
+    guide_step = models.ForeignKey(
+        ExerciseGuideStep, on_delete=models.CASCADE, related_name="translations"
+    )
+    locale = models.CharField(max_length=8, choices=TRANSLATABLE_LOCALE_CHOICES)
+
+    texto = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "exercise_guide_step_translation"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["guide_step", "locale"], name="uniq_guide_step_translation_locale"
+            )
+        ]
+        ordering = ["guide_step_id", "locale"]
+        verbose_name = "tradução de passo do guia"
+        verbose_name_plural = "traduções de passo do guia"
+
+    def __str__(self) -> str:
+        return f"{self.guide_step} · {self.locale}"
+
+    def clean(self) -> None:
+        if self.locale not in dict(TRANSLATABLE_LOCALE_CHOICES):
+            raise ValidationError(
+                {
+                    "locale": (
+                        f"{self.locale!r} nao e um idioma traduzivel "
+                        f"(a fonte, {SOURCE_LOCALE!r}, nao tem linha propria aqui)."
+                    )
+                }
+            )
 
 
 class SiteConfig(models.Model):
