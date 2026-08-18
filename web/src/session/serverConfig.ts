@@ -9,6 +9,7 @@
 // funcionava antes desta task. Configuração indisponível é um treino a menos de personalização,
 // nunca um erro na cara de quem ia treinar (P2 da SPEC-018, do lado de cá).
 import { identityHeaders } from '../auth/storage'
+import { localeHeaders } from '../i18n/http'
 import { useConfigStore, type ServerConfig } from '../store/config'
 import { apiBaseUrl } from './admission'
 
@@ -78,6 +79,10 @@ export async function fetchServerConfig(fetchImpl: typeof fetch = fetch): Promis
     const resposta = await fetchImpl(`${apiBaseUrl()}/api/config`, {
       headers: {
         ...identityHeaders(),
+        // O idioma do CLIENTE, não o do navegador (T-153): o payload e o ETag desta rota
+        // variam por locale desde a T-143, e sem este header o servidor responderia na língua
+        // do navegador mesmo depois de a pessoa trocar o idioma no seletor.
+        ...localeHeaders(),
         ...(etag ? { 'If-None-Match': etag } : {}),
       },
     })

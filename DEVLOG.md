@@ -5,6 +5,99 @@
 
 ---
 
+## 2026-08-18 (74) · T-153 — O seletor de idioma, e as três chamadas que não diziam a língua
+
+**O que foi feito.** O controle que faltava para o trabalho das seis tasks anteriores ser
+alcançável por alguém: `i18n/LocaleSwitch.tsx` (o desenho), `i18n/switchLocale.ts` (a troca no
+app), `i18n/http.ts` (o cabeçalho), `siteLocaleHref` em `shell/origins.ts` (as duas URLs do
+site), e as duas superfícies — rodapé da folha de conta no app, pastilha acima da barra no site.
+
+### A descoberta que a task revelou (e que só um seletor poderia revelar)
+
+**Três das quatro chamadas à API nunca mandaram o idioma do cliente.** Só o `authedFetch`
+acrescentava `Accept-Language` com o locale resolvido; o `GET /api/config`, o
+`POST /api/sessions` e o relatório montam os próprios headers e ficavam com o `Accept-Language`
+que o **navegador** acrescenta sozinho. Enquanto o idioma do app era o do navegador, os dois
+coincidiam sempre — o buraco era real desde a T-143 e invisível por construção. O seletor o
+expôs no primeiro toque: troca para inglês, catálogo continua em português.
+
+Fechado com `i18n/http.ts` (`localeHeaders()`), uma cópia só, usada pelas quatro. O
+`authedFetch` largou a própria versão. O teste verifica o header nas duas rotas revalidadas e
+foi conferido por mutação: tirando o `localeHeaders()` de `serverConfig.ts`, ele falha.
+
+### As decisões
+
+**Trocar a preferência não basta, e é por isso que `switchLocale` existe.** A SPEC-025 §Notas
+técnicas nomeia dois caches que continuariam falando a língua velha: o ETag do
+`GET /api/config` (que inclui o locale desde a T-143, então o `If-None-Match` guardado é o da
+língua anterior e o servidor devolve 200 — mas só se alguém pedir) e o cache de engajamento, por
+`(usuário, dia, locale)`, que traz nome de conquista já renderizado. `force: true` no segundo
+porque houve **fato novo**, não suspeita.
+
+**A ordem é síncrona primeiro, rede depois.** `setLocale` roda antes e a tela troca no mesmo
+quadro do toque; as duas revalidações saem por baixo, sem `await` e sem tela de carregamento.
+Prender a troca à rede faria um seletor que não responde em avião — e o que vem do servidor é
+minoria do texto (o embutido já está traduzido desde a T-152). Falha de rede é silenciosa pelo
+mesmo motivo do `fetchServerConfig` no boot: idioma não é operação que possa falhar na cara de
+quem acabou de trocar.
+
+**Um componente, duas regras incompatíveis, nenhum `if`.** O `LocaleSwitch` não conhece store,
+não sabe revalidar e não sabe navegar: recebe `onSelect` (app) **ou** `hrefOf` (site). É essa
+ignorância que mantém o bundle da landing sem `session/` e `engagement/` dentro (ADR-010) — e
+foi medido, não suposto: o `site.js` foi de 9,86 kB para 10,05 kB, +0,19 kB, o custo do próprio
+componente e nada mais.
+
+**No app o seletor fica FORA dos dois ramos da folha de conta.** Visitante e logado veem o mesmo
+controle, porque idioma não é assunto de conta — treinar sem conta é garantia da SPEC-011, e um
+seletor que só existisse para quem entrou seria exatamente a pequena punição por não se
+cadastrar que a preferência de aparelho evita. No rodapé, separado por linha como a zona de
+perigo: é ajuste, não ação.
+
+**No site é um par de LINKS, e isso não é inconsistência.** `/` e `/en/` — as mesmas URLs que os
+`hreflang` de cada `index.html` já declaravam uma à outra desde a T-147. O hash viaja junto
+(`siteLocaleHref(locale, hash)`): quem está em Sobre e troca de idioma continua em Sobre, porque
+perder a tela seria o preço de ter escolhido o idioma. E visitar `/en/` **não** grava preferência
+nenhuma — a regra do site é a URL, a do app é o aparelho (SPEC-025 §Escopo), e o `SiteApp` já
+sincronizava o store com o `<html lang>` estático desde a T-147.
+
+**"Português" e "English" são iguais nos dois dicionários.** Convenção de seletor de idioma, e a
+única que funciona: quem procura este controle normalmente não lê a língua em que a tela está, e
+"Portuguese" não ajudaria quem abriu o app em inglês por engano. Chave igual, valor igual, com o
+porquê escrito no dicionário para ninguém "consertar" depois.
+
+**`LOCALES` em `i18n/locale.ts`** dá a ordem do seletor (`pt-BR` primeiro porque é a fonte, não
+por preferência de quem lê) — e um terceiro idioma aparece no controle sozinho ao entrar nesse
+array, o mesmo teste de arquitetura que o `TKey` já passa.
+
+**Medições** (dev server real, medido por JS — nada alegado):
+
+- App, `#/preparar` → Perfil: o seletor mostra "IDIOMA · Português · English" com Português
+  ativo. Um toque em English e, **sem recarregar** (`performance.getEntriesByType('navigation')`
+  continua com 1 entrada): `<html lang>` = `en`, `digitalfit.locale` = `en`, o próprio rótulo do
+  seletor vira "LANGUAGE", a tela atrás vira "Setup" / "Let's set up your workout" / "Turn on
+  camera", a tab bar vira Home/Progress/Analytics/Profile, e uma chamada nova a `/api/config`
+  aparece nos `resource entries`.
+- **`/api/engagement` não foi chamada nesta medição, e está certo**: sem conta o
+  `refreshEngagement` sai antes de tocar a rede (XP e conquistas não existem para o visitante,
+  §Planos). O caminho com conta é o que o teste `switchLocale.test.ts` cobre — com usuário no
+  store, as duas rotas saem, ambas com `Accept-Language: en`.
+- Site, `/#/sobre`: o par de links aparece acima da barra, "Português" com `aria-current` e o
+  English apontando para `/en/#/sobre`, cada um com o próprio `hreflang`. Clicando: URL
+  `/en/#/sobre`, `<html lang>` = `en`, título "About Digital Fit", `<title>` da aba trocado.
+- **O site não obedeceu ao `localStorage`, e isso é a regra funcionando**: com
+  `digitalfit.locale` = `en` guardado do teste anterior, `/` continuou em português. A URL manda
+  no site; o aparelho manda no app.
+
+**Gates.** `npm run lint` limpo, `npm run typecheck` limpo, `npm run test` 678/678 (+6),
+`npm run build` OK. Python intocado: `ruff check .` limpo, `pytest` 1161 passed.
+
+**Pendências.** Uma, em Descobertas (`[T-153]`): o buraco do `Accept-Language` foi fechado, mas
+**nenhum portão o teria pego** — uma chamada nova nasce sem idioma e nada acusa. É irmã da
+Descoberta `[T-149]` (a regra não vê string fora de JSX) e das duas a T-154 precisa decidir o
+que fazer.
+
+---
+
 ## 2026-08-18 (73) · T-151 — `account` + `errors`: a Onda 2 fecha, e o plural sai dos ternários
 
 **O que foi feito.** A última raia da Onda 2 (SPEC-025): `account` (82 chaves — conta, quota,

@@ -8,6 +8,9 @@ import { useState } from 'react'
 import { EngagementSection } from '../engagement/EngagementSection'
 import { useHistoryStore } from '../history/store'
 import { useT } from '../i18n'
+import { LocaleSwitch } from '../i18n/LocaleSwitch'
+import { useI18nStore } from '../i18n/store'
+import { switchLocale } from '../i18n/switchLocale'
 import { useFreshHistory } from '../history/useFreshHistory'
 import { formatDuration } from '../report/sessionReport'
 import { getExercise } from '../session/catalog'
@@ -48,6 +51,7 @@ export function AccountSheet() {
   const t = useT()
   const open = useAccountStore((state) => state.sheetOpen)
   const status = useAccountStore((state) => state.status)
+  const locale = useI18nStore((state) => state.locale)
 
   if (!open) return null
 
@@ -56,6 +60,17 @@ export function AccountSheet() {
       <div className="account__card">
         <BrandMark center />
         {status === 'authenticated' ? <Conta /> : <Entrada />}
+
+        {/* Fora dos dois ramos, e não dentro de cada um: o idioma não é assunto de conta —
+            treinar sem conta é garantia da SPEC-011, e um seletor que só existisse para quem
+            entrou seria exatamente a pequena punição por não se cadastrar que a preferência de
+            aparelho evita (mesma doutrina de `session/preferences.ts`).
+            No rodapé da folha porque é ajuste, não ação: fica abaixo do que a pessoa veio
+            fazer, disponível sem disputar espaço com isso. */}
+        <div className="account__lang">
+          <p className="v2-label">{t('shell:lang.aria_label')}</p>
+          <LocaleSwitch value={locale} onSelect={switchLocale} />
+        </div>
       </div>
     </div>
   )

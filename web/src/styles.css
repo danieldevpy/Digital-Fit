@@ -4440,3 +4440,59 @@ a {
     min-height: 0;
   }
 }
+
+/* ---------------------------------------------------------------- seletor de idioma (T-153)
+
+   Um par de pastilhas, sempre as duas visíveis: quem procura este controle normalmente não lê
+   a língua em que a tela está, e esconder a outra opção atrás de um toque seria esconder
+   justamente do único público dele. Mesmo material do resto (borda de superfície, raio grande),
+   duas molduras diferentes — no app é uma linha no rodapé da folha de conta; no site, uma
+   pastilha flutuante acima da barra inferior. */
+.langsw {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: rgba(11, 15, 26, 0.6);
+}
+
+.langsw__opt {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.langsw__opt--on {
+  background: var(--surface-2, rgba(255, 255, 255, 0.08));
+  color: var(--text);
+}
+
+/* No app: rodapé da folha de conta, separado por linha como a zona de perigo — é ajuste, não
+   ação, e a separação diz isso sem precisar de título. */
+.account__lang {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--surface-border);
+}
+
+/* No site: acima da barra inferior, centrado e discreto — o "aviso discreto" que a SPEC-025
+   §Escopo pede para sugerir a outra URL. */
+.langsw--site {
+  align-self: center;
+  margin: 0 auto 4px;
+  background: rgba(11, 15, 26, 0.9);
+  backdrop-filter: blur(16px);
+}

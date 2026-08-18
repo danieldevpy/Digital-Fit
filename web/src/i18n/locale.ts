@@ -8,6 +8,15 @@
 
 export type Locale = 'pt-BR' | 'en'
 
+/**
+ * Os idiomas suportados, na ordem em que o seletor os mostra (T-153).
+ *
+ * `pt-BR` primeiro porque é a fonte (SPEC-025 §Entidade) — não é preferência de quem lê, é a
+ * ordem de quem escreve. Um terceiro idioma entra AQUI e aparece no seletor sozinho: é o mesmo
+ * teste de arquitetura que o dicionário já passa (`TKey` cresce sem ninguém mexer nele).
+ */
+export const LOCALES: readonly Locale[] = ['pt-BR', 'en']
+
 const LOCALE_KEY = 'digitalfit.locale'
 
 /**

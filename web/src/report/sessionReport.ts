@@ -9,6 +9,7 @@
 // mesmo motivo do contrato de eventos: é o formato que trafega, e traduzir na fronteira só
 // criaria uma chance a mais de drift.
 import { t } from '../i18n'
+import { localeHeaders } from '../i18n/http'
 import { identityHeaders } from '../auth/storage'
 import { apiBaseUrl } from '../session/admission'
 
@@ -81,7 +82,9 @@ export async function fetchReport(
       // Sem o `Authorization`, o relatório de uma sessão COM DONO responde 404 (SPEC-011,
       // critério 2) — e o cliente ficaria repetindo para sempre por não conseguir ler o que
       // é dele. A identidade tem de acompanhar a busca, não só a admissão.
-      { headers: identityHeaders() },
+      // Idioma junto (T-153): o relatório em si é número, mas a rota pode recusar com `detail`
+      // localizado, e o header é o mesmo em todas as chamadas nossas.
+      { headers: { ...identityHeaders(), ...localeHeaders() } },
     )
   } catch (erro) {
     throw new ReportError(

@@ -6,6 +6,7 @@
 // aqui seria uma segunda implementação do mesmo contrato, pronta para divergir.
 import { identityHeaders, rememberDeviceId } from '../auth/storage'
 import { t } from '../i18n'
+import { localeHeaders } from '../i18n/http'
 import type { ViewId } from './exerciseViews'
 import { countdownPreference } from './preferences'
 import type { Mode } from '../lib/events'
@@ -122,7 +123,9 @@ export async function requestSession(
       // admissão NÃO passa pelo `authedFetch`: com o access vencido ela cai no trial anônimo
       // em vez de falhar, e negar o treino de alguém por um token velho seria pior do que
       // contar a sessão como visitante.
-      headers: { 'Content-Type': 'application/json', ...identityHeaders() },
+      // `localeHeaders` porque os `detail` de recusa desta rota são localizados no servidor
+      // (T-145) — sem ele, quem trocou o app para inglês leria a recusa de quota em português.
+      headers: { 'Content-Type': 'application/json', ...identityHeaders(), ...localeHeaders() },
       body: corpo,
     })
   } catch (erro) {

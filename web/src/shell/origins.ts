@@ -37,3 +37,19 @@ export function appHref(hash = ''): string {
 export function siteHref(hash = ''): string {
   return hrefFrom(SITE_BASE, hash)
 }
+
+/**
+ * `href` da versão do SITE em cada idioma (T-153): `/` é o pt-BR e `/en/` é o inglês — as
+ * mesmas duas URLs que os `hreflang` de `index.html`/`en/index.html` declaram uma à outra.
+ *
+ * O `hash` da tela atual viaja junto: quem está em `#/sobre` e troca de idioma continua em
+ * Sobre, na outra língua. Perder a tela na troca seria mandar a pessoa para a home como preço
+ * de ter escolhido o idioma.
+ *
+ * Não passa pelo `siteHref` de propósito: aquele responde "onde mora o site", e esta pergunta é
+ * "onde mora a versão EM TAL LÍNGUA do site" — que é um subcaminho dele, não outro host.
+ */
+export function siteLocaleHref(locale: 'pt-BR' | 'en', hash = ''): string {
+  const base = locale === 'en' ? `${SITE_BASE}en/` : SITE_BASE
+  return hrefFrom(base, hash)
+}

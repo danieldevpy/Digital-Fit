@@ -77,6 +77,19 @@ export default tseslint.config(
       ],
     },
   },
+  // T-153 (seletor de idioma): o próprio runtime de i18n passa a ter componente, e ele entra
+  // sob a regra como qualquer tela — `LocaleSwitch` desenha texto ("Português"/"English" e o
+  // `aria-label`), e é dele que sai a única superfície pela qual alguém troca de idioma. Os
+  // demais arquivos de `src/i18n/` não têm JSX; entram pela mesma doutrina de "pasta migrada"
+  // usada desde a T-152, para que a primeira frase escrita ali já nasça cobrada.
+  {
+    files: ['src/i18n/**/*.{ts,tsx}'],
+    ignores: ['src/i18n/dict/**'],
+    plugins: { i18next },
+    rules: {
+      'i18next/no-literal-string': ['error', { mode: 'jsx-only' }],
+    },
+  },
   // T-151, namespaces `account` + `errors` (SPEC-025 Onda 2 — a última raia): a conta
   // (`auth/AccountSheet`, `accountSummary`, `auth/api`) e o engajamento (`engagement/*`).
   // `engagement/calendar.ts` entra sem ter mais texto: as iniciais da semana saíram dele para o

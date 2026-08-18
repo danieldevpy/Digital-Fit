@@ -12,6 +12,14 @@ export const shell = {
   'tab.progresso': 'Progresso',
   'tab.analytics': 'Analytics',
   'tab.perfil': 'Perfil',
+
+  // Seletor de idioma (T-153). O NOME de cada idioma fica na própria língua nos dois
+  // dicionários — "Português" e "English" não se traduzem, é convenção de seletor: quem procura
+  // este controle normalmente não lê a língua em que a tela está, e "Portuguese" não ajudaria
+  // quem abriu o app em inglês por engano. Chave igual, valor igual, de propósito.
+  'lang.aria_label': 'Idioma',
+  'lang.pt': 'Português',
+  'lang.en': 'English',
 } as const
 
 // `Record<keyof typeof shell, string>`, não `typeof shell`: o contrato entre `pt-BR` e `en` é

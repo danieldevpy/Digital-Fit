@@ -9,4 +9,9 @@ export const shell: Shell = {
   'tab.progresso': 'Progress',
   'tab.analytics': 'Analytics',
   'tab.perfil': 'Profile',
+
+  // "Português"/"English" NÃO mudam entre os dois dicionários — ver o comentário no `pt-BR`.
+  'lang.aria_label': 'Language',
+  'lang.pt': 'Português',
+  'lang.en': 'English',
 }

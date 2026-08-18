@@ -321,7 +321,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-153 | **Seletor de idioma nas configurações.** Entra no Perfil (`AccountSheet`); troca sem reload; persiste em `digitalfit.locale`; força revalidação do `GET /api/config` e do `GET /api/engagement` ao trocar (senão o ETag/cache devolve a língua velha — SPEC-025 §Notas técnicas); reescreve `<html lang>`. No site, o mesmo controle navega entre `/` e `/en/`. Depende de T-142 e T-143 *(Tam: M)* | 025/018/019 | todo |
+| T-153 | **Seletor de idioma nas configurações.** Entra no Perfil (`AccountSheet`); troca sem reload; persiste em `digitalfit.locale`; força revalidação do `GET /api/config` e do `GET /api/engagement` ao trocar (senão o ETag/cache devolve a língua velha — SPEC-025 §Notas técnicas); reescreve `<html lang>`. No site, o mesmo controle navega entre `/` e `/en/`. Depende de T-142 e T-143 *(Tam: M)* | 025/018/019 | **feito** (2026-08-18) |
 | T-154 | **Os portões + o processo.** Regra ESLint `no-literal-strings` global (removendo os overrides por pasta); paridade de tipos já garantida desde a T-142; teste de paridade dos YAML no CI; `i18n_status` no checklist de release; `AGENTS.md` e as skills `df-executor`/`df-spec` ganham a regra do texto novo (plano §4). Depende da Onda 2 completa (T-147…T-152) *(Tam: P)* | 025 | todo |
 | T-155 | **Revisão de tradução e de layout.** Passada ponta a ponta nas duas línguas, nos dois entry points, em aparelho real: qualidade do inglês (tom de treinador, não tradução literal), estouro de layout nos cards e chips ("Repetições" → "Reps" muda a métrica visual), e o caminho novo do primeiro acesso com o navegador em inglês. Depende das Ondas 1 e 2 completas *(Tam: M)* | 025/015 | todo |
 
@@ -1206,3 +1206,12 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   passou a usar `formatTime`/`formatDate` e as chaves `account:date.*`; medido em inglês,
   "today 12:19 PM". A cópia tripla de "API fora do ar" também foi consolidada em
   `errors:api_down` na mesma task.
+- **[T-153] Três chamadas à API não mandavam o idioma do cliente, e ninguém tinha notado.** Só
+  o `authedFetch` (`auth/api.ts`) acrescentava `Accept-Language` com o locale RESOLVIDO; o
+  `GET /api/config`, o `POST /api/sessions` e o `GET /api/sessions/{id}/report` montam os
+  próprios headers e ficavam com o `Accept-Language` que o navegador acrescenta sozinho. Enquanto
+  o idioma do app era o do navegador, os dois coincidiam e o buraco era invisível — o seletor da
+  T-153 é que o revelou: trocar para inglês e continuar recebendo o catálogo em português. Fechado
+  na própria task (`i18n/http.ts`, `localeHeaders()`), com teste que falha se o header sumir de
+  qualquer uma delas. **Fica a lição para a T-154**: o portão do texto novo não vê header nenhum,
+  e uma chamada nova nasce sem idioma sem que nada acuse.

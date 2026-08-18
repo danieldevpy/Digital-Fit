@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hrefFrom, normalizeBase } from './origins'
+import { hrefFrom, normalizeBase, siteLocaleHref } from './origins'
 
 describe('normalizeBase', () => {
   it('cai no fallback quando a variável não veio ou veio vazia', () => {
@@ -30,5 +30,18 @@ describe('hrefFrom', () => {
 
   it('aceita hash sem "#" — quem chama não deveria ter de lembrar', () => {
     expect(hrefFrom('/app/', '/preparar')).toBe('/app/#/preparar')
+  })
+})
+
+describe('siteLocaleHref — o idioma do SITE mora na URL (T-153)', () => {
+  it('pt-BR é a raiz e en é `/en/` — as mesmas URLs dos `hreflang`', () => {
+    expect(siteLocaleHref('pt-BR')).toBe('/')
+    expect(siteLocaleHref('en')).toBe('/en/')
+  })
+
+  it('a tela atual viaja junto: quem está em Sobre continua em Sobre', () => {
+    // Perder a tela na troca seria mandar a pessoa para a home como preço de escolher o idioma.
+    expect(siteLocaleHref('en', '#/sobre')).toBe('/en/#/sobre')
+    expect(siteLocaleHref('pt-BR', '#/sobre')).toBe('/#/sobre')
   })
 })

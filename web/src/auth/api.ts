@@ -6,7 +6,7 @@
 // ticket, SPEC-009), então a renovação nunca acontece no meio de nada que possa cair.
 
 import { t } from '../i18n'
-import { useI18nStore } from '../i18n/store'
+import { localeHeaders } from '../i18n/http'
 import type { SessionReport } from '../report/sessionReport'
 import { apiBaseUrl } from '../session/admission'
 import { clearTokens, deviceHeaders, identityHeaders, storeTokens, storedTokens } from './storage'
@@ -86,11 +86,10 @@ export async function refreshAccess(fetchImpl: typeof fetch = fetch): Promise<bo
  * Uma vez só de propósito: se a segunda também der 401, o problema não é o access — é a conta.
  * Repetir mais viraria laço em cima de um servidor que já disse não.
  *
- * Manda `Accept-Language` com o locale RESOLVIDO do cliente (`useI18nStore`), não o bruto do
- * navegador (SPEC-025 §3.4, critério 7 da T-142) — é a mesma cadeia de prioridade que decide o
- * idioma da tela decidindo também o da resposta. `Accept-Language` é header safelisted de CORS
- * (não força preflight), mas precisa estar na lista de permitidos do `core/cors.py` do lado do
- * servidor — isso é T-143, que roda em paralelo.
+ * Manda `Accept-Language` com o locale RESOLVIDO do cliente, não o bruto do navegador
+ * (SPEC-025 §3.4, critério 7 da T-142) — é a mesma cadeia de prioridade que decide o idioma da
+ * tela decidindo também o da resposta. Desde a T-153 o header sai de `i18n/http.ts`, uma cópia
+ * só, compartilhada com as três chamadas que não passam por aqui.
  */
 export async function authedFetch(
   caminho: string,
@@ -103,7 +102,7 @@ export async function authedFetch(
       headers: {
         ...(init.headers as Record<string, string> | undefined),
         ...identityHeaders(),
-        'Accept-Language': useI18nStore.getState().locale,
+        ...localeHeaders(),
       },
     })
 
