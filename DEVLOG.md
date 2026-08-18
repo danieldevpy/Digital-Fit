@@ -5,6 +5,86 @@
 
 ---
 
+## 2026-08-18 (66) · T-145 — Texto do servidor sai do código, entra em arquivo
+
+Escopo: `server/api/i18n/messages.{pt-BR,en}.yaml` + o carregador; `ACHIEVEMENTS` perde nome e
+descrição; `detail` de erro voltado ao cliente em `auth.py`/`sessions.py`; teste de paridade.
+Worktree isolado, em paralelo com a T-146 (tradução do conteúdo do banco) — não toquei em
+`server/api/config.py`, que é território dela.
+
+### O que saiu
+
+- **`server/api/i18n/messages.py`**: `Messages` (dataclass `achievements`/`errors`) + `load(locale)`
+  com `lru_cache(maxsize=8)`, mesmo padrão do `_mensagens_de_feedback` em `config.py`. Fallback é
+  **por chave**, não por arquivo inteiro (diferença proposital em relação ao `FeedbackCatalog`,
+  T-144): uma conquista ou um erro ausente no locale pedido cai na entrada de `SOURCE_LOCALE`
+  sem derrubar o resto do arquivo — rede de segurança para um deploy no meio de uma tradução,
+  não um caminho planejado, porque o teste de paridade já cobra os dois arquivos com o mesmo
+  conjunto de chaves.
+- **`server/api/i18n/messages.{pt-BR,en}.yaml`**: duas seções, `achievements` (as 7 conquistas
+  de `ACHIEVEMENTS`, chave = slug) e `errors` (9 chaves usadas em `auth.py`/`sessions.py`).
+  Interpolação por `str.format` (`{ceiling_s}`, `{email}`).
+- **`Conquista` (`api/engagement.py`) perdeu `nome`/`descricao`** — fica só `slug` + `predicado`,
+  e `to_dict()` devolve só `{"slug", "earned"}`. O módulo continua sem I/O e sem saber de locale
+  (a promessa do topo do arquivo, cobrada por `test_o_modulo_puro_nao_importa_django`).
+- **`engagement_cache._derivar(usuario, *, locale)`** ganhou o parâmetro que faltava — antes
+  ignorava `locale` de propósito ("o conteúdo ainda não varia por língua"), que era exatamente o
+  buraco que esta task fecha. `_conquistas_traduzidas()` acrescenta `name`/`description` a cada
+  conquista a partir do YAML, e o resultado é o que vai para o cache — a chave já levava o locale
+  desde a T-143, só o conteúdo é que ainda não variava.
+- **`auth.py`**: `email_required`, `email_invalid` (com `{email!r}` interpolado), `password_required`,
+  `email_taken`, `invalid_credentials`, `refresh_required`, `refresh_invalid`, `auth_required`
+  saíram do código para o catálogo, resolvidos por `resolve_locale(request)` em cada view.
+  `Credentials.parse()` ganhou `locale` como parâmetro.
+- **`sessions.py`**: `CountedUnavailable` — a recusa do modo contado (403, "seu plano não chega
+  lá") — monta o texto pelo catálogo; `resolve_set()` ganhou `locale` (default `SOURCE_LOCALE`,
+  porque também é chamada sem requisição — `evalctl`, teste). `views.py._admitir` resolve o
+  locale da requisição e passa adiante; é a única linha que toquei em `views.py`.
+
+### O que ficou como estava (e por quê)
+
+Mensagem de contrato/desenvolvedor não entrou no catálogo — quem a lê é quem manda a requisição
+errada, não quem preenche formulário:
+
+- `"corpo deve ser objeto JSON"` (`auth.py` × 2, `sessions.py`): dado explicitamente pela task
+  como o exemplo do que fica.
+- `sessions.py::SessionRequest.parse` — `"exercicio desconhecido: ..."`, `"requested_mode
+  invalido: ..."`, `"probe_result deve ser objeto"`: violação de contrato do corpo, não erro de
+  digitação de gente (o exercício e o modo vêm de catálogo fechado do cliente).
+- `auth.py::_atualizar_perfil` — `"meta invalida: ...Use um de: ..."`, `"nenhum campo editavel no
+  corpo"`: `daily_goal` é escolhido por seletor fixo na UI; só dispara com corpo malformado.
+- `validate_password` (Django) continua fora do catálogo: o texto é do próprio
+  `django.contrib.auth.password_validation`, e o projeto não ativa `django.utils.translation`
+  (painel fica em `USE_I18N = False`, SPEC-025 §Escopo) — já não segue `locale` hoje, e ligar a
+  tradução dele é escopo maior que esta task.
+
+### Descoberta registrada, não corrigida
+
+`server/api/views.py` também tem `detail` de erro claramente voltado ao cliente ("quota
+indisponivel agora", "este exercicio nao esta disponivel...", "autenticacao necessaria" duplicado
+em `_historico`/`engagement`, "relatorio nao encontrado"/"ainda nao disponivel" etc.) que a
+spec/backlog não citaram no escopo desta task — só `auth.py` e `sessions.py`. Fica pela metade:
+um `en-US` que esbarra numa quota estourada ainda lê português. Registrado no BACKLOG
+(`[T-145]`) para task própria.
+
+### Medições
+
+- `ruff check .`: limpo.
+- `pytest -q`: 1128 testes coletados, suíte inteira verde (`exit 0`).
+- Critérios de aceite conferidos: (1) `GET /api/engagement` em `en` não devolve nome/descrição em
+  português (`test_conquista_traz_nome_e_descricao_no_locale_pedido`); (2) trocar `Accept-Language`
+  muda o corpo na mesma leitura, sem esperar cache expirar (mesmo teste, mais os de
+  `test_auth.py` para `detail`); (5) paridade de chaves entre `messages.pt-BR.yaml` e
+  `messages.en.yaml` é teste vermelho se uma faltar (`tests/test_i18n_messages.py`). Critérios 3
+  e 4 são do site/painel — fora do alcance desta task (server, catálogo de código).
+
+### Pendências geradas
+
+- `views.py` sem localizar (Descoberta acima) — falta task.
+- Terceiro idioma, tradução assistida no painel: Fase Evolução da spec, não tocada.
+
+---
+
 ## 2026-08-18 (64) · T-144 — Feedback por idioma, e a autoridade de texto que mudou de lado
 
 Escopo: catálogo do worker + a prioridade do texto no cliente (SPEC-025, Onda 1). Worktree

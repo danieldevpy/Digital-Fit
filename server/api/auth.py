@@ -32,6 +32,8 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from api import quota
+from api.i18n import SOURCE_LOCALE, resolve_locale
+from api.i18n import messages as i18n_messages
 from api.models import DailyGoal, SessionClaim, User
 
 __all__ = [
@@ -45,10 +47,6 @@ __all__ = [
 ]
 
 logger = logging.getLogger("api")
-
-#: Mensagem única para e-mail inexistente e senha errada. Duas mensagens diferentes
-#: transformariam o login num verificador de "esta pessoa tem conta aqui?".
-_CREDENCIAIS_INVALIDAS = "E-mail ou senha incorretos."
 
 
 class AuthThrottle(AnonRateThrottle):
@@ -70,21 +68,30 @@ class Credentials:
     name: str = ""
 
     @classmethod
-    def parse(cls, data: Any, *, com_nome: bool = False) -> Credentials:
+    def parse(
+        cls, data: Any, *, com_nome: bool = False, locale: str = SOURCE_LOCALE
+    ) -> Credentials:
+        """Levanta `ValueError` com o `detail` já no idioma de `locale` (SPEC-025, T-145).
+
+        A checagem de forma do corpo ("corpo deve ser objeto JSON") fica **fora** do catálogo de
+        propósito: é erro de quem manda a requisição errada, não de quem preenche o formulário —
+        a mesma fronteira que a spec traça entre texto de cliente e mensagem de desenvolvedor.
+        """
         if not isinstance(data, dict):
             raise ValueError("corpo deve ser objeto JSON")
 
+        msgs = i18n_messages.load(locale)
         email = str(data.get("email") or "").strip().lower()
         if not email:
-            raise ValueError("e-mail obrigatorio")
+            raise ValueError(msgs.error("email_required"))
         try:
             validate_email(email)
         except DjangoValidationError:
-            raise ValueError(f"e-mail invalido: {email!r}") from None
+            raise ValueError(msgs.error("email_invalid", email=repr(email))) from None
 
         senha = data.get("password")
         if not isinstance(senha, str) or not senha:
-            raise ValueError("senha obrigatoria")
+            raise ValueError(msgs.error("password_required"))
 
         nome = str(data.get("name") or "").strip()[:80] if com_nome else ""
         return cls(email=email, password=senha, name=nome)
@@ -143,14 +150,18 @@ def register(request: Request) -> Response:
     O `X-Device-Id` é o **mesmo cabeçalho** do trial, e é lido aqui sem gerar um novo: o cadastro
     não é o lugar de batizar aparelho nenhum. Ver `adotar_sessoes_do_aparelho`.
     """
+    locale = resolve_locale(request)
     try:
-        dados = Credentials.parse(request.data, com_nome=True)
+        dados = Credentials.parse(request.data, com_nome=True, locale=locale)
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=400)
 
     try:
         validate_password(dados.password)
     except DjangoValidationError as exc:
+        # Mensagem do próprio `django.contrib.auth.password_validation`, não deste catálogo: o
+        # projeto não ativa `django.utils.translation` (painel fica em `USE_I18N = False`,
+        # SPEC-025 §Escopo), então este texto já não segue `locale` — fora do alcance desta task.
         return Response({"detail": " ".join(exc.messages)}, status=400)
 
     try:
@@ -161,7 +172,7 @@ def register(request: Request) -> Response:
         # Corrida entre dois cadastros do mesmo e-mail — o banco é quem decide, não um
         # `exists()` antes que sempre teria janela.
         return Response(
-            {"detail": "Já existe uma conta com este e-mail. Tente entrar."}, status=409
+            {"detail": i18n_messages.load(locale).error("email_taken")}, status=409
         )
 
     adotadas = adotar_sessoes_do_aparelho(usuario, quota.device_id_declarado(request.headers))
@@ -175,8 +186,9 @@ def register(request: Request) -> Response:
 @throttle_classes([AuthThrottle])
 def login(request: Request) -> Response:
     """`POST /api/auth/login` — troca e-mail e senha por access + refresh."""
+    locale = resolve_locale(request)
     try:
-        dados = Credentials.parse(request.data)
+        dados = Credentials.parse(request.data, locale=locale)
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=400)
 
@@ -184,7 +196,11 @@ def login(request: Request) -> Response:
     # recusa conta inativa e faz o trabalho de tempo constante para e-mail inexistente.
     usuario = authenticate(request, username=dados.email, password=dados.password)
     if usuario is None:
-        return Response({"detail": _CREDENCIAIS_INVALIDAS}, status=401)
+        # Mensagem única para e-mail inexistente e senha errada (`invalid_credentials`). Duas
+        # mensagens diferentes transformariam o login num verificador de "esta pessoa tem conta
+        # aqui?".
+        msgs = i18n_messages.load(locale)
+        return Response({"detail": msgs.error("invalid_credentials")}, status=401)
 
     return _sessao_aberta(usuario, 200)
 
@@ -197,16 +213,18 @@ def refresh(request: Request) -> Response:
     Sem rotação (`ROTATE_REFRESH_TOKENS=False`): o refresh continua valendo, e o cliente só
     troca o access. Isso é o que deixa a renovação ser um detalhe invisível durante o treino.
     """
+    locale = resolve_locale(request)
+    msgs = i18n_messages.load(locale)
     bruto = request.data.get("refresh") if isinstance(request.data, dict) else None
     if not isinstance(bruto, str) or not bruto:
-        return Response({"detail": "refresh obrigatorio"}, status=400)
+        return Response({"detail": msgs.error("refresh_required")}, status=400)
 
     try:
         token = RefreshToken(bruto)
     except TokenError:
         # Expirado, adulterado ou de outra chave de assinatura: para o cliente é tudo a mesma
         # coisa — é hora de pedir login de novo.
-        return Response({"detail": "refresh invalido ou expirado"}, status=401)
+        return Response({"detail": msgs.error("refresh_invalid")}, status=401)
 
     return Response({"access": str(token.access_token)})
 
@@ -225,7 +243,8 @@ def me(request: Request) -> Response:
     """
     usuario = request.user
     if usuario is None or not usuario.is_authenticated:
-        return Response({"detail": "autenticacao necessaria"}, status=401)
+        locale = resolve_locale(request)
+        return Response({"detail": i18n_messages.load(locale).error("auth_required")}, status=401)
 
     if request.method == "PATCH":
         try:

@@ -405,20 +405,21 @@ class Agregados:
 
 @dataclass(frozen=True, slots=True)
 class Conquista:
-    """Uma conquista do catálogo. Sem tabela: a lista de alguém é `conquistas(agregados)`."""
+    """Uma conquista do catálogo: slug + predicado. Sem tabela: a lista de alguém é
+    `conquistas(agregados)`.
+
+    **Sem nome nem descrição** (SPEC-025, T-145): eram texto fixo em português dentro deste
+    módulo puro, e este módulo promete não saber de locale nenhum (ver o topo do arquivo). O
+    texto saiu para `server/api/i18n/messages.<locale>.yaml`, resolvido por
+    `engagement_cache._derivar` na hora de montar o corpo de `GET /api/engagement` — o slug é o
+    contrato entre os dois lados, a mesma separação que já valia para o `code` do feedback.
+    """
 
     slug: str
-    nome: str
-    descricao: str
     predicado: Callable[[Agregados], bool]
 
     def to_dict(self, *, ganha: bool) -> dict[str, Any]:
-        return {
-            "slug": self.slug,
-            "name": self.nome,
-            "description": self.descricao,
-            "earned": ganha,
-        }
+        return {"slug": self.slug, "earned": ganha}
 
 
 #: Catálogo v1 (SPEC-019 §Conquistas). **Em código, não em tabela**: um predicado é lógica, e
@@ -433,48 +434,13 @@ class Conquista:
 #: está aqui — mas isso torna esta a única conquista **revogável** do catálogo: subir a meta de
 #: casual para intenso pode apagá-la. Registrado como Descoberta `[T-089]`.
 ACHIEVEMENTS: tuple[Conquista, ...] = (
-    Conquista(
-        "primeira-sessao",
-        "Primeira sessão",
-        "Você treinou com o Digital Fit pela primeira vez.",
-        lambda a: a.sessoes_validas >= 1,
-    ),
-    Conquista(
-        "fogo-7",
-        "Uma semana de fogo",
-        "7 dias seguidos treinando.",
-        lambda a: a.melhor_streak >= 7,
-    ),
-    Conquista(
-        "semana-cheia",
-        "Semana cheia",
-        "Você bateu sua meta diária 7 dias seguidos.",
-        lambda a: a.melhor_sequencia_de_meta >= 7,
-    ),
-    Conquista(
-        "centena",
-        "Centena",
-        "100 repetições acumuladas num mesmo exercício.",
-        lambda a: a.reps_no_melhor_exercicio >= 100,
-    ),
-    Conquista(
-        "sem-reparo",
-        "Sem reparo",
-        "10 sessões sem uma correção sequer.",
-        lambda a: a.sessoes_limpas >= 10,
-    ),
-    Conquista(
-        "fogo-30",
-        "Um mês de fogo",
-        "30 dias seguidos treinando.",
-        lambda a: a.melhor_streak >= 30,
-    ),
-    Conquista(
-        "milheiro",
-        "Milheiro",
-        "1000 repetições no total.",
-        lambda a: a.reps_totais >= 1000,
-    ),
+    Conquista("primeira-sessao", lambda a: a.sessoes_validas >= 1),
+    Conquista("fogo-7", lambda a: a.melhor_streak >= 7),
+    Conquista("semana-cheia", lambda a: a.melhor_sequencia_de_meta >= 7),
+    Conquista("centena", lambda a: a.reps_no_melhor_exercicio >= 100),
+    Conquista("sem-reparo", lambda a: a.sessoes_limpas >= 10),
+    Conquista("fogo-30", lambda a: a.melhor_streak >= 30),
+    Conquista("milheiro", lambda a: a.reps_totais >= 1000),
 )
 
 

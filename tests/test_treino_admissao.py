@@ -256,7 +256,9 @@ def test_o_free_recebe_recusa_legivel_em_vez_de_serie_cortada(client, conta, mon
         client,
         monkeypatch,
         {"exercise": "jumping_jack", "set_mode": "contado", "target_reps": 15},
-        autorizacao(client),
+        # `Accept-Language` explícito (SPEC-025, T-145): o `detail` agora é resolvido por
+        # locale, e sem cabeçalho o default é `en` — este teste quer o texto em pt-BR.
+        {**autorizacao(client), "HTTP_ACCEPT_LANGUAGE": "pt-BR"},
     )
 
     assert resposta.status_code == 403

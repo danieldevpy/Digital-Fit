@@ -515,7 +515,9 @@ def test_o_catalogo_vem_inteiro_com_earned_em_cada_uma() -> None:
     assert len(corpo["achievements"]) == len(eng.ACHIEVEMENTS)
     assert {c["earned"] for c in corpo["achievements"]} == {True, False}
     primeira = corpo["achievements"][0]
-    assert set(primeira) == {"slug", "name", "description", "earned"}
+    # `name`/`description` NÃO estão aqui: `Conquista` é só slug + predicado (SPEC-025, T-145)
+    # — o texto é resolvido fora deste módulo puro, em `engagement_cache._derivar`.
+    assert set(primeira) == {"slug", "earned"}
 
 
 def test_primeira_sessao() -> None:
@@ -608,10 +610,13 @@ def test_a_ordem_do_catalogo_vai_do_facil_ao_dificil() -> None:
     assert slugs[-1] == "milheiro"
 
 
-def test_todo_slug_do_catalogo_e_unico_e_tem_texto() -> None:
-    """Slug repetido faria a galeria desenhar duas células com a mesma chave; descrição vazia
-    deixaria a bloqueada sem dizer o que fazer para ganhá-la."""
+def test_todo_slug_do_catalogo_e_unico() -> None:
+    """Slug repetido faria a galeria desenhar duas células com a mesma chave.
+
+    O texto de cada slug (nome/descrição) saiu daqui para `server/api/i18n/messages.<locale>.yaml`
+    (SPEC-025, T-145) — a cobertura dele é `tests/test_i18n_messages.py`, não este arquivo, que
+    continua sem saber de locale nenhum.
+    """
     slugs = [c.slug for c in eng.ACHIEVEMENTS]
 
     assert len(slugs) == len(set(slugs))
-    assert all(c.nome and c.descricao for c in eng.ACHIEVEMENTS)

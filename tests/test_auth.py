@@ -120,6 +120,70 @@ def test_senha_errada_e_email_inexistente_dao_a_mesma_resposta(client, usuario) 
     assert errada.json()["detail"] == inexistente.json()["detail"]
 
 
+# --------------------------------------------------------------------------------------
+# `detail` de erro localizado (SPEC-025, T-145) — só os voltados ao cliente.
+# --------------------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_credenciais_invalidas_seguem_o_accept_language(client, usuario) -> None:
+    pt = client.post(
+        "/api/auth/login",
+        data={"email": "ana@exemplo.com", "password": "errada"},
+        content_type="application/json",
+        HTTP_ACCEPT_LANGUAGE="pt-BR",
+    )
+    en = client.post(
+        "/api/auth/login",
+        data={"email": "ana@exemplo.com", "password": "errada"},
+        content_type="application/json",
+        HTTP_ACCEPT_LANGUAGE="en",
+    )
+
+    assert pt.json()["detail"] == "E-mail ou senha incorretos."
+    assert en.json()["detail"] == "Incorrect email or password."
+
+
+@pytest.mark.django_db
+def test_cadastro_com_email_repetido_segue_o_accept_language(client, usuario) -> None:
+    resposta = client.post(
+        "/api/auth/register",
+        data={"email": "ana@exemplo.com", "password": "outra-senha-forte-123"},
+        content_type="application/json",
+        HTTP_ACCEPT_LANGUAGE="en",
+    )
+
+    assert resposta.status_code == 409
+    assert resposta.json()["detail"] == "An account with this email already exists. Try signing in."
+
+
+def test_refresh_sem_corpo_segue_o_accept_language(client) -> None:
+    resposta = client.post(
+        "/api/auth/refresh",
+        data={},
+        content_type="application/json",
+        HTTP_ACCEPT_LANGUAGE="en",
+    )
+
+    assert resposta.status_code == 400
+    assert resposta.json()["detail"] == "refresh required"
+
+
+def test_me_sem_token_segue_o_accept_language(client) -> None:
+    en = client.get("/api/me", HTTP_ACCEPT_LANGUAGE="en")
+    pt = client.get("/api/me", HTTP_ACCEPT_LANGUAGE="pt-BR")
+
+    assert en.json()["detail"] == "authentication required"
+    assert pt.json()["detail"] == "autenticacao necessaria"
+
+
+def test_detail_sem_accept_language_cai_no_default_en(client) -> None:
+    """Critério 1 da SPEC-025: quem não manda sinal nenhum recebe inglês, não português."""
+    resposta = client.get("/api/me")
+
+    assert resposta.json()["detail"] == "authentication required"
+
+
 @pytest.mark.django_db
 def test_me_devolve_quem_esta_logado_e_401_sem_token(client, usuario) -> None:
     assert client.get("/api/me").status_code == 401

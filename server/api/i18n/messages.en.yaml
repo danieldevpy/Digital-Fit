@@ -1,0 +1,40 @@
+# Server text — en (SPEC-025, T-145). Mirrors `messages.pt-BR.yaml` key for key — the parity
+# test (`tests/test_i18n_messages.py`) fails red if one side gets a key the other doesn't.
+#
+# Tone: product copy, not a literal translation — same rule as `catalog.en.yaml` for feedback.
+
+achievements:
+  primeira-sessao:
+    name: First session
+    description: You trained with Digital Fit for the first time.
+  fogo-7:
+    name: One week on fire
+    description: 7 days in a row training.
+  semana-cheia:
+    name: Full week
+    description: You hit your daily goal 7 days in a row.
+  centena:
+    name: Century
+    description: 100 reps accumulated in a single exercise.
+  sem-reparo:
+    name: Flawless
+    description: 10 sessions without a single correction.
+  fogo-30:
+    name: One month on fire
+    description: 30 days in a row training.
+  milheiro:
+    name: Thousand club
+    description: 1000 reps in total.
+
+errors:
+  email_required: email required
+  email_invalid: "invalid email: {email}"
+  password_required: password required
+  email_taken: An account with this email already exists. Try signing in.
+  invalid_credentials: Incorrect email or password.
+  refresh_required: refresh required
+  refresh_invalid: invalid or expired refresh token
+  auth_required: authentication required
+  counted_unavailable: >-
+    Counted mode needs a longer session than your plan allows (the max here is {ceiling_s}s).
+    On this plan the set runs in free mode, which counts the most reps within the window.

@@ -277,10 +277,12 @@ def test_a_chave_de_ontem_nao_e_servida_hoje(client, usuario) -> None:
 # ======================================================================================
 # O locale como quarta dimensão da chave (SPEC-025, T-143)
 #
-# O corpo guardado traz nome e descrição de conquista já prontos (`Conquista.to_dict`) — hoje só
-# em português; a partir do catálogo da T-144/T-146, em qualquer locale suportado. O que estes
-# testes provam é o MECANISMO da chave, não a tradução: sem o locale nela, a primeira leitura do
-# dia grava UM idioma sob `(user, dia)` e prende todo mundo naquela língua até a meia-noite.
+# O corpo guardado traz nome e descrição de conquista já prontos (`engagement_cache._derivar`,
+# a partir de `server/api/i18n/messages.<locale>.yaml`, T-145). O que estes testes provam é o
+# MECANISMO da chave, não a tradução — essa está no teste abaixo
+# (`test_conquista_traz_nome_e_descricao_no_locale_pedido`) e em `tests/test_i18n_messages.py`.
+# Sem o locale na chave, a primeira leitura do dia grava UM idioma sob `(user, dia)` e prende
+# todo mundo naquela língua até a meia-noite.
 # ======================================================================================
 
 
@@ -324,6 +326,26 @@ def test_invalidar_apaga_a_chave_de_todo_locale(client, usuario) -> None:
     depois_pt = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="pt-BR", **cabecalho).json()
     depois_en = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="en", **cabecalho).json()
     assert depois_pt["streak"] == depois_en["streak"] == 1
+
+
+# ======================================================================================
+# Nome e descrição de conquista por locale (SPEC-025, T-145)
+# ======================================================================================
+
+
+def test_conquista_traz_nome_e_descricao_no_locale_pedido(client, usuario) -> None:
+    treino(usuario, dias_atras=0)
+
+    pt = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="pt-BR", **autorizacao(client)).json()
+    en = client.get("/api/engagement", HTTP_ACCEPT_LANGUAGE="en", **autorizacao(client)).json()
+
+    primeira_pt = next(c for c in pt["achievements"] if c["slug"] == "primeira-sessao")
+    primeira_en = next(c for c in en["achievements"] if c["slug"] == "primeira-sessao")
+
+    assert primeira_pt["name"] == "Primeira sessão"
+    assert primeira_en["name"] == "First session"
+    assert primeira_pt["name"] != primeira_en["name"]
+    assert primeira_pt["description"] != primeira_en["description"]
 
 
 def test_relatorio_novo_derruba_o_cache_do_dono(client, usuario) -> None:

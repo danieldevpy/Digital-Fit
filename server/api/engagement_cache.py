@@ -23,6 +23,7 @@ from django.utils import timezone
 from api import engagement as regra
 from api.config import capabilities_for
 from api.i18n import DEFAULT_LOCALE, LOCALES
+from api.i18n import messages as i18n_messages
 
 __all__ = [
     "chave_de_cache",
@@ -73,21 +74,41 @@ def chave_de_cache(user_id: int, hoje: date, locale: str) -> str:
     regra de derivação, e não é este módulo que decide onde a fronteira entre as duas fica.
 
     **Por que o locale precisa estar na chave.** O corpo guardado é o payload já renderizado por
-    `payload_de` (`_derivar` → `regra.resumo(...).to_dict()`), e ele traz nome e descrição de
-    conquista prontos como texto (`Conquista.to_dict`) — hoje só em português, e a partir do
-    catálogo de tradução (T-144/T-146) em qualquer locale suportado. Sem o locale na chave, a
-    primeira leitura do dia grava UM idioma sob a chave `(user, dia)`, e todo mundo que ler depois
-    — inclusive alguém que troque o app para outra língua no mesmo dia — recebe essa mesma
-    resposta pronta até a meia-noite de São Paulo, mesmo pedindo em outra língua.
+    `payload_de` (`_derivar` → `regra.resumo(...).to_dict()` + nome/descrição de conquista
+    resolvidos por `_conquistas_traduzidas`, T-145), em qualquer locale suportado. Sem o locale
+    na chave, a primeira leitura do dia grava UM idioma sob a chave `(user, dia)`, e todo mundo
+    que ler depois — inclusive alguém que troque o app para outra língua no mesmo dia — recebe
+    essa mesma resposta pronta até a meia-noite de São Paulo, mesmo pedindo em outra língua.
     """
     return f"{regra.chave_de_cache(user_id, hoje)}:{locale}"
 
 
-def _derivar(usuario) -> dict[str, Any]:
+def _conquistas_traduzidas(conquistas: list[dict[str, Any]], locale: str) -> list[dict[str, Any]]:
+    """Acrescenta `name`/`description` a cada conquista do catálogo puro (SPEC-025, T-145).
+
+    `regra.catalogo_de_conquistas` devolve só `slug`+`earned` (`Conquista` não sabe de locale,
+    ver `api/engagement.py`); o texto vem de `server/api/i18n/messages.<locale>.yaml`, resolvido
+    aqui — na metade com I/O — e não lá.
+    """
+    catalogo = i18n_messages.load(locale)
+    traduzidas = []
+    for conquista in conquistas:
+        texto = catalogo.achievement(conquista["slug"])
+        traduzidas.append(
+            {
+                **conquista,
+                "name": texto.get("name", conquista["slug"]),
+                "description": texto.get("description", ""),
+            }
+        )
+    return traduzidas
+
+
+def _derivar(usuario, *, locale: str) -> dict[str, Any]:
     """Deriva do banco, sem tocar no cache. É o caminho que o cache existe para evitar — e o
     caminho que responde igual quando o Redis está fora (P2 da SPEC-018)."""
     caps = capabilities_for(usuario)
-    return regra.resumo(
+    corpo = regra.resumo(
         sessoes_de(usuario),
         hoje=regra.dia_sp(timezone.now()),
         protecoes_mes=caps.streak_protections_month,
@@ -97,6 +118,8 @@ def _derivar(usuario) -> dict[str, Any]:
         # que muda, porque a modalidade entra na derivação por parâmetro.
         scoring_por_slug={},
     ).to_dict()
+    corpo["achievements"] = _conquistas_traduzidas(corpo["achievements"], locale)
+    return corpo
 
 
 def payload_de(usuario, *, locale: str = DEFAULT_LOCALE) -> dict[str, Any]:
@@ -105,9 +128,9 @@ def payload_de(usuario, *, locale: str = DEFAULT_LOCALE) -> dict[str, Any]:
     Cache é otimização, nunca fonte: as duas travessias estão em `try` porque Redis fora do ar
     tem de sair mais devagar, não com erro na cara de quem ia ver o próprio fogo.
 
-    `locale` entra na chave (`chave_de_cache`, SPEC-025) e não no cálculo — `_derivar` continua
-    sem saber que locale existe, porque o conteúdo ainda não varia por língua (T-144/T-146). O
-    default (`DEFAULT_LOCALE`) só cobre quem chama sem resolver locale nenhum, coerente com
+    `locale` entra na chave (`chave_de_cache`, SPEC-025) **e** no cálculo (T-145): `_derivar`
+    resolve nome/descrição de conquista neste idioma antes de guardar. O default
+    (`DEFAULT_LOCALE`) só cobre quem chama sem resolver locale nenhum, coerente com
     `api.i18n.resolve_locale` na mesma ausência de sinal.
     """
     chave = chave_de_cache(usuario.pk, regra.dia_sp(timezone.now()), locale)
@@ -116,12 +139,12 @@ def payload_de(usuario, *, locale: str = DEFAULT_LOCALE) -> dict[str, Any]:
         guardado = cache.get(chave)
     except Exception:
         logger.warning("cache indisponivel ao ler engajamento; derivando direto", exc_info=True)
-        return _derivar(usuario)
+        return _derivar(usuario, locale=locale)
 
     if guardado is not None:
         return guardado
 
-    corpo = _derivar(usuario)
+    corpo = _derivar(usuario, locale=locale)
     try:
         cache.set(chave, corpo, regra.ttl_ate_a_virada(timezone.now()))
     except Exception:
