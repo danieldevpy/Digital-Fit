@@ -4,6 +4,7 @@
 import { useEffect } from 'react'
 import { AccountSheet } from '../auth/AccountSheet'
 import { fetchMe } from '../auth/api'
+import { useI18nStore } from '../i18n/store'
 import { refreshHistory } from '../history/refresh'
 import { useHistoryStore } from '../history/store'
 import { ReportSheet } from '../report/ReportSheet'
@@ -27,6 +28,16 @@ export function AppShell() {
   const poseStatus = useSessionStore((state) => state.poseStatus)
   const probeStatus = useSessionStore((state) => state.probeStatus)
   const route = useRoute()
+
+  // `<html lang>` segue o locale ativo (SPEC-025 §Escopo — HTML; critério 6 da T-142). O store
+  // de i18n fica sem tocar o DOM de propósito (mesma pureza de `store/config.ts`); quem reage
+  // é este efeito, o mesmo canal que já sincroniza histórico, conta e config com o mundo de
+  // fora. Roda no mount com o locale já resolvido (nasce correto, sem rede) e de novo sempre
+  // que a T-153 trocar o idioma pelo seletor.
+  const locale = useI18nStore((state) => state.locale)
+  useEffect(() => {
+    document.documentElement.lang = locale
+  }, [locale])
 
   // A sessão só conversa com o gateway na tela de treino — a pré-configuração mostra a câmera
   // como espelho, sem abrir sessão (SPEC-014 §3).

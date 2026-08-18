@@ -10,6 +10,7 @@
 // pill, toast e barra do navegador. Um FAB dentro da barra resolve por construção: existe um
 // rodapé só, e o empilhamento é do fluxo, não de `position: absolute`.
 import { Fragment, type ReactNode } from 'react'
+import { useT } from '../i18n'
 import { useAccountStore } from '../store/account'
 import { IconChart, IconHome, IconPulse, IconUser } from '../ui/icons'
 import { navigate, useRoute } from './nav'
@@ -28,11 +29,14 @@ const ACTIVE: Record<string, TabId> = {
   analytics: 'analytics',
 }
 
-const TABS: { id: TabId; label: string; Icon: (props: { className?: string }) => ReactNode }[] = [
-  { id: 'inicio', label: 'Início', Icon: IconHome },
-  { id: 'progresso', label: 'Progresso', Icon: IconChart },
-  { id: 'analytics', label: 'Analytics', Icon: IconPulse },
-  { id: 'perfil', label: 'Perfil', Icon: IconUser },
+// Sem `label` aqui (T-142, namespace `shell`): o rótulo vem de `t()` a cada render, porque um
+// array de módulo é montado uma vez só e congelaria no idioma de quando o bundle carregou —
+// exatamente o oposto do que a troca de idioma nas configurações (T-153) precisa.
+const TABS: { id: TabId; Icon: (props: { className?: string }) => ReactNode }[] = [
+  { id: 'inicio', Icon: IconHome },
+  { id: 'progresso', Icon: IconChart },
+  { id: 'analytics', Icon: IconPulse },
+  { id: 'perfil', Icon: IconUser },
 ]
 
 /** Onde o FAB entra na lista: entre Progresso e Analytics, o meio de quatro itens. */
@@ -44,6 +48,7 @@ interface TabBarProps {
 }
 
 export function TabBar({ center }: TabBarProps) {
+  const t = useT()
   const route = useRoute()
   const openAccount = useAccountStore((state) => state.openSheet)
 
@@ -59,9 +64,9 @@ export function TabBar({ center }: TabBarProps) {
   return (
     <nav
       className={`tabbar-v2 ${center ? 'tabbar-v2--fab' : ''}`}
-      aria-label="Navegação principal"
+      aria-label={t('shell:nav.aria_label')}
     >
-      {TABS.map(({ id, label, Icon }, indice) => (
+      {TABS.map(({ id, Icon }, indice) => (
         <Fragment key={id}>
           {center && indice === FAB_INDEX && <span className="tabv2__fab">{center}</span>}
           <button
@@ -71,7 +76,7 @@ export function TabBar({ center }: TabBarProps) {
             onClick={() => onTap(id)}
           >
             <Icon className="tabv2__icon" />
-            <span>{label}</span>
+            <span>{t(`shell:tab.${id}`)}</span>
           </button>
         </Fragment>
       ))}
