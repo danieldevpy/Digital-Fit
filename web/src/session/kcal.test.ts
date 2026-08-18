@@ -6,8 +6,9 @@
 // A segunda metade do critério 3 ("nenhuma tela do Free soma kcal entre sessões") é uma
 // propriedade da arquitetura, não desta função: o módulo não tem estado, então não há onde
 // somar. O teste `mesmo estado, mesmo número` é o que cobra isso aqui.
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { useI18nStore } from '../i18n/store'
 import {
   DEFAULT_WEIGHT_KG,
   formatKcal,
@@ -142,6 +143,9 @@ describe('multiplicador de ritmo (critério 3.2)', () => {
 })
 
 describe('formatKcal', () => {
+  beforeEach(() => useI18nStore.getState().setLocale('pt-BR'))
+  afterEach(() => useI18nStore.getState().setLocale('pt-BR'))
+
   it('sem número, `--` — a regra da SPEC-014 vale aqui como vale para FC', () => {
     expect(formatKcal(null)).toBe('--')
   })
@@ -149,5 +153,15 @@ describe('formatKcal', () => {
   it('uma casa decimal com vírgula: uma repetição custa ~0,2 kcal', () => {
     expect(formatKcal(4.9)).toBe('4,9')
     expect(formatKcal(0)).toBe('0,0')
+  })
+
+  it('a casa decimal continua uma; o SEPARADOR é do idioma (T-150)', () => {
+    // Ponto e vírgula trocados de lugar não são detalhe de estilo: "4,9 kcal" numa tela em
+    // inglês é o mesmo tipo de erro que uma frase não traduzida — só que ninguém o reporta.
+    useI18nStore.getState().setLocale('en')
+    expect(formatKcal(4.9)).toBe('4.9')
+    expect(formatKcal(0)).toBe('0.0')
+    // O `--` não é texto e não muda de língua.
+    expect(formatKcal(null)).toBe('--')
   })
 })

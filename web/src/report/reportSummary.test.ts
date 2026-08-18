@@ -109,6 +109,17 @@ describe('reasonText', () => {
   it('motivo desconhecido não quebra a tela', () => {
     expect(reasonText('motivo_do_futuro')).toBe('Sessão encerrada')
   })
+
+  it('o motivo existe nas duas línguas — inclusive o desconhecido (T-150)', () => {
+    // O `SessionEndReason` é contrato do `workers/shared/events.py` e não muda; só a frase
+    // muda. O fallback também é traduzido: um motivo do futuro não pode devolver português
+    // para quem está em inglês.
+    useI18nStore.getState().setLocale('en')
+    expect(reasonText(SessionEndReason.COMPLETED)).toBe('Set complete')
+    expect(reasonText(SessionEndReason.NO_DATA)).toBe('Ended: we stopped seeing you on camera')
+    expect(reasonText('motivo_do_futuro')).toBe('Session ended')
+    useI18nStore.getState().setLocale('pt-BR')
+  })
 })
 
 describe('windowLabel', () => {

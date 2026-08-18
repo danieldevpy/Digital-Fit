@@ -313,7 +313,7 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
 | T-147 | **Namespace `site`.** `site/IndexScreen`, `AboutScreen`, `SiteBar`, `SiteApp`, `nav` **+ `index.html` por idioma, `en/index.html` no Vite, `hreflang` recíproco, `<title>`/`<meta description>` traduzidos** (SPEC-025 §Escopo — site por URL). Depende de T-142 *(Tam: M)* | 025/014 | **feito** (2026-08-18) |
 | T-148 | **Namespace `funnel`.** `screens/ChooseScreen`, `GuideScreen`, `ExerciseCards`, `ExerciseRails`, `funnel`, `ui/ViewPicker`, `ExerciseDemo`, `hud/ViewConfirm`, `ExercisePicker`, `session/guideGate`, `viewGate`. Depende de T-142 *(Tam: M)* | 025/015 | **feito** (2026-08-18) |
 | T-149 | **Namespace `session`.** `screens/SessionScreen`, `capture/CameraView`, `useCamera`, `useEdgePipeline`, `hud/*` (CoachTip, StatsBar, GetReady, TimerRing, CountdownSetting, ZoomControl), `session/startGate`, `pipelineGate`, `admission`, `useSession`, `scene/sceneQuality`, `pose/assetWarmup`, `probe/runProbe`. Depende de T-142 *(Tam: G)* | 025/013 | **feito** (2026-08-18) |
-| T-150 | **Namespaces `report` + `progress`.** `report/ReportSheet`, `reportSummary`, `sessionReport`, `screens/ProgressScreen`, `AnalyticsScreen`, `history/aggregates`, `session/kcal` **+ troca dos `toLocaleDateString('pt-BR')` pelos formatadores (plano §2.6) e do `DIAS_DA_SEMANA` montado à mão**. Depende de T-142 *(Tam: G)* | 025/010/024 | todo |
+| T-150 | **Namespaces `report` + `progress`.** `report/ReportSheet`, `reportSummary`, `sessionReport`, `screens/ProgressScreen`, `AnalyticsScreen`, `history/aggregates`, `session/kcal` **+ troca dos `toLocaleDateString('pt-BR')` pelos formatadores (plano §2.6) e do `DIAS_DA_SEMANA` montado à mão**. Depende de T-142 *(Tam: G)* | 025/010/024 | **feito** (2026-08-18) |
 | T-151 | **Namespaces `account` + `errors`.** `auth/AccountSheet`, `accountSummary`, `auth/api` (mensagens de rede/falha), `engagement/EngagementSheet`, `EngagementSection`, `FireChip`, `XpLine`, `AchievementGallery`, `AchievementToast`, `format` **+ plural via `Intl.PluralRules` (plano §2.7)**. Depende de T-142 *(Tam: G)* | 025/019/011 | todo |
 | T-152 | **Namespace `catalog`.** `session/catalog.ts` (o catálogo embutido — o fallback offline precisa existir nas duas línguas), `exerciseViews.ts`, `ui/exerciseFigures`, `categoryLabel`. Par com a T-146: o servidor manda o traduzido, o embutido é o que aparece sem rede. Depende de T-142 *(Tam: M)* | 025/020 | **feito** (2026-08-18) |
 
@@ -1188,3 +1188,18 @@ da T-142; a T-146 (banco) e a T-156 (fuso, mesmo objetivo por outro eixo) não b
   mesmo custo de mantê-la: uma segunda redação das mesmas frases envelhecendo em paralelo com a
   que aparece. Vale uma task de remoção (as três, mais `hud/placeholders.ts` se ainda existir),
   com a checagem de que nenhuma é ponto de extensão prometido por spec.
+- **[T-150] "API fora do ar" existe em três cópias, e a T-151 é quem pode juntá-las.** A mesma
+  frase de falha de rede nasce hoje em `session/admission.ts` (`session:admission.api_down`),
+  em `report/sessionReport.ts` (`report:fetch.api_down`) e em `auth/api.ts` (ainda literal, é
+  escopo da T-151). Cada task traduziu a sua no próprio namespace porque namespace é a unidade
+  de paralelismo da Onda 2 — juntar antes teria feito duas raias escreverem no mesmo arquivo. O
+  namespace `errors` existe justamente para isto e está vazio; a T-151, que é quem o preenche e
+  quem toca `auth/api`, é a única que pode consolidar as três sem colidir com ninguém. Se
+  consolidar, o `code`/`status` continua sendo o contrato — só a frase muda de casa.
+- **[T-150] As datas do Progresso e do Analytics ainda saem em pt-BR com a tela em inglês.**
+  `historyDate` (`auth/accountSummary.ts`) formata com `toLocaleTimeString('pt-BR')` e devolve
+  "hoje 12:03" / "15 de ago. 12:03". As duas telas desta task usam a função, e ela é escopo
+  declarado da **T-151** (`auth/accountSummary` está na linha dela) — então ficou de fora aqui,
+  de propósito, e não por esquecimento. Medido no navegador com a tela em inglês: todo o resto
+  traduzido e a coluna de datas em português. Some quando a T-151 rodar; registrado para que a
+  T-155 não o descubra como bug novo.

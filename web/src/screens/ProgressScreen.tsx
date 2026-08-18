@@ -15,6 +15,8 @@ import {
   type ResumoSemana,
 } from '../history/aggregates'
 import { historyDate } from '../auth/accountSummary'
+import { useT } from '../i18n'
+import { formatDate, weekdayNarrowLabels } from '../i18n/format'
 import { useFreshHistory } from '../history/useFreshHistory'
 import { useHistoryStore } from '../history/store'
 import { reasonText } from '../report/reportSummary'
@@ -28,9 +30,8 @@ function segundos(ms: number): string {
   return `${(ms / 1000).toFixed(0)}s`
 }
 
-const DIAS_DA_SEMANA = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D']
-
 export function ProgressScreen() {
+  const t = useT()
   const sessions = useHistoryStore((state) => state.sessions)
   const source = useHistoryStore((state) => state.source)
   const loadError = useHistoryStore((state) => state.loadError)
@@ -55,16 +56,14 @@ export function ProgressScreen() {
           <Cabecalho />
           <div className="panel__empty">
             <IconChart className="panel__empty-icon" />
-            <p className="panel__empty-title">Nenhum treino registrado ainda</p>
-            <p className="panel__empty-text">
-              Termine uma sessão e o resultado aparece aqui — mesmo sem conta.
-            </p>
+            <p className="panel__empty-title">{t('progress:empty.title')}</p>
+            <p className="panel__empty-text">{t('progress:empty.text')}</p>
             <button
               type="button"
               className="v2-cta"
               onClick={() => navigate({ screen: 'preparar' })}
             >
-              Treinar agora
+              {t('progress:empty.cta')}
               <span className="v2-cta__play">
                 <IconPlay className="v2-cta__play-icon" />
               </span>
@@ -85,17 +84,17 @@ export function ProgressScreen() {
           <div className="panel__metric">
             <IconChart className="panel__metric-icon" />
             <p className="panel__metric-value tabular">{sessions.length}</p>
-            <p className="v2-label">{sessions.length === 1 ? 'treino' : 'treinos'}</p>
+            <p className="v2-label">{t('progress:metric.workouts', { n: sessions.length })}</p>
           </div>
           <div className="panel__metric">
             <IconCounter className="panel__metric-icon" />
             <p className="panel__metric-value tabular">{repsTotais}</p>
-            <p className="v2-label">repetições</p>
+            <p className="v2-label">{t('progress:metric.reps')}</p>
           </div>
           <div className="panel__metric">
             <IconPulse className="panel__metric-icon" />
             <p className="panel__metric-value tabular">{dias.size}</p>
-            <p className="v2-label">{dias.size === 1 ? 'dia' : 'dias'}</p>
+            <p className="v2-label">{t('progress:metric.days', { n: dias.size })}</p>
           </div>
         </div>
 
@@ -106,7 +105,7 @@ export function ProgressScreen() {
         {ultimo && (
           <>
             <p className="prog__section">
-              Último treino
+              {t('progress:section.last')}
               <span className="prog__section-note">{historyDate(ultimo.created_at)}</span>
             </p>
             <div className="panel__card">
@@ -116,17 +115,17 @@ export function ProgressScreen() {
                 <div className="panel__metric">
                   <IconCounter className="panel__metric-icon" />
                   <p className="panel__metric-value tabular">{ultimo.rep_count}</p>
-                  <p className="v2-label">repetições</p>
+                  <p className="v2-label">{t('progress:metric.reps')}</p>
                 </div>
                 <div className="panel__metric">
                   <IconPulse className="panel__metric-icon" />
                   <p className="panel__metric-value tabular">{ultimo.cadence_rpm.toFixed(0)}</p>
-                  <p className="v2-label">rep/min</p>
+                  <p className="v2-label">{t('progress:metric.rpm')}</p>
                 </div>
                 <div className="panel__metric">
                   <IconChart className="panel__metric-icon" />
                   <p className="panel__metric-value tabular">{segundos(ultimo.duration_ms)}</p>
-                  <p className="v2-label">duração</p>
+                  <p className="v2-label">{t('progress:metric.duration')}</p>
                 </div>
               </div>
             </div>
@@ -137,12 +136,12 @@ export function ProgressScreen() {
             limpar o navegador leva embora. O convite vem junto porque é o único remédio. */}
         {source === 'local' && (
           <p className="panel__note">
-            Este é o histórico guardado <strong>neste aparelho</strong> — limpar o navegador leva
-            embora. Com uma conta, ele fica.
+            {t('progress:note.local_lead')} <strong>{t('progress:note.local_strong')}</strong>{' '}
+            {t('progress:note.local_tail')}
           </p>
         )}
         {loadError && source === 'server' && (
-          <p className="panel__note">Não consegui atualizar agora — pode faltar algo recente.</p>
+          <p className="panel__note">{t('progress:note.stale')}</p>
         )}
       </div>
       <TabBar />
@@ -151,11 +150,13 @@ export function ProgressScreen() {
 }
 
 function Cabecalho() {
+  const t = useT()
+
   return (
     <header className="panel__head">
       <BrandMark center />
-      <p className="guide__kicker">Progresso</p>
-      <h1 className="panel__title">Seu treino ao longo do tempo</h1>
+      <p className="guide__kicker">{t('progress:kicker')}</p>
+      <h1 className="panel__title">{t('progress:title')}</h1>
     </header>
   )
 }
@@ -168,24 +169,25 @@ function Cabecalho() {
  * mudar de lugar todo dia.
  */
 function Mes({ dias, hoje }: { dias: Set<string>; hoje: Date }) {
+  const t = useT()
   const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
   const totalDeDias = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate()
   // A grade abre na segunda, como `inicioDaSemana`; `getDay()` devolve 0 para domingo.
   const vazios = (primeiro.getDay() + 6) % 7
   const chaveDeHoje = chaveDoDia(hoje)
 
-  const mes = hoje.toLocaleDateString('pt-BR', { month: 'long' })
+  const mes = formatDate(hoje, { month: 'long' })
 
   return (
     <>
       <p className="prog__section">
         {mes}
         <span className="prog__section-note tabular">
-          {contarNoMes(dias, hoje)} {contarNoMes(dias, hoje) === 1 ? 'dia' : 'dias'}
+          {contarNoMes(dias, hoje)} {t('progress:metric.days', { n: contarNoMes(dias, hoje) })}
         </span>
       </p>
       <div className="prog__mes">
-        {DIAS_DA_SEMANA.map((letra, indice) => (
+        {weekdayNarrowLabels().map((letra, indice) => (
           <span className="prog__dia-label" key={`${letra}-${indice}`} aria-hidden="true">
             {letra}
           </span>
@@ -203,7 +205,9 @@ function Mes({ dias, hoje }: { dias: Set<string>; hoje: Date }) {
               className={`prog__dia ${treinou ? 'prog__dia--treino' : ''} ${
                 chave === chaveDeHoje ? 'prog__dia--hoje' : ''
               }`}
-              title={treinou ? `Treinou em ${data.toLocaleDateString('pt-BR')}` : undefined}
+              title={
+                treinou ? t('progress:day_title', { date: formatDate(data) }) : undefined
+              }
             >
               {i + 1}
             </span>
@@ -226,13 +230,21 @@ function contarNoMes(dias: Set<string>, hoje: Date): number {
   return [...dias].filter((dia) => dia.startsWith(prefixo)).length
 }
 
+/**
+ * Opções do `Intl` fora do JSX de propósito: são vocabulário do formatador, não frase — e uma
+ * literal solta dentro do JSX faria o `no-literal-string` cobrar tradução de `'2-digit'`. Fora,
+ * ainda ganha o objeto criado uma vez só em vez de a cada render.
+ */
+const DIA_E_MES: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit' }
+
 /** Quatro semanas em barras. A escala é a maior semana — comparação é com a própria pessoa. */
 function Semanas({ semanas }: { semanas: ResumoSemana[] }) {
+  const t = useT()
   const maior = semanas.reduce((topo, semana) => Math.max(topo, semana.reps), 0)
 
   return (
     <>
-      <p className="prog__section">Últimas 4 semanas</p>
+      <p className="prog__section">{t('progress:section.weeks')}</p>
       <div className="prog__semanas">
         {semanas.map((semana) => (
           <div className="prog__semana" key={semana.inicio.toISOString()}>
@@ -246,7 +258,7 @@ function Semanas({ semanas }: { semanas: ResumoSemana[] }) {
             </div>
             <span className="prog__semana-valor tabular">{semana.reps}</span>
             <span className="prog__semana-label">
-              {semana.inicio.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+              {formatDate(semana.inicio, DIA_E_MES)}
             </span>
           </div>
         ))}
@@ -262,9 +274,11 @@ function PorExercicio({
   exercicios: ReturnType<typeof porExercicio>
   totalDeReps: number
 }) {
+  const t = useT()
+
   return (
     <>
-      <p className="prog__section">Por exercício</p>
+      <p className="prog__section">{t('progress:section.by_exercise')}</p>
       <div className="prog__exercicios">
         {exercicios.map((item) => (
           <div className="prog__exercicio" key={item.exercise}>
@@ -273,7 +287,7 @@ function PorExercicio({
                 {getExercise(item.exercise).display_name}
               </span>
               <span className="prog__exercicio-valor tabular">
-                {item.reps} <span className="prog__exercicio-unidade">reps</span>
+                {item.reps} <span className="prog__exercicio-unidade">{t('progress:unit.reps')}</span>
               </span>
             </div>
             <div className="prog__exercicio-trilho">
@@ -285,7 +299,7 @@ function PorExercicio({
               />
             </div>
             <span className="prog__exercicio-sub">
-              {item.sessoes} {item.sessoes === 1 ? 'treino' : 'treinos'}
+              {item.sessoes} {t('progress:metric.workouts', { n: item.sessoes })}
             </span>
           </div>
         ))}

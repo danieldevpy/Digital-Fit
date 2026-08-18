@@ -26,13 +26,36 @@ const DICTS: Record<Locale, DictShape> = { 'pt-BR': dictPtBR, en: dictEn }
 type NamespaceOf = keyof DictShape
 
 /**
+ * A chave-BASE de um balde de plural: `metric.days.one` → `metric.days`.
+ *
+ * Existe porque quem chama `t()` passa a base e é `resolveFromTable` que escolhe o balde pelo
+ * `Intl.PluralRules` — então a base precisa ser um `TKey` válido mesmo quando o dicionário só
+ * tem `.one`/`.other`/`.zero` cadastrados. A alternativa seria repetir cada palavra numa chave
+ * base redundante (`'metric.days': 'dias'` ao lado de `'metric.days.other': 'dias'`), que é
+ * duplicação a serviço do compilador — e duplicação de TEXTO é exatamente o que este arquivo
+ * existe para evitar. Acrescentado na T-150, a primeira a cadastrar plural sem forma base.
+ *
+ * Distributivo (parâmetro nu num condicional): aplica-se a cada chave da união, e devolve
+ * `never` para as que não são balde — o que as faz sumir da união somada abaixo.
+ */
+type PluralBase<K extends string> = K extends `${infer B}.one`
+  ? B
+  : K extends `${infer B}.other`
+    ? B
+    : K extends `${infer B}.zero`
+      ? B
+      : never
+
+/**
  * Todas as chaves válidas de `t()`, derivadas dos NOVE dicionários (o item mais importante da
  * T-142 — SPEC-025 §3.1): namespace sem conteúdo contribui `never` para a união (nada para
  * escolher ainda), então o autocomplete de `t()` cresce sozinho conforme a Onda 2 preenche cada
  * `dict/pt-BR/<namespace>.ts` — ninguém precisa mexer aqui para isso acontecer.
  */
 export type TKey = {
-  [N in NamespaceOf]: `${N & string}:${Extract<keyof DictShape[N], string>}`
+  [N in NamespaceOf]:
+    | `${N & string}:${Extract<keyof DictShape[N], string>}`
+    | `${N & string}:${PluralBase<Extract<keyof DictShape[N], string>>}`
 }[NamespaceOf]
 
 type Params = Record<string, string | number>

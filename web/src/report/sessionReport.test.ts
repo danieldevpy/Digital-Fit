@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useI18nStore } from '../i18n/store'
 import { fetchReport, formatDuration, waitForReport, type SessionReport } from './sessionReport'
 
 const RELATORIO: SessionReport = {
@@ -27,6 +28,11 @@ function resposta(status: number, corpo: unknown): Response {
 }
 
 describe('fetchReport', () => {
+  // A mensagem de falha sai do dicionário desde a T-150: o teste fixa o idioma em vez de
+  // herdar o que o `detectLocale()` resolver no ambiente do vitest (que é `en`).
+  beforeEach(() => useI18nStore.getState().setLocale('pt-BR'))
+  afterEach(() => useI18nStore.getState().setLocale('pt-BR'))
+
   it('devolve o relatório quando ele existe', async () => {
     const fake = vi.fn(async () => resposta(200, RELATORIO))
 
@@ -52,6 +58,17 @@ describe('fetchReport', () => {
 
     await expect(fetchReport('s-1', fake as unknown as typeof fetch)).rejects.toThrow(
       /API fora do ar/,
+    )
+  })
+
+  it('a falha de rede também sai em inglês (T-150)', async () => {
+    const fake = vi.fn(async () => {
+      throw new Error('Failed to fetch')
+    })
+
+    useI18nStore.getState().setLocale('en')
+    await expect(fetchReport('s-1', fake as unknown as typeof fetch)).rejects.toThrow(
+      /API is down/,
     )
   })
 })

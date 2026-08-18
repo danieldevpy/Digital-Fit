@@ -75,6 +75,7 @@ export const session: Session = {
   'label.kcal_unit': 'kcal',
   'label.calories': 'Calories',
   'label.calories_estimated': 'Estimated calories',
+  'label.estimated': 'estimated',
 
   'coach.details': 'See details',
   'coach.hide': 'Hide',

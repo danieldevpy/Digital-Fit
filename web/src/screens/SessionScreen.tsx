@@ -32,7 +32,7 @@ import { useCountdown } from '../session/countdown'
 import { setViewPreference, viewPreference, viewsOf, type ViewId } from '../session/exerciseViews'
 import { estadoDoExemplo, temConta } from '../session/guideGate'
 import { shouldConfirmView } from '../session/viewGate'
-import { ESTIMATED_LABEL, formatKcal, liveKcal } from '../session/kcal'
+import { estimatedLabel, formatKcal, liveKcal } from '../session/kcal'
 import { exercisePreference, guideSeen } from '../session/preferences'
 import { ctaDeInicio } from '../session/startGate'
 import { useNow } from '../session/useNow'
@@ -517,7 +517,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
             </p>
             {/* O rótulo aparece só quando há número: sem MET o card mostra `--`, e chamar de
                 "estimado" um traço seria estimar o quê? */}
-            {kcal !== '--' && <span className="hud-card__note">{ESTIMATED_LABEL}</span>}
+            {kcal !== '--' && <span className="hud-card__note">{estimatedLabel()}</span>}
           </div>
 
           {coach.tone !== 'default' && (

@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { funnel as funnelEn } from './dict/en/funnel'
+import { progress as progressEn } from './dict/en/progress'
+import { report as reportEn } from './dict/en/report'
 import { session as sessionEn } from './dict/en/session'
 import { funnel as funnelPtBR } from './dict/pt-BR/funnel'
+import { progress as progressPtBR } from './dict/pt-BR/progress'
+import { report as reportPtBR } from './dict/pt-BR/report'
 import { session as sessionPtBR } from './dict/pt-BR/session'
 import { useI18nStore } from './store'
 import { resolveFromTable, t, tDynamic, translate } from './index'
@@ -12,7 +16,8 @@ import { resolveFromTable, t, tDynamic, translate } from './index'
  * que esqueça o `{exercise}` compila limpa, passa no lint e só some com o nome do exercício em
  * produção, na língua que ninguém abre para conferir. Esta é a outra metade do portão.
  *
- * Vale hoje para os namespaces que a Onda 2 já migrou com interpolação (`funnel`, `session`);
+ * Vale hoje para os namespaces que a Onda 2 já migrou com interpolação (`funnel`, `session`,
+ * `report`, `progress`);
  * generalizar para os nove é a T-154 (Descoberta `[T-148]` do BACKLOG) — o corpo já é genérico,
  * falta só quem chame.
  */
@@ -190,5 +195,40 @@ describe('namespace session — o treino nas duas línguas (T-149)', () => {
 
   it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
     esperaMesmosPlaceholders(sessionPtBR, sessionEn)
+  })
+})
+
+describe('namespaces report + progress — a leitura do passado nas duas línguas (T-150)', () => {
+  it('resolve a mesma chave nas duas línguas', () => {
+    expect(translate('pt-BR', 'report:section.improve')).toBe('O que melhorar')
+    expect(translate('en', 'report:section.improve')).toBe('What to improve')
+    expect(translate('pt-BR', 'progress:title')).toBe('Seu treino ao longo do tempo')
+    expect(translate('en', 'progress:title')).toBe('Your training over time')
+  })
+
+  it('plural das métricas pelo Intl, e sem forma base cadastrada', () => {
+    // O que a T-150 acrescentou ao runtime: `metric.days` NÃO existe como chave — só
+    // `metric.days.one` e `.other` —, e mesmo assim é uma `TKey` válida (ver `PluralBase` em
+    // `i18n/index.ts`). Antes disso, cada palavra teria de ser repetida numa chave base.
+    expect(translate('pt-BR', 'progress:metric.days', { n: 1 })).toBe('dia')
+    expect(translate('pt-BR', 'progress:metric.days', { n: 3 })).toBe('dias')
+    expect(translate('en', 'progress:metric.days', { n: 1 })).toBe('day')
+    expect(translate('en', 'progress:metric.days', { n: 3 })).toBe('days')
+    expect(translate('pt-BR', 'progress:metric.workouts', { n: 1 })).toBe('treino')
+    expect(translate('en', 'progress:metric.workouts', { n: 2 })).toBe('workouts')
+  })
+
+  it('a faixa de ritmo interpola e pluraliza na mesma chave', () => {
+    expect(
+      translate('pt-BR', 'progress:analytics.range', { min: 38, max: 44, n: 1 }),
+    ).toBe('de 38 a 44 rep/min em 1 treino')
+    expect(translate('en', 'progress:analytics.range', { min: 38, max: 44, n: 5 })).toBe(
+      'from 38 to 44 reps/min across 5 workouts',
+    )
+  })
+
+  it('toda chave com {placeholder} no pt-BR tem exatamente os mesmos no en', () => {
+    esperaMesmosPlaceholders(reportPtBR, reportEn)
+    esperaMesmosPlaceholders(progressPtBR, progressEn)
   })
 })

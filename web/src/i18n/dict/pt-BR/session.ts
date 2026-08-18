@@ -106,6 +106,10 @@ export const session = {
   'label.kcal_unit': 'kcal',
   'label.calories': 'Calorias',
   'label.calories_estimated': 'Calorias estimadas',
+  // O aviso de que o número saiu de um peso presumido (SPEC-016 critério 3). Mora no `session`
+  // e não no `progress` porque quem o desenha é o card de kcal do treino ao vivo — a chave
+  // segue a TELA, não o arquivo que a calcula (`session/kcal.ts`, escopo da T-150).
+  'label.estimated': 'estimado',
 
   // --- Card do treinador (`hud/CoachTip`) ---
   'coach.details': 'Ver detalhes',

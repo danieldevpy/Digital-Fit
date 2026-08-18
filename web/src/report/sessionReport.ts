@@ -8,6 +8,7 @@
 // Espelho de `SessionResult.to_report()` em `server/api/models.py`. Chaves em snake_case pelo
 // mesmo motivo do contrato de eventos: é o formato que trafega, e traduzir na fronteira só
 // criaria uma chance a mais de drift.
+import { t } from '../i18n'
 import { identityHeaders } from '../auth/storage'
 import { apiBaseUrl } from '../session/admission'
 
@@ -84,12 +85,15 @@ export async function fetchReport(
     )
   } catch (erro) {
     throw new ReportError(
-      erro instanceof Error ? `API fora do ar: ${erro.message}` : 'API fora do ar',
+      erro instanceof Error
+        ? t('report:fetch.api_down_detail', { reason: erro.message })
+        : t('report:fetch.api_down'),
     )
   }
 
   if (resposta.status === 404) return null
-  if (!resposta.ok) throw new ReportError(`Falha ao buscar o relatório (HTTP ${resposta.status}).`)
+  if (!resposta.ok)
+    throw new ReportError(t('report:fetch.failed', { status: resposta.status }))
   return (await resposta.json()) as SessionReport
 }
 

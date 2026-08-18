@@ -77,6 +77,52 @@ export default tseslint.config(
       ],
     },
   },
+  // T-150, namespaces `report` + `progress` (SPEC-025 Onda 2): a leitura do que já foi treinado
+  // — o relatório do fim (`report/*`) e as duas telas de histórico (`ProgressScreen`,
+  // `AnalyticsScreen`). `history/aggregates.ts` e `session/kcal.ts` entram junto: o primeiro não
+  // tem texto nenhum (só `Rumo`, que é contrato) e o segundo perdeu o `ESTIMATED_LABEL` para o
+  // dicionário nesta task.
+  //
+  // Além do `t()`, esta raia trocou os `toLocaleDateString('pt-BR')` e os
+  // `.toFixed(1).replace('.', ',')` pelos formatadores de `i18n/format.ts` (plano §2.6) — o que
+  // nenhuma regra de lint pega, porque data e número não parecem texto.
+  {
+    files: [
+      'src/report/ReportSheet.tsx',
+      'src/report/reportSummary.ts',
+      'src/report/sessionReport.ts',
+      'src/screens/ProgressScreen.tsx',
+      'src/screens/AnalyticsScreen.tsx',
+      'src/history/aggregates.ts',
+      'src/session/kcal.ts',
+    ],
+    plugins: { i18next },
+    rules: {
+      'i18next/no-literal-string': [
+        'error',
+        {
+          mode: 'jsx-only',
+          'jsx-attributes': {
+            exclude: [
+              'className',
+              'styleName',
+              'style',
+              'type',
+              'key',
+              'id',
+              'width',
+              'height',
+              'role',
+              'aria-hidden',
+              'viewBox',
+              'preserveAspectRatio',
+              'points',
+            ],
+          },
+        },
+      ],
+    },
+  },
   // T-149, namespace `session` (SPEC-025 Onda 2): o treino em si — a capa e os avisos da
   // câmera, o aquecimento do pipeline, a medição do corpo, os conselhos de cena, as recusas da
   // admissão, o CTA de dois degraus, o HUD e as duas telas do `SessionScreen`.

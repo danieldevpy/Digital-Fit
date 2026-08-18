@@ -30,10 +30,28 @@
  * letras (`ESTIMATED_LABEL`), porque um número derivado de um peso inventado sem aviso seria
  * apresentado com a mesma confiança de uma repetição contada de verdade.
  */
+import { t } from '../i18n'
+import { formatNumber } from '../i18n/format'
+
+/**
+ * Placeholder honesto (SPEC-014, "honestidade > fidelidade"): sem MET ou sem cadência de
+ * referência o card mostra isto, e não um número derivado de palpite. Traço, não texto — não
+ * passa por tradução.
+ */
+const NOT_AVAILABLE = '--'
+
 export const DEFAULT_WEIGHT_KG = 70
 
-/** O que a tela escreve ao lado do número. Curto porque o card do HUD é pequeno. */
-export const ESTIMATED_LABEL = 'estimado'
+/**
+ * O que a tela escreve ao lado do número. Curto porque o card do HUD é pequeno.
+ *
+ * Virou função na T-150 (era `const ESTIMATED_LABEL`): constante resolvida no import congelaria
+ * a palavra no idioma de quando o bundle carregou — a mesma lição do `EXERCISE_CATALOG` na
+ * T-152 e do `CAMERA_LABEL` na T-149.
+ */
+export function estimatedLabel(): string {
+  return t('session:label.estimated')
+}
 
 /**
  * Quanto o gasto por repetição responde ao ritmo.
@@ -153,6 +171,9 @@ export function liveKcal({
  * esforço lê como "não está me vendo", a mesma razão pela qual o ângulo do agachamento é `--`.
  */
 export function formatKcal(kcal: number | null): string {
-  if (kcal === null) return '--'
-  return kcal.toFixed(1).replace('.', ',')
+  if (kcal === null) return NOT_AVAILABLE
+  // Uma casa decimal SEMPRE, e o separador do idioma ativo: `.toFixed(1).replace('.', ',')`
+  // escrevia a vírgula brasileira à mão e mostrava "4,9 kcal" numa tela em inglês (armadilha
+  // §2.6 do PLANO-I18N, a mesma que o `warmupLabel` tinha na T-149).
+  return formatNumber(kcal, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }

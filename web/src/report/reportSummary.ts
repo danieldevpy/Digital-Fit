@@ -3,20 +3,25 @@
 // Separado do componente porque é regra, não desenho: "o que melhorar" ordena por frequência,
 // junta feedbacks de execução com avisos de cena e sabe o que dizer quando não há nada a
 // corrigir. Isso se testa com um objeto; testar através do React seria testar o React.
+import { t, type TKey } from '../i18n'
 import { SessionEndReason } from '../lib/events'
 import { textForCode } from '../session/coachCard'
 import type { SessionReport } from './sessionReport'
 
-/** Por que a sessão terminou, na voz do produto. */
-const REASON_TEXT: Record<string, string> = {
-  [SessionEndReason.COMPLETED]: 'Série completa',
-  [SessionEndReason.TIMEOUT]: 'Sessão encerrada pelo tempo limite',
-  [SessionEndReason.ABORTED]: 'Você encerrou antes do fim',
-  [SessionEndReason.NO_DATA]: 'Encerrada: paramos de te ver na câmera',
+/**
+ * Por que a sessão terminou, na voz do produto. A chave é o `SessionEndReason` — contrato do
+ * `workers/shared/events.py` —, e o valor é a CHAVE do dicionário, não a frase: resolvida na
+ * chamada, o texto acompanha quem troca de idioma sem reimportar o módulo (T-150).
+ */
+const REASON_KEY: Record<string, TKey> = {
+  [SessionEndReason.COMPLETED]: 'report:reason.completed',
+  [SessionEndReason.TIMEOUT]: 'report:reason.timeout',
+  [SessionEndReason.ABORTED]: 'report:reason.aborted',
+  [SessionEndReason.NO_DATA]: 'report:reason.no_data',
 }
 
 export function reasonText(reason: string): string {
-  return REASON_TEXT[reason] ?? 'Sessão encerrada'
+  return t(REASON_KEY[reason] ?? 'report:reason.unknown')
 }
 
 export interface ImprovementItem {
@@ -56,5 +61,5 @@ export function cadenceBars(windows: number[]): number[] {
 
 /** Rótulo do eixo: início de cada janela em segundos (0s, 5s, 10s…). */
 export function windowLabel(index: number, windowMs: number): string {
-  return `${(index * windowMs) / 1000}s`
+  return t('report:window_label', { s: (index * windowMs) / 1000 })
 }

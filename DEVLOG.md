@@ -5,6 +5,90 @@
 
 ---
 
+## 2026-08-18 (72) · T-150 — `report` + `progress`: o passado do treino nas duas línguas
+
+**O que foi feito.** Os dois últimos namespaces de leitura da Onda 2: `report` (23 chaves — o
+relatório do fim, `report/ReportSheet`, `reportSummary`, `sessionReport`) e `progress` (41 —
+`screens/ProgressScreen` e `AnalyticsScreen`). Junto vieram os dois itens que a linha da task
+pedia por escrito: a troca dos `toLocaleDateString('pt-BR')` pelos formatadores e a morte do
+`DIAS_DA_SEMANA` montado à mão.
+
+**O calendário brasileiro estava embutido em um array de sete letras.**
+`const DIAS_DA_SEMANA = ['S','T','Q','Q','S','S','D']` — o cabeçalho da grade do mês. Em inglês
+ele mostraria "S T Q Q S S D" sobre uma tela escrita "Progress", e nenhum lint acusaria, porque
+letra solta não parece frase. Virou `weekdayNarrowLabels()` em `i18n/format.ts`, que pergunta ao
+`Intl`. **A semana continua abrindo na segunda**, e isso é decisão de produto, não de locale: a
+agregação (`inicioDaSemana`) e a matemática da grade (`(getDay() + 6) % 7`) contam assim, e um
+cabeçalho que mudasse de primeiro dia por idioma desalinharia as bolinhas em inglês. O que o
+`Intl` decide é a LETRA, não por onde a semana começa — e o teste cobra as duas coisas: pt-BR
+devolve exatamente o array antigo (prova de que o produto em português não mudou) e en devolve
+`M T W T F S S`, na mesma ordem.
+
+**Segundo separador decimal escrito à mão, mesma armadilha da T-149.** `formatKcal` fazia
+`.toFixed(1).replace('.', ',')`, então uma tela em inglês diria "4,9 kcal". Agora sai do
+`formatNumber`, com teste nos dois idiomas. Vale registrar o padrão: **em duas tasks seguidas o
+bug de i18n mais difícil de ver não foi frase nenhuma — foi número.**
+
+**O runtime ganhou plural sem forma base.** As contagens do Progresso eram
+`sessions.length === 1 ? 'treino' : 'treinos'` espalhados pela tela. Viraram `.one`/`.other` com
+`{n}`, como manda o `resolveFromTable` — mas aí `t('progress:metric.days')` não compilava: `TKey`
+saía das chaves do dicionário, e a base `metric.days` não é uma delas. A saída óbvia seria
+cadastrar uma chave base redundante (`'metric.days': 'dias'` ao lado de `'metric.days.other':
+'dias'`) — duplicação de TEXTO a serviço do compilador, exatamente o que o dicionário existe para
+evitar. Em vez disso, `TKey` passou a incluir a base derivada dos baldes (`PluralBase`, um
+condicional distributivo de ~6 linhas em `i18n/index.ts`). A T-151, que é a task do plural por
+`Intl.PluralRules`, encontra isso pronto.
+
+**`ESTIMATED_LABEL` virou função, e a chave dele ficou no namespace `session`.** Constante
+resolvida no import congelaria a palavra no idioma de quando o bundle carregou — terceira vez que
+esta lição aparece (`EXERCISE_CATALOG` na T-152, `CAMERA_LABEL` na T-149). A chave foi para
+`session:label.estimated` e não para `progress`, porque **namespace segue a TELA, não o arquivo
+que calcula**: quem desenha o rótulo é o card de kcal do treino ao vivo. O arquivo
+(`session/kcal.ts`) é que era escopo desta task.
+
+**Duas frases com marcação no meio, terceira vez** (`note.local_*` do Progresso, com
+`<strong>neste aparelho</strong>`): mesmo `lead`/`strong`/`tail` da T-148 e da T-149. Já é
+padrão da casa, não decisão nova.
+
+**`reasonText` traduz até o desconhecido.** `REASON_TEXT` virou `REASON_KEY`
+(`Record<string, TKey>`): o `SessionEndReason` continua sendo o contrato do
+`workers/shared/events.py`, e o fallback `'Sessão encerrada'` também passou a ser chave — um
+motivo do futuro não pode devolver português para quem está em inglês.
+
+**Testes** (+10, total 661): `reasonText` nas duas línguas incluindo o fallback; `formatKcal`
+com o separador por idioma; falha de rede do relatório em inglês; `weekdayNarrowLabels` nos dois
+locales (com a prova de que pt-BR não mudou); plural de `metric.days`/`metric.workouts` sem forma
+base; `analytics.range` interpolando e pluralizando na mesma chave; e a paridade de
+`{placeholder}` estendida a `report` e `progress` — o helper da T-148 agora serve quatro
+namespaces. Dois testes existentes passaram a fixar o locale antes de cobrar a frase.
+
+**Medições** (dev server real, histórico de 4 sessões semeado no `localStorage`, medido por JS):
+
+- `en`, `#/progresso`: "Your training over time", métricas WORKOUTS/REPS/DAYS, mês "AUGUST",
+  cabeçalho da grade `M T W T F S S`, semanas `07/27 · 08/03 · 08/10 · 08/17` (mês/dia, como o
+  `en` manda), "BY EXERCISE" com "2 workouts", nota "This is the history kept **on this device**".
+- `en`, `#/analytics`: "Training analysis", "from 38 to 40 reps/min across 2 workouts", "PACE
+  CONSISTENCY / lower is steadier", "steady across sessions", e a correção vinda do catálogo do
+  treinador ("Reach your arms higher overhead").
+- `pt-BR`, as mesmas telas: idênticas ao que eram — mês "AGOSTO", letras `S T Q Q S S D`, semanas
+  `27/07 · 03/08…`, `title` do dia "Treinou em 09/08/2026".
+- **Gap medido e declarado**: com a tela em inglês, a coluna de datas continua em português
+  ("hoje 12:03", "15 de ago. 12:03"). É o `historyDate` de `auth/accountSummary.ts`, que a linha
+  da **T-151** reivindica — ficou de fora de propósito. Registrado em Descobertas para a T-155
+  não o encontrar como bug novo.
+- **Não verificado nesta sessão**: o `ReportSheet` em tela. Ele só abre no fim de uma sessão
+  real, e a câmera está bloqueada no navegador do painel. O texto está coberto por dicionário,
+  paridade e teste de `reasonText` nas duas línguas; a aparência fica para a T-155.
+
+**Gates.** `npm run lint` limpo, `npm run typecheck` limpo, `npm run test` 661/661,
+`npm run build` OK. Python intocado: `ruff check .` limpo, `pytest` 1161 passed.
+
+**Pendências.** Duas, em Descobertas: as três cópias de "API fora do ar" (`admission`,
+`sessionReport`, `auth/api`), que só a T-151 pode consolidar no namespace `errors` sem colidir
+com ninguém; e as datas ainda em pt-BR, que somem quando a T-151 tocar o `accountSummary`.
+
+---
+
 ## 2026-08-18 (71) · T-149 — Namespace `session`: o treino inteiro nas duas línguas
 
 **O que foi feito.** A maior raia da Onda 2 (SPEC-025): 75 chaves em

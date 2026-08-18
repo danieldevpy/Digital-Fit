@@ -57,3 +57,24 @@ export function formatPercent(
 ): string {
   return new Intl.NumberFormat(locale, { style: 'percent', ...opcoes }).format(valor)
 }
+
+/**
+ * As sete letras do cabeçalho da grade do mês, na ordem em que a tela desenha (T-150).
+ *
+ * Substitui o `DIAS_DA_SEMANA = ['S','T','Q','Q','S','S','D']` escrito à mão em
+ * `ProgressScreen`: aquilo era o calendário brasileiro embutido no código, e em inglês
+ * mostraria "S T Q Q S S D" sobre uma tela que diz "Progress".
+ *
+ * **A semana continua abrindo na SEGUNDA**, e isso é decisão de produto, não de locale: a
+ * agregação (`inicioDaSemana`, `history/aggregates.ts`) e a matemática da grade
+ * (`(getDay() + 6) % 7`) contam a semana assim, e um cabeçalho que mudasse de primeiro dia por
+ * idioma desalinharia as bolinhas do mês em inglês. O que o `Intl` decide aqui é a LETRA de
+ * cada dia, não por onde a semana começa.
+ *
+ * A âncora é 2024-01-01, uma segunda-feira — a data não aparece em lugar nenhum, só serve para
+ * o `Intl` ter de que dia falar.
+ */
+export function weekdayNarrowLabels(locale: Locale = activeLocale()): string[] {
+  const formatador = new Intl.DateTimeFormat(locale, { weekday: 'narrow' })
+  return Array.from({ length: 7 }, (_, i) => formatador.format(new Date(2024, 0, 1 + i)))
+}

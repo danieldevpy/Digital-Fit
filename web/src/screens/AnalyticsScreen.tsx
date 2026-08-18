@@ -16,6 +16,7 @@ import {
   type SerieCadencia,
 } from '../history/aggregates'
 import { useHistoryStore } from '../history/store'
+import { useT, type TKey } from '../i18n'
 import { useFreshHistory } from '../history/useFreshHistory'
 import type { SessionReport } from '../report/sessionReport'
 import { getExercise } from '../session/catalog'
@@ -30,6 +31,7 @@ import { IconAngle, IconChevronRight, IconTarget } from '../ui/icons'
 const SESSOES_NO_RITMO = 6
 
 export function AnalyticsScreen() {
+  const t = useT()
   const report = useSessionStore((state) => state.report)
   const reopenReport = useSessionStore((state) => state.reopenReport)
   const sessions = useHistoryStore((state) => state.sessions)
@@ -44,17 +46,15 @@ export function AnalyticsScreen() {
       <div className="panel">
         <header className="panel__head">
           <BrandMark center />
-          <p className="guide__kicker">Analytics</p>
-          <h1 className="panel__title">Análise do treino</h1>
+          <p className="guide__kicker">{t('progress:analytics.kicker')}</p>
+          <h1 className="panel__title">{t('progress:analytics.title')}</h1>
         </header>
 
         {report && (
           <button type="button" className="panel__link" onClick={reopenReport}>
             <span>
-              <span className="panel__link-title">Abrir a análise do último treino</span>
-              <span className="panel__link-sub">
-                Cadência, repetições e o que melhorar — o relatório completo da sessão.
-              </span>
+              <span className="panel__link-title">{t('progress:analytics.open_last')}</span>
+              <span className="panel__link-sub">{t('progress:analytics.open_last_sub')}</span>
             </span>
             <IconChevronRight className="panel__link-icon" />
           </button>
@@ -62,16 +62,13 @@ export function AnalyticsScreen() {
 
         {sessions.length === 0 ? (
           <>
-            <p className="panel__note">
-              A análise entre sessões nasce do seu histórico. Faça um treino e ela começa a
-              existir — a análise de uma sessão só já é o relatório do fim do treino.
-            </p>
+            <p className="panel__note">{t('progress:analytics.empty_note')}</p>
             <button
               type="button"
               className="panel__ghost"
               onClick={() => navigate({ screen: 'preparar' })}
             >
-              Fazer um treino para ter o que analisar
+              {t('progress:analytics.empty_cta')}
             </button>
           </>
         ) : (
@@ -79,16 +76,16 @@ export function AnalyticsScreen() {
             <Ritmo series={series} />
             <Constancia sessions={sessions} />
             <Lista
-              titulo="O que mais aparece"
+              titulo={t('progress:analytics.section.most')}
               Icon={IconAngle}
               itens={correcoes}
-              vazio="Nenhuma correção registrada — execução limpa nas sessões guardadas."
+              vazio={t('progress:analytics.empty.corrections')}
             />
             <Lista
-              titulo="Enquadramento"
+              titulo={t('progress:analytics.section.framing')}
               Icon={IconTarget}
               itens={cena}
-              vazio="Nenhum aviso de cena. A câmera te viu bem em todas as sessões."
+              vazio={t('progress:analytics.empty.scene')}
             />
           </>
         )}
@@ -105,11 +102,13 @@ export function AnalyticsScreen() {
  * existir. Um gráfico de um ponto sugeriria uma tendência que ninguém mediu.
  */
 function Ritmo({ series }: { series: SerieCadencia[] }) {
+  const t = useT()
+
   return (
     <>
       <p className="prog__section">
-        Ritmo por exercício
-        <span className="prog__section-note">rep/min</span>
+        {t('progress:analytics.section.pace')}
+        <span className="prog__section-note">{t('progress:metric.rpm')}</span>
       </p>
       <div className="prog__exercicios">
         {series.map((serie) => {
@@ -126,7 +125,7 @@ function Ritmo({ series }: { series: SerieCadencia[] }) {
                 </div>
                 {/* O que falta, dito com todas as letras — em vez de uma linha de um ponto. */}
                 <span className="ana__falta">
-                  Mais um treino de {nome.toLowerCase()} e o ritmo vira linha.
+                  {t('progress:analytics.needs_more', { exercise: nome.toLowerCase() })}
                 </span>
               </div>
             )
@@ -142,7 +141,11 @@ function Ritmo({ series }: { series: SerieCadencia[] }) {
               </div>
               <Linha valores={valores} />
               <span className="prog__exercicio-sub">
-                de {menor.toFixed(0)} a {maior.toFixed(0)} rep/min em {valores.length} treinos
+                {t('progress:analytics.range', {
+                  min: menor.toFixed(0),
+                  max: maior.toFixed(0),
+                  n: valores.length,
+                })}
               </span>
             </div>
           )
@@ -201,6 +204,7 @@ function Linha({ valores }: { valores: number[] }) {
  * que ninguém mediu.
  */
 function Constancia({ sessions }: { sessions: SessionReport[] }) {
+  const t = useT()
   const linhas = sessions
     .map((sessao) => ({ sessao, cv: consistenciaDoRitmo(sessao) }))
     .filter((linha): linha is { sessao: SessionReport; cv: number } => linha.cv !== null)
@@ -209,10 +213,8 @@ function Constancia({ sessions }: { sessions: SessionReport[] }) {
   if (linhas.length === 0) {
     return (
       <>
-        <p className="prog__section">Constância do ritmo</p>
-        <p className="panel__note">
-          Precisa de sessões com pelo menos duas repetições para medir variação de ritmo.
-        </p>
+        <p className="prog__section">{t('progress:analytics.section.consistency')}</p>
+        <p className="panel__note">{t('progress:analytics.consistency_empty')}</p>
       </>
     )
   }
@@ -223,8 +225,8 @@ function Constancia({ sessions }: { sessions: SessionReport[] }) {
   return (
     <>
       <p className="prog__section">
-        Constância do ritmo
-        <span className="prog__section-note">menor é mais regular</span>
+        {t('progress:analytics.section.consistency')}
+        <span className="prog__section-note">{t('progress:analytics.consistency_note')}</span>
       </p>
       <div className="prog__exercicios">
         {linhas.map(({ sessao, cv }) => (
@@ -249,10 +251,16 @@ function Constancia({ sessions }: { sessions: SessionReport[] }) {
   )
 }
 
-const RUMO_TEXTO: Record<string, { texto: string; classe: string }> = {
-  caindo: { texto: 'diminuindo', classe: 'ana__rumo--bom' },
-  subindo: { texto: 'aumentando', classe: 'ana__rumo--ruim' },
-  estavel: { texto: 'estável', classe: '' },
+/**
+ * O rumo do aviso entre sessões. O slug é contrato de `history/aggregates.ts` (`Rumo`); daqui
+ * saem só a CHAVE da frase e a classe do CSS — a frase inteira mora no dicionário para a ordem
+ * das palavras poder mudar de língua (em pt-BR o rumo vem antes de "entre as sessões"; noutra
+ * língua pode não vir).
+ */
+const RUMO: Record<string, { chave: TKey; classe: string }> = {
+  caindo: { chave: 'progress:analytics.trend.caindo', classe: 'ana__rumo--bom' },
+  subindo: { chave: 'progress:analytics.trend.subindo', classe: 'ana__rumo--ruim' },
+  estavel: { chave: 'progress:analytics.trend.estavel', classe: '' },
 }
 
 /** Correções e avisos de cena: mesma forma, porque para quem treina é a mesma pergunta. */
@@ -267,6 +275,8 @@ function Lista({
   itens: Contagem[]
   vazio: string
 }) {
+  const t = useT()
+
   return (
     <>
       <p className="prog__section">{titulo}</p>
@@ -275,7 +285,7 @@ function Lista({
       ) : (
         <div className="prog__exercicios">
           {itens.map((item) => {
-            const rumo = item.rumo === null ? null : RUMO_TEXTO[item.rumo]
+            const rumo = item.rumo === null ? null : RUMO[item.rumo]
             return (
               <div className="ana__item" key={item.key}>
                 <span className="feature__icon ana__item-icon">
@@ -284,9 +294,7 @@ function Lista({
                 <div className="ana__item-corpo">
                   <p className="ana__item-texto">{textForCode(item.key)}</p>
                   {/* Sem rumo, nada é dito: uma sessão só não tem duas metades para comparar. */}
-                  {rumo && (
-                    <p className={`ana__rumo ${rumo.classe}`}>{rumo.texto} entre as sessões</p>
-                  )}
+                  {rumo && <p className={`ana__rumo ${rumo.classe}`}>{t(rumo.chave)}</p>}
                 </div>
                 <span className="ana__item-valor tabular">{item.total}</span>
               </div>

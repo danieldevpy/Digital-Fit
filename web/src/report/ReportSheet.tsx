@@ -3,6 +3,7 @@
 // A SPEC-013 não define esta tela — ela é da SPEC-010. O visual segue os tokens da 013
 // mesmo assim (glass, accent, tabular-nums), porque um relatório com outra linguagem visual
 // pareceria outro aplicativo.
+import { useT } from '../i18n'
 import { getExercise } from '../session/catalog'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
@@ -14,6 +15,7 @@ import { formatDuration } from './sessionReport'
 const WINDOW_MS = 5000
 
 export function ReportSheet() {
+  const t = useT()
   const report = useSessionStore((state) => state.report)
   const status = useSessionStore((state) => state.reportStatus)
   const open = useSessionStore((state) => state.reportOpen)
@@ -23,28 +25,25 @@ export function ReportSheet() {
   if (!open) return null
 
   return (
-    <div className="report" role="dialog" aria-label="Relatório da sessão">
+    <div className="report" role="dialog" aria-label={t('report:sheet.aria_label')}>
       <div className="report__card">
         <BrandMark center />
 
         {status === 'loading' && (
           <>
-            <p className="report__title">Consolidando o treino…</p>
+            <p className="report__title">{t('report:loading.title')}</p>
             {/* O número que a pessoa acabou de ver ao vivo, para a tela não ficar vazia
                 enquanto o relatório não chega. */}
             <p className="report__reps tabular">{repCount}</p>
-            <p className="report__hint">Repetições contadas. Buscando o detalhamento…</p>
+            <p className="report__hint">{t('report:loading.hint')}</p>
           </>
         )}
 
         {status === 'error' && (
           <>
-            <p className="report__title">Treino concluído</p>
+            <p className="report__title">{t('report:error.title')}</p>
             <p className="report__reps tabular">{repCount}</p>
-            <p className="report__hint">
-              Não consegui carregar o detalhamento desta sessão. A contagem acima é a do
-              servidor e está correta.
-            </p>
+            <p className="report__hint">{t('report:error.hint')}</p>
           </>
         )}
 
@@ -56,28 +55,28 @@ export function ReportSheet() {
             <p className="report__ex">{getExercise(report.exercise).display_name}</p>
             <p className="report__title">{reasonText(report.reason)}</p>
             <p className="report__reps tabular">{report.rep_count}</p>
-            <p className="report__hint">repetições</p>
+            <p className="report__hint">{t('report:reps_label')}</p>
 
             <XpLine xp={report.xp} />
 
             <div className="report__stats">
               <div className="report__stat">
                 <p className="report__stat-value tabular">{report.cadence_rpm.toFixed(0)}</p>
-                <p className="report__stat-label">rep/min</p>
+                <p className="report__stat-label">{t('report:stat.rpm')}</p>
               </div>
               <div className="report__stat">
                 <p className="report__stat-value tabular">{formatDuration(report.duration_ms)}</p>
-                <p className="report__stat-label">tempo válido</p>
+                <p className="report__stat-label">{t('report:stat.valid_time')}</p>
               </div>
               <div className="report__stat">
                 <p className="report__stat-value">{report.mode}</p>
-                <p className="report__stat-label">modo</p>
+                <p className="report__stat-label">{t('report:stat.mode')}</p>
               </div>
             </div>
 
             {report.cadence_windows.length > 0 && (
               <div className="report__section">
-                <p className="report__section-title">Ritmo ao longo da série</p>
+                <p className="report__section-title">{t('report:section.pace')}</p>
                 <div className="report__chart" aria-hidden="true">
                   {cadenceBars(report.cadence_windows).map((altura, indice) => (
                     <div className="report__bar-slot" key={indice}>
@@ -96,15 +95,17 @@ export function ReportSheet() {
             )}
 
             <div className="report__section">
-              <p className="report__section-title">O que melhorar</p>
+              <p className="report__section-title">{t('report:section.improve')}</p>
               {improvements(report).length === 0 ? (
-                <p className="report__clean">Nenhum aviso nesta série. Execução limpa.</p>
+                <p className="report__clean">{t('report:clean')}</p>
               ) : (
                 <ul className="report__list">
                   {improvements(report).map((item) => (
                     <li className="report__item" key={item.code}>
                       <span>{item.text}</span>
-                      <span className="report__count tabular">{item.count}×</span>
+                      <span className="report__count tabular">
+                        {t('report:count_suffix', { n: item.count })}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -114,7 +115,7 @@ export function ReportSheet() {
         )}
 
         <button type="button" className="report__close" onClick={closeReport}>
-          Fechar
+          {t('report:close')}
         </button>
       </div>
     </div>
