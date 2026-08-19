@@ -31,7 +31,7 @@ from api.exercise_health import (
 #: Largura das colunas. Fixa, porque a saída é lida por gente num terminal — e uma tabela que
 #: muda de forma conforme o dado é mais difícil de comparar entre dois dias.
 _CABECALHO = (
-    f"{'exercicio':<24}{'maturidade':<14}{'sessoes':>8}{'completas':>11}"
+    f"{'exercicio':<24}{'maturidade':<14}{'sessoes':>8}{'completas':>11}{'meta':>7}"
     f"{'zeradas':>9}{'taxa':>8}{'sem dado':>11}{'cadencia':>11}  veredito"
 )
 
@@ -96,6 +96,10 @@ class Command(BaseCommand):
         corpo = (
             f"{nome:<24}{maturidade:<14}{e.total:>8}"
             f"{_ou_traco(e.completas, e.total):>11}"
+            # Quanto das `completas` veio do modo contado (T-140). Sem esta coluna a taxa cai
+            # sozinha conforme o produto migra para o modo contado, sem nada ter melhorado, e
+            # quem lê não tem como saber. Mesma doutrina do `sem dado` ao lado.
+            f"{_ou_traco(e.atingiu_meta, e.completas):>7}"
             f"{_ou_traco(e.zeradas, e.completas):>9}"
             f"{_percentual(e.taxa_zero):>8}"
             f"{_sem_dado(e):>11}"
@@ -132,6 +136,10 @@ def _legenda(saude: list[ExerciseHealth]) -> list[str]:
     """
     linhas = [
         f"taxa = zeradas / completas. A SPEC-020 exige < {LIMITE_ZERO * 100:.0f}% para `validado`.",
+        "'completas' sao as sessoes que chegaram ao fim: `completed` (os 30 s correram) mais "
+        "`target_reached` (a meta do modo contado foi atingida).",
+        "'meta' e quanto das completas veio do modo contado. Ela quase nunca conta zero, entao "
+        "PUXA A TAXA PARA BAIXO: taxa boa com 'meta' alta diz menos do que parece.",
         "'sem dado' sao sessoes `no_data` (10 s sem frame): captura, nao contagem — ficam "
         "FORA da taxa.",
     ]

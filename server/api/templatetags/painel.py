@@ -128,9 +128,15 @@ def _avisos_de_saude() -> list[str]:
     aparece aqui ou numa reclamação.
 
     A regra é a do comando, e vem de lá para que os dois nunca discordem: a taxa é sobre as
-    sessões `completed`, e sessão sem frame (`no_data`) fica de fora. Somar as duas foi o que
-    fez o agachamento parecer quebrado por semanas (T-133) — e um painel que grita errado é
-    pior que um painel calado, porque ensina o operador a ignorar a faixa.
+    sessões que **chegaram ao fim** (`completed` mais `target_reached`, T-140), e sessão sem
+    frame (`no_data`) fica de fora. Somar as duas foi o que fez o agachamento parecer quebrado
+    por semanas (T-133) — e um painel que grita errado é pior que um painel calado, porque
+    ensina o operador a ignorar a faixa.
+
+    A faixa **não** repete a coluna `atingiu_meta` do comando: aqui só entra exercício ACIMA do
+    limite, e a diluição do modo contado empurra a taxa para baixo — ela nunca é o motivo de um
+    alarme, só de um alarme que deixou de tocar. Quem precisa desse número está lendo a tabela,
+    não a faixa.
     """
     acima = [
         exercicio

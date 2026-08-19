@@ -5,6 +5,81 @@
 
 ---
 
+## 2026-08-19 (88) · T-140 — A série contada entra na conta, e a coluna que ela obrigou a existir
+
+**O buraco.** Desde a T-136 uma sessão pode terminar em `target_reached` — a meta de repetições
+foi atingida. O `exercise_health` conhecia quatro motivos e somava o quinto **em nenhum balde**:
+entrava no `total` e sumia da taxa de zero-rep, das `abortadas`, das `sem dado` e da mediana de
+cadência. Um modo inteiro do produto ficava fora do instrumento que decide promover e rebaixar
+exercício — e não por decisão: o motivo nasceu na T-134 e ninguém voltou aqui.
+
+**A decisão, que a task delegava à SPEC-020.** `target_reached` conta como sessão que chegou ao
+fim. O bucket significa "a análise correu até o fim", e uma série que bateu a meta chegou lá de
+forma mais categórica que os 30 s do modo livre: o fim é a N-ésima repetição **detectada**, não
+o relógio. A cadência dela entra na mediana pelo mesmo motivo, com um argumento a mais — no modo
+contado todas as séries têm a mesma meta, então reps/min mede ritmo e não quanto a pessoa
+aguentou. É o dado mais comparável que o instrumento tem.
+
+### A consequência que não era óbvia, e a coluna que ela obrigou
+
+**`target_reached` quase nunca pode contar zero.** A sessão terminou porque a rep N foi vista,
+então `rep_count >= 1` por construção. Ele engrossa o **denominador** da taxa e nunca o
+numerador — ou seja, **puxa a taxa para baixo**.
+
+Isso é honesto: cada uma dessas sessões é uma observação real de que a análise funcionou. E é
+justamente por isso que é perigoso. Um produto que migre para o modo contado — que é exatamente
+o que o Bloco C da Fase 6 está construindo — veria a taxa despencar e pararia de ouvir o alarme,
+**sem nada ter melhorado**. O instrumento morreria em silêncio, que é o modo de morte mais caro
+que existe neste projeto.
+
+Daí a coluna `atingiu_meta`, ao lado de `completas` na tabela e no JSON. Medido com dados de
+teste:
+
+```
+exercicio            maturidade   sessoes  completas   meta  zeradas    taxa   sem dado  veredito
+Agachamento          validado          10         10      4        1   10.0%     0 (0%)  ok
+```
+
+Sem a coluna, essa linha é indistinguível de um exercício que melhorou. Com ela, quem lê vê que
+4 das 10 vieram do modo contado e que a taxa diz menos do que parece. É a mesma doutrina do
+`no_data` em coluna separada, aplicada ao problema **simétrico**: lá a soma inflava o número,
+aqui ela o esvazia. A legenda do comando ganhou a frase em maiúscula, porque é a leitura errada
+mais provável.
+
+**O zero improvável continua sendo contado.** `rep_count = 0` num `target_reached` não deveria
+existir; se existir, é sinal de que algo está errado na meta ou na contagem. Descartá-lo por um
+`if` que assume o impossível transformaria uma anomalia em silêncio — o lugar dela é o alarme.
+Tem caso de teste próprio.
+
+### A spec foi corrigida antes do código
+
+A SPEC-020 §Maturidade dizia *"a taxa é sobre as sessões `completed`, e essa palavra é o critério
+inteiro"* e *"uma sessão morre por quatro motivos"* — escrita antes de o quinto existir. A linha
+de `validado` passou a dizer "sessões que **chegaram ao fim**", com `target_reached` nomeado, a
+consequência da diluição escrita por extenso e o "deixar de fora" registrado como alternativa
+rejeitada. A própria task dizia que a decisão do balde era da spec; ela só não tinha sido tomada.
+
+### As medições
+
+- **Cinco mutações num golpe**: com `_CHEGOU_AO_FIM` de volta a `(_COMPLETED,)` — o estado de
+  ontem — caem os cinco casos novos, incluindo o da cadência e o da diluição. O portão morde.
+- **Saída do comando conferida com dados reais** (tabela acima), com a linha `sem sessao` e a
+  `poucas (<5)` intactas.
+- **Gates**: `ruff check` + `ruff format --check` limpos, `pytest` verde (18 casos em
+  `test_exercise_health.py`, eram 13). O `web/` não foi tocado.
+
+### Pendências
+
+- **Nenhuma sessão `target_reached` existe em produção ainda** — o modo contado tem servidor
+  (T-135/T-136) e não tem cliente (T-137). Ou seja: esta task foi feita **antes** de o dado
+  aparecer, que é o único momento em que consertar um instrumento é barato. Quando a T-137
+  subir, a coluna `meta` já vai estar contando desde a primeira série.
+- A faixa do painel (T-130) não mostra `atingiu_meta` de propósito: ela só fala de exercício
+  ACIMA do limite, e a diluição nunca é motivo de um alarme — só de um alarme que deixou de
+  tocar. Está escrito no docstring.
+
+---
+
 ## 2026-08-19 (87) · T-165 — As páginas por exercício, e o endereço que precisou virar coluna
 
 **O que a task entrega.** `/exercicios/agachamento/` e `/en/exercises/squat/`, doze páginas no

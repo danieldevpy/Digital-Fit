@@ -4,25 +4,48 @@
 isso — um critério mensurável sem instrumento vira opinião, e promoção por opinião é como o
 polichinelo e o agachamento chegaram a `validado`.
 
-## Por que a taxa é sobre as sessões COMPLETAS, e não sobre todas
+## Por que a taxa é sobre as sessões que CHEGARAM AO FIM, e não sobre todas
 
-Uma sessão termina por quatro motivos (`SessionEndReason`), e só um deles significa que a
-análise correu até o fim:
+Uma sessão termina por cinco motivos (`SessionEndReason`), e só dois significam que a análise
+correu até o fim:
 
 | motivo | o que aconteceu | o que uma contagem zero diz aqui |
 |---|---|---|
 | `completed` | os 30 s correram | **a FSM não viu repetição** — é o sintoma do `[A/T-032]` |
+| `target_reached` | a meta do modo contado foi atingida | a FSM contou até a N-ésima — ver abaixo |
 | `no_data` | 10 s sem frame chegar | câmera, aba fechada, rede — não diz nada sobre contagem |
 | `aborted` | quem treina desistiu | nada |
 | `timeout` | o TTL da sessão venceu | nada |
 
-Somar os quatro num número só foi exatamente o erro que fez o agachamento parecer quebrado
+Somar os cinco num número só foi exatamente o erro que fez o agachamento parecer quebrado
 por semanas (T-133): treze sessões com zero repetição, **todas** `no_data`, lidas como "o
-exercício não conta". O agachamento contava. Por isso a taxa desta spec sai de `completed`, e
-`no_data` aparece **ao lado**, como a segunda métrica que é — alta ali é problema de captura,
-e o conserto fica em outro lugar do produto.
+exercício não conta". O agachamento contava. Por isso a taxa desta spec sai das sessões que
+chegaram ao fim, e `no_data` aparece **ao lado**, como a segunda métrica que é — alta ali é
+problema de captura, e o conserto fica em outro lugar do produto.
 
 Duas leituras, dois donos. Um número só teria um dono errado.
+
+## `target_reached` (T-140): por que entra, e a coluna que ele obrigou a existir
+
+Desde a T-136 uma sessão pode terminar porque a meta de repetições foi atingida, e até a T-140
+esse motivo **caía em balde nenhum**: entrava no total e sumia da taxa e da cadência. Um modo
+inteiro do produto ficava fora do instrumento que decide promover e rebaixar exercício.
+
+Ele entra em `completas` porque é o bucket "a análise correu até o fim", e uma série que bateu a
+meta chegou ao fim de forma mais categórica que os 30 s do modo livre: o fim é a N-ésima
+repetição *detectada*, não o relógio.
+
+**E ele quase nunca pode ser zero.** A sessão terminou porque a rep N foi vista, então
+`rep_count >= 1` por construção: ele engrossa o denominador da taxa e nunca o numerador — ou
+seja, **puxa a taxa para baixo**. Isso é honesto (é uma observação real de que a análise
+funcionou), e é justamente por isso que é perigoso: um produto que migre para o modo contado
+veria a taxa despencar e pararia de ouvir o alarme, sem nada ter melhorado. Daí a coluna
+`atingiu_meta`, impressa ao lado de `completas`: quem lê vê **de que** a taxa é feita. É a mesma
+doutrina do `no_data` em coluna separada, aplicada ao problema simétrico.
+
+O zero dele continua sendo contado em `zeradas`, apesar de improvável. Se um dia aparecer, é
+sinal de que alguma coisa está errada na meta ou na contagem — e o lugar certo para uma anomalia
+é aparecer no alarme, não ser descartada por uma suposição.
 """
 
 from __future__ import annotations
@@ -57,7 +80,12 @@ MINIMO_PARA_VEREDITO = 5
 
 #: Motivos de fim (espelho de `SessionEndReason`; o servidor grava o texto).
 _COMPLETED = "completed"
+#: Modo contado: a meta foi atingida (SPEC-023/T-134). Conta como sessão que chegou ao fim.
+_TARGET_REACHED = "target_reached"
 _NO_DATA = "no_data"
+
+#: Os motivos em que a análise correu até o fim — o denominador da taxa da SPEC-020.
+_CHEGOU_AO_FIM = (_COMPLETED, _TARGET_REACHED)
 _ABORTED = "aborted"
 _TIMEOUT = "timeout"
 
@@ -76,6 +104,10 @@ class ExerciseHealth:
 
     total: int = 0
     completas: int = 0
+    #: Quantas das `completas` terminaram por bater a meta do modo contado (T-140). Coluna
+    #: própria porque ela quase nunca é zerada e, portanto, só empurra a taxa para baixo —
+    #: sem este número, a diluição não teria como ser vista.
+    atingiu_meta: int = 0
     zeradas: int = 0
     sem_dado: int = 0
     abortadas: int = 0
@@ -85,7 +117,11 @@ class ExerciseHealth:
 
     @property
     def taxa_zero(self) -> float | None:
-        """Sessões completas que contaram zero. `None` quando não houve sessão completa."""
+        """Sessões que chegaram ao fim e contaram zero. `None` quando não houve nenhuma.
+
+        Denominador = `completed` + `target_reached` (T-140). Ver o cabeçalho do módulo para o
+        porquê de a segunda entrar e para o que a coluna `atingiu_meta` existe para revelar.
+        """
         return None if self.completas == 0 else self.zeradas / self.completas
 
     @property
@@ -123,6 +159,7 @@ class ExerciseHealth:
             "no_catalogo": self.no_catalogo,
             "total": self.total,
             "completas": self.completas,
+            "atingiu_meta": self.atingiu_meta,
             "zeradas": self.zeradas,
             "sem_dado": self.sem_dado,
             "abortadas": self.abortadas,
@@ -166,6 +203,7 @@ def coletar(dias: int = JANELA_PADRAO_DIAS) -> list[ExerciseHealth]:
             {
                 "total": 0,
                 "completas": 0,
+                "atingiu_meta": 0,
                 "zeradas": 0,
                 "sem_dado": 0,
                 "abortadas": 0,
@@ -176,11 +214,13 @@ def coletar(dias: int = JANELA_PADRAO_DIAS) -> list[ExerciseHealth]:
         acumulado["total"] += linha["n"]
         acumulado["reps"] += linha["reps"] or 0
         motivo = linha["reason"]
-        if motivo == _COMPLETED:
+        if motivo in _CHEGOU_AO_FIM:
             acumulado["completas"] += linha["n"]
-            # Só o zero de uma sessão completa é zero de contagem. O das outras é zero de
-            # sessão que não chegou lá.
+            # Só o zero de uma sessão que chegou ao fim é zero de CONTAGEM. O das outras é
+            # zero de sessão que não chegou lá.
             acumulado["zeradas"] += linha["zeros"]
+            if motivo == _TARGET_REACHED:
+                acumulado["atingiu_meta"] += linha["n"]
         elif motivo == _NO_DATA:
             acumulado["sem_dado"] += linha["n"]
         elif motivo == _ABORTED:
@@ -190,8 +230,13 @@ def coletar(dias: int = JANELA_PADRAO_DIAS) -> list[ExerciseHealth]:
 
     # A cadência sai só das sessões que contaram: incluir zeros arrastaria a mediana para
     # baixo com sessões em que ela nem chegou a ser calculada.
+    #
+    # `target_reached` entra aqui (T-140), e é o dado mais comparável que existe: no modo
+    # contado todas as séries têm a mesma meta, então reps/min mede ritmo e não quanto a pessoa
+    # aguentou. Deixá-lo de fora faria a mediana de um exercício muito usado no modo contado
+    # descrever justamente a minoria das sessões dele.
     cadencias: dict[str, list[float]] = {}
-    consulta = sessoes.filter(reason=_COMPLETED, rep_count__gt=0).values_list(
+    consulta = sessoes.filter(reason__in=_CHEGOU_AO_FIM, rep_count__gt=0).values_list(
         "exercise", "cadence_rpm"
     )
     for slug, cadencia in consulta:
@@ -248,6 +293,7 @@ def _linha(
         no_catalogo=no_catalogo,
         total=bruto.get("total", 0),
         completas=bruto.get("completas", 0),
+        atingiu_meta=bruto.get("atingiu_meta", 0),
         zeradas=bruto.get("zeradas", 0),
         sem_dado=bruto.get("sem_dado", 0),
         abortadas=bruto.get("abortadas", 0),

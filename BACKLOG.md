@@ -271,7 +271,7 @@ Raia contrato → worker → api → client; T-134 abre e as outras dependem del
 | T-137 | Cliente do treino: montador de plano de exercício único (N séries × meta × descanso), tela de descanso com contador e próximo item, HUD do modo contado (anel conta para cima, `7/15`, tempo decorrido no lugar do restante). O descanso é só cliente — não abre sessão, não segura slot. Depende de T-135/T-136 | 023/014 | todo |
 | T-138 | Gesto de prontidão (dois pulsos acima dos ombros por 1 s) encerra o descanso — **edge apenas**, com toque e temporizador como saída universal; fronteira com o gate por pose da SPEC-004/T-030 declarada em teste. Depende de T-137 | 023/004 | todo |
 | T-139 | Cadência vira o eixo de progresso: relatório da série mostra reps/min sempre e tempo até a meta no modo contado; comparação por exercício nas últimas 4 semanas como **derivação pura** sobre `SessionResult` (sem tabela, sem contador). Depende de T-134 | 023/010/017 | todo |
-| T-140 | `target_reached` entra nos baldes do `exercise_health` (Descoberta `[T-135]`): a série contada conta como completa na taxa de zero-rep da SPEC-020 e a cadência dela entra na mediana. **Pré-requisito de produção do modo contado** — desde a T-136 uma sessão já pode terminar em `target_reached`, e hoje ela some da saúde do exercício sem aparecer em balde nenhum. A decisão de qual balde é da SPEC-020 | 020/023 | todo |
+| T-140 | `target_reached` entra nos baldes do `exercise_health` (Descoberta `[T-135]`): a série contada conta como completa na taxa de zero-rep da SPEC-020 e a cadência dela entra na mediana. **Pré-requisito de produção do modo contado** — desde a T-136 uma sessão já pode terminar em `target_reached`, e hoje ela some da saúde do exercício sem aparecer em balde nenhum. A decisão de qual balde é da SPEC-020 | 020/023 | **feito** (2026-08-19) — entra em `completas` e na mediana de cadência; obrigou a coluna `atingiu_meta`, porque `target_reached` nunca conta zero e por isso PUXA a taxa para baixo; SPEC-020 §Maturidade corrigida (eram "quatro motivos") |
 
 ### Bloco D — A caixa registradora
 
@@ -461,8 +461,10 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
   o prazo deixou de ser hipotético: com a admissão resolvendo o modo e o teto do assinante em
   180 s, a primeira sessão a terminar em `target_reached` depende só do cliente da T-137. A resposta provável é que
   `target_reached` conte como completa para a taxa (é a conclusão mais bem-sucedida que existe),
-  e que a cadência da série contada entre na mediana; a decisão é da SPEC-020, não desta linha.
-
+  e que a cadência da série contada entre na mediana; a decisão é da SPEC-020, não desta linha. **Resolvido na T-140** (2026-08-19): entra em
+  `completas` e na mediana; a diluição que isso cria — `target_reached` nunca conta zero, então
+  puxa a taxa para baixo — ganhou coluna própria (`atingiu_meta`), e a SPEC-020 §Maturidade foi
+  corrigida junto (dizia "quatro motivos").
 - **[T-089] `semana-cheia` é a única conquista REVOGÁVEL, e a spec não percebeu.** O predicado é
   "meta batida 7 dias seguidos", e a meta é campo mutável do perfil — então subir de `casual`
   para `intenso` pode **apagar** uma conquista já mostrada, e descer de `intenso` para `casual`

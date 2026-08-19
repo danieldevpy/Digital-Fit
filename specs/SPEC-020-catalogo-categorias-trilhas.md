@@ -94,16 +94,32 @@ precisam de mais teste" usando o que a SPEC-012 já construiu:
 |---|---|---|
 | `beta` | limiares calibrados no gerador sintético (T-052); fixtures verdes | só contas com ferramentas de dev (`is_admin`) — nunca por plano |
 | `calibrado` | corpus real ≥ 8 vídeos rotulados no `evalctl`, erro ≤ ±1 rep/20; varredura de limiares registrada no DEVLOG | assinante, com selo **Laboratório 🧪** |
-| `validado` | calibrado **+** paridade edge×cloud×browser (fluxo T-040) **+** ≥ 1 semana em produção sem anomalia (< 20% das sessões **`completed`** contando zero — o sintoma medido em `[A/T-032]` de exercício errado/quebrado) | todo mundo; único nível que entra em trilha |
+| `validado` | calibrado **+** paridade edge×cloud×browser (fluxo T-040) **+** ≥ 1 semana em produção sem anomalia (< 20% das sessões que **chegaram ao fim** contando zero — o sintoma medido em `[A/T-032]` de exercício errado/quebrado) | todo mundo; único nível que entra em trilha |
 
-**A taxa é sobre as sessões `completed`, e essa palavra é o critério inteiro** (T-133). Uma
-sessão morre por quatro motivos, e só `completed` significa que a análise correu até o fim:
-`no_data` (10 s sem frame), `aborted` e `timeout` dizem respeito a captura, desistência e TTL —
-nenhum dos três diz nada sobre contagem. A versão anterior desta linha dizia apenas "taxa de
-sessões zero-rep", e a leitura literal dela custou semanas: treze sessões de agachamento com
-zero repetição, **todas** `no_data`, foram lidas como "o exercício não conta" e geraram uma task
-de alta prioridade contra um bug que não existia. O `exercise_health` imprime as duas colunas
-lado a lado exatamente para que ninguém repita a soma.
+**A taxa é sobre as sessões que chegaram ao fim, e esse recorte é o critério inteiro** (T-133).
+Uma sessão morre por cinco motivos, e só dois significam que a análise correu até o fim:
+`completed` (os 30 s correram) e **`target_reached`** (a meta do modo contado foi atingida,
+SPEC-023). `no_data` (10 s sem frame), `aborted` e `timeout` dizem respeito a captura,
+desistência e TTL — nenhum dos três diz nada sobre contagem. A versão anterior desta linha dizia
+apenas "taxa de sessões zero-rep", e a leitura literal dela custou semanas: treze sessões de
+agachamento com zero repetição, **todas** `no_data`, foram lidas como "o exercício não conta" e
+geraram uma task de alta prioridade contra um bug que não existia. O `exercise_health` imprime
+as colunas lado a lado exatamente para que ninguém repita a soma.
+
+**`target_reached` conta como fim, e obriga uma coluna própria** (T-140). Ele entra porque é o
+fim mais categórico que existe — a sessão acabou na N-ésima repetição *detectada*, não no
+relógio. Mas ele **quase nunca pode contar zero**: por construção `rep_count >= 1`, então ele
+engrossa o denominador e nunca o numerador, e portanto **puxa a taxa para baixo**. Um produto
+que migre para o modo contado veria a taxa despencar e pararia de ouvir o alarme sem nada ter
+melhorado. Por isso a coluna `atingiu_meta` aparece ao lado de `completas`: taxa boa com `meta`
+alta diz menos do que parece, e quem lê precisa ver de que a taxa é feita. É a mesma doutrina do
+`no_data` em coluna separada, aplicada ao problema simétrico — lá a soma inflava, aqui ela
+esvazia.
+
+**Rejeitado — deixar `target_reached` fora da taxa.** Era o estado até a T-140, e não por
+decisão: o motivo nasceu na T-134 e ninguém voltou aqui. O efeito é pior que a diluição, porque
+é silencioso: um modo inteiro do produto ficava fora do instrumento que decide promover e
+rebaixar exercício, e a sessão sumia da mediana de cadência também.
 
 **Onde a maturidade mora, e como o plano a lê.** `Exercise.maturity` é coluna do catálogo
 (SPEC-018/T-074) e `Plan.min_maturity` é a capacidade que a lê — `validado` para anon e Free,
