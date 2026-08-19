@@ -1,7 +1,7 @@
 // A tabela de rotas é a fonte única — e este arquivo é o que a obriga a ser (T-158, SPEC-026).
 import { describe, expect, it } from 'vitest'
 
-import viteConfig from '../../vite.config'
+import { ENTRADAS_DO_BUILD } from '../../vite.config'
 import { LOCALES } from '../i18n/locale'
 import { caminhoDaRota, parseSitePath, ROTAS, ROTAS_INDEXAVEIS } from './routes'
 
@@ -51,10 +51,7 @@ describe('a tabela é a fonte ÚNICA (SPEC-026 §Escopo)', () => {
   // O portão desta task. A lista de entries do Vite e a tabela de rotas respondem à mesma
   // pergunta e vivem em arquivos diferentes; foi exatamente esse tipo de par independente que
   // deixou o `hreflang` da T-147 inerte por meses. Aqui elas são confrontadas.
-  const entries = Object.values(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (viteConfig as any).build.rollupOptions.input as Record<string, string>,
-  )
+  const entries = Object.values(ENTRADAS_DO_BUILD)
 
   it('toda rota indexável, em todo idioma, tem um HTML no build', () => {
     const esperados = ROTAS_INDEXAVEIS.flatMap((rota) =>

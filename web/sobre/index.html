@@ -4,9 +4,16 @@
      `/#/sobre` como a mesma página. O `lang` estático é o que o `SiteApp` lê para decidir
      o locale — site por URL, app por preferência (SPEC-025 §Escopo).
 
-     `<title>` e `<meta description>` estão aqui em cópia do dicionário (`site:meta.about.*`)
-     porque ainda não há quem os escreva: a T-159 (pré-render) passa a gerá-los a partir de
-     `src/site/routes.ts`, e esta duplicação morre com ela. -->
+     Titulo e descricao sao GERADOS pelo `scripts/prerender.mjs`, a partir de
+     `src/site/routes.ts` e do dicionario (`site:meta.about.*`). Os valores escritos abaixo sao
+     apenas o que sobra se o pre-render nao rodar.
+
+     Nao escreva nome de tag entre sinais de menor/maior em comentario deste arquivo. A
+     injecao do pre-render acha a primeira ocorrencia, e foi exatamente assim que esta pagina
+     perdeu a tag de abertura do documento e do cabecalho uma vez: o casamento comecou dentro
+     do comentario e correu ate o cabecalho. O regex ficou mais estreito e o script passou a
+     conferir a moldura depois de injetar, mas a regra aqui continua valendo, porque e a
+     barata. -->
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />

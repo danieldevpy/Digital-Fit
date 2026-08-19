@@ -7,3 +7,4 @@ public/wasm/
 public/models/
 # Gerado pelo mesmo setup, a partir dos dois de cima (T-071).
 public/pose-assets.json
+dist-ssr/

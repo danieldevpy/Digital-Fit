@@ -14,13 +14,31 @@
 // ~8,8 kB (ADR-010) e já está em cache, não há estado de sessão para preservar, e em troca cada
 // URL passa a ser um documento próprio — que é a condição para o pré-render da T-159 e para
 // existir `sitemap.xml`.
+import { DEFAULT_LOCALE, matchLocale } from '../i18n/locale'
+import { useI18nStore } from '../i18n/store'
 import { caminhoDaRota, parseSitePath, type SiteScreen } from './routes'
 
-export type SiteRoute = { screen: SiteScreen }
-
 /** A tela deste documento. Não muda sem uma navegação, então é leitura pura. */
-export function useSiteRoute(): SiteRoute {
-  return { screen: parseSitePath(window.location.pathname).screen }
+export function telaDoDocumento(): SiteScreen {
+  return parseSitePath(window.location.pathname).screen
+}
+
+/**
+ * O idioma deste documento, a partir do `<html lang>` que o entry HTML já traz (T-159).
+ *
+ * Vivia num efeito de módulo dentro do `SiteApp` e mudou de casa por um motivo concreto: um
+ * componente que lê `document` no import não renderiza no build, e o pré-render é o que faz
+ * esta página existir para o Google. Continua rodando ANTES do primeiro render — agora no
+ * entry, que é o único lugar do bundle que tem direito a conhecer o navegador.
+ *
+ * Site por URL, app por preferência (SPEC-025 §Escopo): o `lang` é escrito estaticamente em
+ * cada entry HTML, então ler o `lang` é ler a URL. `setState` direto e não `setLocale()`: a
+ * escolha é desta visita, não uma preferência para gravar em `digitalfit.locale` — visitar
+ * `/en/` não deve trocar o idioma com que o app abre depois.
+ */
+export function sincronizarLocaleDoDocumento(): void {
+  const locale = matchLocale(document.documentElement.lang) ?? DEFAULT_LOCALE
+  if (useI18nStore.getState().locale !== locale) useI18nStore.setState({ locale })
 }
 
 /**

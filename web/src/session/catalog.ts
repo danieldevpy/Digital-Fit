@@ -14,8 +14,7 @@
 // embutido puro, e é isso que o teste da figura (T-082) deve cobrar — figura nova exige
 // deploy, então cobrar figura de exercício que só existe no servidor seria cobrar o impossível.
 import { useMemo } from 'react'
-import { t, tDynamic } from '../i18n'
-import { useI18nStore } from '../i18n/store'
+import { t, tDynamic, useLocale } from '../i18n'
 import { useConfigStore, type ServerExercise } from '../store/config'
 
 export interface ExerciseInfo {
@@ -346,7 +345,7 @@ export function useCatalog(): { keys: string[]; catalog: Record<string, Exercise
   // cada leitura (correto mesmo sem isto), mas sem o locale nas dependências do `useMemo` o
   // COMPONENTE não teria motivo para re-renderizar ao trocar de idioma — o objeto memoizado
   // continuaria de pé, e ninguém chamaria os getters de novo até a próxima causa de render.
-  const locale = useI18nStore((state) => state.locale)
+  const locale = useLocale()
   return useMemo(() => {
     const catalog = doServidor
       ? Object.fromEntries(doServidor.map((ex) => [ex.slug, daServidor(ex)]))

@@ -5,6 +5,105 @@
 
 ---
 
+## 2026-08-18 (81) · T-159 — O HTML passa a chegar pronto, e dois bugs mudos apareceram no caminho
+
+**O que foi feito.** `src/entries/prerender.tsx` (a árvore montada em Node), `vite.ssr.config.ts`
+(a segunda passada do build), `scripts/prerender.mjs` (a injeção), `SiteApp` sem nenhum acesso a
+`window`/`document`, `hydrateRoot` no entry do navegador, e `title`/`description`/`canonical`
+gerados a partir da tabela de rotas. O `<body>` do site deixou de ser `<div id="root"></div>`.
+
+**Por que esta é a task que paga a frente.** Duas consequências do body vazio, e a segunda quase
+ninguém enxerga: o robô não lê (o Google só na segunda onda; WhatsApp, LinkedIn e rastreadores
+de LLM, nunca), e **o Chrome não oferece traduzir** — ele decide analisando o texto do HTML da
+resposta, e sem texto não há idioma a detectar. A camada "Traduzir" da SPEC-026 estava desligada
+sem ninguém ter decidido isso. Uma tarefa, os dois problemas.
+
+### O bug que só aparece como "a página está na língua errada"
+
+O primeiro pré-render saiu com o `<title>` em português e o `<h1>` em inglês **na mesma página**.
+
+A causa é do tipo que esta fase existe para caçar: **o zustand v5 monta o `useSyncExternalStore`
+com `selector(api.getInitialState())` como *server snapshot***, e o React usa esse terceiro
+argumento em toda renderização de servidor. O estado inicial do store de idioma vem de
+`detectLocale()`, que em Node não tem `window` e cai em `DEFAULT_LOCALE` — então todo componente
+renderizava em inglês por baixo, enquanto o `<title>`, que sai de um `t()` direto sem hook, saía
+certo. Nenhum erro, nenhum aviso.
+
+A correção é `useLocale()` em `i18n/index.ts`: `useSyncExternalStore` com o estado **atual** como
+snapshot de servidor, e todos os sete leitores de locale migrados para ela. Uma regra só ("leia o
+locale por `useLocale()`") é mais barata de manter do que "use o store, exceto nos componentes
+que um dia forem pré-renderizados".
+
+### O segundo bug, e foi o navegador que o achou
+
+Depois de corrigir o primeiro, `/sobre/` continuava saindo em inglês no cliente. O `curl` dizia
+que o servidor mandava português; o DOM dizia outra coisa. A verificação no navegador mostrou
+`document.documentElement.lang === ''`.
+
+O comentário que eu mesmo escrevi no topo de `sobre/index.html` citava a palavra `<title>` — e o
+regex de injeção era **não-guloso**: o casamento começou dentro do comentário, correu até o
+`</title>` do `<head>` e levou junto a tag de abertura do documento e a do cabeçalho. Sem `lang`,
+o cliente caía no `DEFAULT_LOCALE` e re-renderizava a landing inteira em inglês **por cima** do
+HTML português, silenciosamente.
+
+Corrigido em três frentes, porque uma só não bastava:
+
+1. O regex passou a `[^<]*` — uma classe que não casa `<` não consegue atravessar uma tag.
+2. O comentário do arquivo foi reescrito e ganhou a regra ("não escreva nome de tag entre sinais
+   de menor/maior neste arquivo"), porque a defesa barata é não criar a armadilha.
+3. **O script confere a moldura depois de injetar** e falha o build se `<html lang="`, `<head>`,
+   `</head>` ou o título novo não estiverem lá. Injeção em HTML por expressão regular é frágil
+   por natureza; o preço de usá-la é conferir. Um `<html>` comido não aparece como erro — aparece
+   como a página na língua errada, semanas depois.
+
+### As outras decisões
+
+**Config de SSR em arquivo próprio.** O callback de `defineConfig` recebe `isSsrBuild`, mas ele
+não chega populado quando a entrada vem pela linha de comando — o build falhava com *"input
+should not be an html file when building for SSR"*. `vite.ssr.config.ts` torna a intenção
+explícita e não depende de detecção de flag, que é o tipo de coisa que volta a quebrar numa
+atualização.
+
+**`SiteApp` ficou puro, e os entries viraram os únicos módulos que conhecem o navegador.** Ler a
+URL e o `<html lang>` migrou para `entries/site.tsx`; quem monta a mesma árvore no build é
+`entries/prerender.tsx`. Um componente que lê `document` no import não renderiza fora do
+navegador — e manter as duas pontas simétricas é o que impede o pré-render de divergir da tela.
+
+**`hydrateRoot` quando há conteúdo, `createRoot` quando não há.** As duas metades são de verdade:
+as rotas indexáveis chegam prontas; a 404 chega vazia de propósito, porque não tem idioma para
+ser renderizada em build (é a resposta a uma URL que não existe). Escolher pela presença do
+conteúdo evita um terceiro lugar para desincronizar.
+
+**`canonical` só com origem absoluta.** Deploy em subdomínio passa `VITE_SITE_URL`; o de domínio
+único não passa nada, e o bundle não descobre o host sozinho. Omitir é melhor que escrever um
+relativo que o buscador ignora em silêncio — que é exatamente o bug do `hreflang` da T-147. **A
+T-160 fecha isto**: ela precisa de origem absoluta para o `hreflang` e o `x-default`, e quando a
+tiver como requisito de build o `canonical` deixa de ser condicional.
+
+### As medições
+
+- **As quatro páginas, servidas pelo nginx real, lidas sem executar o bundle**: `/` (pt-BR,
+  12.301 B no `#root`), `/en/` (en, 12.210 B), `/sobre/` (pt-BR, 4.540 B), `/en/about/` (en,
+  4.508 B) — cada uma com `lang`, `<title>`, `<meta description>` e `<h1>` na própria língua.
+- **Hidratação**: aba limpa, build corrigido, `/sobre/` e `/en/` sem **nenhuma** mensagem de
+  console. `#root` marcado com `__reactContainer$`. O HTML do servidor e o DOM final do cliente
+  comparados byte a byte: **idênticos**. (O React #418 visto antes era mensagem retida no buffer
+  da aba do build quebrado — a aba nova não o reproduz.)
+- **O invariante pega o que promete**: reintroduzida a armadilha no comentário E afrouxado o
+  regex, o build morre com *"a injeção destruiu a estrutura — faltou `<html lang="`"*; com a
+  armadilha e o regex estreito, passa.
+- **Caminho de deploy**: `docker build -f docker/web.Dockerfile` com
+  `VITE_SITE_URL=https://exemplo.com.br/` conclui, roda o pré-render dentro da imagem, e as
+  quatro páginas saem com `canonical` absoluto correto. `dist-ssr/` **não** chega ao runtime.
+- **Gates**: `ruff check` e `ruff format --check` limpos, `pytest` verde, `npm run lint` e
+  `typecheck` sem saída, `npm run test` com **708 testes em 63 arquivos**.
+
+### Pendências
+
+- `canonical` condicional à origem (acima) — **T-160**.
+- A 404 continua sem pré-render, por decisão registrada, não por esquecimento.
+- A SPEC-026 segue em **`draft`**.
+
 ## 2026-08-18 (80) · T-158 — O site ganha URLs, e uma URL errada passa a doer
 
 **O que foi feito.** `src/site/routes.ts` (a tabela de rotas), o roteador lendo

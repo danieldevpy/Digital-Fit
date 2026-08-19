@@ -7,9 +7,8 @@
 import { useState } from 'react'
 import { EngagementSection } from '../engagement/EngagementSection'
 import { useHistoryStore } from '../history/store'
-import { useT } from '../i18n'
+import { useT, useLocale } from '../i18n'
 import { LocaleSwitch } from '../i18n/LocaleSwitch'
-import { useI18nStore } from '../i18n/store'
 import { switchLocale } from '../i18n/switchLocale'
 import { useFreshHistory } from '../history/useFreshHistory'
 import { formatDuration } from '../report/sessionReport'
@@ -51,7 +50,7 @@ export function AccountSheet() {
   const t = useT()
   const open = useAccountStore((state) => state.sheetOpen)
   const status = useAccountStore((state) => state.status)
-  const locale = useI18nStore((state) => state.locale)
+  const locale = useLocale()
 
   if (!open) return null
 

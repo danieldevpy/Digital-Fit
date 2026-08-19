@@ -10,13 +10,12 @@
 // esta página é `noindex` por natureza e a URL que a produziu não existe, então não há idioma
 // a deduzir dela. Sem URL para perguntar, a pergunta certa é a do `/app/`: o que o aparelho
 // prefere. É o `detectLocale()` que o `store.ts` já usa no boot.
-import { useT } from '../i18n'
-import { useI18nStore } from '../i18n/store'
+import { useT, useLocale } from '../i18n'
 import { siteRouteHref } from '../shell/origins'
 
 export function NotFoundScreen() {
   const t = useT()
-  const locale = useI18nStore((state) => state.locale)
+  const locale = useLocale()
 
   return (
     <div className="app__phone">

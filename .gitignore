@@ -38,3 +38,4 @@ dataset/*
 .DS_Store
 .idea/
 .vscode/
+web/dist-ssr/

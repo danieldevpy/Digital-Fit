@@ -1,41 +1,23 @@
-// Casca do SITE (T-067): landing e Sobre, roteadas por hash.
+// Casca do SITE (T-067). Landing, Sobre e a 404, roteadas por CAMINHO desde a T-158.
 //
 // Não há AccountSheet aqui de propósito. O token de conta vive no `localStorage`, que é por
 // ORIGEM: entrar em `site.dominio.com` não deixaria ninguém logado em `app.dominio.com`.
 // Um "Entrar" que às vezes funciona é pior que um "Entrar" que leva ao app — então o botão
 // leva ao app, onde a conta realmente mora.
 //
-// Site por URL, não por preferência (SPEC-025 §Escopo — Site por URL; T-147): cada entry HTML
-// (`index.html` = pt-BR, `en/index.html` = en) já grava o `lang` estático correspondente antes
-// deste bundle carregar. O store de i18n é sincronizado com esse `lang` aqui, no import do
-// módulo — mesmo raciocínio do `detectLocale()` de `i18n/store.ts` (computar de saída evita o
-// flash de idioma errado que uma hidratação em `useEffect` introduziria à toa) — em vez de com
-// o `detectLocale()` do APP, que serve preferência de aparelho: a regra certa para o `/app/`
-// (não indexado) é a errada aqui (indexado, rastreado por URL). `setState` direto, não
-// `setLocale()`: a escolha é da URL desta visita, não uma preferência para persistir em
-// `digitalfit.locale` — visitar `/en/` não deve trocar o idioma que o app abre depois.
-import { DEFAULT_LOCALE, matchLocale } from '../i18n/locale'
-import { useI18nStore } from '../i18n/store'
+// **Este componente não toca `window` nem `document`** (T-159). Até aqui ele lia o
+// `<html lang>` num efeito de módulo e a rota de `window.location` — e as duas coisas o
+// tornavam impossível de renderizar fora do navegador. Como o pré-render em build é o que faz
+// o Google e o tradutor do Chrome enxergarem esta página (SPEC-026 §Notas técnicas), quem lê o
+// mundo passou a ser o ENTRY: `entries/site.tsx` no navegador, `entries/prerender.tsx` no
+// build. O componente recebe a tela pronta e o idioma pelo store.
 import { AboutScreen } from './AboutScreen'
 import { IndexScreen } from './IndexScreen'
 import { NotFoundScreen } from './NotFoundScreen'
-import { useSiteRoute } from './nav'
+import type { SiteScreen } from './routes'
 
-// `matchLocale()` e não `=== 'en'` (T-162): a comparação por igualdade respondia certo para
-// exatamente dois valores e mandaria um `/es/` futuro para o PORTUGUÊS, em silêncio — o pior
-// modo de falha, porque a página estaria em espanhol e o dicionário em português sem ninguém
-// receber erro. `matchLocale` já normaliza por prefixo e já é a função que o app usa; o
-// fallback é `DEFAULT_LOCALE` pelo mesmo motivo que o `x-default` da SPEC-026 aponta para
-// `/en/`: `en` é a resposta para "não sei quem é você", e as duas pontas dizem a mesma coisa.
-const localeDoSite = matchLocale(document.documentElement.lang) ?? DEFAULT_LOCALE
-if (useI18nStore.getState().locale !== localeDoSite) {
-  useI18nStore.setState({ locale: localeDoSite })
-}
-
-export function SiteApp() {
-  const route = useSiteRoute()
-
-  if (route.screen === 'nao_encontrada') {
+export function SiteApp({ screen }: { screen: SiteScreen }) {
+  if (screen === 'nao_encontrada') {
     return (
       <div className="app">
         <NotFoundScreen />
@@ -45,7 +27,7 @@ export function SiteApp() {
 
   return (
     <div className="app">
-      {route.screen === 'index' ? (
+      {screen === 'index' ? (
         <IndexScreen />
       ) : (
         <div className="app__phone">

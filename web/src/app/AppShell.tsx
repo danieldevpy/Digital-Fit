@@ -4,7 +4,7 @@
 import { useEffect } from 'react'
 import { AccountSheet } from '../auth/AccountSheet'
 import { fetchMe } from '../auth/api'
-import { useI18nStore } from '../i18n/store'
+import { useLocale } from '../i18n'
 import { refreshHistory } from '../history/refresh'
 import { useHistoryStore } from '../history/store'
 import { ReportSheet } from '../report/ReportSheet'
@@ -34,7 +34,7 @@ export function AppShell() {
   // é este efeito, o mesmo canal que já sincroniza histórico, conta e config com o mundo de
   // fora. Roda no mount com o locale já resolvido (nasce correto, sem rede) e de novo sempre
   // que a T-153 trocar o idioma pelo seletor.
-  const locale = useI18nStore((state) => state.locale)
+  const locale = useLocale()
   useEffect(() => {
     document.documentElement.lang = locale
   }, [locale])

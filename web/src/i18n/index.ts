@@ -7,7 +7,7 @@
 // dicionário único — esta task (T-142) migra só `shell`; os outros oito nascem vazios e crescem
 // sozinhos: `TKey` abaixo é gerado A PARTIR dos dicionários, então o autocomplete e o erro de
 // `tsc` para uma chave errada aparecem sem nenhuma manutenção extra conforme cada um for escrito.
-import { useCallback } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { dict as dictEn } from './dict/en'
 import { dict as dictPtBR } from './dict/pt-BR'
 import type { Locale } from './locale'
@@ -148,8 +148,34 @@ export function t(chave: TKey, params?: Params): string {
 }
 
 /** `t()` dentro de componente — assina o locale no store, então o componente re-renderiza ao trocar de idioma. */
+/**
+ * O locale ativo — e a única forma correta de lê-lo dentro de um componente (T-159).
+ *
+ * **Por que não `useI18nStore((state) => state.locale)`.** O zustand v5 monta o
+ * `useSyncExternalStore` com `selector(api.getInitialState())` como *server snapshot*, e o React
+ * usa esse terceiro argumento em toda renderização de servidor. Como o estado inicial deste
+ * store sai de `detectLocale()` — que em Node não tem `window` e cai em `DEFAULT_LOCALE` —, o
+ * pré-render da T-159 saía INTEIRO em inglês: o `<title>` vinha certo (é `t()` direto, sem
+ * hook) e o corpo vinha errado, na mesma página. O tipo de falha que a Fase 8 existe para
+ * caçar: não dá erro, só entrega a língua errada para o Google.
+ *
+ * Aqui o snapshot de servidor é o estado ATUAL, não o inicial — que é o que o pré-render ajusta
+ * antes de cada página. No cliente nada muda de comportamento: `sincronizarLocaleDoDocumento()`
+ * roda antes do `hydrateRoot`, então o mesmo valor vale nos dois lados e a hidratação bate.
+ *
+ * Vale para o app também, embora lá não haja SSR: uma regra só é mais barata de manter que
+ * "use o store, exceto nos componentes que um dia forem pré-renderizados".
+ */
+export function useLocale(): Locale {
+  return useSyncExternalStore(useI18nStore.subscribe, localeAtual, localeAtual)
+}
+
+function localeAtual(): Locale {
+  return useI18nStore.getState().locale
+}
+
 export function useT(): (chave: TKey, params?: Params) => string {
-  const locale = useI18nStore((state) => state.locale)
+  const locale = useLocale()
   return useCallback((chave: TKey, params?: Params) => translate(locale, chave, params), [locale])
 }
 

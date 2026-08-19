@@ -3,9 +3,8 @@
 // Reaproveita a pele da `.tabbar-v2` (mesmo material da SPEC-014) mas não a tab bar do app:
 // aquela navega entre telas de treino, que não existem neste bundle. Item destacado em vez
 // de "ativo": "Abrir o app" não é uma aba, é uma saída.
-import { useT } from '../i18n'
+import { useT, useLocale } from '../i18n'
 import { LocaleSwitch } from '../i18n/LocaleSwitch'
-import { useI18nStore } from '../i18n/store'
 import { appHref, siteRouteHref } from '../shell/origins'
 import { IconDumbbell, IconHome, IconLogo } from '../ui/icons'
 
@@ -13,7 +12,7 @@ export function SiteBar({ active }: { active: 'index' | 'sobre' }) {
   const t = useT()
   // O locale do SITE vem da URL desta visita (`SiteApp` sincroniza o store com o `<html lang>`
   // estático), não da preferência do aparelho — por isso ler o store aqui é ler a URL.
-  const locale = useI18nStore((state) => state.locale)
+  const locale = useLocale()
 
   return (
     <>

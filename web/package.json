@@ -8,7 +8,7 @@
     "predev": "npm run setup",
     "dev": "vite",
     "prebuild": "npm run setup",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && vite build --config vite.ssr.config.ts && node scripts/prerender.mjs",
     "preview": "vite preview",
     "mock:gateway": "node dev/mock-gateway.mjs",
     "lint": "eslint .",

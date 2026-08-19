@@ -5,8 +5,7 @@
 //
 // Desde a T-067 esta tela é o SITE: todo botão que leva a treinar é um `<a href>` para o
 // app, não um `navigate()`. O app pode estar em outro host, e ali `#/preparar` não existe.
-import { useT } from '../i18n'
-import { useI18nStore } from '../i18n/store'
+import { useT, useLocale } from '../i18n'
 import { DEFAULT_EXERCISE } from '../session/catalog'
 import { appHref, siteRouteHref } from '../shell/origins'
 import {
@@ -59,7 +58,7 @@ export function IndexScreen() {
   // (`/sobre/`, `/en/about/`), não `#/sobre`: fragmento não viaja no pedido e o buscador nunca
   // via essas páginas. O idioma vem do store, que o `SiteApp` sincroniza com o `<html lang>`
   // deste documento — ou seja, com a URL.
-  const locale = useI18nStore((state) => state.locale)
+  const locale = useLocale()
   const sobreHref = siteRouteHref('sobre', locale)
 
   return (
