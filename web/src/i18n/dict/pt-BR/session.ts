@@ -22,6 +22,12 @@ export const session = {
   'camera.denied_detail': 'Permissão de câmera negada. Libere o acesso e tente de novo.',
   'camera.open_failed': 'Falha ao abrir a câmera.',
   'camera.video_failed': 'Falha ao abrir o vídeo.',
+  // Troca frontal ⇄ traseira (SPEC-027 §A). O rótulo diz a câmera que está NO AR, não a
+  // que o toque vai abrir: é o estado que a pessoa confere olhando a imagem.
+  'camera.front': 'Frontal',
+  'camera.rear': 'Traseira',
+  'camera.single': 'Este aparelho tem só uma câmera.',
+  'camera.switch_aria': 'Trocar de câmera. Agora: {current}.',
 
   // --- Aquecimento do pipeline (T-069): a janela em que o app baixa ~17 MB e a tela ficaria muda ---
   'warmup.title': 'Preparando a análise neste aparelho…',

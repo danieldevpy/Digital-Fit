@@ -69,7 +69,7 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
   // arquivo continua acessível. Os dois nunca estão ligados ao mesmo tempo (ver `gate.ts`).
   const recordMode = useRecordMode()
 
-  const { start, stop, startFile, setZoom } = useCamera(videoRef)
+  const { start, stop, startFile, setZoom, switchCamera } = useCamera(videoRef)
   useEdgePipeline(videoRef, canvasRef, cameraStatus === 'ready')
   useSceneCheck(videoRef, checkScene && cameraStatus === 'ready')
 
@@ -81,9 +81,10 @@ export function CameraView({ compactCover = false, checkScene = false }: CameraV
       // Só o painel de dev chama (T-040); o FAB da nav nem sabe que existe.
       startFile: (file: File) => void startFile(file),
       setZoom,
+      switchCamera: () => void switchCamera(),
     })
     return () => setCameraControls(null)
-  }, [setCameraControls, setZoom, start, startFile, stop])
+  }, [setCameraControls, setZoom, start, startFile, stop, switchCamera])
 
   const isReady = cameraStatus === 'ready'
   const isCloud = capability?.mode === Mode.CLOUD

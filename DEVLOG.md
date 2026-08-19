@@ -5,6 +5,81 @@
 
 ---
 
+## 2026-08-19 (90) · T-170 — A câmera de trás, e o espelho que vem junto com ela
+
+**O que entrou.** `capture/useCamera.ts` passa a levar `facingMode`, e a pré-configuração ganha
+um controle ao lado de Espelhar que alterna frontal ⇄ traseira. A preferência fica em
+`digitalfit.camera_facing` (padrão do `zoomPrefs.ts`) e guarda a **intenção**, nunca o
+`deviceId` — lente é hardware que troca de nome entre versões de SO.
+
+### As duas coisas que decidiram o desenho
+
+**1. `ideal` não serve para trocar, e é por isso que existe `exact`.** `{ ideal: 'environment' }`
+num aparelho sem traseira **não levanta erro**: devolve a frontal em silêncio. O botão passaria
+a dizer "Traseira" sobre imagem frontal, que é exatamente o tipo de mentira de tela que a casa
+proíbe. Na troca vale `exact`, cujo `OverconstrainedError` é a única evidência de que a câmera
+pedida não existe. O fallback de RESOLUÇÃO da SPEC-001 foi ajustado junto para preservar a
+restrição de câmera: cair para `video: true` porque o aparelho não faz 640×480 não podia, de
+quebra, trocar a câmera que a pessoa escolheu — os dois `OverconstrainedError` significam
+coisas diferentes e agora não se confundem.
+
+**2. Trocar de câmera NÃO mexe em `cameraStatus`.** O `useEdgePipeline` liga e desliga por ele.
+Um `requesting` no meio da troca derrubaria o landmarker e faria o **capability probe rodar de
+novo, 2–3 s, a cada toque no botão** — com o risco real de a medição nova cair do outro lado do
+limiar de 12fps e mandar para cloud um aparelho que estava em edge, gastando vaga do semáforo
+da SPEC-009 por causa de um toque num botão de conforto. O `<video>` é o mesmo nó e o laço de
+rVFC continua nele: o que troca por baixo é só o `srcObject`.
+
+### O refactor que os testes obrigaram
+
+A sequência da troca nasceu dentro do hook e voltou para fora, em `capture/cameraSwap.ts`, com
+as dependências injetadas. O motivo é o de sempre neste projeto: **a falha dessa sequência só
+aparece em aparelho de câmera única, que é justamente o aparelho que ninguém tem na mesa na
+hora de escrever o código.** Dentro do hook ela era intestável (`getUserMedia`, `<video>`,
+React, e os testes rodam em `environment: 'node'`); fora dele, o critério 3 da spec virou seis
+asserções — inclusive a de que a volta usa `ideal` e não `exact`, e a de que uma falha
+genérica (`NotReadableError`, câmera ocupada por outro app) volta igual mas **sem** afirmar
+"só tem uma câmera", que seria causa inventada.
+
+O `useCamera` ficou com a fiação, e `adotarStream` concentra as três coisas que caem de abrir
+uma câmera: rótulo (do `getSettings()`, não do pedido), espelho e zoom.
+
+### Espelho
+
+`mirrorDefaultFor` é reaplicado a cada abertura de câmera, e é isso que produz o comportamento
+da SPEC-027 §B: a câmera define o default (traseira abre sem espelho), o botão Espelhar
+sobrepõe, e a sobreposição vale até a câmera mudar de novo. O espelho continua **não sendo
+persistido** — persiste-se a câmera e ele se deduz. Dois estados salvos seriam dois jeitos de a
+tela abrir errada.
+
+### Gates e o que foi medido
+
+`tsc -b --force`, `eslint .`, `vitest run` (71 arquivos, **888 testes**, 26 deles novos),
+`ruff check` e `ruff format --check` (180 arquivos) — todos verdes. Python não foi tocado.
+
+Medição no navegador de preview: `enumerateDevices()` relata **uma** `videoinput` naquela
+máquina, e o controle **não é renderizado** — metade do critério 2, verificada como observação
+e não como alegação. A pré-configuração continua desenhando igual (Espelhar presente, CTA em
+"Ligar câmera"); os `ERR_CONNECTION_REFUSED` do console são a API Django fora do ar, não o app.
+
+### Pendências (declaradas, não escondidas)
+
+- **O caminho vivo não foi exercitado.** O navegador controlado bloqueia `getUserMedia`, e a
+  máquina tem uma câmera só. Faltam, em celular real com as duas câmeras: a troca de fato, o
+  `facingMode` que o track relata, o espelho virando junto, e a preferência sobrevivendo ao
+  reload. É a primeira metade do critério 1 e a segunda do critério 2 — as DECISÕES estão
+  cobertas por teste, a fiação com o navegador não.
+- Nenhum estilo novo foi escrito: o controle reusa `prep-cell--action` / `prep-cell__mirror` /
+  `prep-cell__hint`, que é o que o faz nascer visualmente igual ao Espelhar. Vale conferir em
+  aparelho real se a coluna esquerda, que a T-168 acabou de equilibrar, continua equilibrada
+  agora que ganhou um card a mais.
+- Os gates rodaram numa árvore que tinha, em paralelo, trabalho em voo de outra frente
+  (`SessionReport` ganhando `set_mode`/`target_reps`/`set_index`/`set_total`). Nada disso entrou
+  no commit — o `git add` foi por caminho —, mas a primeira passada do `tsc` pegou aquele
+  trabalho no meio de uma escrita e acusou dois erros que sumiram sozinhos na passada seguinte.
+
+---
+
 ## 2026-08-19 (89) · T-169 — SPEC-027: de que lado e de que jeito o celular olha
 
 **O pedido.** Duas ferramentas, trazidas como independentes: trocar entre câmera frontal e

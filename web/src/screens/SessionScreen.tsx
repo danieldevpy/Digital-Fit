@@ -14,6 +14,7 @@ import { useEngagementStore } from '../engagement/store'
 import { CountdownSetting } from '../hud/CountdownSetting'
 import { TimerRing } from '../hud/TimerRing'
 import { ViewConfirm } from '../hud/ViewConfirm'
+import { CameraControl } from '../hud/CameraControl'
 import { ZoomControl } from '../hud/ZoomControl'
 import { exerciseSubtitle, getExercise } from '../session/catalog'
 import { resolveCoachCard } from '../session/coachCard'
@@ -505,6 +506,12 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                 <span>{t('session:prep.mirror')}</span>
               </span>
             </button>
+
+            {/* Vizinho do Espelhar de propósito (SPEC-027 §B): trocar de câmera reaplica o
+                espelho, e as duas escolhas lado a lado é o que torna essa relação visível.
+                Só com a câmera ligada — antes disso não há track para trocar —, e o próprio
+                controle some em aparelho de câmera única. */}
+            {cameraReady && <CameraControl />}
           </div>
 
           <div className="prep__side prep__side--right">

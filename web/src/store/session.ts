@@ -18,6 +18,7 @@ import type { ProbeOutcome } from '../probe/runProbe'
 import type { SceneAdvice } from '../scene/sceneQuality'
 import type { SessionReport } from '../report/sessionReport'
 import type { CoachEntry } from '../session/coachCard'
+import { FACING_DEFAULT, type Facing } from '../capture/facing'
 
 export type CameraStatus = 'idle' | 'requesting' | 'ready' | 'denied' | 'error'
 
@@ -122,12 +123,36 @@ export interface SessionState {
      * Aplica via `applyConstraints` — muda o frame de verdade que a pose lê, não só a tela.
      */
     setZoom: (value: number) => void
+    /**
+     * Troca frontal ⇄ traseira (SPEC-027 §A). Só existe onde há escolha — quem decide se o
+     * controle aparece é `hasCameraChoice`, não esta função.
+     */
+    switchCamera: () => void
   } | null
   /**
    * Visão de espelho do palco (SPEC-014 §3, botão Espelhar). `true` é o default do produto:
    * quem treina de frente para a câmera espera se ver como num espelho.
    */
   mirrored: boolean
+  /**
+   * Qual câmera está no ar AGORA (SPEC-027 §A) — o valor que o track relatou, não o que foi
+   * pedido. Aparelho que ignora a restrição sem erro existe, e é por isso que este campo não
+   * é a preferência salva: a preferência é intenção, este é fato.
+   */
+  facing: Facing
+  /**
+   * O aparelho tem mais de uma câmera? Contado por `enumerateDevices()` DEPOIS de o stream
+   * abrir (antes da permissão o navegador não conta direito). `false` esconde o controle,
+   * mesmo precedente do `zoomCapabilities: null` — controle que não faz nada ensina que o app
+   * está quebrado.
+   */
+  hasCameraChoice: boolean
+  /**
+   * A troca falhou, e por quê. Hoje só existe um motivo: o aparelho não tem a câmera pedida
+   * (`OverconstrainedError` do `exact`). É código e não frase para o texto ser resolvido no
+   * render — congelar a frase aqui a prenderia ao idioma do instante (lição da T-152).
+   */
+  cameraNotice: 'single_camera' | null
   /**
    * Faixa de zoom nativo do track atual — `null` sem câmera ligada ou sem o aparelho expor
    * `min < 1` (zoom "para menos", o único com utilidade aqui). Um aparelho que só amplia
@@ -201,6 +226,10 @@ export interface SessionState {
   setRecordedFrames: (count: number) => void
   setCameraControls: (controls: SessionState['cameraControls']) => void
   toggleMirrored: () => void
+  setMirrored: (mirrored: boolean) => void
+  setFacing: (facing: Facing) => void
+  setHasCameraChoice: (hasCameraChoice: boolean) => void
+  setCameraNotice: (cameraNotice: 'single_camera' | null) => void
   setZoomCapabilities: (capabilities: ZoomCapabilities | null) => void
   setZoomValue: (value: number) => void
   setVideoSource: (source: 'camera' | 'file', fileName?: string | null) => void
@@ -285,6 +314,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   recordedFrames: 0,
   cameraControls: null,
   mirrored: true,
+  facing: FACING_DEFAULT,
+  hasCameraChoice: false,
+  cameraNotice: null,
   zoomCapabilities: null,
   zoomValue: 1,
   videoSource: 'camera',
@@ -311,6 +343,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setRecordedFrames: (recordedFrames) => set({ recordedFrames }),
   setCameraControls: (cameraControls) => set({ cameraControls }),
   toggleMirrored: () => set({ mirrored: !get().mirrored }),
+  setMirrored: (mirrored) => set({ mirrored }),
+  setFacing: (facing) => set({ facing }),
+  setHasCameraChoice: (hasCameraChoice) => set({ hasCameraChoice }),
+  setCameraNotice: (cameraNotice) => set({ cameraNotice }),
   setZoomCapabilities: (zoomCapabilities) => set({ zoomCapabilities }),
   setZoomValue: (zoomValue) => set({ zoomValue }),
   setVideoSource: (videoSource, videoFileName = null) => set({ videoSource, videoFileName }),

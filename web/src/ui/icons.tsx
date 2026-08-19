@@ -204,6 +204,23 @@ export function IconMirror({ className }: IconProps) {
   )
 }
 
+/**
+ * Trocar frontal ⇄ traseira (SPEC-027 §A). O corpo é a mesma câmera do `IconCamera` — é a
+ * mesma coisa, vista de outro lado — com as duas setas de retorno no lugar da lente: o que o
+ * botão faz é girar a câmera, não abrir outra coisa.
+ */
+export function IconCameraSwitch({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M3 8.5a2 2 0 0 1 2-2h2.2l1.3-2h6l1.3 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      <path d="M9.4 12.6a2.8 2.8 0 0 1 4.6-2.1" />
+      <path d="M14.6 12.4a2.8 2.8 0 0 1-4.6 2.1" />
+      <path d="M14.2 8.2v2.3h-2.3" />
+      <path d="M9.8 16.8v-2.3h2.3" />
+    </svg>
+  )
+}
+
 export function IconZoom({ className }: IconProps) {
   return (
     <svg {...base} className={className} aria-hidden="true">

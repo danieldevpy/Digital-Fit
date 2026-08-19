@@ -8,6 +8,15 @@ import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import { loadVideoFile } from '../dev/videoSource'
 import { t } from '../i18n'
 import { useSessionStore } from '../store/session'
+import { facingPreference, setFacingPreference } from './cameraPrefs'
+import { swapCamera } from './cameraSwap'
+import {
+  facingConstraint,
+  facingFromSettings,
+  hasCameraChoice,
+  mirrorDefaultFor,
+  type Facing,
+} from './facing'
 import { setZoomPreference, zoomPreference } from './zoomPrefs'
 
 const PREFERRED_VIDEO: MediaTrackConstraints = {
@@ -47,13 +56,44 @@ function isOverconstrained(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'OverconstrainedError'
 }
 
-async function requestStream(): Promise<MediaStream> {
+/**
+ * Abre o stream na câmera pedida (SPEC-027 §A).
+ *
+ * O fallback de RESOLUÇÃO continua sendo o da SPEC-001 — só que ele preserva o `facingMode`:
+ * cair para `video: true` porque o aparelho não faz 640×480 não pode, de quebra, trocar a
+ * câmera que a pessoa escolheu.
+ *
+ * Com `precisao: 'exact'` o `OverconstrainedError` da CÂMERA não é tratado aqui: ele sobe
+ * para quem chamou (`switchCamera`), que é quem sabe para onde voltar. Distinguir os dois
+ * casos é o motivo de a segunda tentativa manter a restrição de câmera — se ela cair junto, o
+ * erro vira "resolução" e a troca falha em silêncio.
+ */
+async function requestStream(facing: Facing, precisao: 'ideal' | 'exact'): Promise<MediaStream> {
+  const camera = facingConstraint(facing, precisao)
   try {
-    return await navigator.mediaDevices.getUserMedia({ video: PREFERRED_VIDEO, audio: false })
+    return await navigator.mediaDevices.getUserMedia({
+      video: { ...PREFERRED_VIDEO, ...camera },
+      audio: false,
+    })
   } catch (error) {
     if (!isOverconstrained(error)) throw error
-    // Device não atende à resolução preferida: aceita o que ele der.
-    return navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+    // Device não atende à resolução preferida: aceita o que ele der, na MESMA câmera.
+    return navigator.mediaDevices.getUserMedia({ video: { ...camera }, audio: false })
+  }
+}
+
+/**
+ * Há mais de uma câmera? Só depois de o stream abrir (a permissão já existe) — antes disso o
+ * navegador devolve entradas sem `label` e, em parte deles, sem contagem confiável.
+ *
+ * Falha aqui não é erro de produto: sem a resposta, o controle simplesmente não aparece.
+ */
+async function contarCameras(): Promise<boolean> {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices?.()
+    return hasCameraChoice(devices ?? [])
+  } catch {
+    return false
   }
 }
 
@@ -68,6 +108,10 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
   const setError = useSessionStore((state) => state.setError)
   const setZoomCapabilities = useSessionStore((state) => state.setZoomCapabilities)
   const setZoomValue = useSessionStore((state) => state.setZoomValue)
+  const setMirrored = useSessionStore((state) => state.setMirrored)
+  const setFacing = useSessionStore((state) => state.setFacing)
+  const setHasCameraChoice = useSessionStore((state) => state.setHasCameraChoice)
+  const setCameraNotice = useSessionStore((state) => state.setCameraNotice)
 
   /**
    * Lê a preferência salva e liga o zoom nativo — só quando o aparelho expõe `min < 1`
@@ -100,6 +144,37 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
     [setZoomCapabilities, setZoomValue],
   )
 
+  /**
+   * Adota um stream recém-aberto: pendura no `<video>`, e resolve as três coisas que caem da
+   * câmera — rótulo, espelho e zoom (SPEC-027 §A/§B).
+   *
+   * O espelho é reaplicado a CADA abertura de câmera, e é isso que dá o comportamento escrito
+   * na spec: a câmera define o default, a escolha explícita do botão Espelhar sobrepõe, e a
+   * sobreposição vale até a câmera mudar de novo.
+   *
+   * Devolve o facing REAL (o que o track relatou), que é o que a preferência guarda — guardar
+   * o pedido faria a próxima carga repetir um pedido que este aparelho já recusou uma vez.
+   */
+  const adotarStream = useCallback(
+    async (stream: MediaStream, video: HTMLVideoElement, pedido: Facing): Promise<Facing> => {
+      streamRef.current = stream
+      video.srcObject = stream
+      await video.play()
+      setVideoResolution({ width: video.videoWidth, height: video.videoHeight })
+
+      const track = stream.getVideoTracks()[0]
+      trackRef.current = track ?? null
+      const real = facingFromSettings(track?.getSettings?.(), pedido)
+      setFacing(real)
+      setFacingPreference(real)
+      setMirrored(mirrorDefaultFor(real))
+      applyZoomFromTrack(track)
+      setHasCameraChoice(await contarCameras())
+      return real
+    },
+    [applyZoomFromTrack, setFacing, setHasCameraChoice, setMirrored, setVideoResolution],
+  )
+
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
@@ -118,14 +193,30 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
     }
     setVideoSource('camera')
     setCameraStatus('idle')
-  }, [setCameraStatus, setVideoSource, setZoomCapabilities, setZoomValue, videoRef])
+    // Sem câmera no ar não há troca a oferecer, e um aviso de troca sobrevivente seria um
+    // aviso sobre uma câmera que não existe mais.
+    setHasCameraChoice(false)
+    setCameraNotice(null)
+  }, [
+    setCameraNotice,
+    setCameraStatus,
+    setHasCameraChoice,
+    setVideoSource,
+    setZoomCapabilities,
+    setZoomValue,
+    videoRef,
+  ])
 
   const start = useCallback(async () => {
     if (streamRef.current) return
     setError(null)
     setCameraStatus('requesting')
+    setCameraNotice(null)
     try {
-      const stream = await requestStream()
+      // Abrir usa `ideal`: se a câmera preferida sumiu (fone desconectado, lente escondida por
+      // outro app), abrir na outra é melhor que tela preta — e `adotarStream` corrige o rótulo.
+      const pedido = facingPreference()
+      const stream = await requestStream(pedido, 'ideal')
       streamRef.current = stream
 
       const video = videoRef.current
@@ -136,12 +227,7 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
         return
       }
 
-      video.srcObject = stream
-      await video.play()
-      setVideoResolution({ width: video.videoWidth, height: video.videoHeight })
-      const track = stream.getVideoTracks()[0]
-      trackRef.current = track ?? null
-      applyZoomFromTrack(track)
+      await adotarStream(stream, video, pedido)
       setCameraStatus('ready')
     } catch (error) {
       streamRef.current = null
@@ -153,7 +239,7 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
       setCameraStatus('error')
       setError(error instanceof Error ? error.message : t('session:camera.open_failed'))
     }
-  }, [applyZoomFromTrack, setCameraStatus, setError, setVideoResolution, videoRef])
+  }, [adotarStream, setCameraNotice, setCameraStatus, setError, videoRef])
 
   /**
    * Zoom nativo, chamado pelo slider (hud/ZoomControl.tsx). Sem track ou sem capacidade, não
@@ -176,6 +262,53 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
   )
 
   /**
+   * Troca frontal ⇄ traseira (SPEC-027 §A), chamada pelo controle da pré-configuração.
+   *
+   * **Não mexe em `cameraStatus`.** O `useEdgePipeline` liga e desliga por ele, e um
+   * `requesting` no meio da troca derrubaria o landmarker e faria o capability probe rodar de
+   * novo (2–3 s) — a cada toque no botão, com risco de a medição nova cair do outro lado do
+   * limiar e mandar para cloud um aparelho que estava em edge. O `<video>` é o mesmo nó, o
+   * laço de rVFC continua nele: o que troca por baixo é só o `srcObject`.
+   *
+   * A SEQUÊNCIA da troca (soltar, pedir com `exact`, voltar quando falha) mora em
+   * `cameraSwap.ts`, com as dependências injetadas: é a parte cuja falha só aparece em
+   * aparelho de câmera única, que é justamente o aparelho que ninguém tem na mesa na hora de
+   * escrever o código. Aqui fica a fiação com o store.
+   */
+  const switchCamera = useCallback(async () => {
+    const video = videoRef.current
+    const stream = streamRef.current
+    if (!video || !stream) return
+    // Origem em arquivo (T-040) não tem câmera para trocar.
+    if (useSessionStore.getState().videoSource === 'file') return
+
+    setCameraNotice(null)
+    const resultado = await swapCamera(useSessionStore.getState().facing, {
+      abrir: (facing, precisao) => requestStream(facing, precisao),
+      adotar: async (novoStream, pedido) => {
+        await adotarStream(novoStream, video, pedido)
+      },
+      soltar: () => {
+        stream.getTracks().forEach((track) => track.stop())
+        streamRef.current = null
+        trackRef.current = null
+      },
+      ehRestricaoImpossivel: isOverconstrained,
+    })
+
+    if (resultado.estado === 'voltou' && resultado.notice) setCameraNotice(resultado.notice)
+    if (resultado.estado === 'sem_camera') {
+      // Perdeu a câmera de ida E a de volta: aqui não há mais imagem, e o estado de erro é a
+      // verdade da tela.
+      streamRef.current = null
+      setCameraStatus('error')
+      setError(
+        resultado.erro instanceof Error ? resultado.erro.message : t('session:camera.open_failed'),
+      )
+    }
+  }, [adotarStream, setCameraNotice, setCameraStatus, setError, videoRef])
+
+  /**
    * Arquivo no lugar da câmera (T-040). O vídeo fica **parado** no frame 0: quem dá o play é
    * o pipeline, depois do capability probe — senão os 2 s da medição comeriam o começo do
    * arquivo, que é justamente o trecho parado que a calibração consome (SPEC-004).
@@ -196,8 +329,11 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
         video.addEventListener('ended', () => stop(), { once: true })
         setVideoResolution({ width: carregado.width, height: carregado.height })
         setVideoSource('file', file.name)
-        // Arquivo não tem MediaStreamTrack: sem zoom nativo possível, o controle some.
+        // Arquivo não tem MediaStreamTrack: sem zoom nativo possível, o controle some — e
+        // pelo mesmo motivo não há frontal/traseira a oferecer (SPEC-027 §A).
         applyZoomFromTrack(undefined)
+        setHasCameraChoice(false)
+        setCameraNotice(null)
         setCameraStatus('ready')
       } catch (error) {
         releaseFileRef.current = null
@@ -205,10 +341,20 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
         setError(error instanceof Error ? error.message : t('session:camera.video_failed'))
       }
     },
-    [applyZoomFromTrack, setCameraStatus, setError, setVideoResolution, setVideoSource, stop, videoRef],
+    [
+      applyZoomFromTrack,
+      setCameraNotice,
+      setCameraStatus,
+      setError,
+      setHasCameraChoice,
+      setVideoResolution,
+      setVideoSource,
+      stop,
+      videoRef,
+    ],
   )
 
   useEffect(() => stop, [stop])
 
-  return { start, stop, startFile, setZoom }
+  return { start, stop, startFile, setZoom, switchCamera }
 }
