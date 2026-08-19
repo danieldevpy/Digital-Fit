@@ -5,6 +5,93 @@
 
 ---
 
+## 2026-08-19 (92) · T-172 — Paisagem: o cromo para de empilhar, e a T-167 já sabia o resto
+
+**O que entrou.** `shell/orientation.ts` (o sinal), a classe `app__phone--largo` na casca, a
+classe `sess--paisagem` na tela de sessão, e o bloco de CSS de paisagem da pré-configuração.
+A trava de `max-width: 430px` cai — **e só nas duas telas de câmera**, que é a delimitação que
+o Daniel confirmou antes de eu começar.
+
+### O sinal, e por que ele é classe e não `@media`
+
+A fonte da verdade é `matchMedia('(orientation: landscape)')`: a **forma da viewport**, não o
+ângulo do aparelho. `screen.orientation.angle` responde outra pergunta, e num celular com a
+rotação travada os dois discordam — seguir o ângulo desenharia layout largo dentro de caixa
+estreita.
+
+O resultado vira **classe no DOM**, não `@media` no CSS, e isso é decisão de arquitetura e não
+de gosto: a T-175 vai acrescentar um botão que força o layout, e uma media query não tem como
+ser sobreposta por um toque. Fazer as duas coisas (media query + classe) seria manter duas
+fontes da verdade para a mesma pergunta.
+
+`useSyncExternalStore` com as três funções **estáveis no módulo**. Comecei com uma arrow no
+corpo do componente e corrigi: o gancho re-assina toda vez que a identidade de `subscribe`
+muda, e a janela entre o `removeEventListener` e o `addEventListener` é onde uma mudança de
+orientação se perde sem deixar rastro.
+
+### O que eu esperava fazer e não precisei
+
+Esperava recalcular a geometria da janela para paisagem. **Não precisou**: a máquina de medir
+da T-167 já lê a altura REAL do cabeçalho e do rodapé, então bastou o CSS encolher os dois —
+cabeçalho em uma linha, CTA e tab bar lado a lado em vez de empilhados — e a janela cresceu
+sozinha. Nenhuma constante nova. É o retorno composto daquela task: ela trocou dois números
+fixos por uma medição, e a medição cobriu um caso que não existia quando foi escrita.
+
+### O número que desmentiu minha primeira hipótese
+
+Escrevi um teste afirmando que o layout de paisagem daria uma janela MAIOR, e ele falhou:
+`expected 110 to be less than 110`. Em 390px de altura o piso de 280px manda nos dois casos, e
+**o retângulo da janela é o mesmo** com cromo empilhado ou não.
+
+O ganho é outro, e é maior: é quanto da janela fica **coberto**. O cromo de retrato tem 201px
+de altura ocupando 110px de borda — ou seja, **91px de painel opaco por cima da imagem que a
+pessoa está tentando ler**. O de paisagem tem ~100px e cabe na própria borda. Os testes agora
+travam essa medida, que é a que significa alguma coisa; a hipótese bonita virou a asserção
+certa por ter falhado.
+
+### Medições na tela (viewport forçada, `getBoundingClientRect`)
+
+| viewport | classes | janela | rolagem | cromo sobre a janela |
+|---|---|---|---|---|
+| 850×390 | `--largo` + `--paisagem` | 634×280 | não | 0px |
+| 812×375 | `--largo` + `--paisagem` | 596×280 | não | 11px |
+| 390×844 | nenhuma (retrato) | 174×619 | não | 0px |
+
+Em 850×390: CTA em `x 12–123` e tab bar em `x 145–838`, lado a lado, os dois inteiros dentro
+da tela — critério 6 da SPEC-027, medido e não alegado. Colunas em `y 37–317`, sem invadir a
+janela. Retrato não mudou nada (critério de não-regressão).
+
+### O que NÃO deu para verificar, e por quê
+
+**O evento de mudança de orientação nunca disparou no navegador de preview.** Instrumentei:
+`matchMedia('(orientation: landscape)').matches` troca de `false` para `true` ao redimensionar,
+mas o `change` **não é emitido** — 0 disparos, tanto no redimensionamento direto quanto pelo
+preset de aparelho móvel. Confirmei que o meu lado está certo por outro caminho: forcei um
+render qualquer (um toque no stepper de série) com a viewport já em retrato, e a classe
+`sess--paisagem` caiu na hora — ou seja, o instantâneo é lido corretamente; o que falta é o
+aviso, e ele é do ambiente.
+
+Em aparelho real a rotação emite esse evento. Mas **não posso afirmar que girar o celular
+funciona** — isso é o critério 4 e fica como pendência de campo.
+
+### Gates
+
+`tsc`, `eslint`, `vitest` (72 arquivos, **899 testes**, 11 novos), `ruff check` e
+`ruff format --check`. Python não foi tocado.
+
+### Descobertas registradas (não implementadas aqui)
+
+1. **O piso de 280px da janela é constante de retrato.** Em 812×375 ele força 11px de tab bar
+   opaca sobre a borda de baixo da janela — a faixa dos pés, o bug que a T-167 nasceu para
+   consertar. A janela honesta seria 253px, sem nada por cima. Mexer num número que a T-167
+   calibrou é decisão dela, não efeito colateral desta task.
+2. **A justificativa da SPEC-027 §C para excluir `resize` está errada** (a decisão, não). Com
+   `useSyncExternalStore`, disparo cujo instantâneo não mudou não gera render — o custo seria
+   uma comparação de string. Importa porque, se o `change` se mostrar pouco confiável em
+   campo, o remédio é barato e a spec o proibiria pelo motivo errado.
+
+---
+
 ## 2026-08-19 (91) · T-139 — Cadência vira o eixo de progresso, e dois espelhos de contrato estavam quebrados
 
 **Por que esta task e não a T-137.** A SPEC-027 (câmera e orientação) está sendo executada em

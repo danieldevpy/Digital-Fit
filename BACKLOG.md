@@ -405,7 +405,7 @@ por isso ela não é a última, é a que anda junto desde o começo.
 |---|---|---|---|
 | T-170 | **(Raia A) Câmera frontal ⇄ traseira.** `facingMode` no `getUserMedia` de `capture/useCamera.ts`: `ideal` na abertura, **`exact` na troca** (com `ideal` a câmera que não existe volta em silêncio e o botão passa a mentir), `OverconstrainedError` volta para a câmera anterior com frase própria. Quem manda no rótulo é `getSettings().facingMode`, não o pedido. Preferência lembrada em `capture/cameraPrefs.ts` (padrão do `zoomPrefs.ts`), guardando a **intenção** (`user`/`environment`) e nunca o `deviceId` — lente é hardware que muda de nome entre versões de SO. O controle só é renderizado com ≥ 2 `videoinput` em `enumerateDevices()`, contados **depois** de o stream abrir (antes da permissão o navegador não conta direito), mesmo precedente do `ZoomControl`. Espelho passa a ser default da câmera (traseira abre sem espelho) com o botão Espelhar continuando a vencer até a câmera mudar. Só na pré-configuração — durante o treino o controle não existe. Texto novo nas duas línguas (`session:*`). Depende de T-169 *(Tam: M)* | 027/001/014 | **feito** (2026-08-19) — a sequência da troca virou `capture/cameraSwap.ts` com dependências injetadas: dentro do hook ela só falharia em aparelho de câmera única, que é o aparelho que ninguém tem na mesa; **pendente: o caminho vivo (troca real, espelho virando, preferência após reload) exige celular com as duas câmeras — o navegador de preview bloqueia `getUserMedia`** |
 | T-171 | **(Raia B) Limiar de cena não pode significar coisas diferentes em cada orientação.** A distância da SPEC-003 é fração da **altura** do frame (40–95%), e a altura do quadro muda de papel entre retrato e paisagem — a T-110 já mediu 3,37× de diferença de espalhamento entre os dois formatos do corpus. Medir os vídeos do `eval/corpus` nas duas orientações com as contas do cliente e decidir, **com número**, entre: manter a fração da altura, passar para fração da **menor** dimensão, ou declarar faixas por orientação. Natureza "medição" (SPEC-018): a decisão vira código + bancada, nunca painel. Entrega o critério 9 da spec como teste de não-regressão do `evalctl`. **Não toca UI** — anda em paralelo com as raias A e C do primeiro dia. Depende de T-169 *(Tam: M)* | 027/003/012 | todo |
-| T-172 | **(Raia C) Paisagem: a base + a pré-configuração.** O sinal (`matchMedia('(orientation: landscape)')` com listener, nunca `resize` — a barra do navegador entrando e saindo dispara `resize` a cada scroll) e a primeira das duas telas. A trava de `max-width: 430px` do `.app__phone` deixa de valer em paisagem **só** nas telas de câmera; cabeçalho e CTA saem da pilha vertical (os ~390px de altura são o recurso escasso) e as duas colunas de cards passam a ocupar as bordas laterais da tela cheia. `env(safe-area-inset-left/right)` passa a importar — o entalhe do iPhone deitado cai exatamente sobre uma das colunas, e hoje o CSS só conhece topo e base. Silhueta-guia mantém `aspect-ratio: 2/3` dimensionada pela **altura**: esticar ensina a caber errado. O véu da T-167 continua medindo o cromo real, com os `ref` do outro eixo. Critérios 4 e 6 da spec (girar não reabre a câmera; CTA e tab bar alcançáveis em 850×390 sem rolagem). Depende de T-169 *(Tam: G)* | 027/014 | todo |
+| T-172 | **(Raia C) Paisagem: a base + a pré-configuração.** O sinal (`matchMedia('(orientation: landscape)')` com listener, nunca `resize` — a barra do navegador entrando e saindo dispara `resize` a cada scroll) e a primeira das duas telas. A trava de `max-width: 430px` do `.app__phone` deixa de valer em paisagem **só** nas telas de câmera; cabeçalho e CTA saem da pilha vertical (os ~390px de altura são o recurso escasso) e as duas colunas de cards passam a ocupar as bordas laterais da tela cheia. `env(safe-area-inset-left/right)` passa a importar — o entalhe do iPhone deitado cai exatamente sobre uma das colunas, e hoje o CSS só conhece topo e base. Silhueta-guia mantém `aspect-ratio: 2/3` dimensionada pela **altura**: esticar ensina a caber errado. O véu da T-167 continua medindo o cromo real, com os `ref` do outro eixo. Critérios 4 e 6 da spec (girar não reabre a câmera; CTA e tab bar alcançáveis em 850×390 sem rolagem). Depende de T-169 *(Tam: G)* | 027/014 | **feito** (2026-08-19) — a máquina de medir da T-167 cobriu a paisagem sozinha: encolher o cromo bastou, nenhuma constante nova. Medido em 812×375: cromo de retrato poria **91px** de painel opaco sobre a janela; o de paisagem, 11px. **Pendente: o evento de mudança de orientação não pôde ser exercitado — o navegador de preview troca `matches` mas não dispara `change`** |
 
 ### Onda 2 — o que só existe depois que a paisagem existe
 
@@ -423,6 +423,29 @@ por isso ela não é a última, é a que anda junto desde o começo.
 
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-172] O piso de 280px da janela nítida é uma constante de RETRATO, e deitado ele sempre
+  morde.** `ALTURA_MINIMA_PX` (T-167) existe para o cromo invadir a imagem em vez de a janela
+  sumir quando o palco é baixo demais — e a escolha estava certa para o caso que a motivou
+  (teclado aberto, fonte grande do sistema). Em paisagem ela vira o contrário do que pretende:
+  medido em 812×375, o cromo de paisagem tem 114px e a janela honesta seria de **253px**, sem
+  nada por cima; o piso força 280px e, com isso, **11px de tab bar opaca sobre a borda de baixo
+  da janela** — que é exatamente a faixa dos PÉS, o bug que a T-167 nasceu para consertar. Em
+  390px de altura a conta fecha por pouco e o piso não morde; em 375px, morde. A saída provável
+  é o piso deixar de ser absoluto (algo como `min(280, palco × 0,7)`), e ela **não** foi feita
+  aqui de propósito: mexer num número que a T-167 calibrou é decisão dela, não efeito colateral
+  de uma task de layout. Em retrato o piso nunca é atingido (844 − 210 = 634), então a mudança
+  seria inerte lá — o que a torna barata e de baixo risco quando for feita.
+
+- **[T-172] O motivo que a SPEC-027 dá para excluir `resize` não vale para a implementação que
+  ela produziu.** A spec diz "media query e não `resize`, porque cada disparo reavaliaria o
+  layout inteiro". Com `useSyncExternalStore`, um disparo cujo instantâneo não mudou **não
+  gera render nenhum** — o custo real de ouvir `resize` também seria uma comparação de string
+  por evento. A DECISÃO continua certa (a consulta de mídia é a fonte da verdade, e o valor sai
+  dela), mas a justificativa escrita está errada, e ela importa: se em aparelho real o evento
+  `change` se mostrar pouco confiável, acrescentar `resize` como gatilho redundante é barato e
+  a spec, do jeito que está escrita, o proibiria pelo motivo errado. Corrigir o parágrafo da
+  §C quando houver evidência de campo.
 
 - **[T-165] Página em idioma sem tradução vai para o índice com o texto da outra língua, e
   ninguém decidiu que ela deveria.** O fallback da T-146 é doutrina boa dentro do app — mostrar
