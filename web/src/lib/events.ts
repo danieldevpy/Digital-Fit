@@ -91,8 +91,32 @@ export const SessionEndReason = {
   TIMEOUT: 'timeout',
   ABORTED: 'aborted',
   NO_DATA: 'no_data',
+  /**
+   * Modo contado: a meta de repetições foi atingida (SPEC-023 / T-134).
+   *
+   * Estava no `events.py` desde a T-134 e faltava aqui — e faltar num espelho de contrato não
+   * dá erro, dá tela errada: `reportSummary.reasonText()` mapeia por esta chave, então uma
+   * série que bateu a meta era anunciada como "Sessão encerrada" (o texto de motivo
+   * desconhecido). Encontrado ao escrever a T-139.
+   */
+  TARGET_REACHED: 'target_reached',
 } as const
 export type SessionEndReason = (typeof SessionEndReason)[keyof typeof SessionEndReason]
+
+/**
+ * Como a série termina — espelho de `SetMode` em `workers/shared/events.py` (SPEC-023/T-134).
+ *
+ * Eixo **independente** de `Mode`: aquele diz de onde os keypoints saem (navegador ou
+ * pose-worker), este diz o que decide o fim da série. Por isso não se chama `mode` — o nome já
+ * está tomado em todas as camadas que leem o contrato.
+ */
+export const SetMode = {
+  /** Máximo de repetições numa janela fixa — o que o produto faz desde sempre. */
+  LIVRE: 'livre',
+  /** Meta de repetições; termina em `target_reached` ou no teto (`completed`). */
+  CONTADO: 'contado',
+} as const
+export type SetMode = (typeof SetMode)[keyof typeof SetMode]
 
 export const LANDMARK_COUNT = 33
 

@@ -4833,3 +4833,76 @@ a {
   color: var(--text-faint);
   font-size: 0.6875rem;
 }
+
+/* Carimbo "série 2 de 3" ao lado do nome do exercício no relatório (T-139, SPEC-023).
+   Ao lado e não em linha própria: é qualificador do que foi feito, não um dado à parte —
+   sem plano montado ele simplesmente não existe. */
+.report__set {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.16);
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  color: var(--text-dim);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* Evolução semana a semana (T-139, SPEC-023 §6) — quatro colunas, uma por semana.
+   Barras e não linha: a linha do bloco de cima fala de sessões, que são muitas e contínuas;
+   aqui são quatro valores discretos, e coluna é como se compara quatro coisas. */
+.ana__semanas {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  align-items: end;
+  margin-top: 8px;
+}
+
+.ana__semana {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ana__semana-trilho {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 40px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ana__semana-barra {
+  width: 100%;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.85), rgba(77, 140, 255, 0.55));
+}
+
+.ana__semana-valor {
+  color: var(--text-dim);
+  font-size: 0.6875rem;
+}
+
+.ana__delta {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Verde e vermelho aqui são leitura, não alarme: mais rápido é melhor neste eixo. O limiar de
+   2% mora no TSX — abaixo dele a cor é neutra, porque cadência oscila sozinha. */
+.ana__delta--sobe {
+  color: #34d399;
+}
+
+.ana__delta--desce {
+  color: #f87171;
+}
+
+.ana__delta--estavel,
+.ana__delta--vazio {
+  color: var(--text-faint);
+}

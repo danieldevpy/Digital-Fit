@@ -5,6 +5,120 @@
 
 ---
 
+## 2026-08-19 (91) · T-139 — Cadência vira o eixo de progresso, e dois espelhos de contrato estavam quebrados
+
+**Por que esta task e não a T-137.** A SPEC-027 (câmera e orientação) está sendo executada em
+paralelo **na mesma árvore de trabalho**, e ela é dona de `capture/`, do HUD em paisagem e do
+layout. A T-137 constrói justamente o HUD do modo contado — as duas se atropelariam, e pior que
+o conflito de merge seria a decisão de layout tomada duas vezes sem se verem. A T-139 depende só
+da T-134 (feita) e vive em `report/`, `history/` e `screens/Analytics`, onde a outra não encosta.
+
+**O que a task entrega.** O §6 da SPEC-023 em três peças: o relatório da série diz *tempo até a
+meta* no modo contado, carimba *"série 2 de 3"* quando houve plano, e o Analytics ganha a
+comparação de cadência por exercício nas últimas 4 semanas — derivação pura, sem tabela e sem
+contador, sobre o que o `GET /api/sessions?mine` já devolve.
+
+### Dois espelhos de contrato estavam para trás, e o sintoma era tela errada
+
+Foi o que a task encontrou antes de escrever qualquer coisa nova:
+
+1. **`SessionReport` (TypeScript) não tinha `set_mode`, `target_reps`, `set_index`,
+   `set_total`.** O `to_report()` do servidor manda os quatro desde a T-134. O cabeçalho do
+   próprio arquivo avisa: *"espelho com campo faltando é drift esperando acontecer"* — e o drift
+   já tinha acontecido, calado, por dois dias.
+2. **`SessionEndReason` (TypeScript) não tinha `TARGET_REACHED`.** Consequência direta e
+   visível: `reportSummary.reasonText()` mapeia por essa chave, então **toda série que batesse a
+   meta seria anunciada como "Sessão encerrada"** — o texto de motivo desconhecido. Um bug de
+   produto pronto, esperando a T-137 ligar o cliente.
+
+Nenhum dos dois dá erro: campo que existe no fio e não no tipo simplesmente some da tela. Os
+dois foram corrigidos aqui, e o `SetMode` entrou junto no espelho — `isContado()` compara com o
+vocabulário do contrato, não com uma string solta, para que o dia de um terceiro modo aponte
+para onde ele foi declarado.
+
+**O `tsc` cobrou o preço certo.** Tornar os quatro campos obrigatórios reprovou seis fixtures de
+teste que montavam um `SessionReport` à mão. É o portão funcionando: cada uma dessas fixtures
+representa um payload do servidor, e um payload sem os campos não existe mais.
+
+### As decisões da comparação semanal
+
+**Mediana, não média.** Mesma escolha do `exercise_health` no servidor: uma sessão em que a
+pessoa parou no meio puxa uma média e não move uma mediana. A semana descreve o ritmo típico.
+
+**Sessão que contou zero fica de fora.** `cadence_rpm` de uma sessão zerada é `0` e não mede
+ritmo — mede que a análise não viu repetição. Incluir arrastaria a semana inteira para baixo e a
+pessoa leria *"piorei"* onde houve problema de enquadramento. É a irmã exata da regra que mantém
+`no_data` fora da taxa da SPEC-020.
+
+**Semana sem treino é `null`, nunca zero.** Zero afirmaria um ritmo medido e péssimo; `null` diz
+"não treinou", que é o que aconteceu. Régua do `--` da SPEC-014.
+
+**A variação compara a primeira e a última semana COM DADO**, não as pontas do intervalo. Quem
+treinou nas semanas 1 e 3 e parou tem uma evolução real para mostrar; ancorar numa semana vazia
+devolveria `null` justamente para quem tem a resposta.
+
+**Menos de duas semanas medidas → sem variação.** Uma semana não é evolução, é um número. A tela
+diz o que falta (*"Treine flexão de braço em outra semana para comparar"*) em vez de desenhar uma
+seta que ninguém mediu — mesma régua do `MIN_PONTOS_TENDENCIA` do bloco de cima.
+
+**Limiar de 2% para a cor.** Cadência oscila sozinha; anunciar "1% mais rápido" em verde
+ensinaria a pessoa a ler ruído como progresso.
+
+**Por que um bloco novo e não mexer no `Ritmo` que já existia.** Aquele responde *"como foi cada
+sessão"*; este responde *"eu melhorei?"*. Quem treinou seis vezes numa semana e uma na seguinte
+vê, no gráfico de cima, seis pontos contra um — o ruído do dia esconde a comparação. Aqui cada
+semana vale uma mediana e as semanas pesam igual.
+
+### As medições
+
+- **Três mutações, três vermelhos**: tirar `TARGET_REACHED` do mapa de motivos; deixar a sessão
+  zerada entrar na cadência da semana; trocar mediana por média. Cada uma derruba o caso que a
+  descreve.
+- **No navegador**, com histórico semeado (dev server da tarefa paralela, só leitura):
+  - Polichinelo `21 · 24 · -- · 29` → **"38% mais rápido"** em verde. Confere: mediana de
+    (20, 22) = 21, depois 24, depois (28, 30) = 29; 21 → 29 é +38%.
+  - Agachamento `14 · -- · -- · 12` → **"14% mais lento"** em vermelho.
+  - Flexão, uma semana só → sem seta, com a frase do que falta.
+  - Relatório de série contada: título **"Meta atingida"** (era "Sessão encerrada"), estatística
+    **"tempo até a meta · 0:41"**, e o chip **"série 2 de 3"** ao lado do nome.
+  - **375 px**: sem rolagem horizontal em nenhuma das duas telas, grade de 4 colunas de 74,75 px,
+    nome do exercício sem quebrar linha. Console sem erro de React (os
+    `ERR_CONNECTION_REFUSED` são a API fora do ar, não o cliente).
+- **Gates**: `npm run lint` limpo, `npm run test` **881 testes em 70 arquivos** (eram 846 em 69),
+  `ruff` e `pytest` intactos (nada de Python nesta task).
+
+### O gate ficou vermelho no meio, e não era meu
+
+Durante quase toda a task o `npm run typecheck` reprovou por `capture/useCamera.ts`,
+`capture/facing.ts` e `capture/cameraPrefs.ts`: a SPEC-027 estava no meio de uma edição na mesma
+árvore, com `switchCamera` já exigido por `CameraView` e ainda inexistente. Trabalhei filtrando
+`src/capture/` da saída do `tsc` e registrando de quem era o vermelho, em vez de chamar o meu de
+verde. A T-170 fechou antes desta entrada e o gate voltou sozinho: **`typecheck` limpo, `lint`
+limpo, 888 testes em 71 arquivos** (a contagem já inclui os casos da T-170).
+
+Fica a lição de operação: em árvore compartilhada, gate é do repositório e não da task — quem
+mede precisa saber separar o próprio vermelho do alheio antes de decidir se pode encerrar.
+
+**Commit só com os meus arquivos**, conferido um a um: nada de `capture/`, nada de
+`store/session.ts`, nada do `SPEC-027` em rascunho.
+
+**E o DEVLOG quase colidiu.** As duas frentes escrevem neste arquivo e no `BACKLOG.md`, e as
+entradas da T-169/T-170 entraram enquanto esta era escrita: nada se perdeu, mas os dois lados
+carimbaram a sessão **(89)**. Renumerada para (91) e movida para o topo à mão. Fica o aviso: em
+árvore compartilhada, DEVLOG e BACKLOG são o ponto de colisão, não o código.
+
+### Pendências
+
+- Rodar `npm run typecheck` inteiro quando a SPEC-027 fechar — é a única verificação desta task
+  que ficou por fazer.
+- A T-137 (HUD do modo contado, montador de plano, descanso) continua aberta e agora tem o
+  relatório esperando por ela: `set_index`/`set_total` só aparecem quando alguém carimbar.
+- A comparação semanal não distingue série livre de contada de propósito: cadência é cadência, e
+  separar as duas partiria a amostra justo em quem alterna. Se algum dia a diferença aparecer nos
+  dados, é task nova.
+
+---
+
 ## 2026-08-19 (90) · T-170 — A câmera de trás, e o espelho que vem junto com ela
 
 **O que entrou.** `capture/useCamera.ts` passa a levar `facingMode`, e a pré-configuração ganha

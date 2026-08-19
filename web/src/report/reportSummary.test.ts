@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { useI18nStore } from '../i18n/store'
 import { Code, SessionEndReason } from '../lib/events'
-import { cadenceBars, improvements, reasonText, windowLabel } from './reportSummary'
+import {
+  cadenceBars,
+  durationLabel,
+  improvements,
+  isContado,
+  reasonText,
+  setLabel,
+  windowLabel,
+} from './reportSummary'
 import type { SessionReport } from './sessionReport'
 
 // `improvements` passa pelo `textForCode` (T-152: `catalog:code.*`, getter resolvido por
@@ -23,6 +31,10 @@ function relatorio(parcial: Partial<SessionReport> = {}): SessionReport {
     scene_warning_counts: {},
     calibration_samples: 12,
     config_version: 0,
+    set_mode: 'livre',
+    target_reps: 0,
+    set_index: 0,
+    set_total: 0,
     created_at: '2026-07-28T12:00:00Z',
     ...parcial,
   }
@@ -126,5 +138,66 @@ describe('windowLabel', () => {
   it('rotula em segundos a partir do início do exercício', () => {
     expect(windowLabel(0, 5000)).toBe('0s')
     expect(windowLabel(6, 5000)).toBe('30s')
+  })
+})
+
+
+// ------------------------------------------------------------------------------------------
+// Modo contado no relatório (T-139, SPEC-023 §6)
+// ------------------------------------------------------------------------------------------
+
+describe('a série contada se anuncia', () => {
+  it('`target_reached` tem texto próprio — antes caía em "motivo desconhecido"', () => {
+    // O bug que esta task encontrou: `SessionEndReason` no espelho TypeScript não tinha
+    // `TARGET_REACHED`, então `REASON_KEY` não o continha e toda série que bateu a meta era
+    // anunciada como "Sessão encerrada". Falha de espelho de contrato não dá erro: dá tela
+    // errada, em silêncio.
+    expect(reasonText(SessionEndReason.TARGET_REACHED)).toBe('Meta atingida')
+    expect(reasonText(SessionEndReason.TARGET_REACHED)).not.toBe(reasonText('sei-la'))
+  })
+
+  it('reconhece o modo pelo vocabulário do contrato', () => {
+    expect(isContado(relatorio({ set_mode: 'contado' }))).toBe(true)
+    expect(isContado(relatorio({ set_mode: 'livre' }))).toBe(false)
+  })
+
+  it('relatório gravado antes da T-134 continua sendo lido como livre', () => {
+    // O default do servidor é `livre`, que é exatamente o que aquelas sessões eram. Nada a
+    // migrar — e este caso existe para que ninguém "conserte" isso com um `?? 'contado'`.
+    expect(isContado(relatorio())).toBe(false)
+  })
+})
+
+describe('durationLabel — o mesmo número, dois significados', () => {
+  it('modo livre chama de tempo válido', () => {
+    expect(durationLabel(relatorio())).toBe('tempo válido')
+  })
+
+  it('modo contado chama de tempo até a meta', () => {
+    // É o ponto do §6: com a duração variável, "fiz 15 reps" perde sentido comparativo, e o
+    // número que mede evolução passa a ser quanto se levou para chegar às 15.
+    expect(durationLabel(relatorio({ set_mode: 'contado' }))).toBe('tempo até a meta')
+  })
+
+  it('o rótulo muda, o dado não — nenhuma coluna nova', () => {
+    const livre = relatorio({ duration_ms: 41_000 })
+    const contado = relatorio({ duration_ms: 41_000, set_mode: 'contado' })
+
+    expect(livre.duration_ms).toBe(contado.duration_ms)
+    expect(durationLabel(livre)).not.toBe(durationLabel(contado))
+  })
+})
+
+describe('setLabel — "série 2 de 3" só quando houve plano', () => {
+  it('mostra a posição quando o carimbo existe', () => {
+    expect(setLabel(relatorio({ set_index: 2, set_total: 3 }))).toBe('série 2 de 3')
+  })
+
+  it('sem carimbo não inventa plano nenhum', () => {
+    // `set_index`/`set_total` valem 0 numa sessão avulsa; "série 0 de 0" seria afirmar um plano
+    // que ninguém montou. Régua do `--` da SPEC-014.
+    expect(setLabel(relatorio())).toBeNull()
+    expect(setLabel(relatorio({ set_index: 1, set_total: 0 }))).toBeNull()
+    expect(setLabel(relatorio({ set_index: 0, set_total: 3 }))).toBeNull()
   })
 })

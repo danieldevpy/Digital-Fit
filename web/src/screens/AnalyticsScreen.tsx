@@ -10,13 +10,17 @@
 import { historyDate } from '../auth/accountSummary'
 import {
   cadenciaPorExercicio,
+  cadenciaPorSemana,
   consistenciaDoRitmo,
   contagens,
+  type CadenciaDoExercicio,
   type Contagem,
   type SerieCadencia,
 } from '../history/aggregates'
 import { useHistoryStore } from '../history/store'
 import { useT, type TKey } from '../i18n'
+// Percentual pelo formatador (AGENTS §Fluxo 4): `,` em pt-BR e `.` em en, sem `.replace()`.
+import { formatPercent } from '../i18n/format'
 import { useFreshHistory } from '../history/useFreshHistory'
 import type { SessionReport } from '../report/sessionReport'
 import { getExercise } from '../session/catalog'
@@ -38,6 +42,7 @@ export function AnalyticsScreen() {
   useFreshHistory()
 
   const series = cadenciaPorExercicio(sessions)
+  const semanal = cadenciaPorSemana(sessions)
   const correcoes = contagens(sessions, 'feedback_counts')
   const cena = contagens(sessions, 'scene_warning_counts')
 
@@ -74,6 +79,7 @@ export function AnalyticsScreen() {
         ) : (
           <>
             <Ritmo series={series} />
+            <Evolucao series={semanal} />
             <Constancia sessions={sessions} />
             <Lista
               titulo={t('progress:analytics.section.most')}
@@ -153,6 +159,97 @@ function Ritmo({ series }: { series: SerieCadencia[] }) {
       </div>
     </>
   )
+}
+
+/**
+ * Evolução semana a semana, por exercício (SPEC-023 §6, T-139).
+ *
+ * ## Por que este bloco existe ao lado do `Ritmo`
+ *
+ * O `Ritmo` acima responde *"como foi cada sessão"* — uma linha de pontos, um por treino. Este
+ * responde *"eu melhorei?"*, que é outra pergunta e é a que o §6 nomeia. Quem treinou seis
+ * vezes numa semana e uma na seguinte vê, no gráfico de cima, seis pontos contra um: o ruído
+ * do dia a dia esconde a comparação. Aqui cada semana vale uma mediana, e as semanas têm o
+ * mesmo peso.
+ *
+ * ## O que ele se recusa a dizer
+ *
+ * Com menos de duas semanas medidas não há variação — há um número. A tela diz o que falta,
+ * como o `needs_more` do bloco de cima, em vez de desenhar uma seta que ninguém mediu. Semana
+ * sem treino aparece vazia e não como zero: zero afirmaria um ritmo péssimo que ninguém mediu.
+ */
+function Evolucao({ series }: { series: CadenciaDoExercicio[] }) {
+  const t = useT()
+
+  if (series.length === 0) return null
+
+  return (
+    <>
+      <p className="prog__section">
+        {t('progress:analytics.section.weekly')}
+        <span className="prog__section-note">{t('progress:analytics.weekly_note')}</span>
+      </p>
+      <div className="prog__exercicios">
+        {series.map((serie) => {
+          const nome = getExercise(serie.exercise).display_name
+          const pico = Math.max(1, ...serie.semanas.map((semana) => semana.mediana ?? 0))
+
+          return (
+            <div className="ana__serie" key={serie.exercise}>
+              <div className="prog__exercicio-linha">
+                <span className="prog__exercicio-nome">{nome}</span>
+                <span className={`ana__delta ${classeDaVariacao(serie.variacao)}`}>
+                  {textoDaVariacao(t, serie.variacao)}
+                </span>
+              </div>
+              <div className="ana__semanas">
+                {serie.semanas.map((semana, indice) => (
+                  <div className="ana__semana" key={indice}>
+                    <div className="ana__semana-trilho">
+                      {semana.mediana !== null && (
+                        <div
+                          className="ana__semana-barra"
+                          style={{ height: `${Math.max((semana.mediana / pico) * 100, 6)}%` }}
+                        />
+                      )}
+                    </div>
+                    <span className="ana__semana-valor tabular" translate="no">
+                      {semana.mediana === null ? '--' : semana.mediana.toFixed(0)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {serie.variacao === null && (
+                <span className="ana__falta">
+                  {t('progress:analytics.weekly_needs_more', { exercise: nome.toLowerCase() })}
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+/** Fração de variação a par (classe, frase). `null` = não há duas semanas para comparar. */
+function classeDaVariacao(variacao: number | null): string {
+  if (variacao === null) return 'ana__delta--vazio'
+  if (variacao > 0.02) return 'ana__delta--sobe'
+  if (variacao < -0.02) return 'ana__delta--desce'
+  return 'ana__delta--estavel'
+}
+
+/**
+ * A frase da variação. O limiar de 2% não é enfeite: cadência de sessão oscila sozinha, e
+ * anunciar "1% mais rápido" ensinaria a pessoa a ler ruído como progresso.
+ */
+function textoDaVariacao(t: (chave: TKey, params?: Record<string, string>) => string, variacao: number | null): string {
+  if (variacao === null) return ''
+  if (variacao > 0.02) return t('progress:analytics.weekly_up', { pct: formatPercent(variacao) })
+  if (variacao < -0.02)
+    return t('progress:analytics.weekly_down', { pct: formatPercent(Math.abs(variacao)) })
+  return t('progress:analytics.weekly_flat')
 }
 
 /**

@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import type { SessionReport } from '../report/sessionReport'
 import {
   MIN_PONTOS_TENDENCIA,
+  SEMANAS_DE_CADENCIA,
   cadenciaPorExercicio,
+  cadenciaPorSemana,
   consistenciaDoRitmo,
   contagens,
   diaLocal,
@@ -314,5 +316,138 @@ describe('correções e avisos', () => {
   it('relatório antigo sem os campos não derruba a agregação', () => {
     const sem = { session_id: 's1', created_at: QUARTA.toISOString() } as SessionReport
     expect(contagens([sem], 'feedback_counts')).toEqual([])
+  })
+})
+
+
+// ------------------------------------------------------------------------------------------
+// Cadência semana a semana (T-139, SPEC-023 §6) — a pergunta "eu melhorei?"
+// ------------------------------------------------------------------------------------------
+
+describe('cadenciaPorSemana', () => {
+  /** Uma semana antes da QUARTA de referência, no mesmo dia da semana. */
+  function semanasAtras(n: number, hora = 10): Date {
+    const data = new Date(QUARTA)
+    data.setDate(data.getDate() - n * 7)
+    data.setHours(hora, 0, 0, 0)
+    return data
+  }
+
+  it('devolve quatro semanas, da mais antiga para a mais recente', () => {
+    const series = cadenciaPorSemana([sessao({ quando: QUARTA })], SEMANAS_DE_CADENCIA, QUARTA)
+
+    expect(series).toHaveLength(1)
+    const semanas = series[0]!.semanas
+    expect(semanas).toHaveLength(4)
+    for (let i = 1; i < semanas.length; i += 1) {
+      expect(semanas[i]!.inicio.getTime()).toBeGreaterThan(semanas[i - 1]!.inicio.getTime())
+    }
+    // A última janela é a semana corrente.
+    expect(semanas[3]!.inicio.getTime()).toBe(inicioDaSemana(QUARTA).getTime())
+  })
+
+  it('usa a MEDIANA da semana, não a média', () => {
+    // Uma sessão em que a pessoa parou no meio puxaria a média e não move a mediana. É a mesma
+    // escolha do `exercise_health` no servidor, e pelo mesmo motivo.
+    const series = cadenciaPorSemana(
+      [
+        sessao({ id: 'a', quando: QUARTA, cadence: 20 }),
+        sessao({ id: 'b', quando: QUARTA, cadence: 22 }),
+        sessao({ id: 'c', quando: QUARTA, cadence: 90 }),
+      ],
+      SEMANAS_DE_CADENCIA,
+      QUARTA,
+    )
+
+    expect(series[0]!.semanas[3]!.mediana).toBe(22)
+  })
+
+  it('sessão que contou zero fica de fora', () => {
+    // `cadence_rpm` de uma sessão zerada é 0 e não mede ritmo nenhum — mede que a análise não
+    // viu repetição. Incluir arrastaria a semana para baixo e a pessoa leria "piorei" onde o
+    // que houve foi problema de enquadramento.
+    const series = cadenciaPorSemana(
+      [
+        sessao({ id: 'zero', quando: QUARTA, reps: 0, cadence: 0 }),
+        sessao({ id: 'boa', quando: QUARTA, cadence: 30 }),
+      ],
+      SEMANAS_DE_CADENCIA,
+      QUARTA,
+    )
+
+    expect(series[0]!.semanas[3]!.mediana).toBe(30)
+    expect(series[0]!.semanas[3]!.sessoes).toBe(1)
+  })
+
+  it('semana sem treino é `null`, nunca zero', () => {
+    // Zero afirmaria um ritmo medido e péssimo. `null` diz "não treinou", que é o que houve.
+    const series = cadenciaPorSemana(
+      [sessao({ quando: QUARTA, cadence: 30 })],
+      SEMANAS_DE_CADENCIA,
+      QUARTA,
+    )
+
+    expect(series[0]!.semanas.map((semana) => semana.mediana)).toEqual([null, null, null, 30])
+  })
+
+  it('separa por exercício — comparar polichinelo com agachamento não significa nada', () => {
+    const series = cadenciaPorSemana(
+      [
+        sessao({ id: 'p', quando: QUARTA, exercise: 'jumping_jack', cadence: 40 }),
+        sessao({ id: 'a', quando: QUARTA, exercise: 'squat', cadence: 15 }),
+      ],
+      SEMANAS_DE_CADENCIA,
+      QUARTA,
+    )
+
+    expect(series.map((serie) => serie.exercise)).toEqual(['jumping_jack', 'squat'])
+    expect(series[0]!.semanas[3]!.mediana).toBe(40)
+    expect(series[1]!.semanas[3]!.mediana).toBe(15)
+  })
+
+  it('a variação compara a primeira e a última semana COM DADO', () => {
+    // 20 → 25 rep/min é +25%. Ancorar numa semana vazia devolveria `null` para quem tem a
+    // resposta: quem treinou nas semanas 1 e 3 e parou tem evolução real para mostrar.
+    const series = cadenciaPorSemana(
+      [
+        sessao({ id: 'antes', quando: semanasAtras(3), cadence: 20 }),
+        sessao({ id: 'depois', quando: semanasAtras(1), cadence: 25 }),
+      ],
+      SEMANAS_DE_CADENCIA,
+      QUARTA,
+    )
+
+    expect(series[0]!.variacao).toBeCloseTo(0.25, 5)
+  })
+
+  it('uma semana só não é evolução: variação é `null`', () => {
+    // Régua irmã do `MIN_PONTOS_TENDENCIA`: uma seta baseada em nada é pior que nenhuma seta.
+    const series = cadenciaPorSemana(
+      [sessao({ quando: QUARTA, cadence: 30 })],
+      SEMANAS_DE_CADENCIA,
+      QUARTA,
+    )
+
+    expect(series[0]!.variacao).toBeNull()
+  })
+
+  it('sessão mais velha que a janela não entra', () => {
+    const series = cadenciaPorSemana(
+      [
+        sessao({ id: 'velha', quando: semanasAtras(9), cadence: 99 }),
+        sessao({ id: 'nova', quando: QUARTA, cadence: 30 }),
+      ],
+      SEMANAS_DE_CADENCIA,
+      QUARTA,
+    )
+
+    expect(series[0]!.semanas.map((s) => s.sessoes)).toEqual([0, 0, 0, 1])
+    expect(series[0]!.semanas[3]!.mediana).toBe(30)
+  })
+
+  it('exercício sem nenhuma sessão na janela não vira linha vazia', () => {
+    // A tela desenha o que vier; devolver um exercício com quatro `null` seria pedir a ela que
+    // filtrasse — e regra de leitura mora aqui, não no componente.
+    expect(cadenciaPorSemana([], SEMANAS_DE_CADENCIA, QUARTA)).toEqual([])
   })
 })

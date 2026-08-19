@@ -13,7 +13,14 @@ import { getExercise } from '../session/catalog'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
 import { XpLine } from '../engagement/XpLine'
-import { cadenceBars, improvements, reasonText, windowLabel } from './reportSummary'
+import {
+  cadenceBars,
+  durationLabel,
+  improvements,
+  reasonText,
+  setLabel,
+  windowLabel,
+} from './reportSummary'
 import { formatDuration } from './sessionReport'
 
 /** Igual a `CADENCE_WINDOW_MS` no builder — o rótulo do eixo tem de casar com o dado. */
@@ -61,7 +68,17 @@ export function ReportSheet() {
             {/* Qual exercício foi feito (T-055). Era óbvio enquanto o polichinelo era o único
                 que contava; com quatro no ar, e com o relatório podendo ser reaberto do
                 Progresso e do Analytics, "Série completa · 12 repetições" não diz de quê. */}
-            <p className="report__ex">{getExercise(report.exercise).display_name}</p>
+            <p className="report__ex">
+              {getExercise(report.exercise).display_name}
+              {/* "série 2 de 3", só quando o plano carimbou (SPEC-023 §Fase Inicial). Sem
+                  carimbo não há série — e "série 0 de 0" seria inventar um plano que ninguém
+                  montou. O número é `translate="no"` pela mesma regra do resto da tela. */}
+              {setLabel(report) !== null && (
+                <span className="report__set tabular" translate="no">
+                  {setLabel(report)}
+                </span>
+              )}
+            </p>
             <p className="report__title">{reasonText(report.reason)}</p>
             <p className="report__reps tabular" translate="no">
               {report.rep_count}
@@ -81,7 +98,10 @@ export function ReportSheet() {
                 <p className="report__stat-value tabular" translate="no">
                   {formatDuration(report.duration_ms)}
                 </p>
-                <p className="report__stat-label">{t('report:stat.valid_time')}</p>
+                {/* O rótulo muda com o modo, o número não (SPEC-023 §6: "nenhuma coluna
+                    nova"). Com meta fixa, `duration_ms` passa a ser o tempo até a meta — que é
+                    o número que mede evolução quando a duração deixa de ser fixa. */}
+                <p className="report__stat-label">{durationLabel(report)}</p>
               </div>
               <div className="report__stat">
                 {/* `edge`/`cloud` é vocabulário de contrato (SPEC-025 §Entidade), não frase:

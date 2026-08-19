@@ -15,6 +15,7 @@ export const report: Report = {
   'reps_label': 'reps',
   'stat.rpm': 'reps/min',
   'stat.valid_time': 'valid time',
+  'stat.time_to_target': 'time to target',
   'stat.mode': 'mode',
 
   'section.pace': 'Pace through the set',
@@ -28,7 +29,10 @@ export const report: Report = {
   'reason.timeout': 'Session ended at the time limit',
   'reason.aborted': 'You ended it early',
   'reason.no_data': 'Ended: we stopped seeing you on camera',
+  'reason.target_reached': 'Target reached',
   'reason.unknown': 'Session ended',
+
+  'set_of': 'set {n} of {total}',
 
   'fetch.failed': 'Could not fetch the report (HTTP {status}).',
 }

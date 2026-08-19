@@ -16,6 +16,10 @@ const RELATORIO: SessionReport = {
   scene_warning_counts: {},
   calibration_samples: 12,
   config_version: 0,
+  set_mode: 'livre',
+  target_reps: 0,
+  set_index: 0,
+  set_total: 0,
   created_at: '2026-07-28T12:00:00Z',
 }
 

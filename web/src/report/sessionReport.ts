@@ -36,6 +36,23 @@ export interface SessionReport {
    * acontecer (a lição do `[A/T-051]`).
    */
   config_version: number
+  /**
+   * Como a série terminava (SPEC-023 / T-134): `livre` fecha na janela, `contado` na meta.
+   *
+   * Estes quatro campos são carimbo do servidor e o `to_report()` os manda desde a T-134 —
+   * este espelho é que tinha ficado para trás. É exatamente o drift que o cabeçalho deste
+   * arquivo avisa: campo que existe no fio e não no tipo não dá erro, só some da tela.
+   *
+   * Sem `?`: o servidor tem default para os quatro (`livre`, `0`, `0`, `0`), então eles sempre
+   * chegam. Opcional aqui empurraria um `?? 0` para cada leitura sem nenhum ganho.
+   */
+  set_mode: string
+  /** Meta de repetições da série. `0` no modo livre — não havia meta, e não é "meta zero". */
+  target_reps: number
+  /** Posição desta série no plano, base 1. `0` quando a sessão não veio de um plano. */
+  set_index: number
+  /** Quantas séries o plano tinha. `0` junto com `set_index` — os dois são o mesmo carimbo. */
+  set_total: number
   created_at: string
   /**
    * Decomposição do XP desta sessão (SPEC-019 §XP / T-088).
