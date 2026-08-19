@@ -29,14 +29,26 @@ Pedido que não caiba em nenhuma → seguir o fluxo manual abaixo, que continua 
    o bug de i18n mais difícil de ver em duas tasks seguidas. Chamada nova à API leva
    `localeHeaders()` junto. Os quatro portões que cobram isto já rodam nos gates do item
    seguinte; nenhum deles depende de alguém lembrar.
-5. **Executar gates** antes de encerrar:
+5. **Rota nova do site nasce na tabela de rotas** (SPEC-026, plano §4). Página pública nova —
+   inclusive a de um exercício — entra em `web/src/site/routes.ts`, e mais lugar nenhum: dela
+   saem o roteador, o pré-render, o `sitemap.xml` e os `hreflang`, e nenhum dos quatro se
+   escreve à mão. `title` e `description` da rota são **chaves do dicionário** (`site:meta.*`),
+   nunca texto solto no HTML — é o que faz o `tsc` do item anterior cobrar a versão em inglês.
+   Rota nova precisa também de um entry em `vite.config.ts` (`ENTRADAS_DO_BUILD`). Os três
+   portões que cobram isto já rodam nos gates do item seguinte: `site/routes.test.ts` (tabela ↔
+   entries do build), `site/descoberta.test.ts` (tabela ↔ sitemap, **nos dois sentidos**) e
+   `site/paginaGerada.test.ts` (o HTML gerado, com `canonical`, `hreflang` recíproco e absoluto,
+   `x-default` e metadados diferentes entre os idiomas). O motivo de serem portão e não
+   parágrafo: o `hreflang` que a T-147 escreveu à mão ficou **inerte por meses** — relativo em
+   vez de absoluto — sem erro, sem log e sem ninguém ver.
+6. **Executar gates** antes de encerrar:
    - `ruff check .` **+ `ruff format --check .`** + `pytest` (workers/api). Os dois de `ruff`: o
      CI roda os dois, e a checklist só nomeava o primeiro — foi assim que o `master` ficou seis
      arquivos com o formatador reprovando, sem ninguém ver (Descoberta `[T-156]`).
    - `npm run lint` + `npm run typecheck` + `npm run test` (web), quando tocada
    - docker-compose sobe sem erro se infra foi tocada
-6. **Registrar no DEVLOG.md**: data, task, o que foi feito, decisões tomadas, pendências geradas.
-7. **Commit** com mensagem `T-XXX: descrição` (um commit lógico por task quando possível).
+7. **Registrar no DEVLOG.md**: data, task, o que foi feito, decisões tomadas, pendências geradas.
+8. **Commit** com mensagem `T-XXX: descrição` (um commit lógico por task quando possível).
 
 ## Regras de arquitetura (invioláveis sem ADR novo)
 

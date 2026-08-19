@@ -22,29 +22,29 @@
 // refazer. O substituto cabe neste arquivo e num script.
 import { renderToString } from 'react-dom/server'
 import { t } from '../i18n'
-import { LOCALES, type Locale } from '../i18n/locale'
+import { LOCALES } from '../i18n/locale'
 import { useI18nStore } from '../i18n/store'
 import { SiteApp } from '../site/SiteApp'
-import { caminhoDaRota, ROTAS_INDEXAVEIS, type SiteScreen } from '../site/routes'
+import type { PaginaPrerenderizada } from '../site/paginaGerada'
+import { caminhoDaRota, ROTAS_INDEXAVEIS } from '../site/routes'
 
 // Reexportadas para o `scripts/prerender.mjs`: as funções são puras e testadas em
 // `site/metatags.test.ts`; quem conhece o ambiente (a variável de build com a origem) é o
 // script, não o bundle. A fronteira é a mesma de sempre neste projeto — decisão no código
 // testável, leitura do mundo na borda.
-export { exigirOrigem, linksDeCabecalho } from '../site/metatags'
+export { exigirOrigem } from '../site/metatags'
 export { robotsTxt, sitemapXml } from '../site/descoberta'
-export { jsonLd, tagsSociais } from '../site/social'
 
-export interface PaginaPrerenderizada {
-  /** Caminho relativo à raiz do site — o mesmo que nomeia o arquivo no `dist/`. */
-  caminho: string
-  locale: Locale
-  html: string
-  titulo: string
-  descricao: string
-  screen: SiteScreen
-  imagemAlt: string
-}
+// A montagem do HTML final é `site/paginaGerada.ts` — pura, e por isso coberta pelo portão da
+// T-166 (`paginaGerada.test.ts`) sem precisar de build. Aqui ela é só reexportada, para o
+// script de build ter uma porta de entrada só.
+//
+// O TIPO da página fica de fora desta linha de propósito: quem o consome é o teste, que importa
+// de `site/paginaGerada` direto, e o `scripts/prerender.mjs` é JavaScript e não vê tipo nenhum.
+// Reexportá-lo aqui custava cinco avisos de `react-refresh` — o plugin lê um nome capitalizado
+// num `export { ... }` como componente e passa a cobrar do arquivo inteiro a regra de módulo de
+// componente.
+export { montarPagina } from '../site/paginaGerada'
 
 /**
  * Todas as páginas indexáveis, em todos os idiomas — a tabela de rotas percorrida.

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { LOCALES } from '../i18n/locale'
 import { robotsTxt, sitemapXml } from './descoberta'
 import { urlAbsoluta } from './metatags'
-import { ROTAS, ROTAS_INDEXAVEIS } from './routes'
+import { parseSitePath, ROTAS, ROTAS_INDEXAVEIS } from './routes'
 
 const ORIGEM = 'https://exemplo.com.br'
 
@@ -48,6 +48,27 @@ describe('sitemapXml (T-163, SPEC-026 — a quarta saída da fonte única)', () 
   it('todo href e todo loc são absolutos — o bug da T-147 não volta por esta porta', () => {
     for (const [, url] of xml.matchAll(/(?:<loc>|href=")([^<"]+)/g)) {
       expect(url).toMatch(/^https:\/\//)
+    }
+  })
+
+  it('toda URL do mapa volta pelo ROTEADOR para a mesma tela e o mesmo idioma', () => {
+    // O sentido que faltava (T-166). O caso acima cobra roteador → sitemap: toda rota da tabela
+    // aparece no mapa. Este cobra a volta: toda URL do mapa é uma que o roteador sabe abrir.
+    //
+    // Um mapa e um roteador que discordam produzem o pior resultado possível da frente inteira —
+    // o robô é convidado a entrar numa URL que o site responde com a 404 do `NotFoundScreen`, e
+    // o Google trata URL prometida em sitemap que não existe como sinal de site abandonado. Não
+    // é hipótese: o slug é traduzido por idioma (`sobre/` × `en/about/`), então renomear em um
+    // lado só é uma edição de uma palavra.
+    for (const [, achado] of xml.matchAll(/<loc>([^<]*)<\/loc>/g)) {
+      const loc = achado!
+
+      expect(loc.startsWith(`${ORIGEM}/`)).toBe(true)
+
+      const { screen, locale } = parseSitePath(loc.slice(ORIGEM.length))
+
+      expect(screen, `${loc} não é uma rota que o roteador conhece`).not.toBe('nao_encontrada')
+      expect(urlAbsoluta(ORIGEM, screen, locale)).toBe(loc)
     }
   })
 

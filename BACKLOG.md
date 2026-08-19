@@ -370,7 +370,7 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-165 | **Páginas públicas por exercício.** `/exercicios/<slug>/` e `/en/exercises/<slug>/` a partir de `Exercise` + `Translation` + `ExerciseGuideStep` (plano §3.4), consumidos pelo pré-render em build; cada página linka o app com o exercício já escolhido; exercício despublicado sai do sitemap. É a task que transforma a tradução já paga (T-146/T-152) em tráfego: ninguém procura "Digital Fit", procuram "como fazer agachamento correto" e "squat form check app". Depende de T-159 e T-163 *(Tam: G)* | 026/020/018 | todo |
-| T-166 | **Os portões.** Teste do build que cobra, para cada rota gerada: `canonical` presente, `hreflang` recíproco **e absoluto**, `x-default` existente, `title`/`description` não vazios e diferentes entre idiomas; teste da tabela de rotas (roteador ↔ sitemap, nos dois sentidos); a regra da rota nova no `AGENTS.md` e na skill `df-spec`. É o portão que impede o §2.1 de acontecer de novo. Depende da Onda 2 completa *(Tam: P)* | 026 | todo |
+| T-166 | **Os portões.** Teste do build que cobra, para cada rota gerada: `canonical` presente, `hreflang` recíproco **e absoluto**, `x-default` existente, `title`/`description` não vazios e diferentes entre idiomas; teste da tabela de rotas (roteador ↔ sitemap, nos dois sentidos); a regra da rota nova no `AGENTS.md` e na skill `df-spec`. É o portão que impede o §2.1 de acontecer de novo. Depende da Onda 2 completa *(Tam: P)* | 026 | **feito** (2026-08-19) — a injeção do pré-render virou função pura (`site/paginaGerada.ts`) para poder ser cobrada sem build; cinco mutações provaram cada portão |
 ## Pré-configuração: o quadro que a pessoa não conseguia ler (SPEC-014)
 
 | ID | Task | Spec | Status |
@@ -381,6 +381,18 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
 
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-166] O portão do HTML gerado lê o template FONTE, não o do build — e a diferença tem
+  um dono.** `site/paginaGerada.test.ts` monta cada página com o mesmo `montarPagina()` que o
+  build roda, mas sobre `web/index.html` como ele está no repositório. O build injeta nesse
+  arquivo os `<script>` e `<link>` dos assets com hash ANTES do pré-render, e se uma atualização
+  do Vite mudasse a forma dessa injeção a ponto de quebrar uma âncora (`  </head>` com dois
+  espaços, `<div id="root"></div>`), o teste continuaria verde e a página iria para o ar sem
+  `canonical`. Quem cobre esse flanco é a conferência de moldura dentro do próprio
+  `montarPagina()`, que roda no build de verdade e o derruba — os dois juntos são o portão,
+  nenhum dos dois sozinho é. Não vira task: fechar de vez exigiria rodar `vite build` dentro da
+  suíte, que leva minutos e sairia do `npm run test` que roda a cada salvamento. Fica registrado
+  para que ninguém leia o teste como cobertura do artefato servido.
 
 - **[T-168] O `ZoomControl` que some é o que desequilibra as colunas da pré-configuração.**
   Ele vale ~114px e só é montado com a câmera pronta, então a coluna direita nasce curta e
@@ -1321,5 +1333,5 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
   ninguém olha é gate que não existe — este roda no CI e mesmo assim passou despercebido, porque
   o AGENTS.md §Fluxo lista `ruff check` e **não** lista `ruff format --check`. **Resolvido**
   (2026-08-18, commit `operação:`): `ruff format .` aplicado nos seis, e o comando que faltava
-  entrou no AGENTS.md §Fluxo 5 e na checklist de gates da skill `df-executor` — o conserto sem
+  entrou no AGENTS.md §Fluxo 6 (era o §5 até a T-166 inserir a regra da rota nova) e na checklist de gates da skill `df-executor` — o conserto sem
   a checklist teria durado até a próxima task esquecer de novo.

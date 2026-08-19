@@ -15,10 +15,13 @@
 //
 // ## O que este arquivo deliberadamente NÃO faz
 //
-// `hreflang` absoluto e `x-default` são da T-160; `sitemap.xml` e `robots.txt` são da T-163.
-// Todos vão sair da MESMA tabela de rotas que este script consome (`src/site/routes.ts`) — é a
-// fonte única da SPEC-026, e o motivo de ela existir é que o `hreflang` escrito à mão pela
-// T-147 ficou inerte por meses sem nada acusar.
+// **Decidir qualquer coisa.** Desde a T-166 ele lê arquivo, chama funções puras e escreve
+// arquivo — nada mais. Quem monta o HTML de uma página é `src/site/paginaGerada.ts`, quem monta
+// o `<head>` é `metatags.ts`/`social.ts`, e quem monta o mapa é `descoberta.ts`; todas saem da
+// mesma tabela de rotas (`src/site/routes.ts`) e todas são cobradas por teste sem build. A
+// fronteira existe porque o modo de falha desta frente é o silêncio: o `hreflang` escrito à mão
+// pela T-147 ficou inerte por meses sem nada acusar, e o que só o build sabe fazer é o que
+// ninguém consegue testar.
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -40,90 +43,27 @@ const DIST = join(RAIZ, 'dist')
  */
 const ORIGEM_BRUTA = process.env.VITE_SITE_ORIGIN
 
-/** `String.replace` com string crua interpreta `$&`, `$1`... — o HTML renderizado tem `$`. */
-function trocar(fonte, procura, valor) {
-  return fonte.replace(procura, () => valor)
-}
-
-function escapar(texto) {
-  return texto
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
 async function main() {
-  const {
-    renderizarPaginas,
-    linksDeCabecalho,
-    exigirOrigem,
-    robotsTxt,
-    sitemapXml,
-    tagsSociais,
-    jsonLd,
-  } = await import(join(RAIZ, 'dist-ssr', 'prerender.js'))
+  const { renderizarPaginas, montarPagina, exigirOrigem, robotsTxt, sitemapXml } = await import(
+    join(RAIZ, 'dist-ssr', 'prerender.js')
+  )
 
   const origem = exigirOrigem(ORIGEM_BRUTA)
   const paginas = renderizarPaginas()
 
   for (const pagina of paginas) {
     const arquivo = join(DIST, pagina.caminho, 'index.html')
-    let html = await readFile(arquivo, 'utf8')
+    const template = await readFile(arquivo, 'utf8')
 
-    // 1. O conteúdo. É o item que faz o robô ver a página e o Chrome oferecer traduzir.
-    const raiz = '<div id="root"></div>'
-    if (!html.includes(raiz)) throw new Error(`${arquivo}: não achei o \`${raiz}\``)
-    html = trocar(html, raiz, `<div id="root">${pagina.html}</div>`)
-
-    // 2. Título e descrição, vindos do DICIONÁRIO (`site:meta.*`) via a tabela de rotas. Os
-    //    valores estáticos que a T-158 deixou nos HTML eram cópia temporária declarada; a
-    //    partir daqui eles são gerados, e a duplicação acabou.
-    //
-    //    `[^<]*` e `[^>]*`, e NUNCA `[\s\S]*?`. O não-guloso parece equivalente e não é: o
-    //    comentário de `sobre/index.html` citava a palavra `<title>`, o casamento começou LÁ,
-    //    correu até o `</title>` do `<head>` e levou junto o `<html lang="pt-BR">` e a abertura
-    //    do `<head>`. A página ficou sem idioma, o cliente caiu no `DEFAULT_LOCALE` e
-    //    re-renderizou a landing INTEIRA em inglês por cima do HTML português — sem erro em
-    //    lugar nenhum. Uma classe que não casa `<` não consegue atravessar uma tag.
-    html = trocar(html, /<title>[^<]*<\/title>/, `<title>${escapar(pagina.titulo)}</title>`)
-    html = trocar(
-      html,
-      /<meta\s+name="description"[^>]*\/>/,
-      `<meta name="description" content="${escapar(pagina.descricao)}" />`,
-    )
-
-    // 3. `canonical` + `alternate` recíprocos + `x-default` — gerados da tabela de rotas
-    //    (`src/site/metatags.ts`, puro e testado), nunca escritos à mão em cada HTML. Foi o
-    //    "à mão" que produziu o `hreflang` relativo e inerte da T-147.
-    const links = linksDeCabecalho(origem, pagina.screen, pagina.locale)
-    html = trocar(html, '  </head>', `${links}\n  </head>`)
-
-    // 4. Preview de link (Open Graph / Twitter) e dados estruturados (T-164). Entram AQUI, e
-    //    não em runtime pelo React, porque nenhum dos robôs que os consomem executa
-    //    JavaScript — é o pré-render que torna esta parte possível.
-    const social = { ...pagina, origem }
-    html = trocar(html, '  </head>', `${tagsSociais(social)}\n  </head>`)
-    html = trocar(html, '  </head>', `${jsonLd(social)}\n  </head>`)
-
-    // O invariante que teria pego o bug acima na hora. Injeção em HTML por expressão regular
-    // é frágil por natureza; o preço de usá-la é conferir, a cada arquivo, que a moldura
-    // continua de pé. Falhar o build é o comportamento certo: um `<html>` comido não aparece
-    // como erro em lugar nenhum — aparece como a página na língua errada, semanas depois.
-    const exigidos = [
-      '<html lang="',
-      '<head>',
-      '</head>',
-      `<title>${escapar(pagina.titulo)}</title>`,
-      `<link rel="canonical" href="${origem}/${pagina.caminho}" />`,
-      'hreflang="x-default"',
-      `<meta property="og:image" content="${origem}/img/og.jpg" />`,
-      '"@type": "SoftwareApplication"',
-    ]
-    for (const exigido of exigidos) {
-      if (!html.includes(exigido)) {
-        throw new Error(`${arquivo}: a injeção destruiu a estrutura — faltou \`${exigido}\``)
-      }
+    // Toda a decisão está aqui dentro, e é testada sem build (`src/site/paginaGerada.test.ts`):
+    // conteúdo no `<body>`, título e descrição do dicionário, `canonical`/`hreflang`/`x-default`
+    // da tabela de rotas, Open Graph e JSON-LD — mais a conferência da moldura depois de
+    // injetar. Se ela lançar, o build para, que é o comportamento certo.
+    let html
+    try {
+      html = montarPagina(template, pagina, origem)
+    } catch (erro) {
+      throw new Error(`${arquivo}: ${erro.message}`, { cause: erro })
     }
 
     await writeFile(arquivo, html)

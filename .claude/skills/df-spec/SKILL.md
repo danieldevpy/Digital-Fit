@@ -81,6 +81,16 @@ BACKLOG se o escopo mudou.
   chave" ou "acrescentar coluna de tradução", e responder tarde é o que produz metade da tela
   numa língua. Idioma **não** é Fase Evolução de nada — é Fase Inicial de tudo desde a T-141.
 
+- **Página pública nova = rota nova, e rota nova nasce na tabela** (SPEC-026, plano §4). Se a
+  spec cria uma superfície que o buscador deve encontrar, o §Escopo declara: o caminho em cada
+  idioma (o **slug é traduzido** — `/sobre/` × `/en/about/`, porque a palavra na URL é sinal de
+  busca), as chaves de `title`/`description` no namespace `site`, e se ela é estática ou vem do
+  banco. Nada de "e o SEO a gente vê depois": as quatro saídas — roteador, pré-render,
+  `sitemap.xml` e `hreflang` — são geradas de `web/src/site/routes.ts`, então uma rota declarada
+  na spec e esquecida na tabela não existe pela metade, ela não existe. E vale a invariante
+  dura da SPEC-026: **nenhuma camada de idioma é redirecionamento** — o Googlebot rastreia dos
+  EUA, e redirecionar por IP ou `Accept-Language` apaga a versão pt do índice.
+
 ## Encerramento
 
 Igual a qualquer sessão: entrada no DEVLOG (decisões e alternativas rejeitadas), commit

@@ -5,6 +5,108 @@
 
 ---
 
+## 2026-08-19 (86) · T-166 — Os portões: cinco mutações, cinco vermelhos
+
+**O que a Onda 2 tinha, e o que ela não tinha.** Quatro tasks entregaram `canonical`,
+`hreflang` absoluto, `x-default`, `sitemap.xml` e Open Graph, todas com teste. Todos os testes
+verdadeiros, e nenhum deles respondia à pergunta que a Fase 8 existe para responder: **a página
+que vai para o ar tem essas anotações?** Eles cobrem as funções que *decidem* o `<head>`. Entre
+a função e o arquivo servido havia uma injeção por expressão regular que já comeu a abertura de
+`<html>` uma vez (T-159) — e um `hreflang` impecável numa string que não chega ao arquivo custa
+exatamente o mesmo que o `hreflang` relativo da T-147.
+
+### A decisão que fez o resto ser possível
+
+**A injeção saiu do `scripts/prerender.mjs` e virou função pura** (`src/site/paginaGerada.ts`).
+Enquanto ela morava no script de build, o único jeito de conferir o resultado era rodar
+`npm run build` e abrir o `dist/` com os olhos — que é precisamente o regime em que o
+`hreflang` da T-147 sobreviveu meses. A fronteira desta casa é sempre a mesma (decisão no
+código testável, leitura do mundo na borda), e aqui ela estava no lugar errado: `metatags.ts` e
+`social.ts` já eram puros e testados, faltava a função que decide **como** eles entram no
+arquivo. O script ficou com `readFile`, `writeFile` e a variável de ambiente, e mais nada.
+
+**O refactor não podia mudar o artefato, e não mudou.** `diff -r` entre o `dist/` do `HEAD` e o
+da task: nenhuma diferença em nenhum HTML, no `sitemap.xml`, no `robots.txt` nem nos assets.
+
+### Os três portões
+
+| Portão | Arquivo | Pega |
+|---|---|---|
+| Tabela ↔ entries do build | `site/routes.test.ts` *(já existia)* | rota na tabela sem HTML no `vite.config.ts` |
+| Tabela ↔ `sitemap`, **nos dois sentidos** | `site/descoberta.test.ts` | o sentido novo: URL no mapa que o roteador não sabe abrir |
+| **O HTML gerado** | `site/paginaGerada.test.ts` *(novo)* | `canonical` ausente/duplicado/relativo, `hreflang` não recíproco, `x-default` faltando, título igual nos dois idiomas |
+
+O terceiro monta cada página com o **mesmo código do build**, sobre o template real em disco, e
+cobra o resultado — sem `npm run build`, que leva minutos e não caberia numa suíte que roda a
+cada salvamento.
+
+**Duas coisas que ele faz e que nenhum teste anterior fazia:**
+
+1. **Confere a reciprocidade contra as páginas que existem de verdade.** Em `metatags.test.ts`
+   as duas pontas saem da mesma função, então a reciprocidade é tautológica. Aqui cada `href`
+   é procurado no `canonical` de uma página **realmente gerada**, e a página encontrada precisa
+   apontar de volta. Um `alternate` para uma URL que ninguém escreve — slug renomeado em um
+   idioma só — cai aqui e em lugar nenhum mais.
+2. **Cobra título e descrição diferentes entre os idiomas.** É o erro mais barato de cometer e
+   o mais caro de descobrir: a chave nasce no `pt-BR`, o `tsc` cobra a existência dela no `en`,
+   e **copiar o português para dentro do inglês satisfaz o tipo**. A página inglesa iria para o
+   índice com título português sem nenhum portão dizer nada.
+
+### O que o portão NÃO alcança, dito para não ser confundido com cobertura
+
+O template lido no teste é o **fonte** (`web/index.html`); o build injeta nele os `<script>` e
+`<link>` dos assets com hash antes do pré-render rodar. Se uma atualização do Vite mudasse a
+forma dessa injeção e isso quebrasse uma âncora, o teste continuaria verde. Quem cobre esse
+flanco é a conferência de moldura dentro do próprio `montarPagina()`, que roda no build de
+verdade e o derruba. Os dois juntos são o portão; nenhum dos dois sozinho é. Registrado nas
+Descobertas.
+
+### As medições — cinco mutações, cinco vermelhos
+
+Portão que nunca falhou não é portão, é decoração. Cada classe de erro que a task promete pegar
+foi induzida no código e revertida:
+
+| # | A mutação | O que ficou vermelho |
+|---|---|---|
+| 1 | `urlAbsoluta` volta a devolver caminho relativo (**o bug da T-147**) | `montarPagina` para o build: *"a injeção destruiu a estrutura — faltou `<link rel="canonical" href="https://…" />`"* |
+| 2 | título inglês "traduzido" copiando o português | `'sobre' tem título e descrição próprios em cada idioma` |
+| 3 | `about/` renomeado para `about-us/` em um idioma só | 7 casos, entre eles `rota gerada sem HTML de entrada no build` |
+| 4 | roteador deixa de olhar o slug do idioma | `toda URL do mapa volta pelo ROTEADOR…` — *"`/en/about/` não é uma rota que o roteador conhece"* |
+| 5 | **rota `/planos/` nova, título só em português** (critério 7 da spec, ponta a ponta) | `tsc`: *"missing the following properties: `meta.pricing.title`, `meta.pricing.description`"*. Acrescentado o inglês, caem `routes.test.ts` e `paginaGerada.test.ts` por falta de entry no build |
+
+A quinta é o critério de aceite 7 da SPEC-026 executado como experimento: *"um commit que
+acrescenta uma rota e esquece o `title` em inglês, ou esquece o sitemap, não passa nos gates"*.
+Passou a ser verdade medida, não promessa.
+
+### O processo
+
+`AGENTS.md` ganhou o **§Fluxo 5 — "Rota nova do site nasce na tabela de rotas"**, e a skill
+`df-spec` ganhou o par no desdobramento de spec (slug traduzido, chaves de `title`/`description`
+no namespace `site`, e a invariante de que **nenhuma camada de idioma é redirecionamento**). A
+inserção empurrou os gates para o §Fluxo 6 — a única referência cruzada que existia para o
+número antigo, na Descoberta `[T-156]` do BACKLOG, foi corrigida junto.
+
+### O aviso que apareceu no meio
+
+Reexportar o **tipo** da página de `entries/prerender.tsx` produziu cinco avisos de
+`react-refresh`: o plugin lê um nome capitalizado dentro de um `export { … }` como componente e
+passa a cobrar do arquivo inteiro a regra de módulo de componente. O tipo não precisava estar
+ali — quem o consome é o teste, que importa direto, e o `scripts/prerender.mjs` é JavaScript e
+não vê tipo nenhum. A linha saiu, com o motivo escrito no arquivo.
+
+**Gates.** `ruff check` e `ruff format --check` limpos, `pytest` verde, `npm run lint` e
+`typecheck` sem saída, `npm run test` com **773 testes em 68 arquivos** (eram 726 em 65), e
+`npm run build:local` gerando as 4 páginas + `sitemap.xml` + `robots.txt`.
+
+### Pendências
+
+- **A SPEC-026 segue em `draft`** — com a Onda 2 e os portões fechados, ela está pronta para a
+  revisão que a passa a `approved`. Só falta a T-165 (páginas por exercício) do §Escopo.
+- **T-164**: conferir o card num WhatsApp real depois do deploy (continua aberta).
+- Os quatro commits da frente ainda não foram para o `origin`.
+
+---
+
 ## 2026-08-19 (84) · T-168 — As duas colunas param de pesar diferente
 
 **O pedido.** Daniel, depois de aprovar a T-167: *"só divida os botões card entre os lados da
