@@ -3133,6 +3133,136 @@ a {
   .player-btn--main { animation: none; }
 }
 
+/* --------------------------------------------- paisagem no treino ao vivo (SPEC-027, T-173)
+
+   Em pé, os quatro cards moram no TERÇO DE CIMA em px fixos (T-071) e o resto do cromo empilha
+   a partir da base: toast em 176px, pill do exercício em 100px, barra em 0. Somados, são ~350px
+   de pilha — mais que os 390px de altura de um celular deitado. O resultado medido antes desta
+   task: cards em `y 188–248` cruzando o toast (`150–214`) e o pill (`235–290`). Não é ajuste
+   fino, é a tela inteira dobrada sobre si mesma.
+
+   A saída é a mesma da pré-configuração: o cromo para de empilhar na vertical e vai para as
+   BORDAS LATERAIS, que é a direção onde ainda há espaço. Os cards mantêm o lado em que já
+   estavam (reps e ângulo à esquerda, tempo e calorias à direita) — trocá-los de lado seria
+   remapear a memória de quem já usa o app por um ganho de zero.
+
+   O que NÃO muda: a instrução modal continua mandando na tela (T-071). A regra que apaga
+   cards, pill e aro enquanto o servidor mede o corpo não olha para orientação nenhuma, e
+   continua valendo deitado. */
+
+/* Os dois gradientes encolhem junto com a tela. 270px de escurecimento numa altura de 390 são
+   69% do quadro — o oposto do que eles existem para fazer, que é dar legibilidade ao cromo sem
+   esconder o corpo. */
+.sess--paisagem .live__fade-top {
+  height: 64px;
+}
+
+.sess--paisagem .live__fade-bottom {
+  height: 116px;
+}
+
+.sess--paisagem .live__head {
+  top: 8px;
+}
+
+/* Os cards viram duas colunas verticais coladas nas bordas, centradas na altura. `top`/`bottom`
+   em `auto` desfaz explicitamente os px da T-071: eles resolvem o problema de retrato e são
+   exatamente o que não cabe deitado. */
+.sess--paisagem .hud-card {
+  top: auto;
+  bottom: auto;
+}
+
+.sess--paisagem .hud-card--reps {
+  top: 52px;
+  left: max(12px, env(safe-area-inset-left));
+  width: 100px;
+}
+
+.sess--paisagem .hud-card--timer {
+  top: 52px;
+  right: max(12px, env(safe-area-inset-right));
+}
+
+/* Os cards de BAIXO de cada coluna ancoram pela base, não pelo topo — e isto não é simetria
+   estética. Com os dois ancorados no topo, medi 16px de sobreposição entre REPETIÇÕES e
+   ÂNGULO: o card de reps tem o anel dentro e mede 112px, não os ~81px dos outros. Ancorado
+   pela base, o de baixo cresce PARA CIMA e o de cima cresce para baixo — eles só se encontram
+   se os dois crescerem muito, em vez de o de cima empurrar o de baixo por cima do pill e da
+   barra. Rótulo que quebra em duas linhas noutro idioma (SPEC-025) é o caso real disso. */
+.sess--paisagem .hud-card--angle {
+  top: auto;
+  bottom: calc(136px + env(safe-area-inset-bottom));
+  left: max(12px, env(safe-area-inset-left));
+  width: 100px;
+}
+
+.sess--paisagem .hud-card--kcal {
+  top: auto;
+  bottom: calc(136px + env(safe-area-inset-bottom));
+  right: max(12px, env(safe-area-inset-right));
+  width: 100px;
+}
+
+/* A barra sai do centro da base e vai para o canto — é onde o polegar chega com o celular
+   deitado nas duas mãos, e no centro de uma base de 850px ele não chega sem trocar a pegada.
+   Continua sendo A BARRA com o stop no meio dela, e não um botão flutuante: foi o player
+   absoluto que produziu as colisões que a T-068 removeu, e essa lição não tem orientação. */
+.sess--paisagem .live__bottom {
+  left: auto;
+  right: max(12px, calc(env(safe-area-inset-right) + 12px));
+  width: auto;
+}
+
+.sess--paisagem .live__bottom .tabbar-v2 {
+  margin: 6px 0 calc(6px + env(safe-area-inset-bottom));
+}
+
+/* O pill do exercício SAI, e a informação não se perde: o cabeçalho já diz "Polichinelo •
+   Série 1/1" duas linhas acima. Em pé o pill é a repetição bem-vinda daquilo em corpo grande;
+   deitado ele é o quarto candidato a uma faixa de base que só comporta três, e o preço de
+   mantê-lo seria espremer o canal do treinador. É a mesma decisão que a T-068 tomou com o card
+   SÉRIE flutuante, pelo mesmo motivo. */
+.sess--paisagem .live__ex-pill {
+  display: none;
+}
+
+/* O toast é o canal do treinador (SPEC-008) e o único texto longo da tela — ele fica com a
+   faixa larga logo acima da barra, e não espremido ao lado dela. Os 124px de recuo o mantêm
+   entre as duas colunas de cards. */
+/* O toast fica AO LADO da barra, não acima dela — e essa foi a segunda tentativa. Acima, ele
+   colidia com o FAB, que sobe 30px da linha da barra: medi 6px de sobreposição, e o remédio
+   (empurrar toast e cards para cima) não cabia em 375px de altura, que é o iPhone deitado.
+   Ao lado, os dois dividem a base pela LARGURA, que é a dimensão que sobra.
+
+   O recuo da direita é `max(46%, 300px)`: a barra tem largura de conteúdo (~283px) e não
+   acompanha a viewport, então uma porcentagem sozinha encostaria nela em tela estreita e um
+   px sozinho desperdiçaria espaço em tela larga. O `max` guarda os dois extremos. */
+.sess--paisagem .live__toast {
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  left: max(124px, calc(env(safe-area-inset-left) + 124px));
+  right: max(46%, 300px);
+}
+
+/* Os anéis encolhem de 76px para 60px. Não é enfeite: com 375px de altura (iPhone deitado) a
+   coluna esquerda precisa caber REPETIÇÕES (o card mais alto, por causa do anel) e ÂNGULO
+   entre o cabeçalho e o toast, e com o anel cheio faltavam 12px. O número continua sendo o
+   maior elemento do card — o que sai é a moldura em volta dele. */
+.sess--paisagem .hud-ring svg {
+  width: 60px;
+  height: 60px;
+}
+
+/* Os avisos da câmera seguem a mesma faixa: os 260px/348px de retrato os jogariam para fora
+   da tela deitada (ver o par de `.sess__cam--live` acima). */
+.sess--paisagem .sess__cam--live .stage__banner {
+  bottom: calc(112px + env(safe-area-inset-bottom));
+}
+
+.sess--paisagem .sess__cam--live .stage__dev {
+  bottom: calc(150px + env(safe-area-inset-bottom));
+}
+
 /* Toast do coach/cena: substitui os cards fixos da SPEC-013 na tela imersiva. */
 .live__toast {
   position: absolute;
