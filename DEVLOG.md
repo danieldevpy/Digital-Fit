@@ -5,6 +5,98 @@
 
 ---
 
+## 2026-08-19 (93) · T-173 — Paisagem no treino: a base tinha quatro candidatos e cabiam três
+
+**O ponto de partida, medido.** Em pé, os quatro cards moram no terço de cima em px fixos
+(T-071) e o resto do cromo empilha a partir da base: toast em 176px, pill do exercício em
+100px, barra em 0. São ~350px de pilha — mais que os 390px de altura de um celular deitado.
+Medido antes de mexer, em 850×390: cards em `y 188–248` cruzando o toast (`150–214`) e o pill
+(`235–290`). Não era desalinhamento, era a tela dobrada sobre si mesma.
+
+**A saída é a mesma da T-172**: o cromo para de empilhar na vertical e vai para as bordas
+laterais. Os cards mantiveram o LADO em que já estavam — reps e ângulo à esquerda, tempo e
+calorias à direita. Trocá-los de lado remapearia a memória de quem já usa o app por um ganho
+de zero.
+
+### Três decisões que só apareceram medindo
+
+**1. O card de baixo de cada coluna ancora pela BASE, não pelo topo.** Com os dois ancorados no
+topo eu medi 16px de sobreposição entre REPETIÇÕES e ÂNGULO: o card de reps tem o anel dentro e
+mede 112px, não os ~81px dos outros. Ancorado pela base, o de baixo cresce para cima e o de
+cima cresce para baixo — eles só se encontram se os dois crescerem muito, em vez de o de cima
+empurrar o de baixo por cima da barra. O caso real disso é rótulo que quebra em duas linhas
+noutro idioma (SPEC-025).
+
+**2. O pill do exercício sai, e a informação não se perde.** O cabeçalho já diz "Polichinelo •
+Série 1/1" duas linhas acima; o pill é a repetição bem-vinda daquilo em corpo grande. Em pé
+sobra altura para os dois. Deitado ele era o quarto candidato a uma faixa de base que comporta
+três, e mantê-lo custaria espremer o canal do treinador. **É a mesma decisão que a T-068 tomou
+com o card SÉRIE flutuante, pelo mesmo motivo** — e é por isso que dá para tomá-la sem pedir
+spec nova.
+
+**3. O toast fica AO LADO da barra, não acima — e essa foi a segunda tentativa.** Acima, ele
+colidia com o FAB: o botão sobe 30px da linha da barra, e a medição acusou 6px de
+sobreposição. O remédio óbvio (empurrar toast e cards para cima) não cabia em 375px de altura,
+que é o iPhone deitado — a soma de cabeçalho + duas fileiras de card + toast + barra deixava
+8px de folga no total. Ao lado, os dois dividem a base pela LARGURA, que é a dimensão que
+sobra. O recuo é `max(46%, 300px)`: a barra tem largura de conteúdo (~283px) e não acompanha a
+viewport, então porcentagem sozinha encostaria nela em tela estreita e px sozinho desperdiçaria
+tela larga.
+
+**A barra foi para o canto, e o número diz quanto.** O stop no centro de uma base de 850px não
+é alcançável sem trocar a pegada. Continua sendo A BARRA com o FAB no meio dela e não um botão
+flutuante — foi o player absoluto que produziu as colisões que a T-068 removeu, e essa lição
+não tem orientação. O que mudou foi a âncora: `right` em vez de `left: 0; right: 0`. O centro
+do stop saiu de 50% da largura para **82%** (850×390) e **77%** (667×375).
+
+Os dois gradientes de legibilidade encolheram (140/270 → 64/116): 270px de escurecimento numa
+altura de 390 são 69% do quadro, o oposto do que eles existem para fazer. E os anéis foram de
+76px para 60px — não é enfeite: é o que faz REPETIÇÕES e ÂNGULO caberem na coluna esquerda em
+375px de altura, e o que sai é a moldura, não o número.
+
+### Medições
+
+| viewport | colisões entre cards/toast/barra | fora da tela | centro do stop |
+|---|---|---|---|
+| 850×390 | nenhuma | nada | 82% da largura |
+| 667×375 | nenhuma | nada | 77% da largura |
+| 390×844 (retrato) | — | — | inalterado |
+
+O toast não existe no DOM sem mensagem do treinador, então ele foi **injetado com a classe
+real** e uma frase de tamanho realista para entrar na conta das colisões — sem isso a medição
+teria dado verde sobre uma tela que não é a que a pessoa vê.
+
+**A instrução modal continua mandando (T-071), e isso foi verificado e não suposto**: com
+`live__chrome--medindo` aplicada em paisagem, cards, pill e aro somem; cabeçalho, toast e barra
+com o stop ficam. A regra não olha para orientação, e agora há medida disso.
+
+Retrato conferido depois de tudo: cards em 64/188, anel de 76px, pill visível, barra de borda a
+borda, gradiente de 270px. Nada mudou.
+
+### Gates
+
+`tsc`, `eslint`, `vitest` (72 arquivos, 899 testes — nenhum novo: esta task é layout, e o que
+ela produz é medição de geometria, não função pura nova), `ruff check` e `ruff format --check`.
+
+### Uma hora perdida que vale registrar
+
+Passei um bom tempo perseguindo um bug que não existia: depois de trocar de branch (merge da
+T-172), o servidor de dev do Vite continuou servindo **módulos velhos**, e a tela aparecia sem
+as classes de paisagem com `matchMedia` respondendo `true`. O sinal que denunciou foi bobo e
+exato: o `className` medido era `"app__phone"` sem espaço no fim, e o meu template literal
+sempre deixa um. Reiniciar o servidor resolveu. Fica a nota: **depois de trocar de branch,
+reiniciar o dev server antes de acreditar na tela.**
+
+### Pendências
+
+- Girar o celular de verdade continua sem verificação (mesma limitação da T-172: o navegador
+  de preview troca `matches` e não dispara `change`).
+- A tela de treino foi medida **sem sessão viva** — sem câmera e sem servidor, os cards mostram
+  `0`, `--` e o tempo cheio. A geometria é a mesma; o que não foi visto é o esqueleto por baixo
+  do cromo deitado.
+
+---
+
 ## 2026-08-19 (92) · T-172 — Paisagem: o cromo para de empilhar, e a T-167 já sabia o resto
 
 **O que entrou.** `shell/orientation.ts` (o sinal), a classe `app__phone--largo` na casca, a
