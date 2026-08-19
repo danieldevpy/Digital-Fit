@@ -379,6 +379,48 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
 | T-168 | **As duas colunas da pré-configuração param de pesar diferente.** Relato do Daniel: "do lado esquerdo tem mais que o direito". Medido: com a câmera desligada a esquerda tinha ~434px e a direita ~296px, porque o `ZoomControl` só existe com a câmera ligada — e as duas colunas alinhavam pelo topo, então a diferença inteira aparecia embaixo. `Duração` desce para junto de `Preparação` (as duas são tempo), `Espelhar` sobe para o pé da esquerda (era um talo de 39px sozinho no topo da direita), e as colunas passam a `justify-content: safe center` *(Tam: P)* | 014 | **feito** (2026-08-19) |
 
 
+## Fase 9 — Enquadramento: câmera e orientação (SPEC-027)
+
+Origem: conversa de 2026-08-19 — "um amigo pode querer gravar o outro" e "quando o usuário deixa
+o celular deitado a UI fica estranha". Duas ferramentas que parecem independentes e são a mesma
+entidade: quem segura o celular, de que lado ele olha e de que jeito. A T-169 abre e bloqueia
+tudo. Depois disso são **três raias que andam em paralelo**: (A) captura/câmera, que só toca
+`capture/`; (B) bancada, que só toca `eval/` + limiares e não depende de UI nenhuma; (C) layout de
+paisagem, que é onde mora o grosso do CSS e por isso é serial dentro de si mesma (T-172 → T-173 →
+T-175). A T-176 fecha o contrato quando A e C tiverem chegado.
+
+**O que a Fase 9 não pode fazer**: piorar a leitura do exercício. É o critério 9 da spec (corpus
+em paisagem e em retrato com a mesma contagem de reps) que decide isso, e ele mora na raia B —
+por isso ela não é a última, é a que anda junto desde o começo.
+
+### Onda 0 — o contrato
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-169 | **SPEC-027 — Enquadramento: câmera e orientação.** A entidade "de que lado e de que jeito o celular olha", com as duas consequências que caem dela: espelho é **função da câmera** (frontal espelha, traseira não) e layout deixa de assumir retrato. A divergência da SPEC-014 declarada e delimitada — a coluna de 430px cai **só** em paisagem e **só** nas duas telas de câmera. O caso da **rotação travada** escrito como o que é: com a rotação da tela travada o quadro também não gira, o mundo chega deitado, e `TOO_FAR`/`TOO_CLOSE` (fração da altura do frame) e `arm_abduction` passam a mentir — é por isso que o botão manual existe e é por isso que ele não pode fingir que os dois caminhos são iguais. Fora de escopo explícito: girar o frame antes da pose, escolher a lente (`deviceId`), trocar de câmera no meio da sessão, layout de tablet/desktop *(Tam: M)* | 027 | **feito** (2026-08-19) |
+
+### Onda 1 — as três raias (paralelas entre si; todas dependem só da T-169)
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-170 | **(Raia A) Câmera frontal ⇄ traseira.** `facingMode` no `getUserMedia` de `capture/useCamera.ts`: `ideal` na abertura, **`exact` na troca** (com `ideal` a câmera que não existe volta em silêncio e o botão passa a mentir), `OverconstrainedError` volta para a câmera anterior com frase própria. Quem manda no rótulo é `getSettings().facingMode`, não o pedido. Preferência lembrada em `capture/cameraPrefs.ts` (padrão do `zoomPrefs.ts`), guardando a **intenção** (`user`/`environment`) e nunca o `deviceId` — lente é hardware que muda de nome entre versões de SO. O controle só é renderizado com ≥ 2 `videoinput` em `enumerateDevices()`, contados **depois** de o stream abrir (antes da permissão o navegador não conta direito), mesmo precedente do `ZoomControl`. Espelho passa a ser default da câmera (traseira abre sem espelho) com o botão Espelhar continuando a vencer até a câmera mudar. Só na pré-configuração — durante o treino o controle não existe. Texto novo nas duas línguas (`session:*`). Depende de T-169 *(Tam: M)* | 027/001/014 | todo |
+| T-171 | **(Raia B) Limiar de cena não pode significar coisas diferentes em cada orientação.** A distância da SPEC-003 é fração da **altura** do frame (40–95%), e a altura do quadro muda de papel entre retrato e paisagem — a T-110 já mediu 3,37× de diferença de espalhamento entre os dois formatos do corpus. Medir os vídeos do `eval/corpus` nas duas orientações com as contas do cliente e decidir, **com número**, entre: manter a fração da altura, passar para fração da **menor** dimensão, ou declarar faixas por orientação. Natureza "medição" (SPEC-018): a decisão vira código + bancada, nunca painel. Entrega o critério 9 da spec como teste de não-regressão do `evalctl`. **Não toca UI** — anda em paralelo com as raias A e C do primeiro dia. Depende de T-169 *(Tam: M)* | 027/003/012 | todo |
+| T-172 | **(Raia C) Paisagem: a base + a pré-configuração.** O sinal (`matchMedia('(orientation: landscape)')` com listener, nunca `resize` — a barra do navegador entrando e saindo dispara `resize` a cada scroll) e a primeira das duas telas. A trava de `max-width: 430px` do `.app__phone` deixa de valer em paisagem **só** nas telas de câmera; cabeçalho e CTA saem da pilha vertical (os ~390px de altura são o recurso escasso) e as duas colunas de cards passam a ocupar as bordas laterais da tela cheia. `env(safe-area-inset-left/right)` passa a importar — o entalhe do iPhone deitado cai exatamente sobre uma das colunas, e hoje o CSS só conhece topo e base. Silhueta-guia mantém `aspect-ratio: 2/3` dimensionada pela **altura**: esticar ensina a caber errado. O véu da T-167 continua medindo o cromo real, com os `ref` do outro eixo. Critérios 4 e 6 da spec (girar não reabre a câmera; CTA e tab bar alcançáveis em 850×390 sem rolagem). Depende de T-169 *(Tam: G)* | 027/014 | todo |
+
+### Onda 2 — o que só existe depois que a paisagem existe
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-173 | **(Raia C) Paisagem: o treino ao vivo.** Os cards HUD deixam as posições fixas em px a partir do topo e da base (T-071) e migram para as colunas laterais — esquerda REPETIÇÕES/SÉRIE, direita TEMPO/ÂNGULO/CALORIAS; o topo fica só com o cabeçalho, e a barra com o stop vai para onde o polegar de quem segura deitado alcança. A instrução modal continua mandando na tela (T-071, vinculante): em paisagem o cromo flutuante também sai enquanto o servidor mede o corpo. Critério 5 da spec, medido por `getBoundingClientRect` em viewport de 850×390 — o mesmo jeito pelo qual a T-168 encontrou o desequilíbrio das colunas, porque olhar não teria encontrado. Depende de T-172 *(Tam: G)* | 027/014 | todo |
+| T-174 | **Cada exercício declara a orientação em que rende.** Campo `orientacao_recomendada` (`retrato`/`paisagem`/`qualquer`) no `Exercise` do banco + painel (SPEC-018: conteúdo é banco, não código), espelhado no catálogo embutido do cliente para o primeiro paint sem rede. O catálogo **já sabe disso em texto solto** — o comentário do `scene_tip` em `session/catalog.ts` diz que a flexão e o abdominal pedem o celular deitado —, esta task transforma a frase num campo consultável. A recomendação aparece na pré-configuração, no pill que a T-085 já usa, **só quando discorda** da orientação atual, e **não** desabilita o CTA (decisão 1 da T-085: orienta, nunca bloqueia). A frase é chave do dicionário (`session:*`, nas duas línguas); do banco vem só o valor. Depende de T-172 *(Tam: M)* | 027/020/018/025 | todo |
+| T-175 | **(Raia C) O botão de virar, e o celular com a rotação travada.** Alterna o layout independentemente da detecção, valendo até a viewport girar de verdade (escolha manual que sobrevive a um giro real é escolha que ninguém desfaz). O caso que motiva o botão é o aparelho com rotação de tela travada, e nele o produto **não pode fingir**: ali o quadro da câmera também não girou, o mundo chega deitado, e a mesma frase que confirma o layout diz que destravar a rotação é o caminho que preserva a leitura do exercício. A sessão sai marcada `landscape_forced` (T-176), que é o rótulo pelo qual essas sessões ficam de fora de qualquer calibração futura. **Girar o frame antes da pose fica fora**: é um canvas a mais no caminho quente a 15fps, e a SPEC-001 decide `edge`×`cloud` por latência por inferência — entra na Evolução com a medição junto. Depende de T-172 e T-173 *(Tam: M)* | 027/001 | todo |
+
+### Onda 3 — o fecho
+
+| ID | Task | Spec | Status |
+|---|---|---|---|
+| T-176 | **O enquadramento vai junto para o dataset.** Mudança **aditiva** em `SessionCapability` (`workers/shared/events.py` primeiro, como manda a regra de contrato): `facing` (`user`/`environment`) e `orientation` (`portrait`/`landscape`/`landscape_forced`), ambos com default vazio no padrão do `ua` que já está lá — cliente antigo continua aceito sem evento novo. O relatório mostra os dois. Motivo de existir: o dataset é o produto (keypoint-first, coleta desde o dia 1), e sessão filmada por outra pessoa em paisagem tem estatística de enquadramento diferente — sem o rótulo isso vira ruído não explicado no corpus, e `landscape_forced` é o único jeito de excluir depois as sessões de quadro girado. Depende de T-170 e T-172 *(Tam: P)* | 027/002/010 | todo |
+
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
 

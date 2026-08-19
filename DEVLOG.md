@@ -5,6 +5,95 @@
 
 ---
 
+## 2026-08-19 (89) · T-169 — SPEC-027: de que lado e de que jeito o celular olha
+
+**O pedido.** Duas ferramentas, trazidas como independentes: trocar entre câmera frontal e
+traseira ("um amigo pode querer gravar o outro") e não deixar a UI estranha com o celular
+deitado. Viraram uma spec só porque são a mesma entidade — o **enquadramento físico**: quem
+segura o aparelho, para onde ele aponta e em que posição. Cada uma isolada produziria uma
+decisão pela metade: trocar de câmera sem decidir o espelho entrega vídeo invertido, e desenhar
+paisagem sem decidir a orientação do quadro entrega exercício mal lido.
+
+**O que já existia.** `capture/useCamera.ts` chama `getUserMedia` sem `facingMode` nenhum — pega
+a câmera default e pronto. A seleção de câmera já estava escrita como Fase Evolução da SPEC-001
+("Seleção de câmera + espelhamento correto; preferência lembrada"), sem task. De orientação não
+existia **nada**: nenhum `matchMedia`, nenhum `@media (orientation: …)` nas ~4.800 linhas do
+`styles.css`; quatro `height: 100dvh` e a coluna de `max-width: 430px` que a SPEC-014 manda valer
+em qualquer tela.
+
+### As três decisões que a spec tomou, e o que foi rejeitado
+
+**1. Espelho é função da câmera, não preferência independente.** Frontal abre espelhado
+(default de hoje), traseira abre sem espelho — quem filma outra pessoa não está se vendo. O
+botão Espelhar continua existindo e continua vencendo até a câmera mudar. *Rejeitado:* amarrar o
+espelho à câmera e remover o botão — a inferência acerta quase sempre, e é por isso que o caso
+raro em que erra viraria um app possuído, sem nada na tela para desfazer. Também ficou decidido
+**não persistir** o espelho (hoje ele nasce `true` no store a cada carga): persiste-se a câmera,
+o espelho se deduz. Dois estados salvos são dois jeitos de a tela abrir errada.
+
+**2. `facingMode`, nunca `deviceId`; `exact` na troca, `ideal` na abertura.** `deviceId` aponta
+para uma lente específica e o mapeamento muda entre versões de SO. E `{ ideal: 'environment' }`
+num aparelho sem traseira **não falha** — entrega a frontal em silêncio, e o botão passaria a
+mentir. Daí `exact` na troca, com `OverconstrainedError` voltando para a câmera anterior. O
+rótulo vem de `getSettings().facingMode`, o que o track entregou, não o que foi pedido.
+
+**3. A divergência da SPEC-014, delimitada.** A trava de 430px cai **só em paisagem** e **só nas
+duas telas de câmera**. Índice, Escolha, Guia, Progresso, Analytics e Perfil continuam na coluna
+mobile em qualquer orientação: são telas de ler, onde uma linha de 850px é pior. Nas de câmera é
+o contrário — o quadro largo é a ferramenta.
+
+### A descoberta que mudou o desenho do botão manual
+
+O pedido do Daniel incluía "um botão para virar, caso não seja detectado automático". Investigando
+o caso que motiva esse botão — **celular com a rotação de tela travada** — apareceu o que ninguém
+tinha escrito: nesse aparelho **o quadro da câmera também não gira**. O navegador entrega os
+frames alinhados à orientação da tela, que está travada. O mundo chega deitado.
+
+E aí para de ser estético:
+
+- `TOO_FAR`/`TOO_CLOSE` (SPEC-003) medem altura do corpo como fração da **altura do frame** —
+  com o mundo a 90° eles medem outra coisa;
+- a linha ombro-ombro, que a Evolução da SPEC-003 compara com a horizontal, fica perpendicular;
+- `arm_abduction` (T-044/T-052) continua **existindo** e passa a estar errado, que é pior que
+  não existir.
+
+Também ficou registrado o contraponto à leitura apressada da T-110: aquela medição provou que um
+quadro **largo e em pé** normaliza igual a um quadro **estreito e em pé** — não que orientação
+seja problema resolvido. Quadro com o mundo deitado é outro assunto.
+
+Por isso o botão ganhou duas responsabilidades em vez de uma: alterna o layout **e**, quando
+força paisagem numa viewport que continuou retrato, diz na mesma frase que destravar a rotação é
+o caminho que preserva a leitura do exercício. A sessão sai marcada `landscape_forced`.
+
+**Girar o frame antes da pose ficou fora da Fase Inicial, com o motivo escrito** para não ser
+decidido às pressas dentro de uma task: é um canvas a mais no caminho quente a 15fps, e a
+SPEC-001 decide `edge` × `cloud` por **latência por inferência** — um passo ali pode empurrar
+aparelho honesto para cloud e gastar vaga do semáforo da SPEC-009.
+
+### Onde cada coisa foi morar
+
+- Recomendação de orientação por exercício → **campo no banco + painel** (SPEC-018, natureza
+  "negócio/conteúdo"), espelhado no catálogo embutido. O catálogo já sabia disso em texto solto:
+  o comentário do `scene_tip` diz que a flexão e o abdominal pedem o celular deitado.
+- A **frase** que a pessoa lê → dicionário do cliente (`session:*`), nas duas línguas. Do banco
+  vem o valor, não o texto.
+- Limiar de cena por orientação → **código + bancada** (natureza "medição"), nunca painel.
+- Rótulo do enquadramento → **`session.capability` aditivo** (`facing`, `orientation`), no padrão
+  do `ua` que já tem default vazio. **Nenhum evento novo**: enquadramento é atributo de sessão,
+  não fato do domínio de treino.
+
+### Tasks
+
+Fase 9, oito tasks. T-169 (esta) abre; depois **três raias paralelas de verdade**: A
+(`capture/`, T-170), B (bancada/limiares, T-171 — não toca UI e por isso não é a última) e C
+(layout, T-172 → T-173 → T-175, serial porque é o mesmo CSS). T-174 (catálogo) depende só da
+T-172; T-176 fecha o contrato.
+
+**Pendência declarada:** a spec está `draft`. Vira `approved` na revisão do Daniel — nenhuma task
+da Fase 9 deve ser executada antes disso.
+
+---
+
 ## 2026-08-19 (88) · T-140 — A série contada entra na conta, e a coluna que ela obrigou a existir
 
 **O buraco.** Desde a T-136 uma sessão pode terminar em `target_reached` — a meta de repetições
