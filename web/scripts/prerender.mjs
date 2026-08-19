@@ -54,9 +54,8 @@ function escapar(texto) {
 }
 
 async function main() {
-  const { renderizarPaginas, linksDeCabecalho, exigirOrigem } = await import(
-    join(RAIZ, 'dist-ssr', 'prerender.js')
-  )
+  const { renderizarPaginas, linksDeCabecalho, exigirOrigem, robotsTxt, sitemapXml } =
+    await import(join(RAIZ, 'dist-ssr', 'prerender.js'))
 
   const origem = exigirOrigem(ORIGEM_BRUTA)
   const paginas = renderizarPaginas()
@@ -114,6 +113,13 @@ async function main() {
     await writeFile(arquivo, html)
     console.log(`[prerender] /${pagina.caminho} (${pagina.locale}) — ${pagina.html.length} B`)
   }
+
+  // `sitemap.xml` e `robots.txt` (T-163) — a quarta e última saída da tabela de rotas. Saem
+  // daqui, e não de arquivos em `public/`, exatamente para não serem uma quinta lista que
+  // precisa concordar com as outras quatro à mão.
+  await writeFile(join(DIST, 'sitemap.xml'), sitemapXml(origem))
+  await writeFile(join(DIST, 'robots.txt'), robotsTxt(origem))
+  console.log('[prerender] sitemap.xml + robots.txt')
 
   console.log(`[prerender] ${paginas.length} páginas em ${origem}`)
 }

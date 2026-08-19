@@ -32,6 +32,7 @@ import { caminhoDaRota, ROTAS_INDEXAVEIS, type SiteScreen } from '../site/routes
 // script, não o bundle. A fronteira é a mesma de sempre neste projeto — decisão no código
 // testável, leitura do mundo na borda.
 export { exigirOrigem, linksDeCabecalho } from '../site/metatags'
+export { robotsTxt, sitemapXml } from '../site/descoberta'
 
 export interface PaginaPrerenderizada {
   /** Caminho relativo à raiz do site — o mesmo que nomeia o arquivo no `dist/`. */

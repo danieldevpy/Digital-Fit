@@ -65,6 +65,72 @@ CSS, não medidas em aparelho — o navegador controlado segue fora do ar nesta 
 
 ---
 
+## 2026-08-18 (84) · T-163 — O mapa e a porta, e o `Disallow` que teria feito o contrário do pedido
+
+**O que foi feito.** `site/descoberta.ts` (os dois arquivos, puros e testados), gerados no
+pré-render a partir da tabela de rotas. É a **quarta e última saída** da fonte única prometida
+pela SPEC-026 — roteador, pré-render, `hreflang` e agora `sitemap`/`robots` saem todos de
+`src/site/routes.ts`.
+
+### A decisão que contraria a redação da task
+
+A linha do BACKLOG pedia *"`robots.txt` liberando o site, mantendo o `/app/` fora"*. A intenção
+está certa e o meio estava errado, então implementei o oposto e corrigi a linha.
+
+**`Disallow` impede o RASTREAMENTO, não a indexação.** Um robô que não rastreia `/app/` nunca lê
+o `<meta name="robots" content="noindex">` que está lá desde a T-067 — e a URL pode acabar
+listada assim mesmo, sem descrição, porque **o site linka para ela** ("Abrir o app" na barra).
+Para uma página que não pode ser indexada, o par correto é o inverso do intuitivo: **permitir
+rastrear + `noindex` na página**. Bloquear no `robots.txt` desligaria a única instrução que de
+fato funciona.
+
+Isso virou caso de teste, e o caso existe para impedir a "correção" bem-intencionada de amanhã —
+alguém vai olhar o arquivo, achar que falta um `Disallow`, e o teste vai explicar por que não.
+
+### As outras decisões
+
+**Rastreador de LLM é permitido, e é decisão de produto, não omissão.** GPTBot, ClaudeBot,
+PerplexityBot entram pelo `User-agent: *`. Parte da descoberta de produto hoje acontece dentro de
+uma conversa, e nenhum deles executa o bundle — é exatamente o público que o pré-render da T-159
+passou a atender. Bloqueá-los seria abrir mão do canal para proteger conteúdo institucional que é
+público por definição. Está escrito como comentário **dentro do `robots.txt`**, não só aqui: quem
+for editá-lo daqui a um ano vai estar olhando para o arquivo.
+
+**Sem `lastmod`.** Carimbar a data do build faria toda página parecer atualizada a cada deploy,
+inclusive as que não mudaram. O Google trata `lastmod` não confiável como ruído e passa a
+ignorá-lo — data que mente é pior que data ausente. Tem caso de teste.
+
+**`<xhtml:link>` em cada `<url>`, duplicando o `hreflang` do `<head>`.** A duplicação é exigida:
+o Google pede que as duas fontes concordem e aceita qualquer uma isolada. Como as duas saem da
+mesma `urlAbsoluta()` da T-160, não têm como divergir.
+
+**Gerados, não postos em `public/`.** Um `sitemap.xml` escrito à mão seria a quinta lista que
+precisa concordar com as outras quatro — que é a descrição exata do bug que abriu a Fase 8.
+
+### Um teste meu estava grosseiro demais
+
+O caso "não bloqueia o `/app/`" reprovou na primeira execução: eu procurava a palavra `Disallow`
+no arquivo inteiro, e ela aparece no **comentário** que explica por que ela não está lá. Um teste
+que não distingue diretiva de comentário proibiria justamente a documentação da decisão. Passou a
+olhar só as linhas que não começam com `#`.
+
+### As medições
+
+- **Unitário** (`site/descoberta.test.ts`, 8 casos): uma entrada por rota indexável por idioma,
+  sem duplicatas; as URLs são exatamente as que a tabela declara; a 404 fica de fora; cada `<url>`
+  carrega as alternativas e o `x-default`; todo `loc` e todo `href` são absolutos; nenhum
+  `lastmod`; o `robots.txt` libera, aponta o sitemap e não tem diretiva `Disallow`.
+- **XML bem-formado**, validado por parser: 4 `<url>`, 3 alternativas em cada.
+- **Servidos pelo nginx real**: `/robots.txt` → `200 text/plain`; `/sitemap.xml` → `200 text/xml`.
+- **Gates**: `ruff check` e `ruff format --check` limpos, `pytest` verde, `npm run lint` e
+  `typecheck` sem saída, `npm run test` com **734 testes**.
+
+### Pendências
+
+- A SPEC-026 segue em **`draft`**.
+- O `sitemap.xml` cresce sozinho quando a T-165 acrescentar as páginas por exercício — é o teste
+  "lista exatamente as URLs que a tabela declara" que garante isso.
+
 ## 2026-08-18 (83) · T-161 — O aviso que sugere sem empurrar
 
 **O que foi feito.** `site/sugestaoDeIdioma.ts` (a decisão, pura e testada), `site/AvisoDeIdioma.tsx`
