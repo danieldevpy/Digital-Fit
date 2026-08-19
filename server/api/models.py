@@ -298,6 +298,23 @@ class Exercise(models.Model):
     scene_tip = models.TextField(
         blank=True, help_text="Vazio usa a frase padrão (em pé, celular na vertical, 2 m)."
     )
+    #: A palavra que aparece na URL da página pública, em pt-BR (SPEC-026 §Escopo, T-165).
+    #:
+    #: **Separada do `slug` de propósito.** Aquele é a chave do registro do servidor
+    #: (`EXERCISES`), é contrato entre cliente, admissão e worker, e é em inglês porque o código
+    #: é. Esta é endereço público, e a razão de a página existir é que ninguém procura "Digital
+    #: Fit" — procuram "agachamento". A palavra na URL é sinal de busca, e o `slug` técnico não
+    #: pode servir aos dois papéis sem que mudar um quebre o outro.
+    #:
+    #: Vazio cai no `slug` — é o que faz esta coluna nascer sem migração de dados e sem página
+    #: quebrada. Editar depois de a página estar indexada **troca a URL** e perde o que ela
+    #: acumulou: é edição de operação, não de texto (ver o aviso no painel).
+    url_slug = models.SlugField(
+        max_length=60,
+        blank=True,
+        verbose_name="slug da URL pública",
+        help_text="Vazio usa o slug técnico. Mudar troca o endereço de uma página já indexada.",
+    )
     ordem = models.PositiveSmallIntegerField(default=0)
     enabled = models.BooleanField(
         default=True, help_text="Desligado some do catálogo E a admissão passa a recusar."
@@ -382,6 +399,12 @@ class ExerciseTranslation(models.Model):
     muscle_group = models.CharField(max_length=60, blank=True)
     default_tip = models.TextField(blank=True)
     scene_tip = models.TextField(blank=True)
+    #: O endereço público deste exercício NESTE idioma (T-165). Mesma regra de fallback dos
+    #: campos acima: branco cai para `Exercise.url_slug`, que por sua vez cai para o `slug`.
+    #: `/exercicios/agachamento/` e `/en/exercises/squat/` são a mesma página em dois idiomas —
+    #: e é a tradução do endereço, não só a do texto, que faz a busca em inglês achar a versão
+    #: inglesa.
+    url_slug = models.SlugField(max_length=60, blank=True, verbose_name="slug da URL pública")
 
     class Meta:
         db_table = "exercise_translation"

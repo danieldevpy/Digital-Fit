@@ -67,10 +67,14 @@ export function renderizarPaginas(): PaginaPrerenderizada[] {
 
       paginas.push({
         caminho: caminhoDaRota(rota.screen, locale),
+        moldeCaminho: rota.molde === null ? null : caminhoDaRota(rota.molde, locale),
         locale,
         html: renderToString(<SiteApp screen={rota.screen} />),
-        titulo: t(rota.titulo),
-        descricao: t(rota.descricao),
+        // `rota.params` é o que preenche `{nome}` no título das páginas de exercício (T-165): a
+        // moldura da frase vem do dicionário (cobrada pelo `tsc` nas duas línguas), o miolo vem
+        // do banco. Rota estática não tem params e o `t()` a devolve intacta.
+        titulo: t(rota.titulo, rota.params?.[locale]),
+        descricao: t(rota.descricao, rota.params?.[locale]),
         screen: rota.screen,
         imagemAlt: t('site:meta.og_image_alt'),
       })

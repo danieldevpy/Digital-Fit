@@ -1,0 +1,137 @@
+{
+  "versao": 1,
+  "exercicios": [
+    {
+      "slug": "jumping_jack",
+      "category": "cardio",
+      "demo_img": "/img/guia/polichinelo-2.jpg",
+      "dot_color": "#34d399",
+      "met": 8.0,
+      "por_idioma": {
+        "pt-BR": {
+          "url_slug": "polichinelo",
+          "nome": "Polichinelo",
+          "grupo_muscular": "Corpo inteiro",
+          "dica": "Mantenha o core contraído e movimentos controlados.",
+          "dica_de_cena": "",
+          "passos": [
+            "Fique em pé, de frente para a câmera, corpo inteiro visível, braços ao lado do corpo.",
+            "Salte abrindo as pernas e levando os braços acima da cabeça, ao mesmo tempo.",
+            "Volte à posição inicial no salto seguinte — cada ida e volta conta uma repetição."
+          ]
+        },
+        "en": {
+          "url_slug": "jumping_jack",
+          "nome": "Polichinelo",
+          "grupo_muscular": "Corpo inteiro",
+          "dica": "Mantenha o core contraído e movimentos controlados.",
+          "dica_de_cena": "",
+          "passos": [
+            "Fique em pé, de frente para a câmera, corpo inteiro visível, braços ao lado do corpo.",
+            "Salte abrindo as pernas e levando os braços acima da cabeça, ao mesmo tempo.",
+            "Volte à posição inicial no salto seguinte — cada ida e volta conta uma repetição."
+          ]
+        }
+      }
+    },
+    {
+      "slug": "squat",
+      "category": "forca",
+      "demo_img": "/img/guia/agachamento-2.jpg",
+      "dot_color": "#4d8cff",
+      "met": 5.0,
+      "por_idioma": {
+        "pt-BR": {
+          "url_slug": "agachamento",
+          "nome": "Agachamento",
+          "grupo_muscular": "Pernas e glúteos",
+          "dica": "Desça com o peso nos calcanhares e o peito aberto.",
+          "dica_de_cena": "",
+          "passos": [
+            "Pés na largura dos ombros, pontas levemente para fora, braços à frente para equilibrar.",
+            "Desça empurrando o quadril para trás, peso nos calcanhares, até as coxas ficarem paralelas ao chão.",
+            "Suba estendendo as pernas sem tirar os pés do chão — subida completa conta a repetição."
+          ]
+        },
+        "en": {
+          "url_slug": "squat",
+          "nome": "Agachamento",
+          "grupo_muscular": "Pernas e glúteos",
+          "dica": "Desça com o peso nos calcanhares e o peito aberto.",
+          "dica_de_cena": "",
+          "passos": [
+            "Pés na largura dos ombros, pontas levemente para fora, braços à frente para equilibrar.",
+            "Desça empurrando o quadril para trás, peso nos calcanhares, até as coxas ficarem paralelas ao chão.",
+            "Suba estendendo as pernas sem tirar os pés do chão — subida completa conta a repetição."
+          ]
+        }
+      }
+    },
+    {
+      "slug": "flexao",
+      "category": "forca",
+      "demo_img": "/img/guia/flexao-2.jpg",
+      "dot_color": "#f59e0b",
+      "met": 8.0,
+      "por_idioma": {
+        "pt-BR": {
+          "url_slug": "flexao-de-braco",
+          "nome": "Flexão de braço",
+          "grupo_muscular": "Peito, ombro e tríceps",
+          "dica": "Corpo numa linha reta da cabeça aos pés, do começo ao fim.",
+          "dica_de_cena": "celular deitado no chão de lado (você de perfil) ou em pé à sua frente — escolha a posição da câmera na pré-configuração, e monte a cena para a que escolheu.",
+          "passos": [
+            "Deite o celular no chão, de lado, e fique de perfil para ele — ele precisa ver você da cabeça aos pés.",
+            "Comece na prancha: mãos abaixo dos ombros, braço estendido, corpo numa linha reta da cabeça aos calcanhares.",
+            "Desça dobrando o cotovelo até uns 90°, com o peito perto do chão, e suba estendendo o braço — a subida completa conta a repetição."
+          ]
+        },
+        "en": {
+          "url_slug": "flexao",
+          "nome": "Flexão de braço",
+          "grupo_muscular": "Peito, ombro e tríceps",
+          "dica": "Corpo numa linha reta da cabeça aos pés, do começo ao fim.",
+          "dica_de_cena": "celular deitado no chão de lado (você de perfil) ou em pé à sua frente — escolha a posição da câmera na pré-configuração, e monte a cena para a que escolheu.",
+          "passos": [
+            "Deite o celular no chão, de lado, e fique de perfil para ele — ele precisa ver você da cabeça aos pés.",
+            "Comece na prancha: mãos abaixo dos ombros, braço estendido, corpo numa linha reta da cabeça aos calcanhares.",
+            "Desça dobrando o cotovelo até uns 90°, com o peito perto do chão, e suba estendendo o braço — a subida completa conta a repetição."
+          ]
+        }
+      }
+    },
+    {
+      "slug": "abdominal",
+      "category": "core",
+      "demo_img": "/img/guia/abdominal-2.jpg",
+      "dot_color": "#a78bfa",
+      "met": 3.8,
+      "por_idioma": {
+        "pt-BR": {
+          "url_slug": "abdominal",
+          "nome": "Abdominal",
+          "grupo_muscular": "Abdômen",
+          "dica": "Suba com o abdômen, devagar, sem puxar o pescoço.",
+          "dica_de_cena": "celular deitado no chão, de lado, a uns 2 metros — a tela precisa ver seu corpo inteiro de perfil, da cabeça aos pés.",
+          "passos": [
+            "Deite o celular no chão, de lado, e deite-se de perfil para ele — ele precisa ver seu tronco e seus joelhos.",
+            "Deite de costas com os joelhos dobrados e os pés apoiados, calcanhar perto do quadril: é o joelho levantado que serve de referência para a contagem.",
+            "Suba encolhendo o abdômen até as escápulas saírem do chão, mantendo a lombar apoiada, e volte devagar — a descida completa conta a repetição."
+          ]
+        },
+        "en": {
+          "url_slug": "abdominal",
+          "nome": "Abdominal",
+          "grupo_muscular": "Abdômen",
+          "dica": "Suba com o abdômen, devagar, sem puxar o pescoço.",
+          "dica_de_cena": "celular deitado no chão, de lado, a uns 2 metros — a tela precisa ver seu corpo inteiro de perfil, da cabeça aos pés.",
+          "passos": [
+            "Deite o celular no chão, de lado, e deite-se de perfil para ele — ele precisa ver seu tronco e seus joelhos.",
+            "Deite de costas com os joelhos dobrados e os pés apoiados, calcanhar perto do quadril: é o joelho levantado que serve de referência para a contagem.",
+            "Suba encolhendo o abdômen até as escápulas saírem do chão, mantendo a lombar apoiada, e volte devagar — a descida completa conta a repetição."
+          ]
+        }
+      }
+    }
+  ]
+}

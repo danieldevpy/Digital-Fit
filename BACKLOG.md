@@ -369,7 +369,7 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-165 | **Páginas públicas por exercício.** `/exercicios/<slug>/` e `/en/exercises/<slug>/` a partir de `Exercise` + `Translation` + `ExerciseGuideStep` (plano §3.4), consumidos pelo pré-render em build; cada página linka o app com o exercício já escolhido; exercício despublicado sai do sitemap. É a task que transforma a tradução já paga (T-146/T-152) em tráfego: ninguém procura "Digital Fit", procuram "como fazer agachamento correto" e "squat form check app". Depende de T-159 e T-163 *(Tam: G)* | 026/020/018 | todo |
+| T-165 | **Páginas públicas por exercício.** `/exercicios/<slug>/` e `/en/exercises/<slug>/` a partir de `Exercise` + `Translation` + `ExerciseGuideStep` (plano §3.4), consumidos pelo pré-render em build; cada página linka o app com o exercício já escolhido; exercício despublicado sai do sitemap. É a task que transforma a tradução já paga (T-146/T-152) em tráfego: ninguém procura "Digital Fit", procuram "como fazer agachamento correto" e "squat form check app". Depende de T-159 e T-163 *(Tam: G)* | 026/020/018 | **feito** (2026-08-19) — snapshot exportado do banco (ADR-013, §Eventos da spec corrigido); `url_slug` virou coluna para o endereço ser traduzido; **pendente: as páginas em inglês saem com o conteúdo em português até o painel ser preenchido** |
 | T-166 | **Os portões.** Teste do build que cobra, para cada rota gerada: `canonical` presente, `hreflang` recíproco **e absoluto**, `x-default` existente, `title`/`description` não vazios e diferentes entre idiomas; teste da tabela de rotas (roteador ↔ sitemap, nos dois sentidos); a regra da rota nova no `AGENTS.md` e na skill `df-spec`. É o portão que impede o §2.1 de acontecer de novo. Depende da Onda 2 completa *(Tam: P)* | 026 | **feito** (2026-08-19) — a injeção do pré-render virou função pura (`site/paginaGerada.ts`) para poder ser cobrada sem build; cinco mutações provaram cada portão |
 ## Pré-configuração: o quadro que a pessoa não conseguia ler (SPEC-014)
 
@@ -381,6 +381,28 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
 
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-165] Página em idioma sem tradução vai para o índice com o texto da outra língua, e
+  ninguém decidiu que ela deveria.** O fallback da T-146 é doutrina boa dentro do app — mostrar
+  o português é melhor que mostrar vazio, porque quem está ali já abriu o app e quer usar. Numa
+  página **indexada** a conta é outra: `/en/exercises/squat/` sai hoje com o título *"How to do a
+  Agachamento correctly"*, e o `hreflang` da T-160 promete ao Google uma versão inglesa que não
+  existe. Publicar assim é pior que não publicar aquela metade — conteúdo em língua trocada é
+  sinal negativo, e a página gasta o rastreamento que a versão certa vai querer depois. A saída
+  seria o exportador **omitir o bloco do idioma** sem tradução e a rota não existir ali, mas isso
+  torna a tabela de rotas assimétrica por idioma e derruba a reciprocidade que o portão da T-166
+  cobra — é mudança de contrato, não ajuste. **É decisão de produto e precisa de dono**: ou o
+  painel é preenchido antes do deploy (caminho de hoje, com `manage.py i18n_status` listando o
+  que falta), ou vira task para o exportador aprender a publicar por idioma.
+
+- **[T-165] Dois exercícios têm slug técnico em português, e isso vaza para a URL inglesa.**
+  `flexao` e `jumping_jack` nasceram assim na `0012`/`0008` — o registro do servidor é em código
+  e o código deste projeto é escrito em português em alguns lugares. Sem
+  `ExerciseTranslation.url_slug` preenchido, o endereço inglês cai no slug técnico e sai
+  `/en/exercises/flexao/`, que não é palavra que alguém digite em inglês. Não é bug: é o fallback
+  certo (cair no técnico é melhor que cair no português-de-conteúdo, que era o erro que esta task
+  corrigiu no meio do caminho). Fecha com duas linhas no painel — `push-up` e `jumping-jack` — e
+  aparece no `i18n_status` até lá.
 
 - **[T-166] O portão do HTML gerado lê o template FONTE, não o do build — e a diferença tem
   um dono.** `site/paginaGerada.test.ts` monta cada página com o mesmo `montarPagina()` que o

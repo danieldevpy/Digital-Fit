@@ -7,8 +7,18 @@ import { useT, useLocale } from '../i18n'
 import { LocaleSwitch } from '../i18n/LocaleSwitch'
 import { appHref, siteRouteHref } from '../shell/origins'
 import { IconDumbbell, IconHome, IconLogo } from '../ui/icons'
+import type { SiteScreen } from './routes'
 
-export function SiteBar({ active }: { active: 'index' | 'sobre' }) {
+/**
+ * `active` é a rota ATUAL, e não só a aba acesa (T-165).
+ *
+ * Duas responsabilidades numa prop só, e é de propósito: o seletor de idioma precisa saber onde
+ * a pessoa está para trocar de língua **sem mudar de página**, e as abas precisam saber qual
+ * delas está acesa. Uma página de exercício não acende nenhuma das três — e continua trocando
+ * de idioma para a versão daquele exercício, que é o que faz o par `hreflang` da T-160 ser
+ * verdade também na navegação, e não só no `<head>`.
+ */
+export function SiteBar({ active }: { active: SiteScreen }) {
   const t = useT()
   // O locale do SITE vem da URL desta visita (`SiteApp` sincroniza o store com o `<html lang>`
   // estático), não da preferência do aparelho — por isso ler o store aqui é ler a URL.

@@ -251,7 +251,7 @@ class ExerciseTranslationInline(admin.TabularInline):
 
     model = ExerciseTranslation
     extra = 1
-    fields = ("locale", "display_name", "muscle_group", "default_tip", "scene_tip")
+    fields = ("locale", "url_slug", "display_name", "muscle_group", "default_tip", "scene_tip")
 
 
 @admin.register(Exercise)
@@ -273,11 +273,23 @@ class ExerciseAdmin(admin.ModelAdmin):
         (
             None,
             {
-                "fields": ("slug", "display_name", "category", "muscle_group", "ordem", "enabled"),
+                "fields": (
+                    "slug",
+                    "url_slug",
+                    "display_name",
+                    "category",
+                    "muscle_group",
+                    "ordem",
+                    "enabled",
+                ),
                 "description": (
                     "O <b>slug</b> precisa existir no registro do servidor "
                     "(<code>EXERCISES</code>). Um exercício nasce em código — FSM e fixtures — e "
                     "só então ganha esta ficha; o formulário recusa o que a admissão recusaria."
+                    "<br><b>Slug da URL pública</b> é outra coisa: é o endereço da página que o "
+                    "Google indexa (<code>/exercicios/agachamento/</code>). Vazio usa o slug "
+                    "técnico. <b>Mudar depois de a página estar no ar troca o endereço</b> e "
+                    "zera o que ela acumulou na busca — mexa uma vez, no começo."
                 ),
             },
         ),

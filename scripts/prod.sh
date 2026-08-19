@@ -305,6 +305,35 @@ Copie um pose_landmarker_lite.task para $MODELO"
 }
 
 # --------------------------------------------------------------------------------------
+# Catalogo publico do site (T-165)
+# --------------------------------------------------------------------------------------
+
+# Escreve `web/src/site/exercicios.json` a partir do banco JA migrado, para o build do web
+# pre-renderizar as paginas por exercicio.
+#
+# Sai pela SAIDA PADRAO e nao direto no arquivo porque, em producao, o codigo esta DENTRO da
+# imagem — o repositorio do host nao esta montado no container, entao um `--out <caminho>` la
+# dentro escreveria num arquivo que ninguem le. `-T` desliga o TTY para a saida nao vir com
+# controle de terminal no meio do JSON.
+#
+# Grava em temporario e so entao move: um comando que falhe no meio nao pode deixar o arquivo
+# versionado truncado, que produziria um build verde com o site sem exercicio nenhum.
+exporta_catalogo_do_site() {
+  local destino="${RAIZ}/web/src/site/exercicios.json"
+  local temporario
+  temporario="$(mktemp)"
+
+  verde "==> catalogo do site (paginas por exercicio)"
+  if compose run --rm -T api python manage.py export_site_catalog --out - > "$temporario"; then
+    mv "$temporario" "$destino"
+  else
+    rm -f "$temporario"
+    vermelho "falhou ao exportar o catalogo do site; o build usaria o retrato anterior"
+    return 1
+  fi
+}
+
+# --------------------------------------------------------------------------------------
 # Comandos
 # --------------------------------------------------------------------------------------
 
@@ -313,13 +342,26 @@ cmd_up() {
   verifica_portas
   garante_modelo
 
-  verde "==> build (o web e reconstruido sempre: VITE_API_URL entra no bundle)"
-  compose build
+  # A ORDEM aqui mudou na T-165, e a razao e o catalogo do site.
+  #
+  # Antes era build de tudo -> migrate -> up. Agora o bundle do web depende de um dado que so
+  # existe DEPOIS da migration: as paginas publicas por exercicio (`/exercicios/agachamento/`)
+  # sao pre-renderizadas em tempo de build a partir de `web/src/site/exercicios.json`, e esse
+  # arquivo e um retrato do Postgres. Buildar o web antes de migrar publicaria o catalogo do
+  # deploy anterior — um exercicio novo ficaria sem pagina ate o proximo deploy, sem nada
+  # acusar. Por isso: api primeiro (e a imagem que migra e exporta), depois o resto.
+  verde "==> build da imagem do servidor"
+  compose build api
 
   # `run` respeita o `depends_on: service_healthy` do api, entao redis e postgres sobem e
   # ficam saudaveis antes da migration comecar — nao ha o que esperar na mao aqui.
   verde "==> migrations"
   compose run --rm api python manage.py migrate --noinput
+
+  exporta_catalogo_do_site
+
+  verde "==> build (o web e reconstruido sempre: VITE_API_URL entra no bundle)"
+  compose build
 
   verde "==> subindo tudo"
   compose up -d

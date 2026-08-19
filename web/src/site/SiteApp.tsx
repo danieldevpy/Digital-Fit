@@ -14,14 +14,33 @@
 import { useLocale } from '../i18n'
 import { AboutScreen } from './AboutScreen'
 import { AvisoDeIdioma } from './AvisoDeIdioma'
+import { exercicioPorSlug } from './exercicios'
+import { ExerciseScreen } from './ExerciseScreen'
 import { IndexScreen } from './IndexScreen'
 import { NotFoundScreen } from './NotFoundScreen'
-import type { SiteScreen } from './routes'
+import { slugDoExercicioNaRota, type SiteScreen } from './routes'
 
 export function SiteApp({ screen }: { screen: SiteScreen }) {
   const locale = useLocale()
 
-  if (screen === 'nao_encontrada') {
+  // Rota de exercício cujo slug não existe mais no catálogo cai na 404, e não numa tela em
+  // branco: o snapshot do build e a URL que alguém guardou podem discordar depois de um
+  // exercício ser despublicado (`site/exercicios.ts` — o preço declarado do pré-render).
+  const slugDoExercicio = slugDoExercicioNaRota(screen)
+  const exercicio = slugDoExercicio ? exercicioPorSlug(slugDoExercicio) : undefined
+
+  if (exercicio) {
+    return (
+      <div className="app">
+        <AvisoDeIdioma screen={screen} locale={locale} />
+        <div className="app__phone">
+          <ExerciseScreen exercicio={exercicio} />
+        </div>
+      </div>
+    )
+  }
+
+  if (screen === 'nao_encontrada' || slugDoExercicio) {
     return (
       <div className="app">
         <NotFoundScreen />

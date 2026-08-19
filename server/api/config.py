@@ -300,6 +300,7 @@ def _read_snapshot_from_db() -> dict[str, Any]:
         exercicios.append(
             {
                 "slug": ex.slug,
+                "url_slug": ex.url_slug,
                 "display_name": ex.display_name,
                 "category": ex.category,
                 "muscle_group": ex.muscle_group,
@@ -496,6 +497,13 @@ def _visivel_por_maturidade(maturidade: Any, *, min_maturity: str, is_admin: boo
 
 #: Campos de apresentação de `Exercise` que `ExerciseTranslation` sobrepõe. Espelha os campos
 #: da tabela de tradução (SPEC-025 §Tabela de tradução) — mudou um lado, muda o outro.
+#
+# `url_slug` (T-165) NÃO entra aqui, e a exceção tem motivo: o fallback dele é diferente do
+# destes quatro. Falta de tradução num campo de TEXTO cai na coluna base — mostrar o português
+# é melhor que mostrar vazio. Falta de tradução num ENDEREÇO não pode cair na coluna base, que
+# é o endereço português: `/en/exercises/polichinelo/` é pior que `/en/exercises/jumping_jack/`,
+# porque a URL inglesa passaria a carregar a palavra que ninguém digita em inglês. A regra dele
+# mora em `api/site_catalog.py`, onde pode ser escrita por extenso.
 _CAMPOS_TRADUZIVEIS_DO_EXERCICIO = ("display_name", "muscle_group", "default_tip", "scene_tip")
 
 

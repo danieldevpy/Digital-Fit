@@ -5,6 +5,138 @@
 
 ---
 
+## 2026-08-19 (87) · T-165 — As páginas por exercício, e o endereço que precisou virar coluna
+
+**O que a task entrega.** `/exercicios/agachamento/` e `/en/exercises/squat/`, doze páginas no
+lugar de quatro, montadas no build a partir do catálogo do Postgres. É a task que transforma a
+tradução já paga (T-146/T-152) em tráfego: ninguém procura "Digital Fit" — procuram "como fazer
+agachamento correto". O texto já estava escrito e só aparecia **depois de a câmera abrir**.
+
+### A decisão que o Daniel tomou, e a spec que estava errada
+
+A SPEC-026 §Eventos dizia que o pré-render leria o ORM "no build". **Não é executável**: o
+`web.Dockerfile` constrói num `node:22-alpine` sem Django e sem Postgres, e o `prod.sh up` roda
+build → migrate → start — na hora do build não há ORM nem API de pé. Três saídas foram
+apresentadas; o Daniel escolheu o **snapshot exportado**, e pediu a correção da spec junto.
+
+`manage.py export_site_catalog` escreve `web/src/site/exercicios.json` a partir de
+`config.exercises_for(None)` — o mesmo resolvedor do `GET /api/config` e da admissão, com
+solicitante **anônimo**, porque quem chega da busca é anônimo e a página existe para levá-lo a
+um exercício que ele consegue abrir. Virou **ADR-013**, e o §Eventos da spec foi reescrito.
+
+O que a exportação compra: build **hermético** (roda no CI e em clone novo, sem banco), conteúdo
+publicado **no diff** (dá para saber o que estava no ar em cada deploy), e banco fora do ar
+**congela** o conteúdo em vez de derrubar o build. O preço, declarado: exercício despublicado só
+some do site no próximo build.
+
+`scripts/prod.sh` mudou de ordem por causa disso: era build de tudo → migrate → up; agora é
+`build api` → migrate → **exporta** → build → up. Buildar o web antes de migrar publicaria o
+catálogo do deploy anterior, e um exercício novo ficaria sem página sem nada acusar.
+
+### O endereço virou coluna, e é a metade da task que quase se perdeu
+
+`/exercicios/squat/` desperdiça exatamente o sinal que motiva a página. Mas `Exercise.slug` é
+contrato — chave do registro do servidor, lida pelo cliente, pela admissão e pelo worker — e não
+pode servir aos dois papéis sem que mudar um quebre o outro. Entraram `Exercise.url_slug` e
+`ExerciseTranslation.url_slug`, vazias caindo no slug técnico, e a `0024` semeia as portuguesas.
+
+**Rejeitado: derivar o endereço do `display_name`.** Sairia de graça e trocaria a URL toda vez
+que alguém corrigisse o nome no painel. URL trocada é página perdida, e o operador não teria como
+saber que uma edição de texto custa o ranqueamento acumulado.
+
+### Três erros meus, e o que cada um ensinou
+
+**1. A migration violava uma invariante declarada da T-146.** A primeira versão criava linhas de
+`ExerciseTranslation` para semear o endereço inglês (`push-up`, `sit-up`). Quatro testes de
+`test_i18n_content.py` caíram, e um deles — `test_migration_nao_criou_traducao_nenhuma` — não é
+um teste de implementação: é a decisão da SPEC-025 de que **tradução é conteúdo de operador**,
+com teste em cima. A migration foi reescrita para tocar só a coluna base. O inglês continua
+vindo do painel, e o que falta ficou **visível**: `url_slug` entrou em `CAMPOS_EXERCICIO`, então
+`manage.py i18n_status` passou a listar quem está sem endereço em inglês.
+
+**2. O endereço inglês caía no endereço PORTUGUÊS.** Ao pôr `url_slug` no overlay genérico de
+tradução, o fallback dele virou o dos campos de texto — cai na coluna base. Para texto isso está
+certo (mostrar português é melhor que mostrar vazio); para **endereço** produz
+`/en/exercises/polichinelo/`, que é pior que o slug técnico, porque põe na URL inglesa a palavra
+que ninguém digita em inglês. `url_slug` saiu do overlay e ganhou regra própria em
+`site_catalog._endereco()`, escrita por extenso. Só apareceu porque eu conferi o JSON gerado com
+os olhos — nenhum teste que eu tinha escrito até ali olhava para o valor inglês.
+
+**3. `params` era um valor só, e punha "Agachamento" dentro da moldura inglesa.** Meia página em
+cada língua, que é o modo de falha que a SPEC-025 existe para não repetir. Virou
+`Record<Locale, params>`, e tem caso de teste próprio em `routes.test.ts`.
+
+### Duas mudanças estruturais no roteador
+
+**A identidade de uma rota deixou de ser uma tela.** Era `'index' | 'sobre'`; agora existe
+`'exercicio/squat'`, com o slug **técnico** depois da barra. Técnico e não o endereço público
+porque o endereço é traduzido: usá-lo como identidade daria duas identidades à mesma página, e o
+`hreflang` não teria como parear as duas. Manter o id como **string** foi deliberado —
+`metatags.ts`, `descoberta.ts`, `social.ts` e `shell/origins.ts` continuam recebendo uma rota e
+devolvendo URL, sem saber que existem rotas dinâmicas.
+
+**Página de exercício não tem entry próprio: clona.** Entry do Rollup precisa ser arquivo real em
+disco, e N páginas exigiriam N `index.html` idênticos versionados e gerados por script — lixo que
+envelhece. Cada rota declara um `molde` (`sobre`), e o pré-render copia o entry já construído do
+mesmo idioma, que o Vite preencheu com os `<script>` dos assets com hash. O script passou a ler
+**todos** os templates antes de escrever qualquer um: ler sob demanda faria a primeira página
+clonada herdar um arquivo já processado, com o `<title>` e o `canonical` de outra página, e o
+resultado continuaria sendo um HTML válido.
+
+### Os portões da T-166 pegaram a mudança de invariante
+
+Os dois testes que a T-166 escreveu ontem falharam na primeira execução desta task — pelo motivo
+certo: `ROTAS_INDEXAVEIS` passou a ter rota sem entry no build, e as rotas de exercício
+compartilham a mesma chave de dicionário de propósito. Nenhum dos dois foi afrouxado: o primeiro
+virou "toda rota **com entry próprio** tem HTML" **mais** "toda rota clonada aponta para um molde
+que tem entry"; o segundo virou "nenhuma rota **estática** reaproveita chave de outra" **mais**
+"cada rota de exercício traz o nome no idioma certo" — que é o caso que pegou o erro 3 acima.
+
+### As medições
+
+- **Gates**: `ruff check` + `ruff format --check` limpos, `pytest` verde, `npm run lint` e
+  `typecheck` sem saída, `npm run test` com **846 testes em 69 arquivos** (eram 836 em 68), e
+  `npm run build:local` gerando **12 páginas** + `sitemap.xml` + `robots.txt`.
+- **No navegador** (`vite preview` sobre o `dist/`): `/exercicios/agachamento/` renderiza nome,
+  músculos, dica, os três passos, a instrução de cena e o CTA `/app/#/guia/squat` — o slug
+  **técnico**, não o traduzido. Console limpo, sem erro de hidratação. O seletor de idioma leva a
+  `/en/exercises/squat/`, e os links "Outros exercícios" ficam dentro do site.
+- **Contra o nginx de produção** (imagem `nginx:1.27-alpine` com o `web-nginx.conf` real sobre o
+  `dist/`), que é o que decide o 404:
+
+  | URL | |
+  |---|---|
+  | `/exercicios/agachamento/` · `/en/exercises/squat/` | **200** |
+  | `/exercicios/squat/` (endereço inglês na pasta portuguesa) | **404** |
+  | `/en/exercises/agachamento/` | **404** |
+  | `/exercicios/levitacao/` | **404** |
+
+  Os dois 404 do meio são regra, não acaso: aceitar as duas grafias daria duas URLs ao mesmo
+  conteúdo, que é o que o `canonical` da T-160 existe para evitar. **Nota**: sob `vite preview`
+  esses mesmos caminhos devolvem **200 com a landing** — é o fallback de SPA do servidor de
+  desenvolvimento, exatamente o *soft 404* que a T-158 tirou do nginx. Medir a 404 no preview
+  daria o resultado errado.
+- **O portão do arquivo versionado morde**: mudei um endereço na migration sem reexportar, e
+  `pytest` acusou *"exercicios.json esta desatualizado em relacao ao banco"*.
+
+### Pendências — e uma delas precisa de decisão antes do deploy
+
+- **As páginas em inglês vão para o ar com o conteúdo em português.** Não há nenhuma
+  `ExerciseTranslation` no banco semeado, então o fallback honesto da T-146 assume e o título sai
+  *"How to do a Agachamento correctly"* — moldura inglesa, substantivo português, e concordância
+  errada de quebra. Não inventei tradução: conteúdo é do painel, e `manage.py i18n_status` lista
+  exatamente o que falta. **Mas publicar assim é pior que não publicar aquela metade**, e a saída
+  (não gerar a rota num idioma sem tradução) é decisão de produto — está nas Descobertas.
+- `flexao` e `jumping_jack` têm slug técnico português, então o endereço inglês deles cai em
+  `/en/exercises/flexao/` até alguém preencher `push-up` e `jumping-jack` no painel.
+- **T-164**: conferir o card num WhatsApp real depois do deploy.
+- **T-155** (Fase 7) segue aberta, e agora tem doze páginas para revisar em vez de quatro.
+- A SPEC-026 segue em **`draft`**, agora com o §Eventos corrigido e o §Escopo declarando a coluna
+  de endereço. Com a T-166 e a T-165 fechadas, a Fase 8 está inteira — falta a revisão que a
+  passa a `approved`.
+
+---
+
 ## 2026-08-19 (86) · T-166 — Os portões: cinco mutações, cinco vermelhos
 
 **O que a Onda 2 tinha, e o que ela não tinha.** Quatro tasks entregaram `canonical`,

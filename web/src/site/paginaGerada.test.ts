@@ -69,7 +69,10 @@ interface Gerada {
 /** As páginas como o build as escreveria — mesmo render, mesma injeção, mesma origem exigida. */
 const GERADAS: readonly Gerada[] = renderizarPaginas().map((pagina) => ({
   pagina,
-  html: montarPagina(templateDe(pagina.caminho), pagina, ORIGEM),
+  // `moldeCaminho ?? caminho`: página de exercício não tem entry próprio e clona o de `sobre`
+  // (T-165) — a mesma escolha que o `scripts/prerender.mjs` faz, e é ela que este teste precisa
+  // repetir para estar olhando o HTML que vai realmente para o ar.
+  html: montarPagina(templateDe(pagina.moldeCaminho ?? pagina.caminho), pagina, ORIGEM),
 }))
 
 function canonicalDe(html: string): string[] {

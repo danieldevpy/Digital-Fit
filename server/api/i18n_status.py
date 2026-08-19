@@ -45,7 +45,13 @@ LOCALES_TRADUZIVEIS: tuple[str, ...] = tuple(
 )
 
 #: Espelha `config._CAMPOS_TRADUZIVEIS_DO_EXERCICIO` e os campos de `ExerciseTranslation`.
-CAMPOS_EXERCICIO: tuple[str, ...] = ("display_name", "muscle_group", "default_tip", "scene_tip")
+CAMPOS_EXERCICIO: tuple[str, ...] = (
+    "display_name",
+    "muscle_group",
+    "default_tip",
+    "scene_tip",
+    "url_slug",
+)
 
 #: Espelha os campos de `PlanTranslation`.
 CAMPOS_PLANO: tuple[str, ...] = ("nome", "quota_message")

@@ -7,6 +7,11 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "types": ["vite/client"],
+    // O catálogo público do site (`src/site/exercicios.json`) é gerado pelo
+    // `manage.py export_site_catalog` e consumido como MÓDULO pelo roteador e pelo pré-render
+    // (T-165). Importá-lo em vez de lê-lo em runtime é o que permite o `tsc` cobrar a forma e o
+    // build ser hermético — sem banco, sem rede.
+    "resolveJsonModule": true,
 
     "strict": true,
     "noUnusedLocals": true,

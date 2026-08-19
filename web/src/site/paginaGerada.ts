@@ -33,6 +33,15 @@ import { jsonLd, tagsSociais } from './social'
 export interface PaginaPrerenderizada {
   /** Caminho relativo à raiz do site — o mesmo que nomeia o arquivo no `dist/`. */
   caminho: string
+  /**
+   * O caminho do entry a CLONAR, quando esta página não tem HTML próprio no build (T-165).
+   *
+   * `null` = tem o seu. As páginas de exercício não têm: entry do Rollup precisa ser arquivo
+   * real em disco, e N páginas exigiriam N `index.html` idênticos versionados. Elas clonam o
+   * entry de `sobre` do mesmo idioma, que o Vite já preencheu com os `<script>` dos assets com
+   * hash — então nascem com o mesmo bundle e o mesmo CSS, sem nenhum arquivo a mais no repo.
+   */
+  moldeCaminho: string | null
   locale: Locale
   html: string
   titulo: string

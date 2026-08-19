@@ -126,13 +126,24 @@ o app não é rastreado por ninguém.
   Não é só defesa: é a decisão certa de produto pelos dois lados. Número e vocabulário de
   contrato não deveriam ser traduzidos por máquina de qualquer forma.
 
-- **Páginas públicas por exercício.** `/exercicios/<slug>/` e `/en/exercises/<slug>/`, montadas
-  no pré-render a partir de `Exercise` + `ExerciseGuideStep` + `Translation` (SPEC-020,
+- **Páginas públicas por exercício.** `/exercicios/agachamento/` e `/en/exercises/squat/`,
+  montadas no pré-render a partir de `Exercise` + `ExerciseGuideStep` + `Translation` (SPEC-020,
   SPEC-025 §3.6). Cada uma linka o app com o exercício já escolhido. Exercício despublicado sai
   do sitemap junto.
 
   É a única parte desta spec que gera tráfego de verdade: ninguém procura "Digital Fit". O
   insumo já está escrito e já é multilíngue — hoje só é visível depois de a câmera abrir.
+
+  **O endereço é traduzido, e por isso é uma coluna** (`Exercise.url_slug` +
+  `ExerciseTranslation.url_slug`, T-165). O `slug` de `Exercise` é a chave do registro do
+  servidor — contrato entre cliente, admissão e worker, em inglês porque o código é —, e
+  `/exercicios/squat/` desperdiçaria justamente o sinal de busca que motiva a página. Vazio cai
+  no slug técnico, então a coluna nasce sem migração de dado e sem página quebrada.
+
+  **Rejeitado — derivar o endereço do `display_name`.** Sairia de graça e trocaria a URL toda
+  vez que alguém corrigisse o nome no painel; URL trocada é página perdida, e o operador não tem
+  como saber que uma edição de texto custa o ranqueamento acumulado. Endereço é estrutura: muda
+  uma vez, no começo, e por decisão explícita.
 
 - **O `/app/` continua `noindex`, e nada aqui o toca** além do `translate="no"`. Quem chega pela
   busca deve cair no site, que explica o produto antes de pedir a câmera.
@@ -200,9 +211,29 @@ A descoberta acontece inteiramente **antes** de existir sessão: quem lê a land
 abriu a câmera, não tem ticket e não produziu keypoint nenhum. Nada aqui é fato do domínio de
 treino, então nada aqui pertence ao fio de eventos — `PROTOCOL_VERSION` não se move.
 
-A única leitura de dado do domínio é o pré-render das páginas por exercício, e ela é feita
-**no build**, contra o ORM, pelo mesmo caminho que o painel já usa. Nenhum worker é envolvido, e
-a regra da SPEC-018 continua intacta: workers não leem banco.
+A única leitura de dado do domínio é o pré-render das páginas por exercício, e ela acontece por
+um **snapshot exportado antes do build** — não pelo build lendo o ORM, como esta seção dizia até
+a T-165.
+
+**A correção, e por que a redação original não era executável.** O `docker/web.Dockerfile`
+constrói o bundle num `node:22-alpine` sem Django e sem Postgres, e o `scripts/prod.sh up`
+roda build → migrate → start: na hora do build não há ORM para consultar nem API de pé para
+perguntar. O que existe é um passo a mais, e ele é o desenho: `manage.py export_site_catalog`
+escreve `web/src/site/exercicios.json` a partir de `config.exercises_for(None)` — o mesmo
+resolvedor do `GET /api/config` e da admissão, com solicitante anônimo — e o build consome o
+arquivo. Registrado como **ADR-013**.
+
+Três coisas que a exportação compra e que a leitura direta não daria: o build continua
+**hermético** (roda no CI e em clone novo, sem banco); o conteúdo publicado fica **no diff**,
+então dá para saber o que estava no ar em cada deploy; e banco fora do ar **congela** o conteúdo
+em vez de derrubar o build.
+
+O preço, declarado: exercício despublicado só some do site no **próximo build**. É a natureza do
+pré-render, não desta escolha — a página é um arquivo, e arquivo não consulta banco. Quem entra
+continua sendo decidido num lugar só (`exercises_for`), então "some do app" e "some do site" são
+a mesma edição, com um deploy de atraso.
+
+Nenhum worker é envolvido, e a regra da SPEC-018 continua intacta: workers não leem banco.
 
 ## Notas técnicas
 

@@ -5,7 +5,10 @@
       "name": "web",
       "cwd": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
     },
     {
@@ -26,6 +29,16 @@
         "8010"
       ],
       "port": 8010
+    },
+    {
+      "name": "site-build",
+      "cwd": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "preview"
+      ],
+      "port": 4173
     }
   ]
 }

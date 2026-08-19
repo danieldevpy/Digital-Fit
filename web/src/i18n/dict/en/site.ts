@@ -10,6 +10,11 @@ export const site: Site = {
   'meta.about.title': 'About Digital Fit — computer vision for better training',
   'meta.about.description':
     'Privacy first, workouts for every level, and constant evolution: what Digital Fit is and how it reads your movement.',
+  // Página por exercício (T-165). Não é tradução literal do português: em inglês a busca real é
+  // "how to do X properly" / "X form", e o título precisa bater com a frase que a pessoa digita.
+  'meta.exercise.title': 'How to do a {nome} correctly — Digital Fit',
+  'meta.exercise.description':
+    'Learn proper {nome} form step by step, then train with your phone camera counting your reps and correcting your posture in real time.',
   'meta.not_found.title': 'Page not found — Digital Fit',
   'meta.not_found.description': 'The address you asked for does not exist on Digital Fit.',
 
@@ -22,6 +27,20 @@ export const site: Site = {
   'not_found.title': 'This page does not exist',
   'not_found.text': 'The address you opened is not live. The link may be an old one.',
   'not_found.home': 'Go to the home page',
+
+  'exercise.muscles': 'Muscles worked',
+  'exercise.how_to': 'How to do it',
+  'exercise.step': 'Step {n}',
+  'exercise.coach_tip': 'Coach tip',
+  'exercise.scene_tip': 'Where to put your phone',
+  'exercise.scene_tip_default':
+    'Standing up, phone upright, about 2 meters away, with your whole body in frame.',
+  'exercise.cta': 'Train {nome} now',
+  'exercise.cta_note': 'Free, right in your browser — nothing to install.',
+  'exercise.others': 'Other exercises',
+  'exercise.how_it_works_title': 'How Digital Fit counts and corrects',
+  'exercise.how_it_works_text':
+    'Your phone camera tracks 33 points on your body and Digital Fit reads the movement from them — the video never leaves your device and is never recorded.',
 
   'nav.enter': 'Log in',
 

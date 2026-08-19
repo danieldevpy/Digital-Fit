@@ -283,6 +283,7 @@ def test_traduzir_tudo_faz_o_exercicio_sumir_do_relatorio() -> None:
         display_name="Squat",
         muscle_group="Legs and glutes",
         default_tip="Sit back, chest up.",
+        url_slug="squat",
         # scene_tip fica em branco na base e na tradução — não é buraco.
     )
     for passo in exercicio.guide_steps.all():
@@ -298,6 +299,7 @@ def test_traduzir_so_os_campos_do_exercicio_ainda_deixa_os_passos_no_relatorio()
     ExerciseTranslation.objects.create(
         exercise=exercicio,
         locale="en",
+        url_slug="squat",
         display_name="Squat",
         muscle_group="Legs and glutes",
         default_tip="Sit back, chest up.",
@@ -359,6 +361,9 @@ def test_relatorio_vazio_quando_tudo_traduzido() -> None:
             muscle_group=exercicio.muscle_group and f"{exercicio.muscle_group} EN",
             default_tip=exercicio.default_tip and f"{exercicio.default_tip} EN",
             scene_tip=exercicio.scene_tip and f"{exercicio.scene_tip} EN",
+            # T-165: o endereço público da página também é campo traduzível — sem ele o
+            # exercício continua (corretamente) no relatório, por faltar URL em inglês.
+            url_slug=exercicio.url_slug and f"{exercicio.url_slug}-en",
         )
         for passo in exercicio.guide_steps.all():
             ExerciseGuideStepTranslation.objects.create(
@@ -392,6 +397,9 @@ def test_comando_sem_buraco_imprime_sucesso() -> None:
         exercicio.muscle_group = ""
         exercicio.default_tip = ""
         exercicio.scene_tip = ""
+        # `url_slug` entrou na lista na T-165 (o endereço da página pública) e a migration o
+        # semeou em pt-BR — zerar aqui mantém o teste falando do que ele quis falar.
+        exercicio.url_slug = ""
         exercicio.save()
         for passo in exercicio.guide_steps.all():
             ExerciseGuideStepTranslation.objects.create(guide_step=passo, locale="en", texto="x")

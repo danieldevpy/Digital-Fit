@@ -22,7 +22,7 @@
 // fronteira existe porque o modo de falha desta frente é o silêncio: o `hreflang` escrito à mão
 // pela T-147 ficou inerte por meses sem nada acusar, e o que só o build sabe fazer é o que
 // ninguém consegue testar.
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -51,9 +51,21 @@ async function main() {
   const origem = exigirOrigem(ORIGEM_BRUTA)
   const paginas = renderizarPaginas()
 
+  // Os HTML de entrada, lidos ANTES de qualquer escrita.
+  //
+  // A ordem importa desde a T-165: as páginas de exercício não têm entry próprio e clonam o de
+  // `sobre` (`pagina.moldeCaminho`). Ler sob demanda faria a primeira delas herdar um arquivo
+  // já processado — com o `<title>`, o `canonical` e o Open Graph de OUTRA página, e sem nada
+  // acusar, porque o resultado continua sendo um HTML válido. Ler tudo primeiro torna o passo
+  // idempotente: a entrada é sempre o artefato cru do Vite.
+  const templates = new Map()
+  for (const caminho of new Set(paginas.map((p) => p.moldeCaminho ?? p.caminho))) {
+    templates.set(caminho, await readFile(join(DIST, caminho, 'index.html'), 'utf8'))
+  }
+
   for (const pagina of paginas) {
     const arquivo = join(DIST, pagina.caminho, 'index.html')
-    const template = await readFile(arquivo, 'utf8')
+    const template = templates.get(pagina.moldeCaminho ?? pagina.caminho)
 
     // Toda a decisão está aqui dentro, e é testada sem build (`src/site/paginaGerada.test.ts`):
     // conteúdo no `<body>`, título e descrição do dicionário, `canonical`/`hreflang`/`x-default`
@@ -66,8 +78,12 @@ async function main() {
       throw new Error(`${arquivo}: ${erro.message}`, { cause: erro })
     }
 
+    // A pasta pode não existir: página clonada é página que o Vite nunca escreveu.
+    if (pagina.moldeCaminho !== null) await mkdir(dirname(arquivo), { recursive: true })
+
     await writeFile(arquivo, html)
-    console.log(`[prerender] /${pagina.caminho} (${pagina.locale}) — ${pagina.html.length} B`)
+    const marca = pagina.moldeCaminho === null ? '' : ' (clonada)'
+    console.log(`[prerender] /${pagina.caminho} (${pagina.locale})${marca} — ${pagina.html.length} B`)
   }
 
   // `sitemap.xml` e `robots.txt` (T-163) — a quarta e última saída da tabela de rotas. Saem

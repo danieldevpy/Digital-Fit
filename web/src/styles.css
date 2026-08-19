@@ -4752,3 +4752,84 @@ a {
   border: 0;
   cursor: pointer;
 }
+
+/* ---------- página pública de exercício (T-165, SPEC-026) ----------
+
+   Reaproveita a casca de `.about` (mesma coluna, mesma rolagem, mesmo respiro) porque é a mesma
+   natureza de tela: conteúdo institucional lido de cima para baixo, não superfície de treino.
+   O que muda é a ordem da leitura — quem chega aqui veio da busca com uma dúvida de execução, e
+   a dúvida é respondida antes de o produto ser oferecido. */
+.exercicio__nome {
+  font-size: 1.5rem;
+}
+
+.exercicio__demo {
+  width: 100%;
+  max-width: 320px;
+  margin: 14px auto 0;
+  border-radius: 14px;
+  border: 1px solid var(--surface-border);
+  object-fit: cover;
+}
+
+.exercicio__dica {
+  margin-top: 16px;
+  text-align: left;
+}
+
+.exercicio__bloco {
+  margin-top: 20px;
+  text-align: left;
+}
+
+.exercicio__passos {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.exercicio__passo {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #d9dce6;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* O número é decorativo — a ordem já está na semântica do `<ol>`, e um leitor de tela que
+   anuncie "1" duas vezes lê pior que um que anuncie uma. Daí o `aria-hidden` no JSX. */
+.exercicio__passo-num {
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.18);
+  border: 1px solid rgba(139, 92, 246, 0.55);
+  color: var(--text);
+  font: 700 0.75rem var(--font-num, var(--font-ui));
+  text-align: center;
+  line-height: 20px;
+}
+
+.exercicio__cena {
+  margin-top: 6px;
+  text-align: left;
+}
+
+.exercicio__cta {
+  margin-top: 22px;
+}
+
+.exercicio__cta-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.exercicio__cta-nota {
+  margin: 8px 0 0;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+}

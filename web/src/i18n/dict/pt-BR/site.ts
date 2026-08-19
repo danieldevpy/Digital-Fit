@@ -15,6 +15,16 @@ export const site = {
   'meta.about.title': 'Sobre o Digital Fit — visão computacional para treinar melhor',
   'meta.about.description':
     'Privacidade em primeiro lugar, treinos para todos os níveis e evolução constante: o que o Digital Fit é e como ele analisa seu movimento.',
+  // Página pública por exercício (T-165). Título e descrição são TEMPLATE: a moldura é curada e
+  // vive aqui, cobrada pelo `tsc` nas duas línguas; o `{nome}` vem do banco, pelo
+  // `export_site_catalog`. É a distinção curado × traduzido da SPEC-026 numa linha só.
+  //
+  // A forma do título é deliberada: a palavra que a pessoa digita vem primeiro ("Agachamento:
+  // como fazer..."), porque é o começo do título que aparece no resultado da busca e é ele que
+  // decide o clique. A marca fica no fim, onde ainda identifica sem roubar espaço.
+  'meta.exercise.title': '{nome}: como fazer corretamente — Digital Fit',
+  'meta.exercise.description':
+    'Aprenda a execução correta de {nome} passo a passo e treine com a câmera do celular contando suas repetições e corrigindo sua postura em tempo real.',
   'meta.not_found.title': 'Página não encontrada — Digital Fit',
   'meta.not_found.description': 'O endereço pedido não existe no Digital Fit.',
 
@@ -33,6 +43,21 @@ export const site = {
   'not_found.title': 'Esta página não existe',
   'not_found.text': 'O endereço que você abriu não está no ar. Talvez o link esteja velho.',
   'not_found.home': 'Ir para o início',
+
+  // A tela da página de exercício (T-165).
+  'exercise.muscles': 'Músculos trabalhados',
+  'exercise.how_to': 'Como fazer',
+  'exercise.step': 'Passo {n}',
+  'exercise.coach_tip': 'Dica do treinador',
+  'exercise.scene_tip': 'Como posicionar o celular',
+  'exercise.scene_tip_default':
+    'Em pé, celular na vertical, a uns 2 metros de distância, corpo inteiro no quadro.',
+  'exercise.cta': 'Treinar {nome} agora',
+  'exercise.cta_note': 'Grátis, direto no navegador — sem instalar nada.',
+  'exercise.others': 'Outros exercícios',
+  'exercise.how_it_works_title': 'Como o Digital Fit conta e corrige',
+  'exercise.how_it_works_text':
+    'A câmera do seu celular acompanha 33 pontos do seu corpo e o Digital Fit lê o movimento a partir deles — o vídeo não sai do aparelho e não é gravado.',
 
   'nav.enter': 'Entrar',
 
