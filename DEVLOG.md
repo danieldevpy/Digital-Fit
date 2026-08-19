@@ -5,6 +5,78 @@
 
 ---
 
+## 2026-08-18 (82) · T-160 — O `hreflang` passa a existir, e o `x-default` responde a pergunta da frente
+
+**O que foi feito.** `src/site/metatags.ts` (puro, testado), os `<link>` gerados e injetados pelo
+pré-render, os `hreflang` relativos escritos à mão apagados dos quatro HTML, e a origem pública
+do site virando requisito de build — com `VITE_SITE_ORIGIN` derivada no `prod.sh`, exigida no
+`compose` e documentada no `DEPLOY.md`.
+
+**O bug que fecha aqui.** A T-147 escreveu `hreflang` à mão, com `href="/"` e `href="/en/"`. A
+especificação exige URL absoluta com esquema e host; relativa é ignorada — sem aviso, sem erro,
+sem nada em log. O par pt/en que a Onda 2 da i18n entregou **nunca existiu para o Google**. É o
+achado que abriu a Fase 8, e desta task em diante ele não pode voltar: os links são gerados da
+tabela de rotas, e o teste reprova qualquer `href` que não comece com o esquema.
+
+**E o `x-default` é a resposta para a pergunta que motivou a frente.** *"E quem não é nem pt nem
+en?"* — o francês que busca em francês. Ele aponta para `/en/` pelo mesmo motivo que
+`DEFAULT_LOCALE` é `'en'` em `i18n/locale.ts`: é a resposta certa para "não sei quem é você". As
+duas pontas dizem a mesma coisa de propósito, e há um caso de teste que cai se alguém mudar uma
+sem a outra.
+
+### As decisões
+
+**`VITE_SITE_ORIGIN`, e não `VITE_SITE_URL` — divergindo da redação da task, com a linha do
+BACKLOG corrigida.** As duas parecem a mesma coisa e não são. `VITE_SITE_URL` responde *"qual a
+base para um link de um bundle para o outro"* e é **vazia** no deploy de domínio único, porque
+ali o site mora em `/` e o relativo basta (`scripts/prod.sh` só a preenche no modo subdomínio).
+`canonical` e `hreflang` fazem outra pergunta — *"em que origem pública esta página vai ser
+servida"* — e essa tem resposta nos dois modos. Reaproveitar a primeira deixaria o deploy de
+domínio único, que é o de hoje, sem anotação nenhuma.
+
+**Exigir em vez de deduzir.** A T-159 emitia `canonical` só quando conhecia a origem e o omitia
+calado quando não. Omitir é melhor que escrever relativo, mas continua sendo página sem anotação
+indo para produção sem ninguém ver — e silêncio é exatamente como o `hreflang` da T-147
+sobreviveu meses. Agora o build **para**, com uma frase que diz o que fazer.
+
+**`build` estrito e `build:local` separados.** O estrito é o do deploy (é o que o Dockerfile
+roda) e falha sem a variável. O `build:local` existe para conferir o artefato na máquina sem
+inventar uma origem de produção: ele usa `http://localhost:4173`, e a origem de mentira fica
+visível no HTML gerado, deixando claro que aquele build não é para servir. A alternativa — um
+default silencioso — traria de volta exatamente o modo de falha que a task inteira combate.
+
+**Cada idioma aponta para si mesmo também.** Auto-referência é exigência do formato e o erro mais
+comum de quem escreve `hreflang` à mão. Tem caso de teste próprio.
+
+### O portão da T-154 pegou uma frase minha
+
+`npm run test` reprovou com uma frase em português viva em `metatags.ts`. Ela estava dentro de um
+`throw new Error(...)`, que é contexto isento — mas o portão olha os **120 caracteres anteriores**
+ao literal, e a mensagem estava quebrada em três literais concatenados: o terceiro caía fora da
+janela. O portão estava certo e a forma da mensagem é que estava errada; virou uma interpolação
+só. Registro porque é a segunda vez que um portão desta casa se paga numa task que não é a dele.
+
+### As medições
+
+- **Unitário** (`site/metatags.test.ts`, 11 casos): todo `href` gerado começa com o esquema, em
+  todas as rotas × idiomas; o par é recíproco e inclui a auto-referência; o `canonical` muda com
+  o idioma da página; o `x-default` aponta para o inglês; `exigirOrigem` recusa `undefined`,
+  `''`, `/`, host sem esquema e origem com caminho.
+- **No artefato de deploy real** (`docker build` com
+  `VITE_SITE_ORIGIN=https://pratice.magmacursosltda.com.br`): as quatro páginas com `canonical`
+  próprio e os três `alternate` absolutos. `/sobre/` e `/en/about/` apontam uma para a outra, e o
+  `x-default` de cada uma vai para a versão inglesa **daquela rota** — não para a home.
+- **O caminho negativo**: `docker build` sem o `--build-arg` morre no pré-render com
+  `VITE_SITE_ORIGIN inválida`.
+- **Gates**: `ruff check` e `ruff format --check` limpos, `pytest` verde, `npm run lint` e
+  `typecheck` sem saída, `npm run test` com **719 testes em 64 arquivos**.
+
+### Pendências
+
+- `robots.txt` e `sitemap.xml` (T-163) continuam sem existir — e o `sitemap` sairá da mesma
+  tabela de rotas e da mesma `urlAbsoluta()` desta task.
+- A SPEC-026 segue em **`draft`**.
+
 ## 2026-08-18 (81) · T-159 — O HTML passa a chegar pronto, e dois bugs mudos apareceram no caminho
 
 **O que foi feito.** `src/entries/prerender.tsx` (a árvore montada em Node), `vite.ssr.config.ts`

@@ -25,7 +25,13 @@ import { t } from '../i18n'
 import { LOCALES, type Locale } from '../i18n/locale'
 import { useI18nStore } from '../i18n/store'
 import { SiteApp } from '../site/SiteApp'
-import { caminhoDaRota, ROTAS_INDEXAVEIS } from '../site/routes'
+import { caminhoDaRota, ROTAS_INDEXAVEIS, type SiteScreen } from '../site/routes'
+
+// Reexportadas para o `scripts/prerender.mjs`: as funções são puras e testadas em
+// `site/metatags.test.ts`; quem conhece o ambiente (a variável de build com a origem) é o
+// script, não o bundle. A fronteira é a mesma de sempre neste projeto — decisão no código
+// testável, leitura do mundo na borda.
+export { exigirOrigem, linksDeCabecalho } from '../site/metatags'
 
 export interface PaginaPrerenderizada {
   /** Caminho relativo à raiz do site — o mesmo que nomeia o arquivo no `dist/`. */
@@ -34,6 +40,7 @@ export interface PaginaPrerenderizada {
   html: string
   titulo: string
   descricao: string
+  screen: SiteScreen
 }
 
 /**
@@ -61,6 +68,7 @@ export function renderizarPaginas(): PaginaPrerenderizada[] {
         html: renderToString(<SiteApp screen={rota.screen} />),
         titulo: t(rota.titulo),
         descricao: t(rota.descricao),
+        screen: rota.screen,
       })
     }
   }

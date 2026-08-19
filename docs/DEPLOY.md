@@ -69,8 +69,17 @@ O `DOMAIN` é a única fonte de verdade. O script deriva dele:
 | `GATEWAY_WS_URL` | `wss://<DOMAIN>` |
 | `DJANGO_ALLOWED_HOSTS` | `<DOMAIN>` |
 | `CORS_ALLOWED_ORIGINS` | `https://<DOMAIN>` |
+| `VITE_SITE_ORIGIN` | `https://<SITE_DOMAIN ou DOMAIN>` |
 
-Quatro variáveis derivadas de uma. Mantidas à mão, elas divergem em silêncio — e um cliente
+A última é a origem pública do site, e ela alimenta o `canonical` e o `hreflang` que o
+pré-render escreve em cada página (T-160, SPEC-026). **Não confunda com `VITE_SITE_URL`**: aquela
+é a base dos links de um bundle para o outro e fica *vazia* no deploy de domínio único, porque
+ali o site mora em `/` e o caminho relativo basta. Esta responde outra pergunta — "em que origem
+esta página vai ser servida" — e tem resposta nos dois modos. Sem ela o build **para**: `hreflang`
+relativo é ignorado em silêncio pelo Google, e foi assim que o par pt/en escrito na T-147
+sobreviveu meses sem existir.
+
+Cinco variáveis derivadas de uma. Mantidas à mão, elas divergem em silêncio — e um cliente
 falando com um host enquanto o WebSocket fala com outro é um bug que só aparece no celular,
 longe do log.
 

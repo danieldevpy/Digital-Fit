@@ -237,6 +237,9 @@ services:
         # Fronteira SITE|APP (T-067). Vazias num dominio so: o cliente usa `/` e `/app/`.
         VITE_SITE_URL: ${VITE_SITE_URL:-}
         VITE_APP_URL: ${VITE_APP_URL:-}
+        # Origem publica do site, para `canonical`/`hreflang` (T-160). Obrigatoria e derivada do
+        # DOMAIN (ou do SITE_DOMAIN) pelo prod.sh — nunca preenchida a mao.
+        VITE_SITE_ORIGIN: ${VITE_SITE_ORIGIN:?derivado do DOMAIN — use ./scripts/prod.sh em vez de docker compose direto}
     ports:
       - "${BIND_ADDR:-127.0.0.1}:${WEB_PORT:-8080}:80"
     restart: unless-stopped

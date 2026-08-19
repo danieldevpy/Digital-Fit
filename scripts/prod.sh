@@ -159,6 +159,12 @@ carrega_ambiente() {
   # `Host` — falha que aparece como "sem conexao" no celular, sem pista do motivo.
   export VITE_SITE_URL="" VITE_APP_URL=""
 
+  # A origem publica do SITE, sempre absoluta (T-160). Diferente da VITE_SITE_URL acima: aquela
+  # e a base dos links entre bundles e fica vazia quando o site mora em `/`; esta responde
+  # "em que origem a pagina vai ser servida", que e o que `canonical` e `hreflang` exigem, e
+  # existe nos dois modos de deploy. Derivada, nunca preenchida a mao.
+  export VITE_SITE_ORIGIN="https://${SITE_DOMAIN:-$DOMAIN}"
+
   if [[ -n "${SITE_DOMAIN:-}" || -n "${APP_DOMAIN:-}" ]]; then
     local site_host="${SITE_DOMAIN:-$DOMAIN}"
     local app_host="${APP_DOMAIN:-$DOMAIN}"

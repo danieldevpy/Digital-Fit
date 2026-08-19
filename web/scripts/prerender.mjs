@@ -27,19 +27,18 @@ const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DIST = join(RAIZ, 'dist')
 
 /**
- * A origem absoluta do site, quando o build sabe qual é.
+ * A origem pública do site (T-160). **`VITE_SITE_ORIGIN`, e não `VITE_SITE_URL`.**
  *
- * `canonical` só existe em URL absoluta — é a regra do formato, não preferência. O deploy em
- * subdomínio passa `VITE_SITE_URL` (ver `docker/web.Dockerfile`); o deploy em domínio único
- * não passa nada, porque o site mora em `/` e o bundle não tem como descobrir o host sozinho.
- * Nesse caso o `canonical` é OMITIDO, e omitir é melhor que escrever um relativo que o
- * buscador ignora em silêncio — que é exatamente o bug do `hreflang` da T-147.
+ * As duas parecem a mesma coisa e não são. `VITE_SITE_URL` responde "qual a base para um link
+ * de um bundle para o outro" e é VAZIA no deploy de domínio único, porque ali o site mora em
+ * `/` e o caminho relativo basta. `canonical` e `hreflang` fazem outra pergunta — "em que
+ * origem pública esta página vai ser servida" —, e essa tem resposta nos dois deploys.
+ * Reaproveitar a primeira deixaria metade dos deploys sem anotação nenhuma.
  *
- * **A T-160 fecha isto**: ela precisa de origem absoluta para o `hreflang` e o `x-default`, e
- * quando a tiver como requisito de build, o `canonical` deixa de ser condicional.
+ * Sem ela o build **para**, com uma frase que diz o que fazer. A T-159 omitia em silêncio
+ * quando não sabia; silêncio é exatamente como o `hreflang` relativo da T-147 sobreviveu meses.
  */
-const ORIGEM = (process.env.VITE_SITE_URL ?? '').trim().replace(/\/$/, '')
-const TEM_ORIGEM = /^https?:\/\//.test(ORIGEM)
+const ORIGEM_BRUTA = process.env.VITE_SITE_ORIGIN
 
 /** `String.replace` com string crua interpreta `$&`, `$1`... — o HTML renderizado tem `$`. */
 function trocar(fonte, procura, valor) {
@@ -55,7 +54,11 @@ function escapar(texto) {
 }
 
 async function main() {
-  const { renderizarPaginas } = await import(join(RAIZ, 'dist-ssr', 'prerender.js'))
+  const { renderizarPaginas, linksDeCabecalho, exigirOrigem } = await import(
+    join(RAIZ, 'dist-ssr', 'prerender.js')
+  )
+
+  const origem = exigirOrigem(ORIGEM_BRUTA)
   const paginas = renderizarPaginas()
 
   for (const pagina of paginas) {
@@ -84,17 +87,25 @@ async function main() {
       `<meta name="description" content="${escapar(pagina.descricao)}" />`,
     )
 
-    // 3. `canonical`, quando o build conhece a origem (ver `ORIGEM` acima).
-    if (TEM_ORIGEM) {
-      const url = `${ORIGEM}/${pagina.caminho}`
-      html = trocar(html, '</head>', `  <link rel="canonical" href="${url}" />\n  </head>`)
-    }
+    // 3. `canonical` + `alternate` recíprocos + `x-default` — gerados da tabela de rotas
+    //    (`src/site/metatags.ts`, puro e testado), nunca escritos à mão em cada HTML. Foi o
+    //    "à mão" que produziu o `hreflang` relativo e inerte da T-147.
+    const links = linksDeCabecalho(origem, pagina.screen, pagina.locale)
+    html = trocar(html, '  </head>', `${links}\n  </head>`)
 
     // O invariante que teria pego o bug acima na hora. Injeção em HTML por expressão regular
     // é frágil por natureza; o preço de usá-la é conferir, a cada arquivo, que a moldura
     // continua de pé. Falhar o build é o comportamento certo: um `<html>` comido não aparece
     // como erro em lugar nenhum — aparece como a página na língua errada, semanas depois.
-    for (const exigido of ['<html lang="', '<head>', '</head>', `<title>${escapar(pagina.titulo)}</title>`]) {
+    const exigidos = [
+      '<html lang="',
+      '<head>',
+      '</head>',
+      `<title>${escapar(pagina.titulo)}</title>`,
+      `<link rel="canonical" href="${origem}/${pagina.caminho}" />`,
+      'hreflang="x-default"',
+    ]
+    for (const exigido of exigidos) {
       if (!html.includes(exigido)) {
         throw new Error(`${arquivo}: a injeção destruiu a estrutura — faltou \`${exigido}\``)
       }
@@ -104,10 +115,7 @@ async function main() {
     console.log(`[prerender] /${pagina.caminho} (${pagina.locale}) — ${pagina.html.length} B`)
   }
 
-  if (!TEM_ORIGEM) {
-    console.log('[prerender] sem VITE_SITE_URL absoluta: `canonical` omitido (T-160 fecha isto)')
-  }
-  console.log(`[prerender] ${paginas.length} páginas`)
+  console.log(`[prerender] ${paginas.length} páginas em ${origem}`)
 }
 
 await main()

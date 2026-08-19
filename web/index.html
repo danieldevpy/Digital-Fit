@@ -13,16 +13,6 @@
       name="description"
       content="O Digital Fit usa visão computacional para analisar seus movimentos em tempo real, contar repetições e corrigir sua execução."
     />
-    <!-- Site por URL, não por preferência (SPEC-025 §Escopo — Site por URL; T-147): `/` é a
-         versão pt-BR, `/en/` é a versão en, e cada uma aponta a outra por `hreflang`
-         recíproco — é isto que deixa o Google achar a versão em inglês por URL própria em
-         vez de depender de `navigator.language`, que ele não tem (rastreia dos EUA).
-         `vite-ignore`: por padrão o plugin de HTML do Vite trata QUALQUER `href` de `<link>`
-         como referência de asset a copiar/hashear (`DEFAULT_HTML_ASSET_SOURCES.link`), sem
-         olhar o `rel` — sem o `vite-ignore` o build tenta ler `/` como arquivo e quebra
-         (`EISDIR`, é um diretório). Aqui o `href` é URL de página, não caminho de asset. -->
-    <link rel="alternate" hreflang="pt-BR" href="/" vite-ignore />
-    <link rel="alternate" hreflang="en" href="/en/" vite-ignore />
     <!-- Fontes da SPEC-014 (Manrope UI / Space Grotesk números). Sem rede (compose offline)
          o fallback system-ui assume — degradação aceita e anotada na spec. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

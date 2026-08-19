@@ -31,6 +31,15 @@ ARG VITE_APP_URL=""
 ENV VITE_SITE_URL=${VITE_SITE_URL}
 ENV VITE_APP_URL=${VITE_APP_URL}
 
+# A origem PUBLICA do site, absoluta (T-160). Nao confundir com VITE_SITE_URL: aquela responde
+# "qual a base para um link de um bundle para o outro" e fica vazia no deploy de dominio unico
+# (o site mora em `/`, o relativo basta). Esta responde "em que origem esta pagina vai ser
+# servida", que e o que `canonical` e `hreflang` exigem — e tem resposta nos dois deploys.
+# Sem ela o passo de pre-render PARA o build, de proposito: `hreflang` relativo e ignorado em
+# silencio pelo Google, e foi assim que o da T-147 sobreviveu meses.
+ARG VITE_SITE_ORIGIN=""
+ENV VITE_SITE_ORIGIN=${VITE_SITE_ORIGIN}
+
 RUN npm run build
 
 
