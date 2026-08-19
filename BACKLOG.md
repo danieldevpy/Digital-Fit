@@ -346,7 +346,7 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-157 | **SPEC-026 — Descoberta e idioma de acesso.** A tabela de rotas como fonte única (roteador, pré-render, sitemap, hreflang); a regra das três camadas (plano §3.2) com **"nunca redirecionar"** como invariante declarada — o Googlebot rastreia dos EUA, e redirecionar por IP/`Accept-Language` apaga a versão pt do índice; `x-default` → `/en/` amarrado ao `DEFAULT_LOCALE` de `i18n/locale.ts`; a distinção **curado × traduzido** (plano §3.3) como promessa de produto; o `/app/` permanecendo `noindex`; os portões (plano §4) como critério permanente. ADR-012 no `ARCHITECTURE.md` com o "por que não Next" (plano §3.1). Fora de escopo explícito: moeda, unidade de medida, GeoIP *(Tam: M)* | 026 | todo |
+| T-157 | **SPEC-026 — Descoberta e idioma de acesso.** A tabela de rotas como fonte única (roteador, pré-render, sitemap, hreflang); a regra das três camadas (plano §3.2) com **"nunca redirecionar"** como invariante declarada — o Googlebot rastreia dos EUA, e redirecionar por IP/`Accept-Language` apaga a versão pt do índice; `x-default` → `/en/` amarrado ao `DEFAULT_LOCALE` de `i18n/locale.ts`; a distinção **curado × traduzido** (plano §3.3) como promessa de produto; o `/app/` permanecendo `noindex`; os portões (plano §4) como critério permanente. ADR-012 no `ARCHITECTURE.md` com o "por que não Next" (plano §3.1). Fora de escopo explícito: moeda, unidade de medida, GeoIP *(Tam: M)* | 026 | **feito** (2026-08-18) |
 
 ### Onda 1 — a base (2 raias; a T-162 não depende da T-158)
 
