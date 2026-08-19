@@ -494,25 +494,20 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
               onDec={() => setRepsGoal((v) => Math.max(REPS_MIN, v - 1))}
               onInc={() => setRepsGoal((v) => Math.min(REPS_MAX, v + 1))}
             />
-            {/* Duração travada nos 30s: a autoridade é o servidor (SPEC-009). Fingir que o
-                stepper obedeceu seria mentir — destravamos quando a evolução aceitar. */}
-            <StepperCell
-              label={t('session:label.duration')}
-              value={duracaoFmt}
-              disabled
-              disabledTitle={t('session:prep.duration_soon')}
-              small
-            />
-          </div>
 
-          <div className="prep__side prep__side--right">
+            {/* Espelhar fecha a coluna (T-168). Ele é o card mais baixo da tela (39px: ícone e
+                uma palavra), e sozinho no TOPO da coluna direita deixava aquela coluna
+                começando com um talo — era metade do "o lado esquerdo tem mais". Aqui embaixo
+                ele fecha a pilha sem competir com o card do exercício. */}
             <button type="button" className="prep-cell prep-cell--action" onClick={toggleMirrored}>
               <span className="prep-cell__mirror">
                 <IconMirror className="prep-cell__mirror-icon" />
                 <span>{t('session:prep.mirror')}</span>
               </span>
             </button>
+          </div>
 
+          <div className="prep__side prep__side--right">
             {/* Só com a câmera ligada: antes disso não há track (zoom nativo) nem vídeo
                 (fallback por CSS) para ajustar — a escolha ficaria vazia. */}
             {cameraReady && <ZoomControl />}
@@ -539,6 +534,19 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
             </div>
 
             <CountdownSetting />
+
+            {/* Duração desceu da coluna esquerda (T-168) e encostou na Preparação: as duas são
+                TEMPO — uma é quanto o treino dura, a outra é quanto se tem para chegar na
+                posição —, e a travada estava fazendo número ímpar no meio dos steppers
+                editáveis. Continua travada nos 30s: a autoridade é o servidor (SPEC-009), e
+                fingir que o stepper obedeceu seria mentir. */}
+            <StepperCell
+              label={t('session:label.duration')}
+              value={duracaoFmt}
+              disabled
+              disabledTitle={t('session:prep.duration_soon')}
+              small
+            />
           </div>
 
           {/* A trava (T-112) mora sobre a janela da câmera e acima de todo o cromo: enquanto

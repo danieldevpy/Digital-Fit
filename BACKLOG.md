@@ -362,7 +362,7 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
 | T-159 | **Pré-render em tempo de build.** Passo de build que percorre `rotas × locales`, renderiza com `renderToString` (o `react-dom` já é dependência — sem dependência de runtime nova) e injeta HTML, `<title>`, `<meta description>` e `canonical` em cada entry; hidratação verificada nas duas línguas. Critério que não pode faltar: `curl` da URL, com JS fora da conta, devolve o `<h1>` e o texto. É também o que **liga a tradução automática do navegador** (plano §2.3): sem texto no HTML da resposta, o Chrome não oferece traduzir. Depende de T-158 *(Tam: G)* | 026 | **feito** (2026-08-18) |
 | T-160 | **`hreflang` absoluto + `x-default` + `canonical`.** Host vindo de **`VITE_SITE_ORIGIN`** no build — variável nova, e não a `VITE_SITE_URL` que a redação original citava: aquela é a base dos links entre bundles e fica VAZIA no deploy de domínio único, então metade dos deploys ficaria sem anotação (ver DEVLOG) — hoje os `href` são relativos (`/`, `/en/`) e por isso **ignorados em silêncio** pelo Google (plano §2.1); recíproco entre `/` e `/en/` para cada rota; `x-default` → `/en/` (plano §2.2). Teste sobre o HTML **gerado**, não sobre o template. Depende de T-158 *(Tam: M)* | 026/025 | **feito** (2026-08-18) |
 | T-161 | **Aviso de idioma no site.** Client-side, depois da hidratação (fora do HTML pré-renderizado, para não haver sombra de cloaking), quando `matchLocale(navigator.languages)` discorda do `lang` da página; escrito **na língua de destino**, não na da página — um francês não lê "esta página também está em inglês" em português; dispensável e lembrado; **nunca redireciona**. Reaproveita o `LocaleSwitch` que a T-153 já deixou pronto para as duas superfícies. Depende de T-158 *(Tam: M)* | 026/025 | **feito** (2026-08-18) |
-| T-163 | **`robots.txt` + `sitemap.xml` + descoberta.** Ambos gerados da tabela de rotas no build; `sitemap` com `<xhtml:link>` de idioma alternativo por URL; `robots.txt` liberando o site, mantendo o `/app/` fora e apontando o sitemap. Decisão a registrar na task: política para rastreadores de LLM (GPTBot, ClaudeBot, PerplexityBot) — recomendação é **permitir**, porque parte da descoberta de produto hoje acontece dentro de um chat, e nenhum deles executa o bundle. Depende de T-158 *(Tam: M)* | 026 | todo |
+| T-163 | **`robots.txt` + `sitemap.xml` + descoberta.** Ambos gerados da tabela de rotas no build; `sitemap` com `<xhtml:link>` de idioma alternativo por URL; `robots.txt` liberando o site, mantendo o `/app/` fora e apontando o sitemap. Decisão a registrar na task: política para rastreadores de LLM (GPTBot, ClaudeBot, PerplexityBot) — recomendação é **permitir**, porque parte da descoberta de produto hoje acontece dentro de um chat, e nenhum deles executa o bundle. Depende de T-158 *(Tam: M)* | 026 | **doing** |
 | T-164 | **Open Graph + JSON-LD.** `og:*` e `twitter:card` por rota e por idioma, com imagem própria; JSON-LD `SoftwareApplication` + `Organization`. Hoje o link compartilhado mostra caixa cinza sem título e sem imagem — e o WhatsApp é o canal que motiva a task, então o critério de aceite é verificado num WhatsApp real, não só no validador. Depende de T-159 *(Tam: M)* | 026/014 | todo |
 
 ### Onda 3 — conteúdo, e o fecho
@@ -376,9 +376,22 @@ funciona — esta existe porque a frente de descoberta nunca foi escrita.
 | ID | Task | Spec | Status |
 |---|---|---|---|
 | T-167 | **A janela da pré-configuração para de esconder o quadro.** Relato do Daniel usando o app: a parte nítida é pequena demais e o borrado é forte demais, e por isso não dá para perceber o espaço ao redor do corpo — que é justamente o que decide onde o celular fica. Quatro frentes: (a) os painéis viram véu (`blur(5px) brightness(.66)` + gradiente) em vez de cortina (`blur(16px) brightness(.42)` + preto chapado); (b) a janela cresce — colunas encostam na borda e as bordas de cima/baixo passam a ser MEDIDAS do cromo real, corrigindo o entalhe do iPhone; (c) a silhueta-guia deixa de ser cortada em tela de 390px; (d) chip "quadro cheio", que tira o cromo inteiro da frente para a conferência de longe *(Tam: M)* | 014 | **feito** (2026-08-18) |
+| T-168 | **As duas colunas da pré-configuração param de pesar diferente.** Relato do Daniel: "do lado esquerdo tem mais que o direito". Medido: com a câmera desligada a esquerda tinha ~434px e a direita ~296px, porque o `ZoomControl` só existe com a câmera ligada — e as duas colunas alinhavam pelo topo, então a diferença inteira aparecia embaixo. `Duração` desce para junto de `Preparação` (as duas são tempo), `Espelhar` sobe para o pé da esquerda (era um talo de 39px sozinho no topo da direita), e as colunas passam a `justify-content: safe center` *(Tam: P)* | 014 | **feito** (2026-08-19) |
+
 
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-168] O `ZoomControl` que some é o que desequilibra as colunas da pré-configuração.**
+  Ele vale ~114px e só é montado com a câmera pronta, então a coluna direita nasce curta e
+  engorda depois — nenhuma divisão de cards fecha a conta nos dois estados ao mesmo tempo. A
+  T-168 tratou por posição (mover dois cards) e por alinhamento (`safe center`), e o resíduo
+  ficou em ~32px desligada e ~90px ligada. O que fecharia de vez: o card **existir sempre**,
+  reduzido, com `--` e sem slider enquanto não há track para ajustar — que é literalmente o que
+  `Ângulo` e `Calorias` já fazem na mesma coluna. Não entrou porque reverte a decisão explícita
+  da T-120 ("antes disso não há track nem vídeo para ajustar, a escolha ficaria vazia"), e isso
+  é produto: **um slider desabilitado convida a um toque que não faz nada, um `--` não.** Se a
+  resposta for "existir sempre", a mesma pergunta vale para o `ViewPicker`.
 
 - **[T-167] A janela nítida nunca foi o recorte que a análise usa, e o desenho dizia que era.**
   A pose sai do `<video>` inteiro (`detectPose(landmarker, video)` em `useEdgePipeline`): o quadro

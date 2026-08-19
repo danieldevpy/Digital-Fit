@@ -2286,6 +2286,17 @@ a {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Centralizado e não colado no topo (T-168). As duas colunas nunca vão ter a mesma altura:
+     o `ZoomControl` só existe com a câmera ligada e o `ViewPicker` só em exercício com
+     variação, então qualquer divisão que feche a conta num estado abre no outro. Alinhando
+     pelo topo, a diferença inteira aparecia embaixo — e é isso que se lê como "um lado tem
+     mais que o outro". Centralizadas, as duas dividem o mesmo eixo e a sobra se reparte
+     metade em cima, metade embaixo.
+
+     `safe`: com conteúdo mais alto que a coluna, `center` puro empurra o começo para fora do
+     alcance da rolagem. Navegador que não conhece a palavra ignora o valor todo e cai no
+     `flex-start` de antes, que é o comportamento de hoje — degrada para o que já existia. */
+  justify-content: safe center;
   overflow-y: auto;
   scrollbar-width: none;
 }

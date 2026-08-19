@@ -5,6 +5,66 @@
 
 ---
 
+## 2026-08-19 (84) · T-168 — As duas colunas param de pesar diferente
+
+**O pedido.** Daniel, depois de aprovar a T-167: *"só divida os botões card entre os lados da
+tela, do lado esquerdo tem mais que o direito."*
+
+**A medição, antes de mover qualquer coisa.** Alturas tiradas do CSS (`.prep-cell` = 22px de
+moldura + conteúdo, `gap: 8px` entre cards):
+
+| | câmera desligada | câmera ligada |
+|---|---|---|
+| esquerda | ~434px | ~434px |
+| direita | ~296px | ~418px |
+
+Com a câmera **ligada** as colunas já estavam quase iguais. O desequilíbrio é do estado de
+chegada: o `ZoomControl` (~114px) só é montado com a câmera pronta, então a direita nasce curta
+e engorda depois. Somado a isso, `.prep__side` alinhava pelo topo — então os 138px de diferença
+apareciam todos embaixo, que é exatamente a forma como o olho lê "um lado tem mais que o outro".
+
+**O que foi feito.**
+
+1. **`Duração` desceu para a coluna direita, encostada na `Preparação`.** As duas são tempo —
+   uma é quanto o treino dura, a outra é quanto se tem para chegar na posição — e a travada
+   estava fazendo número ímpar no meio dos steppers editáveis. Continua travada nos 30s
+   (SPEC-009).
+2. **`Espelhar` subiu para o pé da coluna esquerda.** É o card mais baixo da tela (39px: um
+   ícone e uma palavra) e sozinho no TOPO da direita deixava aquela coluna começando com um
+   talo. No pé da esquerda ele fecha a pilha sem competir com o card do exercício.
+3. **`justify-content: safe center` nas duas colunas.** Elas nunca vão ter a mesma altura — o
+   `ZoomControl` depende da câmera e o `ViewPicker` depende do exercício ter variação, então
+   qualquer divisão que feche a conta num estado abre no outro. Centralizadas, as duas dividem
+   o mesmo eixo e a sobra se reparte metade em cima, metade embaixo. O `safe` é para conteúdo
+   mais alto que a coluna não sair do alcance da rolagem; navegador que não conhece a palavra
+   ignora o valor todo e cai no `flex-start` de antes.
+
+**Depois:** esquerda ~381px; direita ~349px (câmera desligada) e ~471px (ligada). E, no que se
+conta em vez de se medir, as colunas ficaram **5 e 5** — ou 4 e 4 quando os dois condicionais
+somem juntos.
+
+### A decisão que não é óbvia
+
+**Isto piora o estado de câmera ligada, e mesmo assim é o certo.** Antes: 138px de diferença
+desligada, 16px ligada. Depois: 32px e 90px. Trocar 16 por 90 num estado parece regressão — só
+que com o alinhamento central o que se vê é metade disso em cada ponta, e o pior caso das duas
+telas cai de 69px para 45px. A média também melhora. O ganho vem de a conta não depender mais
+de um card que aparece e some.
+
+**O que fecharia de vez, e ficou de fora.** Se o `ZoomControl` não sumisse — um card reduzido
+com `--` e sem slider enquanto não há track para ajustar, que é exatamente o que `Ângulo` e
+`Calorias` já fazem — as duas colunas ficariam a ~20px de diferença nos dois estados. Não fiz
+porque reverte uma decisão explícita da T-120 ("antes disso a escolha ficaria vazia") e isso é
+produto, não layout. Registrado nas Descobertas.
+
+**Gates.** `npm run lint`, `typecheck`, `test` (65 arquivos, 726 testes) e `build` verdes.
+
+**Não verificado por mim.** O equilíbrio é para ser visto, e as alturas acima são calculadas do
+CSS, não medidas em aparelho — o navegador controlado segue fora do ar nesta sessão. Confirmação
+é no celular.
+
+---
+
 ## 2026-08-18 (83) · T-161 — O aviso que sugere sem empurrar
 
 **O que foi feito.** `site/sugestaoDeIdioma.ts` (a decisão, pura e testada), `site/AvisoDeIdioma.tsx`
