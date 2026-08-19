@@ -13,6 +13,10 @@ export const session: Session = {
   'camera.denied_detail': 'Camera permission denied. Allow access and try again.',
   'camera.open_failed': 'Could not open the camera.',
   'camera.video_failed': 'Could not open the video.',
+  'camera.front': 'Front',
+  'camera.rear': 'Rear',
+  'camera.single': 'This device has only one camera.',
+  'camera.switch_aria': 'Switch camera. Currently: {current}.',
 
   'warmup.title': 'Getting the analysis ready on this device…',
   'warmup.downloading': 'Downloading the pose model · {progress} (first time only)',

@@ -18,6 +18,10 @@ function sessao(dia: string, reps = 10): SessionReport {
     scene_warning_counts: {},
     calibration_samples: 30,
     config_version: 1,
+    set_mode: 'livre',
+    target_reps: 0,
+    set_index: 0,
+    set_total: 0,
     created_at: `${dia}T15:00:00Z`,
   }
 }

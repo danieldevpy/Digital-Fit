@@ -5,6 +5,284 @@
 
 ---
 
+## 2026-08-19 (91) · T-139 — Cadência vira o eixo de progresso, e dois espelhos de contrato estavam quebrados
+
+**Por que esta task e não a T-137.** A SPEC-027 (câmera e orientação) está sendo executada em
+paralelo **na mesma árvore de trabalho**, e ela é dona de `capture/`, do HUD em paisagem e do
+layout. A T-137 constrói justamente o HUD do modo contado — as duas se atropelariam, e pior que
+o conflito de merge seria a decisão de layout tomada duas vezes sem se verem. A T-139 depende só
+da T-134 (feita) e vive em `report/`, `history/` e `screens/Analytics`, onde a outra não encosta.
+
+**O que a task entrega.** O §6 da SPEC-023 em três peças: o relatório da série diz *tempo até a
+meta* no modo contado, carimba *"série 2 de 3"* quando houve plano, e o Analytics ganha a
+comparação de cadência por exercício nas últimas 4 semanas — derivação pura, sem tabela e sem
+contador, sobre o que o `GET /api/sessions?mine` já devolve.
+
+### Dois espelhos de contrato estavam para trás, e o sintoma era tela errada
+
+Foi o que a task encontrou antes de escrever qualquer coisa nova:
+
+1. **`SessionReport` (TypeScript) não tinha `set_mode`, `target_reps`, `set_index`,
+   `set_total`.** O `to_report()` do servidor manda os quatro desde a T-134. O cabeçalho do
+   próprio arquivo avisa: *"espelho com campo faltando é drift esperando acontecer"* — e o drift
+   já tinha acontecido, calado, por dois dias.
+2. **`SessionEndReason` (TypeScript) não tinha `TARGET_REACHED`.** Consequência direta e
+   visível: `reportSummary.reasonText()` mapeia por essa chave, então **toda série que batesse a
+   meta seria anunciada como "Sessão encerrada"** — o texto de motivo desconhecido. Um bug de
+   produto pronto, esperando a T-137 ligar o cliente.
+
+Nenhum dos dois dá erro: campo que existe no fio e não no tipo simplesmente some da tela. Os
+dois foram corrigidos aqui, e o `SetMode` entrou junto no espelho — `isContado()` compara com o
+vocabulário do contrato, não com uma string solta, para que o dia de um terceiro modo aponte
+para onde ele foi declarado.
+
+**O `tsc` cobrou o preço certo.** Tornar os quatro campos obrigatórios reprovou seis fixtures de
+teste que montavam um `SessionReport` à mão. É o portão funcionando: cada uma dessas fixtures
+representa um payload do servidor, e um payload sem os campos não existe mais.
+
+### As decisões da comparação semanal
+
+**Mediana, não média.** Mesma escolha do `exercise_health` no servidor: uma sessão em que a
+pessoa parou no meio puxa uma média e não move uma mediana. A semana descreve o ritmo típico.
+
+**Sessão que contou zero fica de fora.** `cadence_rpm` de uma sessão zerada é `0` e não mede
+ritmo — mede que a análise não viu repetição. Incluir arrastaria a semana inteira para baixo e a
+pessoa leria *"piorei"* onde houve problema de enquadramento. É a irmã exata da regra que mantém
+`no_data` fora da taxa da SPEC-020.
+
+**Semana sem treino é `null`, nunca zero.** Zero afirmaria um ritmo medido e péssimo; `null` diz
+"não treinou", que é o que aconteceu. Régua do `--` da SPEC-014.
+
+**A variação compara a primeira e a última semana COM DADO**, não as pontas do intervalo. Quem
+treinou nas semanas 1 e 3 e parou tem uma evolução real para mostrar; ancorar numa semana vazia
+devolveria `null` justamente para quem tem a resposta.
+
+**Menos de duas semanas medidas → sem variação.** Uma semana não é evolução, é um número. A tela
+diz o que falta (*"Treine flexão de braço em outra semana para comparar"*) em vez de desenhar uma
+seta que ninguém mediu — mesma régua do `MIN_PONTOS_TENDENCIA` do bloco de cima.
+
+**Limiar de 2% para a cor.** Cadência oscila sozinha; anunciar "1% mais rápido" em verde
+ensinaria a pessoa a ler ruído como progresso.
+
+**Por que um bloco novo e não mexer no `Ritmo` que já existia.** Aquele responde *"como foi cada
+sessão"*; este responde *"eu melhorei?"*. Quem treinou seis vezes numa semana e uma na seguinte
+vê, no gráfico de cima, seis pontos contra um — o ruído do dia esconde a comparação. Aqui cada
+semana vale uma mediana e as semanas pesam igual.
+
+### As medições
+
+- **Três mutações, três vermelhos**: tirar `TARGET_REACHED` do mapa de motivos; deixar a sessão
+  zerada entrar na cadência da semana; trocar mediana por média. Cada uma derruba o caso que a
+  descreve.
+- **No navegador**, com histórico semeado (dev server da tarefa paralela, só leitura):
+  - Polichinelo `21 · 24 · -- · 29` → **"38% mais rápido"** em verde. Confere: mediana de
+    (20, 22) = 21, depois 24, depois (28, 30) = 29; 21 → 29 é +38%.
+  - Agachamento `14 · -- · -- · 12` → **"14% mais lento"** em vermelho.
+  - Flexão, uma semana só → sem seta, com a frase do que falta.
+  - Relatório de série contada: título **"Meta atingida"** (era "Sessão encerrada"), estatística
+    **"tempo até a meta · 0:41"**, e o chip **"série 2 de 3"** ao lado do nome.
+  - **375 px**: sem rolagem horizontal em nenhuma das duas telas, grade de 4 colunas de 74,75 px,
+    nome do exercício sem quebrar linha. Console sem erro de React (os
+    `ERR_CONNECTION_REFUSED` são a API fora do ar, não o cliente).
+- **Gates**: `npm run lint` limpo, `npm run test` **881 testes em 70 arquivos** (eram 846 em 69),
+  `ruff` e `pytest` intactos (nada de Python nesta task).
+
+### O gate ficou vermelho no meio, e não era meu
+
+Durante quase toda a task o `npm run typecheck` reprovou por `capture/useCamera.ts`,
+`capture/facing.ts` e `capture/cameraPrefs.ts`: a SPEC-027 estava no meio de uma edição na mesma
+árvore, com `switchCamera` já exigido por `CameraView` e ainda inexistente. Trabalhei filtrando
+`src/capture/` da saída do `tsc` e registrando de quem era o vermelho, em vez de chamar o meu de
+verde. A T-170 fechou antes desta entrada e o gate voltou sozinho: **`typecheck` limpo, `lint`
+limpo, 888 testes em 71 arquivos** (a contagem já inclui os casos da T-170).
+
+Fica a lição de operação: em árvore compartilhada, gate é do repositório e não da task — quem
+mede precisa saber separar o próprio vermelho do alheio antes de decidir se pode encerrar.
+
+**Commit só com os meus arquivos**, conferido um a um: nada de `capture/`, nada de
+`store/session.ts`, nada do `SPEC-027` em rascunho.
+
+**E o DEVLOG quase colidiu.** As duas frentes escrevem neste arquivo e no `BACKLOG.md`, e as
+entradas da T-169/T-170 entraram enquanto esta era escrita: nada se perdeu, mas os dois lados
+carimbaram a sessão **(89)**. Renumerada para (91) e movida para o topo à mão. Fica o aviso: em
+árvore compartilhada, DEVLOG e BACKLOG são o ponto de colisão, não o código.
+
+### Pendências
+
+- Rodar `npm run typecheck` inteiro quando a SPEC-027 fechar — é a única verificação desta task
+  que ficou por fazer.
+- A T-137 (HUD do modo contado, montador de plano, descanso) continua aberta e agora tem o
+  relatório esperando por ela: `set_index`/`set_total` só aparecem quando alguém carimbar.
+- A comparação semanal não distingue série livre de contada de propósito: cadência é cadência, e
+  separar as duas partiria a amostra justo em quem alterna. Se algum dia a diferença aparecer nos
+  dados, é task nova.
+
+---
+
+## 2026-08-19 (90) · T-170 — A câmera de trás, e o espelho que vem junto com ela
+
+**O que entrou.** `capture/useCamera.ts` passa a levar `facingMode`, e a pré-configuração ganha
+um controle ao lado de Espelhar que alterna frontal ⇄ traseira. A preferência fica em
+`digitalfit.camera_facing` (padrão do `zoomPrefs.ts`) e guarda a **intenção**, nunca o
+`deviceId` — lente é hardware que troca de nome entre versões de SO.
+
+### As duas coisas que decidiram o desenho
+
+**1. `ideal` não serve para trocar, e é por isso que existe `exact`.** `{ ideal: 'environment' }`
+num aparelho sem traseira **não levanta erro**: devolve a frontal em silêncio. O botão passaria
+a dizer "Traseira" sobre imagem frontal, que é exatamente o tipo de mentira de tela que a casa
+proíbe. Na troca vale `exact`, cujo `OverconstrainedError` é a única evidência de que a câmera
+pedida não existe. O fallback de RESOLUÇÃO da SPEC-001 foi ajustado junto para preservar a
+restrição de câmera: cair para `video: true` porque o aparelho não faz 640×480 não podia, de
+quebra, trocar a câmera que a pessoa escolheu — os dois `OverconstrainedError` significam
+coisas diferentes e agora não se confundem.
+
+**2. Trocar de câmera NÃO mexe em `cameraStatus`.** O `useEdgePipeline` liga e desliga por ele.
+Um `requesting` no meio da troca derrubaria o landmarker e faria o **capability probe rodar de
+novo, 2–3 s, a cada toque no botão** — com o risco real de a medição nova cair do outro lado do
+limiar de 12fps e mandar para cloud um aparelho que estava em edge, gastando vaga do semáforo
+da SPEC-009 por causa de um toque num botão de conforto. O `<video>` é o mesmo nó e o laço de
+rVFC continua nele: o que troca por baixo é só o `srcObject`.
+
+### O refactor que os testes obrigaram
+
+A sequência da troca nasceu dentro do hook e voltou para fora, em `capture/cameraSwap.ts`, com
+as dependências injetadas. O motivo é o de sempre neste projeto: **a falha dessa sequência só
+aparece em aparelho de câmera única, que é justamente o aparelho que ninguém tem na mesa na
+hora de escrever o código.** Dentro do hook ela era intestável (`getUserMedia`, `<video>`,
+React, e os testes rodam em `environment: 'node'`); fora dele, o critério 3 da spec virou seis
+asserções — inclusive a de que a volta usa `ideal` e não `exact`, e a de que uma falha
+genérica (`NotReadableError`, câmera ocupada por outro app) volta igual mas **sem** afirmar
+"só tem uma câmera", que seria causa inventada.
+
+O `useCamera` ficou com a fiação, e `adotarStream` concentra as três coisas que caem de abrir
+uma câmera: rótulo (do `getSettings()`, não do pedido), espelho e zoom.
+
+### Espelho
+
+`mirrorDefaultFor` é reaplicado a cada abertura de câmera, e é isso que produz o comportamento
+da SPEC-027 §B: a câmera define o default (traseira abre sem espelho), o botão Espelhar
+sobrepõe, e a sobreposição vale até a câmera mudar de novo. O espelho continua **não sendo
+persistido** — persiste-se a câmera e ele se deduz. Dois estados salvos seriam dois jeitos de a
+tela abrir errada.
+
+### Gates e o que foi medido
+
+`tsc -b --force`, `eslint .`, `vitest run` (71 arquivos, **888 testes**, 26 deles novos),
+`ruff check` e `ruff format --check` (180 arquivos) — todos verdes. Python não foi tocado.
+
+Medição no navegador de preview: `enumerateDevices()` relata **uma** `videoinput` naquela
+máquina, e o controle **não é renderizado** — metade do critério 2, verificada como observação
+e não como alegação. A pré-configuração continua desenhando igual (Espelhar presente, CTA em
+"Ligar câmera"); os `ERR_CONNECTION_REFUSED` do console são a API Django fora do ar, não o app.
+
+### Pendências (declaradas, não escondidas)
+
+- **O caminho vivo não foi exercitado.** O navegador controlado bloqueia `getUserMedia`, e a
+  máquina tem uma câmera só. Faltam, em celular real com as duas câmeras: a troca de fato, o
+  `facingMode` que o track relata, o espelho virando junto, e a preferência sobrevivendo ao
+  reload. É a primeira metade do critério 1 e a segunda do critério 2 — as DECISÕES estão
+  cobertas por teste, a fiação com o navegador não.
+- Nenhum estilo novo foi escrito: o controle reusa `prep-cell--action` / `prep-cell__mirror` /
+  `prep-cell__hint`, que é o que o faz nascer visualmente igual ao Espelhar. Vale conferir em
+  aparelho real se a coluna esquerda, que a T-168 acabou de equilibrar, continua equilibrada
+  agora que ganhou um card a mais.
+- Os gates rodaram numa árvore que tinha, em paralelo, trabalho em voo de outra frente
+  (`SessionReport` ganhando `set_mode`/`target_reps`/`set_index`/`set_total`). Nada disso entrou
+  no commit — o `git add` foi por caminho —, mas a primeira passada do `tsc` pegou aquele
+  trabalho no meio de uma escrita e acusou dois erros que sumiram sozinhos na passada seguinte.
+
+---
+
+## 2026-08-19 (89) · T-169 — SPEC-027: de que lado e de que jeito o celular olha
+
+**O pedido.** Duas ferramentas, trazidas como independentes: trocar entre câmera frontal e
+traseira ("um amigo pode querer gravar o outro") e não deixar a UI estranha com o celular
+deitado. Viraram uma spec só porque são a mesma entidade — o **enquadramento físico**: quem
+segura o aparelho, para onde ele aponta e em que posição. Cada uma isolada produziria uma
+decisão pela metade: trocar de câmera sem decidir o espelho entrega vídeo invertido, e desenhar
+paisagem sem decidir a orientação do quadro entrega exercício mal lido.
+
+**O que já existia.** `capture/useCamera.ts` chama `getUserMedia` sem `facingMode` nenhum — pega
+a câmera default e pronto. A seleção de câmera já estava escrita como Fase Evolução da SPEC-001
+("Seleção de câmera + espelhamento correto; preferência lembrada"), sem task. De orientação não
+existia **nada**: nenhum `matchMedia`, nenhum `@media (orientation: …)` nas ~4.800 linhas do
+`styles.css`; quatro `height: 100dvh` e a coluna de `max-width: 430px` que a SPEC-014 manda valer
+em qualquer tela.
+
+### As três decisões que a spec tomou, e o que foi rejeitado
+
+**1. Espelho é função da câmera, não preferência independente.** Frontal abre espelhado
+(default de hoje), traseira abre sem espelho — quem filma outra pessoa não está se vendo. O
+botão Espelhar continua existindo e continua vencendo até a câmera mudar. *Rejeitado:* amarrar o
+espelho à câmera e remover o botão — a inferência acerta quase sempre, e é por isso que o caso
+raro em que erra viraria um app possuído, sem nada na tela para desfazer. Também ficou decidido
+**não persistir** o espelho (hoje ele nasce `true` no store a cada carga): persiste-se a câmera,
+o espelho se deduz. Dois estados salvos são dois jeitos de a tela abrir errada.
+
+**2. `facingMode`, nunca `deviceId`; `exact` na troca, `ideal` na abertura.** `deviceId` aponta
+para uma lente específica e o mapeamento muda entre versões de SO. E `{ ideal: 'environment' }`
+num aparelho sem traseira **não falha** — entrega a frontal em silêncio, e o botão passaria a
+mentir. Daí `exact` na troca, com `OverconstrainedError` voltando para a câmera anterior. O
+rótulo vem de `getSettings().facingMode`, o que o track entregou, não o que foi pedido.
+
+**3. A divergência da SPEC-014, delimitada.** A trava de 430px cai **só em paisagem** e **só nas
+duas telas de câmera**. Índice, Escolha, Guia, Progresso, Analytics e Perfil continuam na coluna
+mobile em qualquer orientação: são telas de ler, onde uma linha de 850px é pior. Nas de câmera é
+o contrário — o quadro largo é a ferramenta.
+
+### A descoberta que mudou o desenho do botão manual
+
+O pedido do Daniel incluía "um botão para virar, caso não seja detectado automático". Investigando
+o caso que motiva esse botão — **celular com a rotação de tela travada** — apareceu o que ninguém
+tinha escrito: nesse aparelho **o quadro da câmera também não gira**. O navegador entrega os
+frames alinhados à orientação da tela, que está travada. O mundo chega deitado.
+
+E aí para de ser estético:
+
+- `TOO_FAR`/`TOO_CLOSE` (SPEC-003) medem altura do corpo como fração da **altura do frame** —
+  com o mundo a 90° eles medem outra coisa;
+- a linha ombro-ombro, que a Evolução da SPEC-003 compara com a horizontal, fica perpendicular;
+- `arm_abduction` (T-044/T-052) continua **existindo** e passa a estar errado, que é pior que
+  não existir.
+
+Também ficou registrado o contraponto à leitura apressada da T-110: aquela medição provou que um
+quadro **largo e em pé** normaliza igual a um quadro **estreito e em pé** — não que orientação
+seja problema resolvido. Quadro com o mundo deitado é outro assunto.
+
+Por isso o botão ganhou duas responsabilidades em vez de uma: alterna o layout **e**, quando
+força paisagem numa viewport que continuou retrato, diz na mesma frase que destravar a rotação é
+o caminho que preserva a leitura do exercício. A sessão sai marcada `landscape_forced`.
+
+**Girar o frame antes da pose ficou fora da Fase Inicial, com o motivo escrito** para não ser
+decidido às pressas dentro de uma task: é um canvas a mais no caminho quente a 15fps, e a
+SPEC-001 decide `edge` × `cloud` por **latência por inferência** — um passo ali pode empurrar
+aparelho honesto para cloud e gastar vaga do semáforo da SPEC-009.
+
+### Onde cada coisa foi morar
+
+- Recomendação de orientação por exercício → **campo no banco + painel** (SPEC-018, natureza
+  "negócio/conteúdo"), espelhado no catálogo embutido. O catálogo já sabia disso em texto solto:
+  o comentário do `scene_tip` diz que a flexão e o abdominal pedem o celular deitado.
+- A **frase** que a pessoa lê → dicionário do cliente (`session:*`), nas duas línguas. Do banco
+  vem o valor, não o texto.
+- Limiar de cena por orientação → **código + bancada** (natureza "medição"), nunca painel.
+- Rótulo do enquadramento → **`session.capability` aditivo** (`facing`, `orientation`), no padrão
+  do `ua` que já tem default vazio. **Nenhum evento novo**: enquadramento é atributo de sessão,
+  não fato do domínio de treino.
+
+### Tasks
+
+Fase 9, oito tasks. T-169 (esta) abre; depois **três raias paralelas de verdade**: A
+(`capture/`, T-170), B (bancada/limiares, T-171 — não toca UI e por isso não é a última) e C
+(layout, T-172 → T-173 → T-175, serial porque é o mesmo CSS). T-174 (catálogo) depende só da
+T-172; T-176 fecha o contrato.
+
+**Pendência declarada:** a spec está `draft`. Vira `approved` na revisão do Daniel — nenhuma task
+da Fase 9 deve ser executada antes disso.
+
+---
+
 ## 2026-08-19 (88) · T-140 — A série contada entra na conta, e a coluna que ela obrigou a existir
 
 **O buraco.** Desde a T-136 uma sessão pode terminar em `target_reached` — a meta de repetições

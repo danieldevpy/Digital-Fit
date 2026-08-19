@@ -168,6 +168,132 @@ export function cadenciaPorExercicio(sessions: SessionReport[]): SerieCadencia[]
     .sort((a, b) => b.pontos.length - a.pontos.length)
 }
 
+// ------------------------------------------- cadência semana a semana (T-139)
+
+/**
+ * A comparação que a SPEC-023 §6 pede: **cadência por exercício, últimas 4 semanas.**
+ *
+ * ## Por que este bloco existe, tendo `cadenciaPorExercicio` logo acima
+ *
+ * Aquela responde "como foi cada sessão"; esta responde *"eu melhorei?"*. São perguntas
+ * diferentes e a segunda é a que o áudio do Daniel enunciou: *"tu fazia 10 em 30 segundos,
+ * agora tu faz 15 — a sua média de polichinelo na semana ficou tanto"*. Uma lista de pontos
+ * por sessão não responde isso: ela mostra o ruído de cada dia, e a pessoa que treinou seis
+ * vezes numa semana e uma na outra vê seis pontos contra um, não duas semanas.
+ *
+ * ## Mediana, não média
+ *
+ * Mesma escolha do `exercise_health` no servidor, pelo mesmo motivo: uma sessão em que a pessoa
+ * parou no meio puxa uma média e não move uma mediana. A semana descreve o ritmo típico, não a
+ * pior tentativa.
+ *
+ * ## Sessão que contou zero fica de fora
+ *
+ * `cadence_rpm` de uma sessão zerada é `0`, e ela não mede ritmo nenhum — mede que a análise
+ * não viu repetição. Incluir arrastaria a semana inteira para baixo e a pessoa leria "piorei"
+ * onde o que houve foi um problema de enquadramento. Irmã exata da regra da mediana do
+ * `exercise_health`, e da razão pela qual `no_data` fica fora da taxa da SPEC-020.
+ *
+ * Semana sem sessão daquele exercício entra com `null` — não com zero. Zero afirmaria um ritmo
+ * medido e péssimo; `null` diz "não treinou", que é o que aconteceu (régua do `--`, SPEC-014).
+ */
+export interface SemanaDeCadencia {
+  /** Segunda-feira que abre a semana, 00:00 local. */
+  inicio: Date
+  /** Mediana de reps/min das sessões que contaram. `null` = nenhuma sessão na semana. */
+  mediana: number | null
+  sessoes: number
+}
+
+export interface CadenciaDoExercicio {
+  exercise: string
+  /** Da mais antiga para a mais recente — é assim que uma evolução se lê. */
+  semanas: SemanaDeCadencia[]
+  /**
+   * Variação entre a PRIMEIRA e a ÚLTIMA semana com dado, em fração (`0.2` = 20% mais rápido).
+   *
+   * `null` com menos de duas semanas medidas: uma semana não é evolução, é um número. É a mesma
+   * régua do `MIN_PONTOS_TENDENCIA` acima — e a razão de ela existir é que uma seta verde
+   * baseada em nada é pior que nenhuma seta.
+   *
+   * Entre a primeira e a última **com dado**, e não entre a primeira e a última do intervalo:
+   * quem treinou nas semanas 1 e 3 e parou tem uma evolução real para mostrar, e ancorar numa
+   * semana vazia devolveria `null` para quem tem a resposta.
+   */
+  variacao: number | null
+}
+
+/** Quantas semanas a comparação olha. Quatro, como a SPEC-023 §6 nomeia. */
+export const SEMANAS_DE_CADENCIA = 4
+
+export function cadenciaPorSemana(
+  sessions: SessionReport[],
+  semanas = SEMANAS_DE_CADENCIA,
+  hoje: Date = new Date(),
+): CadenciaDoExercicio[] {
+  const atual = inicioDaSemana(hoje)
+  const janelas: { inicio: Date; fim: Date }[] = []
+  for (let recuo = semanas - 1; recuo >= 0; recuo -= 1) {
+    const inicio = new Date(atual)
+    inicio.setDate(inicio.getDate() - recuo * 7)
+    const fim = new Date(inicio)
+    fim.setDate(fim.getDate() + 7)
+    janelas.push({ inicio, fim })
+  }
+
+  const limite = janelas[0]!.inicio.getTime()
+  const porExercicio = new Map<string, number[][]>()
+
+  for (const sessao of sessions) {
+    // Zero não mede ritmo — ver o cabeçalho deste bloco.
+    if (sessao.rep_count < 1 || !Number.isFinite(sessao.cadence_rpm)) continue
+    const quando = new Date(sessao.created_at).getTime()
+    if (Number.isNaN(quando) || quando < limite) continue
+
+    const indice = janelas.findIndex(
+      (janela) => quando >= janela.inicio.getTime() && quando < janela.fim.getTime(),
+    )
+    if (indice === -1) continue
+
+    let baldes = porExercicio.get(sessao.exercise)
+    if (!baldes) {
+      baldes = janelas.map(() => [])
+      porExercicio.set(sessao.exercise, baldes)
+    }
+    baldes[indice]!.push(sessao.cadence_rpm)
+  }
+
+  return [...porExercicio.entries()]
+    .map(([exercise, baldes]) => {
+      const porSemana: SemanaDeCadencia[] = baldes.map((valores, indice) => ({
+        inicio: janelas[indice]!.inicio,
+        mediana: mediana(valores),
+        sessoes: valores.length,
+      }))
+      return { exercise, semanas: porSemana, variacao: variacaoEntrePontas(porSemana) }
+    })
+    .sort((a, b) => a.exercise.localeCompare(b.exercise))
+}
+
+function mediana(valores: number[]): number | null {
+  if (valores.length === 0) return null
+  const ordenados = [...valores].sort((a, b) => a - b)
+  const meio = Math.floor(ordenados.length / 2)
+  return ordenados.length % 2 === 1
+    ? ordenados[meio]!
+    : (ordenados[meio - 1]! + ordenados[meio]!) / 2
+}
+
+function variacaoEntrePontas(semanas: SemanaDeCadencia[]): number | null {
+  const medidas = semanas.filter((semana) => semana.mediana !== null)
+  if (medidas.length < 2) return null
+
+  const primeira = medidas[0]!.mediana!
+  const ultima = medidas[medidas.length - 1]!.mediana!
+  if (primeira === 0) return null
+  return (ultima - primeira) / primeira
+}
+
 // ---------------------------------------------------------------- ritmo
 
 /**

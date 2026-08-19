@@ -62,6 +62,17 @@ export const progress = {
   'analytics.range.one': 'de {min} a {max} rep/min em {n} treino',
   'analytics.range.other': 'de {min} a {max} rep/min em {n} treinos',
 
+  // Evolução semana a semana (SPEC-023 §6, T-139). É a pergunta "eu melhorei?", que a série
+  // por sessão acima não responde — ela mostra o ruído de cada dia.
+  'analytics.section.weekly': 'Evolução nas últimas 4 semanas',
+  'analytics.weekly_note': 'mediana por semana',
+  'analytics.weekly_up': '{pct} mais rápido',
+  'analytics.weekly_down': '{pct} mais lento',
+  'analytics.weekly_flat': 'ritmo estável',
+  // Sem duas semanas medidas não há evolução, há um número. Mesma régua do `--` da SPEC-014.
+  'analytics.weekly_needs_more': 'Treine {exercise} em outra semana para comparar.',
+  'analytics.weekly_no_week': 'sem treino',
+
   'analytics.section.consistency': 'Constância do ritmo',
   'analytics.consistency_note': 'menor é mais regular',
   'analytics.consistency_empty':

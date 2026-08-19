@@ -35,6 +35,7 @@ Cada etapa do pipeline é uma **entidade** com duas fases:
 | [SPEC-024](SPEC-024-historico-e-frescor.md) | Histórico como fonte única no cliente & contrato de frescor (Progresso, Analytics, Perfil) | Fase 5 (antes do M1) |
 | [SPEC-025](SPEC-025-internacionalizacao.md) | Internacionalização (pt-BR + en) — dicionário tipado no cliente, negociação de locale (cliente/API/HTML), tradução de conteúdo no banco | Fase 7 |
 | [SPEC-026](SPEC-026-descoberta-e-idioma-de-acesso.md) | Descoberta & Idioma de Acesso — tabela de rotas como fonte única, pré-render no build, `hreflang`/`x-default`, curado × traduzido | Fase 8 |
+| [SPEC-027](SPEC-027-enquadramento-camera-e-orientacao.md) | Enquadramento: câmera e orientação — frontal × traseira (espelho como consequência), paisagem de verdade nas telas de câmera, recomendação por exercício | Fase 9 |
 
 ## Template
 

@@ -43,6 +43,14 @@ export const progress: Progress = {
   'analytics.range.one': 'from {min} to {max} reps/min across {n} workout',
   'analytics.range.other': 'from {min} to {max} reps/min across {n} workouts',
 
+  'analytics.section.weekly': 'Progress over the last 4 weeks',
+  'analytics.weekly_note': 'weekly median',
+  'analytics.weekly_up': '{pct} faster',
+  'analytics.weekly_down': '{pct} slower',
+  'analytics.weekly_flat': 'steady pace',
+  'analytics.weekly_needs_more': 'Train {exercise} in another week to compare.',
+  'analytics.weekly_no_week': 'no workout',
+
   'analytics.section.consistency': 'Pace consistency',
   'analytics.consistency_note': 'lower is steadier',
   'analytics.consistency_empty':
