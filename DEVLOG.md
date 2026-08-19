@@ -5,6 +5,76 @@
 
 ---
 
+## 2026-08-18 (83) · T-161 — O aviso que sugere sem empurrar
+
+**O que foi feito.** `site/sugestaoDeIdioma.ts` (a decisão, pura e testada), `site/AvisoDeIdioma.tsx`
+(a faixa), as chaves `site:hint.*` nas duas línguas e a pele em `styles.css`. Fecha a prioridade
+declarada da frente: qualquer estrangeiro usa uma das duas línguas curadas, ou traduz pelo
+navegador (T-162), e agora **chega na certa sem ser empurrado**.
+
+**A camada que faltava.** A T-160 cuidou de quem vem da busca — `hreflang` e `x-default` mandam
+o buscador para a URL certa. Sobrava quem NÃO veio da busca: quem digitou o domínio, quem clicou
+num link compartilhado. Essa pessoa cai em `/`, que é português, seja ela quem for. E a saída
+óbvia é proibida: redirecionar por `Accept-Language` ou por IP faria o Googlebot — que rastreia
+dos EUA — ver só a versão inglesa, e a portuguesa sairia do índice. Sobra sugerir.
+
+### As decisões
+
+**O aviso é escrito na língua de DESTINO.** É o detalhe que quase todo mundo erra. Um francês em
+`/` não lê *"esta página também está disponível em inglês"* escrito em português — para ele o
+aviso é `This page is also available in English.` e mais nada. Daí o `translate(sugerido, ...)`
+com locale explícito em vez do `useT()` da página, e o `lang={sugerido}` no bloco, que é o que
+conta ao leitor de tela e ao tradutor do navegador que aquele trecho está em outra língua.
+
+**Sugere-se o que o APP daria a essa pessoa** (`detectLocale()`), e isso traz de graça a
+propriedade que mais importa: **quem já escolheu um idioma explicitamente no app não recebe
+sugestão nenhuma**. A escolha explícita continua vencendo, como em toda a SPEC-025. E o francês
+recebe inglês por construção — `matchLocale('fr')` é `null`, a cadeia cai em `DEFAULT_LOCALE`,
+que é o mesmo destino do `x-default` da T-160. Nenhuma regra especial para francês em lugar
+nenhum.
+
+**Dispensou, acabou.** Sem isso o aviso vira faixa de cookie: aparece toda visita, ninguém lê, e
+passa a ser custo puro.
+
+**`useSyncExternalStore` no lugar de `useState` + `useEffect`.** A primeira versão usava efeito, e
+o `react-hooks` reprovou: *"Calling setState synchronously within an effect can trigger cascading
+renders"*. Estava certo — é um render a mais em toda visita para um valor que já se sabe ler de
+saída. O `useSyncExternalStore` é a ferramenta certa e já é a da casa (`useLocale`, T-159): o
+terceiro argumento é o snapshot de SERVIDOR, e devolver `null` ali **é** a regra "não existe no
+HTML pré-renderizado", escrita uma vez e no lugar onde se lê. Isso importa duas vezes: a
+hidratação tem de bater com a T-159, e conteúdo diferente para robô e pessoa é cloaking.
+
+**As chaves resolvidas antes do JSX.** O `no-literal-string` roda em `jsx-only` e trata a chave
+passada dentro de um atributo como frase solta; a lista de `callees` da regra conhece `t`, não
+`translate`. Mexer no portão compartilhado para acomodar um componente seria caro pelo motivo
+errado — três `const` acima do `return` resolvem e ainda leem melhor.
+
+### As medições
+
+- **Unitário** (7 casos): o francês em `/` recebe sugestão de **inglês** e o francês em `/en/`
+  não recebe nada; o brasileiro que cai em `/en/` por link compartilhado recebe português; quem
+  tem escolha explícita gravada não recebe sugestão; dispensado não sugere em nenhuma combinação.
+- **No navegador, com o `dist` real servido pelo nginx real** (navegador reportando
+  `["pt-BR","pt","pt","en"]`):
+  - em `/` (pt-BR): **nenhum aviso** — a pessoa já está na língua dela;
+  - em `/en/`: aviso presente com `lang="pt-BR"`, texto *"Esta página também está disponível em
+    português."*, CTA *"Ver em português"* apontando para `/`. **A URL continuou `/en/` e o `h1`
+    continuou em inglês** — o critério que mais importa: sugeriu, não redirecionou;
+  - clicar no × faz o aviso sumir, grava `digitalfit.lang_hint`, e ele **não volta** ao
+    recarregar;
+  - console **sem nenhuma mensagem** — a hidratação da T-159 continua limpa com o aviso no ar.
+- **O aviso não está no HTML pré-renderizado**: `grep -c langhint` devolve 0 nas quatro páginas.
+- **Gates**: `ruff check` e `ruff format --check` limpos, `pytest` verde, `npm run lint` e
+  `typecheck` sem saída, `npm run test` com **726 testes em 65 arquivos**.
+
+### Pendências
+
+- O critério 2 da SPEC-026 fala em navegador **em francês**. O caso francês está provado no
+  unitário (via `resolveLocale`), e no navegador foi provado o espelho exato (pt-BR em `/en/`),
+  porque o navegador da bancada reporta português. A conferência com um navegador realmente em
+  francês fica junto da T-155.
+- A SPEC-026 segue em **`draft`**.
+
 ## 2026-08-18 (82) · T-160 — O `hreflang` passa a existir, e o `x-default` responde a pergunta da frente
 
 **O que foi feito.** `src/site/metatags.ts` (puro, testado), os `<link>` gerados e injetados pelo

@@ -18,6 +18,14 @@ export const site = {
   'meta.not_found.title': 'Página não encontrada — Digital Fit',
   'meta.not_found.description': 'O endereço pedido não existe no Digital Fit.',
 
+  // O aviso de idioma (T-161). Lido por quem NÃO fala a língua desta página: estas frases
+  // aparecem quando o site está em INGLÊS e a pessoa prefere português. Por isso elas falam de
+  // português na primeira pessoa — "esta página está disponível em português" —, e não do
+  // idioma da página onde estão. Ver `site/AvisoDeIdioma.tsx`.
+  'hint.text': 'Esta página também está disponível em português.',
+  'hint.cta': 'Ver em português',
+  'hint.dismiss': 'Dispensar aviso',
+
   'not_found.title': 'Esta página não existe',
   'not_found.text': 'O endereço que você abriu não está no ar. Talvez o link esteja velho.',
   'not_found.home': 'Ir para o início',

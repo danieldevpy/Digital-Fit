@@ -4696,3 +4696,48 @@ a {
   margin: 0 0 12px;
   max-width: 34ch;
 }
+
+/* ---------------------------------------------------------------------------
+   Aviso de idioma (T-161, SPEC-026 — camada "Chegar certo")
+   Discreto de propósito: é sugestão, não interrupção. Não cobre conteúdo, não é modal,
+   e sai da tela com um toque.
+   --------------------------------------------------------------------------- */
+.langhint {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  background: rgba(139, 92, 246, 0.14);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.28);
+  backdrop-filter: blur(12px);
+}
+
+.langhint__text {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+}
+
+.langhint__cta {
+  flex: none;
+  font-weight: 600;
+  color: var(--accent-2, #a78bfa);
+  text-decoration: underline;
+}
+
+.langhint__close {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  font-size: 18px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}

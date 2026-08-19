@@ -11,12 +11,16 @@
 // o Google e o tradutor do Chrome enxergarem esta página (SPEC-026 §Notas técnicas), quem lê o
 // mundo passou a ser o ENTRY: `entries/site.tsx` no navegador, `entries/prerender.tsx` no
 // build. O componente recebe a tela pronta e o idioma pelo store.
+import { useLocale } from '../i18n'
 import { AboutScreen } from './AboutScreen'
+import { AvisoDeIdioma } from './AvisoDeIdioma'
 import { IndexScreen } from './IndexScreen'
 import { NotFoundScreen } from './NotFoundScreen'
 import type { SiteScreen } from './routes'
 
 export function SiteApp({ screen }: { screen: SiteScreen }) {
+  const locale = useLocale()
+
   if (screen === 'nao_encontrada') {
     return (
       <div className="app">
@@ -27,6 +31,10 @@ export function SiteApp({ screen }: { screen: SiteScreen }) {
 
   return (
     <div className="app">
+      {/* Sugere a outra versão do site a quem não veio da busca (T-161). Nunca redireciona: o
+          Googlebot rastreia dos EUA, e um redirecionamento por idioma apagaria a versão
+          portuguesa do índice — invariante da SPEC-026. */}
+      <AvisoDeIdioma screen={screen} locale={locale} />
       {screen === 'index' ? (
         <IndexScreen />
       ) : (
