@@ -47,4 +47,43 @@ describe('prepWindowInsets', () => {
   it('palco menor que o piso: a janela vira a tela inteira em vez de virar nada', () => {
     expect(prepWindowInsets({ stageH: 240, headH: 62, bottomH: 173 })).toEqual({ top: 0, bottom: 0 })
   })
+
+  // ------------------------------------------------------------------ paisagem (T-172)
+  //
+  // A máquina de medir da T-167 não precisou aprender nada sobre orientação: ela lê a altura
+  // REAL do cabeçalho e do rodapé, e em paisagem o CSS encolhe os dois (cabeçalho vira uma
+  // linha, CTA e tab bar deixam de empilhar).
+  //
+  // O ganho do layout deitado **não está no tamanho da janela** — em 390px de altura o piso de
+  // 280px manda nos dois casos, e o retângulo é o mesmo. Está em quanto dele fica COBERTO: o
+  // cromo empilhado de retrato é 201px de altura ocupando 110px de borda, ou seja, 91px de
+  // painel opaco por cima da imagem que a pessoa está tentando ler. Esta é a medida que os
+  // casos abaixo travam.
+  describe('celular deitado (~390px de altura)', () => {
+    /** Quanto do cromo sobra POR CIMA da janela nítida. Zero = ele cabe na própria borda. */
+    function invasao(stageH: number, headH: number, bottomH: number): number {
+      const { top, bottom } = prepWindowInsets({ stageH, headH, bottomH })
+      return Math.max(0, headH - top) + Math.max(0, bottomH - bottom)
+    }
+
+    it('com o cromo de paisagem, nada do cromo cobre a janela', () => {
+      // Cabeçalho em uma linha (~30px) e rodapé em uma faixa só (~70px) — o que o CSS de
+      // paisagem produz.
+      expect(invasao(390, 30, 70)).toBe(0)
+    })
+
+    it('com o cromo empilhado de retrato, 91px de painel caem sobre a imagem', () => {
+      expect(invasao(390, 62, 139)).toBe(91)
+    })
+
+    it('a janela guarda o piso nos dois casos — o piso é de retrato e deitado ele sempre morde', () => {
+      for (const [headH, bottomH] of [
+        [30, 70],
+        [62, 139],
+      ]) {
+        const { top, bottom } = prepWindowInsets({ stageH: 390, headH: headH!, bottomH: bottomH! })
+        expect(390 - top - bottom).toBe(ALTURA_MINIMA_PX)
+      }
+    })
+  })
 })

@@ -2792,6 +2792,93 @@ a {
   padding: 12px 14px 6px;
 }
 
+/* ---------------------------------------------------------- paisagem (SPEC-027 §D, T-172)
+
+   Vale nas TELAS DE CÂMERA e em mais nenhuma — divergência declarada da SPEC-014, cujo "coluna
+   ≤ 430px mesmo no desktop" continua valendo em Índice, Escolha, Guia, Progresso, Analytics e
+   Perfil. Ali uma linha de 850px é pior; aqui o quadro largo é a ferramenta.
+
+   Quem liga é CLASSE, não `@media`: a T-175 acrescenta um botão que força o layout num
+   aparelho com a rotação de tela travada, e media query não se sobrepõe por toque. Ver
+   `shell/orientation.ts`.
+
+   O recurso escasso deitado é a ALTURA (~390px num celular comum). Tudo abaixo é a mesma
+   ideia: o cromo para de EMPILHAR e passa a ocupar as bordas, e a máquina de medir da T-167
+   faz o resto sozinha — ela já lê a altura real do cabeçalho e do rodapé, então encolher os
+   dois faz a janela nítida crescer sem que ninguém precise recalcular constante nenhuma. */
+
+.app__phone--largo {
+  max-width: none;
+}
+
+/* Cabeçalho em UMA linha: título e subtítulo lado a lado. Em pé eles são duas linhas porque
+   sobra altura; deitado, cada linha custa ~3% da tela útil, e "Vamos preparar seu treino" ao
+   lado do título diz o mesmo pela metade do preço. */
+.sess--paisagem .prep__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 16px 4px;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+
+.sess--paisagem .prep__sub {
+  margin: 0;
+}
+
+/* CTA e tab bar deixam de empilhar. Empilhados custam ~130px dos 390 — um terço da tela para
+   dois controles que cabem lado a lado numa largura de 850. */
+.sess--paisagem .prep__bottom {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
+}
+
+.sess--paisagem .prep__cta {
+  flex: 0 0 auto;
+  padding: 6px 0 6px 12px;
+}
+
+.sess--paisagem .prep__bottom .tabbar-v2 {
+  flex: 1 1 auto;
+  margin: 6px 12px calc(6px + env(safe-area-inset-bottom));
+}
+
+/* O entalhe deitado fica na LATERAL, e é exatamente sobre uma das colunas de cards que ele
+   cai. Até aqui o CSS só conhecia `top` e `bottom` da área segura — em pé são esses os lados
+   que importam, e por isso a falta nunca apareceu. */
+.sess--paisagem .prep__side--left {
+  left: max(8px, env(safe-area-inset-left));
+}
+
+.sess--paisagem .prep__side--right {
+  right: max(8px, env(safe-area-inset-right));
+}
+
+/* As colunas vão de borda a borda da altura. Em pé elas param nas bordas da janela nítida
+   (`--prep-win-top/bottom`) para não invadir o cabeçalho; deitado, o cabeçalho é uma linha
+   fina no centro e o rodapé é uma faixa baixa — parar neles desperdiçaria a única direção em
+   que ainda há espaço. */
+.sess--paisagem .prep__side {
+  top: var(--prep-win-top);
+  bottom: var(--prep-win-bottom);
+  gap: 6px;
+}
+
+/* A silhueta é dimensionada pela ALTURA e mantém a proporção. Esticar para preencher o quadro
+   largo ensinaria a caber errado: ela afirma onde o corpo vai, e corpo esticado é instrução
+   falsa. Em pé quem limita é a largura da janela; deitado, a altura. */
+.sess--paisagem .prep__silhouette {
+  width: auto;
+  height: 78%;
+  max-width: 100%;
+}
+
 /* ---------- treino ao vivo (SPEC-014 §4) ---------- */
 
 /* Os dois gradientes de legibilidade. SEM `z-index`: eles moram dentro de `.live__chrome`,

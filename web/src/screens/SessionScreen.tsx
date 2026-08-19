@@ -41,6 +41,7 @@ import { useNow } from '../session/useNow'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
 import { useAccountStore } from '../store/account'
+import { useOrientation } from '../shell/orientation'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
 import { ExerciseIcon } from '../ui/exerciseIcon'
@@ -242,6 +243,12 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   // com a tela errada no meio).
   const [pediuQuadroCheio, setPediuQuadroCheio] = useState(false)
 
+  /**
+   * Paisagem vira CLASSE e não `@media` (SPEC-027 §C): media query não tem como ser
+   * sobreposta pelo botão manual que a T-175 vai acrescentar, e duas fontes da verdade para a
+   * mesma pergunta é o que produz layout que discorda de si mesmo.
+   */
+  const paisagem = useOrientation() === 'landscape'
   const palcoRef = useRef<HTMLDivElement>(null)
   const cabecalhoRef = useRef<HTMLElement>(null)
   const rodapeRef = useRef<HTMLDivElement>(null)
@@ -358,7 +365,9 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
   return (
     <div
       ref={palcoRef}
-      className={`sess ${quadroCheio ? 'sess--quadro-cheio' : ''}`}
+      className={`sess ${quadroCheio ? 'sess--quadro-cheio' : ''} ${
+        paisagem ? 'sess--paisagem' : ''
+      }`}
     >
       <div className={`sess__cam ${mode === 'preparar' ? 'sess__cam--prep' : 'sess__cam--live'}`}>
         <CameraView compactCover={mode === 'preparar'} checkScene={mode === 'preparar'} />

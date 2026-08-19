@@ -21,6 +21,7 @@ import { fetchQuota } from '../session/quota'
 import { fetchServerConfig } from '../session/serverConfig'
 import { useSession } from '../session/useSession'
 import { navigate, useRoute } from '../shell/nav'
+import { useOrientation } from '../shell/orientation'
 import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
 
@@ -128,9 +129,19 @@ export function AppShell() {
 
   const emSessao = route.screen === 'preparar' || route.screen === 'treino'
 
+  /**
+   * A coluna de 430px cai em paisagem — e SÓ nas telas de câmera (SPEC-027 §D, divergência
+   * declarada da SPEC-014). Índice, Escolha, Guia, Progresso, Analytics e Perfil continuam na
+   * coluna mobile deitados ou em pé: são telas de LER, e uma linha de 850px é pior, não
+   * melhor. Nas de câmera é o contrário — o quadro largo é a ferramenta, e emoldurá-lo em
+   * 430px joga fora justamente o que a paisagem oferece.
+   */
+  const orientacao = useOrientation()
+  const largo = emSessao && orientacao === 'landscape'
+
   return (
     <div className="app">
-      <div className="app__phone">
+      <div className={`app__phone ${largo ? 'app__phone--largo' : ''}`}>
         {route.screen === 'exercicios' && <ChooseScreen />}
         {route.screen === 'guia' && <GuideScreen exercise={route.exercise} />}
         {/* Pré-config e treino são o MESMO componente montado: a CameraView não pode
