@@ -65,6 +65,74 @@ CSS, não medidas em aparelho — o navegador controlado segue fora do ar nesta 
 
 ---
 
+## 2026-08-18 (85) · T-164 — O link do produto passa a ter cara de link
+
+**O que foi feito.** `site/social.ts` (Open Graph, Twitter Card e JSON-LD, puros e testados),
+injetados pelo pré-render em cada rota × idioma; `public/img/og.jpg` (1200×630, 48 kB), gerada
+por `scripts/og-image.html`, que fica no repositório.
+
+**O problema.** O `<title>` normal não alimenta preview de link — WhatsApp, Instagram, LinkedIn,
+Telegram, Slack e Discord leem **Open Graph**, e o site não tinha nenhuma. O link do produto
+aparecia como caixa cinza. É o canal que motiva a task: no Brasil, app de treino se espalha em
+grupo de WhatsApp antes de se espalhar na busca.
+
+**E nada disto funcionaria sem a T-159.** Nenhum desses robôs executa JavaScript; uma tag de OG
+escrita em runtime pelo React seria invisível para todos. O pré-render é o que torna esta task
+possível — a dependência declarada no BACKLOG não era formalidade.
+
+### As decisões
+
+**A regra que governa os dados estruturados: só o que é verdade verificável.** Nada de
+`aggregateRating`, `offers`, contagem de download ou prêmio — são justamente os campos que mais
+"rendem" no resultado de busca e os que o produto ainda não tem. É a doutrina do `--` da
+SPEC-014 ("a célula existe no design, o dado ainda não"), aqui com um agravante que vale
+registrar: dado estruturado inventado é **violação de política do Google** e derruba o rich
+result inteiro, não só o campo mentiroso. Virou caso de teste, para o dia em que alguém quiser
+"melhorar o resultado de busca".
+
+**A imagem é neutra de idioma, e é decisão, não preguiça.** A arte traz a marca, uma figura de
+keypoints em neon violeta (os tokens da SPEC-014) e a legenda bilíngue
+*"computer vision · visão computacional"*. O título e a descrição do card já vêm por idioma, nas
+tags; uma imagem com frase obrigaria duas artes e as duas a envelhecerem juntas. **Imagem por
+rota — nome do exercício sobre a arte — é Fase Evolução da SPEC-026** e ficou de fora de
+propósito.
+
+**JPEG, não PNG.** 48 kB contra 494 kB do mesmo desenho. Card de compartilhamento é re-comprimido
+pela plataforma de qualquer forma, e 494 kB atrasariam o preview em rede ruim, que é onde ele
+mais importa.
+
+**O gerador da imagem mora no repositório** (`scripts/og-image.html`, Canvas 2D). O PNG/JPEG é
+artefato, não blob órfão: quem quiser trocar a arte edita o desenho e regenera. Não há
+rasterizador nesta máquina (nem `rsvg-convert`, nem ImageMagick, nem `sharp`), então o desenho
+roda no navegador — que ainda tem a vantagem de renderizar a fonte de verdade.
+
+**`og:locale` é `pt_BR`, não `pt-BR`.** O formato quer `idioma_TERRITÓRIO`. Um `replace('-','_')`
+acertaria o português e erraria o inglês, que não tem território na tag e precisa de `en_US` — o
+mapa é explícito para a escolha aparecer quando o terceiro idioma entrar.
+
+### As medições
+
+- **Unitário** (`site/social.test.ts`, 9 casos): `og:locale` mapeado nos dois idiomas; o
+  `alternate` lista a outra língua e não a si mesmo; `og:url` e `og:image` absolutos; card
+  grande; aspas do título escapadas; o JSON-LD é JSON válido com `SoftwareApplication` +
+  `Organization`; nenhum campo inventado; `<` escapado (um `</script>` no texto fecharia o bloco
+  e o resto viraria HTML); `@id` da Organization estável entre páginas.
+- **No `dist` gerado**: as 16 tags presentes em cada uma das quatro páginas, com título e
+  descrição na língua da rota, e o JSON-LD reparseado com sucesso a partir do HTML.
+- **Imagem**: JPEG 1200×630, 48.524 bytes, conferida visualmente.
+- **Gates**: `ruff check` e `ruff format --check` limpos, `pytest` verde, `npm run lint` e
+  `typecheck` sem saída, `npm run test` com **743 testes**.
+
+### Pendências
+
+- **O critério de aceite da task não foi verificado**: ele pede o card conferido num **WhatsApp
+  real**, e isso exige o site no ar com a origem de produção. Fica declarado como pendência, do
+  mesmo tipo do critério 4 da SPEC-026 (tradução do navegador). O validador do Facebook também
+  só funciona com URL pública.
+- A arte é substituível a qualquer momento sem tocar em código: trocar `public/img/og.jpg`
+  basta, e o gerador está lá para quem quiser partir dele.
+- A SPEC-026 segue em **`draft`**.
+
 ## 2026-08-18 (84) · T-163 — O mapa e a porta, e o `Disallow` que teria feito o contrário do pedido
 
 **O que foi feito.** `site/descoberta.ts` (os dois arquivos, puros e testados), gerados no

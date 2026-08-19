@@ -13,6 +13,8 @@ export const site: Site = {
   'meta.not_found.title': 'Page not found — Digital Fit',
   'meta.not_found.description': 'The address you asked for does not exist on Digital Fit.',
 
+  'meta.og_image_alt': 'The Digital Fit wordmark beside a neon violet keypoint figure',
+
   'hint.text': 'This page is also available in English.',
   'hint.cta': 'View in English',
   'hint.dismiss': 'Dismiss',

@@ -54,8 +54,15 @@ function escapar(texto) {
 }
 
 async function main() {
-  const { renderizarPaginas, linksDeCabecalho, exigirOrigem, robotsTxt, sitemapXml } =
-    await import(join(RAIZ, 'dist-ssr', 'prerender.js'))
+  const {
+    renderizarPaginas,
+    linksDeCabecalho,
+    exigirOrigem,
+    robotsTxt,
+    sitemapXml,
+    tagsSociais,
+    jsonLd,
+  } = await import(join(RAIZ, 'dist-ssr', 'prerender.js'))
 
   const origem = exigirOrigem(ORIGEM_BRUTA)
   const paginas = renderizarPaginas()
@@ -92,6 +99,13 @@ async function main() {
     const links = linksDeCabecalho(origem, pagina.screen, pagina.locale)
     html = trocar(html, '  </head>', `${links}\n  </head>`)
 
+    // 4. Preview de link (Open Graph / Twitter) e dados estruturados (T-164). Entram AQUI, e
+    //    não em runtime pelo React, porque nenhum dos robôs que os consomem executa
+    //    JavaScript — é o pré-render que torna esta parte possível.
+    const social = { ...pagina, origem }
+    html = trocar(html, '  </head>', `${tagsSociais(social)}\n  </head>`)
+    html = trocar(html, '  </head>', `${jsonLd(social)}\n  </head>`)
+
     // O invariante que teria pego o bug acima na hora. Injeção em HTML por expressão regular
     // é frágil por natureza; o preço de usá-la é conferir, a cada arquivo, que a moldura
     // continua de pé. Falhar o build é o comportamento certo: um `<html>` comido não aparece
@@ -103,6 +117,8 @@ async function main() {
       `<title>${escapar(pagina.titulo)}</title>`,
       `<link rel="canonical" href="${origem}/${pagina.caminho}" />`,
       'hreflang="x-default"',
+      `<meta property="og:image" content="${origem}/img/og.jpg" />`,
+      '"@type": "SoftwareApplication"',
     ]
     for (const exigido of exigidos) {
       if (!html.includes(exigido)) {

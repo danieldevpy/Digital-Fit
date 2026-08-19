@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- Gerador da imagem de compartilhamento (T-164, SPEC-026).
+     O PNG em `public/img/og.png` é ARTEFATO deste arquivo. Para regenerar: sirva a pasta
+     `web/` num http local, abra este arquivo, e salve o PNG que o botão baixa.
+     A arte é deliberadamente NEUTRA DE IDIOMA — o título e a descrição do card vêm das tags
+     Open Graph, que já são por idioma; uma imagem com frase obrigaria duas artes e as duas a
+     envelhecerem juntas. Imagem por rota é Fase Evolução da SPEC-026. -->
+<html lang="pt-BR"><head><meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;800&display=swap" rel="stylesheet" />
+<style>body{background:#111;margin:0;padding:20px;font-family:system-ui}canvas{max-width:100%;border:1px solid #333}</style>
+</head><body>
+<canvas id="c" width="1200" height="630"></canvas>
+<script>
+// Tokens da SPEC-014 §Design tokens — os mesmos do `styles.css`.
+const BG='#05070d', GLOW='#0b101e', ACCENT='#8b5cf6', ACCENT2='#a78bfa', TEXT='#ffffff';
+const c=document.getElementById('c'), x=c.getContext('2d');
+
+function desenhar(){
+  x.fillStyle=BG; x.fillRect(0,0,1200,630);
+  // Brilho violeta atrás da figura, do lado direito — o mesmo `--bg-glow` do app.
+  let g=x.createRadialGradient(880,315,40,880,315,420);
+  g.addColorStop(0,'rgba(139,92,246,0.30)'); g.addColorStop(0.5,'rgba(139,92,246,0.08)'); g.addColorStop(1,GLOW+'00');
+  x.fillStyle=g; x.fillRect(0,0,1200,630);
+
+  // Marca
+  x.fillStyle=TEXT; x.font='800 92px Manrope, system-ui, sans-serif'; x.textBaseline='alphabetic';
+  x.fillText('Digital Fit', 90, 300);
+  x.fillStyle='rgba(255,255,255,0.55)'; x.font='600 34px Manrope, system-ui, sans-serif';
+  x.fillText('computer vision · visão computacional', 92, 356);
+
+  // Barra de acento sob a marca
+  let bg2=x.createLinearGradient(90,0,420,0); bg2.addColorStop(0,ACCENT); bg2.addColorStop(1,ACCENT2);
+  x.fillStyle=bg2; x.fillRect(90,392,330,7);
+
+  // Figura de keypoints — o produto em uma imagem, e sem uma palavra em nenhuma língua.
+  const P={cab:[880,150],omb:[880,225],co:[880,330],quaE:[840,360],quaD:[920,360],
+    cotE:[795,290],cotD:[965,290],maoE:[755,215],maoD:[1005,215],
+    joeE:[822,470],joeD:[938,470],peE:[806,575],peD:[954,575]};
+  const OSSOS=[['omb','co'],['co','quaE'],['co','quaD'],['omb','cotE'],['omb','cotD'],
+    ['cotE','maoE'],['cotD','maoD'],['quaE','joeE'],['quaD','joeD'],['joeE','peE'],['joeD','peD'],['quaE','quaD']];
+  x.strokeStyle=ACCENT2; x.lineWidth=6; x.lineCap='round';
+  x.shadowColor=ACCENT; x.shadowBlur=22;
+  for(const [a,b] of OSSOS){ x.beginPath(); x.moveTo(...P[a]); x.lineTo(...P[b]); x.stroke(); }
+  x.beginPath(); x.arc(P.cab[0],P.cab[1],34,0,7); x.stroke();
+  x.fillStyle=TEXT;
+  for(const k in P){ x.beginPath(); x.arc(P[k][0],P[k][1],8,0,7); x.fill(); }
+  x.shadowBlur=0;
+
+  window.__png = c.toDataURL('image/png');
+}
+if (document.fonts && document.fonts.ready) { document.fonts.ready.then(desenhar) } else { desenhar() }
+</script></body></html>

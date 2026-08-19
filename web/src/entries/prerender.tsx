@@ -33,6 +33,7 @@ import { caminhoDaRota, ROTAS_INDEXAVEIS, type SiteScreen } from '../site/routes
 // testável, leitura do mundo na borda.
 export { exigirOrigem, linksDeCabecalho } from '../site/metatags'
 export { robotsTxt, sitemapXml } from '../site/descoberta'
+export { jsonLd, tagsSociais } from '../site/social'
 
 export interface PaginaPrerenderizada {
   /** Caminho relativo à raiz do site — o mesmo que nomeia o arquivo no `dist/`. */
@@ -42,6 +43,7 @@ export interface PaginaPrerenderizada {
   titulo: string
   descricao: string
   screen: SiteScreen
+  imagemAlt: string
 }
 
 /**
@@ -70,6 +72,7 @@ export function renderizarPaginas(): PaginaPrerenderizada[] {
         titulo: t(rota.titulo),
         descricao: t(rota.descricao),
         screen: rota.screen,
+        imagemAlt: t('site:meta.og_image_alt'),
       })
     }
   }

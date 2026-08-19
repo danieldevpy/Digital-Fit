@@ -22,6 +22,10 @@ export const site = {
   // aparecem quando o site está em INGLÊS e a pessoa prefere português. Por isso elas falam de
   // português na primeira pessoa — "esta página está disponível em português" —, e não do
   // idioma da página onde estão. Ver `site/AvisoDeIdioma.tsx`.
+  // Alt da imagem de compartilhamento (T-164). Lida por leitor de tela e pelos robôs que
+  // indexam imagem — a arte é neutra de idioma, o alt não é.
+  'meta.og_image_alt': 'Marca do Digital Fit ao lado de uma figura de keypoints em neon violeta',
+
   'hint.text': 'Esta página também está disponível em português.',
   'hint.cta': 'Ver em português',
   'hint.dismiss': 'Dispensar aviso',
