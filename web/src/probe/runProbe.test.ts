@@ -6,7 +6,8 @@
 // teste exige que os dois números saiam separados e certos.
 import { describe, expect, it } from 'vitest'
 import type { PoseLandmarker } from '@mediapipe/tasks-vision'
-import { measureProbe } from './runProbe'
+import { Mode } from '../lib/events'
+import { enquadramentoDe, measureProbe, toCapabilityData, type ProbeOutcome } from './runProbe'
 
 /** Queima CPU de verdade: `performance.now()` é o relógio que o probe usa, e ele não é fake. */
 function gastar(ms: number): void {
@@ -146,4 +147,57 @@ describe('measureProbe', () => {
     expect(medida.modelFps).toBeNull()
     expect(medida.cameraFps).toBeNull()
   }, 5000)
+})
+
+// ------------------------------------------------------------------ enquadramento (T-176)
+
+const medidaOk: ProbeOutcome = {
+  modelFps: 20,
+  inferenceMsP50: 50,
+  cameraFps: 30,
+  cameraFpsSource: 'apresentados',
+  samples: 12,
+  durationMs: 2000,
+  failed: false,
+  webgl: true,
+  wasmSimd: true,
+  forced: false,
+  mode: Mode.EDGE,
+  reason: 'probe_ok',
+}
+
+describe('o enquadramento que sobe junto com o probe (SPEC-027 §Eventos)', () => {
+  it('carrega câmera e orientação para o contrato', () => {
+    const data = toCapabilityData(medidaOk, {
+      facing: 'environment',
+      orientation: 'landscape_forced',
+    })
+
+    expect(data.facing).toBe('environment')
+    expect(data.orientation).toBe('landscape_forced')
+  })
+
+  // Vazio é uma RESPOSTA — "esta origem não sabia dizer" — e é diferente de qualquer um dos
+  // valores possíveis. É o que separa, no corpus, sessão antiga de sessão que escolheu frontal.
+  it('sem enquadramento, os campos sobem vazios em vez de sumirem', () => {
+    const data = toCapabilityData(medidaOk)
+
+    expect(data.facing).toBe('')
+    expect(data.orientation).toBe('')
+  })
+
+  it('origem em ARQUIVO não carimba procedência nenhuma', () => {
+    // A superfície de dev (T-040) roda sobre vídeo gravado: não há câmera nem aparelho na mão,
+    // e escrever `user`/`portrait` ali inventaria procedência para o dataset — que é
+    // justamente o que este campo existe para evitar.
+    expect(enquadramentoDe('file', 'user', 'portrait')).toBeUndefined()
+    expect(toCapabilityData(medidaOk, enquadramentoDe('file', 'user', 'portrait')).facing).toBe('')
+  })
+
+  it('origem em câmera carimba o que os dois controles disseram', () => {
+    expect(enquadramentoDe('camera', 'user', 'portrait')).toEqual({
+      facing: 'user',
+      orientation: 'portrait',
+    })
+  })
 })

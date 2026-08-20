@@ -181,6 +181,13 @@ export interface SessionCapabilityData {
   probe_fps: number
   webgl: boolean
   ua: string
+  /**
+   * Qual câmera filmou e como o aparelho estava (SPEC-027 §Eventos). Aditivos no contrato,
+   * com default vazio no `events.py` — vazio significa "este cliente não sabia dizer", que é
+   * diferente de qualquer um dos valores possíveis.
+   */
+  facing: string
+  orientation: string
 }
 
 export interface SessionStartedData {

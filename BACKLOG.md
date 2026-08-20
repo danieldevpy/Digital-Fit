@@ -419,10 +419,24 @@ por isso ela não é a última, é a que anda junto desde o começo.
 
 | ID | Task | Spec | Status |
 |---|---|---|---|
-| T-176 | **O enquadramento vai junto para o dataset.** Mudança **aditiva** em `SessionCapability` (`workers/shared/events.py` primeiro, como manda a regra de contrato): `facing` (`user`/`environment`) e `orientation` (`portrait`/`landscape`/`landscape_forced`), ambos com default vazio no padrão do `ua` que já está lá — cliente antigo continua aceito sem evento novo. O relatório mostra os dois. Motivo de existir: o dataset é o produto (keypoint-first, coleta desde o dia 1), e sessão filmada por outra pessoa em paisagem tem estatística de enquadramento diferente — sem o rótulo isso vira ruído não explicado no corpus, e `landscape_forced` é o único jeito de excluir depois as sessões de quadro girado. Depende de T-170 e T-172 *(Tam: P)* | 027/002/010 | todo |
+| T-176 | **O enquadramento vai junto para o dataset.** Mudança **aditiva** em `SessionCapability` (`workers/shared/events.py` primeiro, como manda a regra de contrato): `facing` (`user`/`environment`) e `orientation` (`portrait`/`landscape`/`landscape_forced`), ambos com default vazio no padrão do `ua` que já está lá — cliente antigo continua aceito sem evento novo. O relatório mostra os dois. Motivo de existir: o dataset é o produto (keypoint-first, coleta desde o dia 1), e sessão filmada por outra pessoa em paisagem tem estatística de enquadramento diferente — sem o rótulo isso vira ruído não explicado no corpus, e `landscape_forced` é o único jeito de excluir depois as sessões de quadro girado. Depende de T-170 e T-172 *(Tam: P)* | 027/002/010 | **feito** (2026-08-19) — foi maior que P: o evento sozinho não cumpria o propósito, porque o rótulo morreria no stream do Redis. O `dataset-writer` passou a consumir `session.capability` e as duas colunas entraram no parquet (**SCHEMA_VERSION 2**, `docs/DATASET.md` atualizado). **A parte "o relatório mostra os dois" NÃO foi feita** — o report-builder lê `events.analysis` e a capability é publicada em `pose.frames`: é mudança de roteamento, não de tela (ver Descobertas) |
 
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-176] O relatório não tem como mostrar o enquadramento sem uma mudança de roteamento —
+  e a linha da task prometia que mostraria.** `session.capability` é publicado em
+  `Stream.POSE_FRAMES` (é ali que o `dataset-writer` o encontra, e foi por ali que esta task o
+  levou ao corpus). O `report-builder`, porém, lê `events.analysis`, e o `analysis_worker`
+  descarta a capability explicitamente (`return []  # telemetria do cliente`). Mostrar
+  `facing`/`orientation` no relatório exige uma de três coisas, todas maiores que a task:
+  publicar o evento nos dois streams; o report-builder assinar `pose.frames` (que carrega
+  TODOS os keypoints — caro por um evento por sessão); ou o campo viajar no `session.started`,
+  que é o evento que já chega ao relatório e é carimbado pela API. **A terceira é a mais
+  barata e a mais coerente** — a API já monta os dois eventos no mesmo lugar, a partir do
+  mesmo `probe_result` —, mas é mudança de contrato e merece task própria. Enquanto isso, o
+  dado existe no corpus, que é onde a SPEC-027 §Eventos justificou o campo; o relatório é
+  conveniência.
 
 - **[T-175] O botão de virar RE-FLUI o layout; ele não GIRA a tela — e no celular com rotação
   travada é girar que a pessoa espera.** Medido: com a viewport em 390×844 e o botão pedindo

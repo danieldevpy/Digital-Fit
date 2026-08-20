@@ -33,7 +33,12 @@ __all__ = [
 ]
 
 #: Sobe quando o schema muda de forma que quebre quem lê o corpus antigo.
-SCHEMA_VERSION = 1
+#:
+#: **2 (T-176)**: entram `facing` e `orientation` (SPEC-027 §Eventos). Arquivo da versão 1
+#: continua legível — as colunas novas simplesmente não existem lá —, mas um leitor que passe
+#: a EXIGIR o rótulo de enquadramento quebra no corpus antigo, e é para isso que a versão
+#: serve: dizer, sem abrir o arquivo, se a pergunta pode ser feita.
+SCHEMA_VERSION = 2
 
 #: Sufixos das 4 componentes de cada landmark. `v` é `visibility` (0–1), não uma coordenada —
 #: entra junto porque quem treina precisa saber de qual ponto pode confiar.
@@ -54,6 +59,15 @@ _META_FIELDS: list[tuple[str, pa.DataType]] = [
     ("exercise", pa.string()),
     ("source", pa.string()),  # edge | cloud | file — de qual caminho de extração veio
     ("degraded", pa.bool_()),
+    # Procedência da imagem (SPEC-027 §Eventos, T-176). Constantes na sessão inteira, como
+    # `exercise` — e por isso repetidas na linha, e não guardadas só nos metadados do arquivo:
+    # o corpus é lido com `concat` de centenas de arquivos, e metadado de arquivo não sobrevive
+    # ao `concat`. Foi essa a lição que pôs `session_id` na linha.
+    #
+    # `""` significa "esta sessão não soube dizer" (cliente antigo, ou origem em arquivo), e é
+    # diferente de qualquer um dos valores possíveis.
+    ("facing", pa.string()),  # user | environment | ""
+    ("orientation", pa.string()),  # portrait | landscape | landscape_forced | ""
 ]
 
 #: `float32` e não `float64`: o MediaPipe entrega precisão simples, então o dobro de bytes
@@ -79,6 +93,8 @@ def build_table(frames: SessionFrames) -> pa.Table:
         "exercise": [frames.exercise] * len(linhas),
         "source": [linha.source for linha in linhas],
         "degraded": [linha.degraded for linha in linhas],
+        "facing": [frames.facing] * len(linhas),
+        "orientation": [frames.orientation] * len(linhas),
     }
     for indice, nome in enumerate(COORD_COLUMNS):
         landmark, eixo = divmod(indice, len(AXES))

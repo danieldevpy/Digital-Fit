@@ -407,6 +407,22 @@ class SessionCapability:
     probe_fps: float
     webgl: bool
     ua: str = ""
+    #: Qual câmera filmou (SPEC-027 §Eventos): ``user`` (frontal) ou ``environment`` (traseira).
+    #:
+    #: O dataset é o produto (keypoint-first, coleta desde o dia 1), e sessão filmada por OUTRA
+    #: pessoa tem estatística de enquadramento diferente — quem segura o aparelho enquadra
+    #: melhor que um celular apoiado, e a distância típica muda. Sem o rótulo isso vira ruído
+    #: não explicado no corpus, indistinguível de gente que se enquadrou mal.
+    facing: str = ""
+    #: Como o aparelho estava (SPEC-027 §Eventos): ``portrait``, ``landscape`` ou
+    #: ``landscape_forced``.
+    #:
+    #: O terceiro valor é o que justifica o campo existir. ``landscape_forced`` é o celular com
+    #: a **rotação de tela travada** cujo dono pediu o layout deitado pelo botão (T-175): ali o
+    #: quadro da câmera NÃO girou junto, o mundo chega deitado, e as contas que a SPEC-003 faz
+    #: sobre a altura do frame passam a medir outra coisa. É o único jeito de EXCLUIR essas
+    #: sessões de uma calibração futura — sem ele, elas entram como se fossem normais.
+    orientation: str = ""
 
     def to_data(self) -> dict[str, Any]:
         return {
@@ -414,6 +430,8 @@ class SessionCapability:
             "probe_fps": self.probe_fps,
             "webgl": self.webgl,
             "ua": self.ua,
+            "facing": self.facing,
+            "orientation": self.orientation,
         }
 
     @classmethod
@@ -423,6 +441,11 @@ class SessionCapability:
             probe_fps=float(_require(data, "probe_fps")),
             webgl=bool(_require(data, "webgl")),
             ua=str(data.get("ua", "")),
+            # Aditivo com default vazio, no mesmo padrão do `ua`: cliente antigo continua sendo
+            # aceito sem versão nova de evento, e vazio significa "este cliente não sabia
+            # dizer" — que é diferente de qualquer um dos valores possíveis.
+            facing=str(data.get("facing") or ""),
+            orientation=str(data.get("orientation") or ""),
         )
 
 
