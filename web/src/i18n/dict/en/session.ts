@@ -17,6 +17,10 @@ export const session: Session = {
   'camera.rear': 'Rear',
   'camera.single': 'This device has only one camera.',
   'camera.switch_aria': 'Switch camera. Currently: {current}.',
+  'orientation.to_landscape': 'Lay screen down',
+  'orientation.to_portrait': 'Stand screen up',
+  'orientation.aria': 'Switch between upright and sideways screen',
+  'orientation.locked': 'Rotation locked: the camera frame did not turn with you. Unlock the device so the exercise reads correctly.',
 
   'warmup.title': 'Getting the analysis ready on this device…',
   'warmup.downloading': 'Downloading the pose model · {progress} (first time only)',

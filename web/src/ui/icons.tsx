@@ -221,6 +221,17 @@ export function IconCameraSwitch({ className }: IconProps) {
   )
 }
 
+/** Virar a tela (SPEC-027 §F): um aparelho e a seta que o gira. */
+export function IconRotate({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <rect x="7.5" y="3" width="9" height="14" rx="2" />
+      <path d="M4.6 15.4a8 8 0 0 0 3.2 4.2" />
+      <path d="M8.4 17.4 7.4 20.2l-2.8-1" />
+    </svg>
+  )
+}
+
 export function IconZoom({ className }: IconProps) {
   return (
     <svg {...base} className={className} aria-hidden="true">
