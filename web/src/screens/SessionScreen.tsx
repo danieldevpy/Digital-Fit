@@ -15,6 +15,7 @@ import { CountdownSetting } from '../hud/CountdownSetting'
 import { TimerRing } from '../hud/TimerRing'
 import { ViewConfirm } from '../hud/ViewConfirm'
 import { CameraControl } from '../hud/CameraControl'
+import { OrientationControl } from '../hud/OrientationControl'
 import { ZoomControl } from '../hud/ZoomControl'
 import { exerciseSubtitle, getExercise } from '../session/catalog'
 import { resolveCoachCard } from '../session/coachCard'
@@ -41,7 +42,7 @@ import { useNow } from '../session/useNow'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
 import { useAccountStore } from '../store/account'
-import { useOrientation } from '../shell/orientation'
+import { useLayoutOrientation } from '../shell/useLayoutOrientation'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
 import { ExerciseIcon } from '../ui/exerciseIcon'
@@ -248,7 +249,7 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
    * sobreposta pelo botão manual que a T-175 vai acrescentar, e duas fontes da verdade para a
    * mesma pergunta é o que produz layout que discorda de si mesmo.
    */
-  const paisagem = useOrientation() === 'landscape'
+  const paisagem = useLayoutOrientation().valendo === 'landscape'
   const palcoRef = useRef<HTMLDivElement>(null)
   const cabecalhoRef = useRef<HTMLElement>(null)
   const rodapeRef = useRef<HTMLDivElement>(null)
@@ -521,6 +522,12 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                 Só com a câmera ligada — antes disso não há track para trocar —, e o próprio
                 controle some em aparelho de câmera única. */}
             {cameraReady && <CameraControl />}
+
+            {/* Vizinho dos outros dois: Espelhar, câmera e orientação são a mesma família de
+                escolhas — "como o celular está". Este NÃO depende da câmera estar ligada: o
+                aparelho com a rotação travada precisa poder virar a tela antes de qualquer
+                imagem aparecer. */}
+            <OrientationControl />
           </div>
 
           <div className="prep__side prep__side--right">

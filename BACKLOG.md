@@ -413,7 +413,7 @@ por isso ela não é a última, é a que anda junto desde o começo.
 |---|---|---|---|
 | T-173 | **(Raia C) Paisagem: o treino ao vivo.** Os cards HUD deixam as posições fixas em px a partir do topo e da base (T-071) e migram para as colunas laterais — esquerda REPETIÇÕES/SÉRIE, direita TEMPO/ÂNGULO/CALORIAS; o topo fica só com o cabeçalho, e a barra com o stop vai para onde o polegar de quem segura deitado alcança. A instrução modal continua mandando na tela (T-071, vinculante): em paisagem o cromo flutuante também sai enquanto o servidor mede o corpo. Critério 5 da spec, medido por `getBoundingClientRect` em viewport de 850×390 — o mesmo jeito pelo qual a T-168 encontrou o desequilíbrio das colunas, porque olhar não teria encontrado. Depende de T-172 *(Tam: G)* | 027/014 | **feito** (2026-08-19) — o pill do exercício SAI deitado (o cabeçalho já diz o nome; precedente da T-068) e o toast fica **ao lado** da barra e não acima, porque o FAB sobe 30px e a versão "acima" colidia com ele em 6px. Medido sem colisão em 850×390 e 667×375, retrato inalterado; o stop saiu do centro da base para 77–82% da largura. **Pendente: girar de verdade só em aparelho real** |
 | T-174 | **Cada exercício declara a orientação em que rende.** Campo `orientacao_recomendada` (`retrato`/`paisagem`/`qualquer`) no `Exercise` do banco + painel (SPEC-018: conteúdo é banco, não código), espelhado no catálogo embutido do cliente para o primeiro paint sem rede. O catálogo **já sabe disso em texto solto** — o comentário do `scene_tip` em `session/catalog.ts` diz que a flexão e o abdominal pedem o celular deitado —, esta task transforma a frase num campo consultável. A recomendação aparece na pré-configuração, no pill que a T-085 já usa, **só quando discorda** da orientação atual, e **não** desabilita o CTA (decisão 1 da T-085: orienta, nunca bloqueia). A frase é chave do dicionário (`session:*`, nas duas línguas); do banco vem só o valor. Depende de T-172 *(Tam: M)* | 027/020/018/025 | todo |
-| T-175 | **(Raia C) O botão de virar, e o celular com a rotação travada.** Alterna o layout independentemente da detecção, valendo até a viewport girar de verdade (escolha manual que sobrevive a um giro real é escolha que ninguém desfaz). O caso que motiva o botão é o aparelho com rotação de tela travada, e nele o produto **não pode fingir**: ali o quadro da câmera também não girou, o mundo chega deitado, e a mesma frase que confirma o layout diz que destravar a rotação é o caminho que preserva a leitura do exercício. A sessão sai marcada `landscape_forced` (T-176), que é o rótulo pelo qual essas sessões ficam de fora de qualquer calibração futura. **Girar o frame antes da pose fica fora**: é um canvas a mais no caminho quente a 15fps, e a SPEC-001 decide `edge`×`cloud` por latência por inferência — entra na Evolução com a medição junto. Depende de T-172 e T-173 *(Tam: M)* | 027/001 | todo |
+| T-175 | **(Raia C) O botão de virar, e o celular com a rotação travada.** Alterna o layout independentemente da detecção, valendo até a viewport girar de verdade (escolha manual que sobrevive a um giro real é escolha que ninguém desfaz). O caso que motiva o botão é o aparelho com rotação de tela travada, e nele o produto **não pode fingir**: ali o quadro da câmera também não girou, o mundo chega deitado, e a mesma frase que confirma o layout diz que destravar a rotação é o caminho que preserva a leitura do exercício. A sessão sai marcada `landscape_forced` (T-176), que é o rótulo pelo qual essas sessões ficam de fora de qualquer calibração futura. **Girar o frame antes da pose fica fora**: é um canvas a mais no caminho quente a 15fps, e a SPEC-001 decide `edge`×`cloud` por latência por inferência — entra na Evolução com a medição junto. Depende de T-172 e T-173 *(Tam: M)* | 027/001 | **feito** (2026-08-19) — a regra é pura (`shell/orientationChoice.ts`, 12 testes) e a escolha morre sozinha quando a viewport gira de verdade; `orientationLabel()` já devolve `landscape_forced` para a T-176 consumir. Exercitado na tela: com viewport retrato o botão liga o layout deitado **e** acende o aviso de rotação travada; com viewport paisagem alterna sem aviso. **Descoberta importante registrada: o botão RE-FLUI o layout, não GIRA a tela** |
 
 ### Onda 3 — o fecho
 
@@ -423,6 +423,21 @@ por isso ela não é a última, é a que anda junto desde o começo.
 
 
 ## Descobertas (entram aqui, nunca no escopo da task atual)
+
+- **[T-175] O botão de virar RE-FLUI o layout; ele não GIRA a tela — e no celular com rotação
+  travada é girar que a pessoa espera.** Medido: com a viewport em 390×844 e o botão pedindo
+  paisagem, o layout deitado é aplicado sem colisão e sem rolagem (cabeçalho de 33px em vez de
+  62, rodapé de 73 em vez de 147, janela de 174×619). Só que quem está com o celular **de lado**
+  continua vendo uma tela de 390 de largura por 844 de altura, virada 90° — o app ganhou um
+  pouco de janela e não ganhou a orientação. O que atenderia a expectativa é uma **transformação
+  de 90° na casca** (`transform: rotate(90deg)` no `.app__phone`, com a matemática de `dvh`
+  invertida), que é mudança de raiz e não cabia nesta task. E ela não resolveria sozinha a parte
+  que importa: o quadro da câmera continuaria com o mundo deitado, que é o motivo de o aviso
+  desta task existir. Duas decisões possíveis, e são de produto: (a) aceitar que a resposta ao
+  aparelho travado é o AVISO — "destrave a rotação" — e o botão existir para os outros casos
+  (tablet, tela dividida, detecção que discorda da pessoa); ou (b) abrir task para a rotação da
+  casca, sabendo que ela vem junto com a rotação do frame (Fase Evolução da SPEC-027 §F) para
+  não entregar imagem bonita com leitura errada.
 
 - **[T-172] O piso de 280px da janela nítida é uma constante de RETRATO, e deitado ele sempre
   morde.** `ALTURA_MINIMA_PX` (T-167) existe para o cromo invadir a imagem em vez de a janela

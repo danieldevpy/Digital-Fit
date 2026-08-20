@@ -21,7 +21,7 @@ import { fetchQuota } from '../session/quota'
 import { fetchServerConfig } from '../session/serverConfig'
 import { useSession } from '../session/useSession'
 import { navigate, useRoute } from '../shell/nav'
-import { useOrientation } from '../shell/orientation'
+import { useLayoutOrientation } from '../shell/useLayoutOrientation'
 import { useAccountStore } from '../store/account'
 import { useSessionStore } from '../store/session'
 
@@ -136,7 +136,7 @@ export function AppShell() {
    * melhor. Nas de câmera é o contrário — o quadro largo é a ferramenta, e emoldurá-lo em
    * 430px joga fora justamente o que a paisagem oferece.
    */
-  const orientacao = useOrientation()
+  const { valendo: orientacao } = useLayoutOrientation()
   const largo = emSessao && orientacao === 'landscape'
 
   return (

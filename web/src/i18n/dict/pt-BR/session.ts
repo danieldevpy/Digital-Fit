@@ -28,6 +28,13 @@ export const session = {
   'camera.rear': 'Traseira',
   'camera.single': 'Este aparelho tem só uma câmera.',
   'camera.switch_aria': 'Trocar de câmera. Agora: {current}.',
+  // Botão de virar (SPEC-027 §F). O rótulo diz o que o toque VAI FAZER — a tela inteira já
+  // mostra o estado. `locked` é o aviso que não deixa o botão fingir que resolveu tudo: com a
+  // rotação travada o quadro da câmera não girou junto, e é a leitura do exercício que sofre.
+  'orientation.to_landscape': 'Deitar a tela',
+  'orientation.to_portrait': 'Levantar a tela',
+  'orientation.aria': 'Alternar entre tela em pé e tela deitada',
+  'orientation.locked': 'Rotação travada: o quadro da câmera não virou junto. Destrave o aparelho para o exercício ser lido certo.',
 
   // --- Aquecimento do pipeline (T-069): a janela em que o app baixa ~17 MB e a tela ficaria muda ---
   'warmup.title': 'Preparando a análise neste aparelho…',

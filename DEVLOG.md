@@ -5,6 +5,72 @@
 
 ---
 
+## 2026-08-19 (94) · T-175 — O botão de virar, e o que ele honestamente não faz
+
+**Fora de ordem de propósito.** A onda 2 lista T-174 antes desta; peguei a T-175 primeiro
+porque é ela que fecha o pedido original ("ter um botão para virar, caso não for detectado
+automático"). A T-174 é aditiva; esta é a que estava faltando.
+
+### Três camadas, e a do meio é a que interessa
+
+`orientation.ts` é o sinal do navegador. `orientationChoice.ts` é a **regra, pura e testada
+sem React**. `useLayoutOrientation.ts` é cola. Quem quiser entender a decisão lê o do meio, e
+foi por isso que ele existe separado: a regra tem quatro casos e três deles são fáceis de errar.
+
+**A escolha guarda a orientação da viewport no instante em que foi feita.** É o que implementa
+"vale até a orientação real mudar" — e o motivo não é elegância: uma escolha que sobrevivesse a
+um giro DE VERDADE seria uma escolha que ninguém consegue desfazer. A pessoa gira o aparelho,
+nada acontece, e não há nada na tela explicando por quê.
+
+**A assimetria do aviso é deliberada.** Paisagem pedida numa viewport que continuou retrato
+avisa; retrato pedido numa viewport deitada, não. Ali o quadro da câmera está em pé com o mundo
+em pé — o layout é só mais estreito do que precisaria, e não há nada sobre o exercício a
+corrigir. Avisar seria alarme sem consequência, e alarme sem consequência é como se ensina a
+ignorar alarme.
+
+`orientationLabel()` já devolve `landscape_forced` e fica esperando a T-176, que é quem leva o
+rótulo ao `session.capability`. A regra mora aqui porque é ela que precisa de teste; o envio é
+fiação.
+
+### Exercitado na tela, não só em teste
+
+| viewport | ação | resultado medido |
+|---|---|---|
+| 390×844 | tocar no botão | `sess--paisagem` + `app__phone--largo` aplicados; rótulo vira "Levantar a tela"; **aviso de rotação travada acende** |
+| 850×390 | tocar no botão | volta para retrato; rótulo vira "Deitar a tela"; **sem aviso** |
+| 390×844 forçado em paisagem | geometria | sem colisão, sem rolagem: cabeçalho 33px (era 62), rodapé 73px (era 147), janela 174×619 |
+
+### A descoberta que muda o que prometer
+
+**O botão RE-FLUI o layout; ele não GIRA a tela.** Com a viewport em 390×844 e paisagem
+forçada, o app fica com o cromo compacto do modo deitado — ganha janela, não quebra nada — mas
+quem está segurando o celular **de lado** continua vendo 390 de largura por 844 de altura,
+virados 90°. Ou seja: no caso que motivou o botão, ele entrega menos do que a pessoa imagina ao
+tocá-lo.
+
+O que atenderia a expectativa é uma transformação de 90° na casca, que é mudança de raiz e não
+cabia aqui — e que **não resolveria sozinha a parte que importa**: o quadro da câmera
+continuaria com o mundo deitado, que é exatamente o motivo de o aviso desta task existir.
+Registrei como Descoberta com as duas saídas possíveis, porque a escolha é de produto: ou o
+aviso É a resposta ao aparelho travado (e o botão serve aos outros casos), ou abre-se task para
+girar a casca — sabendo que ela vem casada com a rotação do frame, senão entrega imagem bonita
+com leitura errada.
+
+Prefiro ter isso escrito antes de o Daniel testar do que depois de ele estranhar.
+
+### Gates
+
+`tsc`, `eslint`, `vitest` (73 arquivos, **911 testes**, 12 novos), `ruff check` e
+`ruff format --check`.
+
+### Pendências
+
+- O caso real (celular com rotação travada de verdade, na mão, de lado) continua sem teste de
+  campo — o navegador de preview simula a viewport, não o aparelho.
+- O rótulo `landscape_forced` existe e não é enviado a lugar nenhum ainda: T-176.
+
+---
+
 ## 2026-08-19 (93) · T-173 — Paisagem no treino: a base tinha quatro candidatos e cabiam três
 
 **O ponto de partida, medido.** Em pé, os quatro cards moram no terço de cima em px fixos
