@@ -20,6 +20,8 @@ export interface ServerExercise {
   muscle_group: string
   default_tip: string
   main_angle: string
+  /** Em que orientação este exercício rende (SPEC-027 §E). Servidor antigo não manda. */
+  orientacao_recomendada?: string
   demo_img: string
   /** Vazio = a frase padrão de cena. Servidor antigo não manda o campo, e isso é suportado. */
   scene_tip?: string

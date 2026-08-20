@@ -5,6 +5,92 @@
 
 ---
 
+## 2026-08-19 (95) · T-174 — A frase que a tela não conseguia comparar virou coluna
+
+**O que já existia, e por que não bastava.** O catálogo sabia disto desde a T-106/T-107, em
+texto solto: o `scene_tip` da flexão e do abdominal diz "celular deitado no chão, de lado", e o
+comentário do campo em `catalog.ts` explica que instrução de cena errada num exercício de chão
+não é erro de texto — é a sessão inteira sair zerada. Texto serve para a pessoa **ler**. Não
+serve para a tela **comparar** com a orientação medida do aparelho. Esta task é a mesma
+informação em forma consultável: `orientacao_recomendada` (`retrato` / `paisagem` / `qualquer`).
+
+Os dois convivem e não se repetem: o `scene_tip` diz ONDE o celular vai, o campo novo diz COMO
+ele fica.
+
+### A migration leva dados, e isso foi decisão e não conveniência
+
+`0025` tem duas operações: o campo (default `qualquer`, aditivo, ninguém quebra) e um
+`RunPython` que preenche os quatro do catálogo de hoje. Deixar todo mundo em `qualquer` teria
+dois efeitos ruins ao mesmo tempo — a feature nasceria **inerte** (nenhum conselho, nunca), e o
+embutido do cliente **divergiria do banco**, que é exatamente o `[A/T-051]` que o
+`catalog.test.ts` existe para impedir.
+
+Os valores não são chute: são o que o `scene_tip` já dizia. Chão → `paisagem` (flexão,
+abdominal); em pé → `retrato` (polichinelo, agachamento), e no polichinelo com um argumento a
+mais, que os braços sobem acima da cabeça e é a altura do quadro que precisa sobrar.
+
+`qualquer` continua sendo o default certo para exercício futuro — e não é omissão: é a
+afirmação de que as duas orientações servem.
+
+### Onde cada coisa foi morar (as três naturezas, SPEC-018)
+
+- O **valor** é conteúdo de exercício → banco + painel, e chega ao cliente pelo mesmo
+  `GET /api/config` dos outros campos de apresentação. Nenhuma rota nova, nenhum segundo canal.
+- A **frase** é UI → dicionário do cliente, nas duas línguas. Ela vale para qualquer exercício
+  da categoria, então não tem por que ser texto de banco.
+- A **comparação** é regra → `session/orientationAdvice.ts`, pura, 7 testes.
+
+### Duas decisões pequenas que evitam ruído
+
+**O conselho segue a orientação RESOLVIDA, não a da viewport.** Quem virou a tela pelo botão da
+T-175 já está atendendo à recomendação — continuar avisando ali seria o app discordando de uma
+escolha que ele mesmo ofereceu.
+
+**Prioridade no pill: cena > orientação > enquadramento.** Luz e lente suja (T-085) mandam
+porque são invisíveis para quem está do outro lado do celular. A orientação vem depois — a
+pessoa vê o aparelho na mão —, mas antes de "alinhe-se à guia", porque é ela que decide se o
+corpo cabe no quadro, e a guia só ajuda depois disso.
+
+Valor desconhecido vindo do servidor cai em `qualquer`, mesmo tratamento do `main_angle`:
+contrato fechado no cliente, `CharField` aberto no servidor. Um bundle antigo não deve dar
+conselho sobre vocabulário que não conhece.
+
+### Exercitado na tela
+
+| situação | pill |
+|---|---|
+| Polichinelo, viewport deitada | "Este exercício rende mais com o celular em pé." (com destaque de aviso) |
+| Polichinelo, virado para retrato pelo botão | volta a "Ligue a câmera para se enquadrar" |
+| Flexão, viewport em pé | "Este exercício rende mais com o celular deitado." |
+
+**O CTA ficou habilitado em todas** — medido, não suposto. É a decisão 1 da T-085 herdada:
+orienta, nunca bloqueia.
+
+### Gates
+
+`ruff check`, `ruff format --check`, `pytest` (suíte completa), `tsc`, `eslint`, `vitest`
+(74 arquivos, **918 testes**, 7 novos).
+
+Dois testes existentes precisaram de uma linha: `catalogGroups.test.ts` (a fixture de
+`ExerciseInfo` ganhou o campo) e `test_i18n_content.py` (o POST do formulário do painel passou
+a exigir o campo novo — ele tem default no modelo, mas `blank=False`, e escolher é o
+comportamento certo).
+
+### A nota da T-173 se provou na mesma sessão
+
+O dev server voltou a servir módulo velho depois da troca de branch — desta vez com sintoma
+diferente: `does not provide an export named 'IconRotate'`, com o export existindo no disco e o
+`tsc` verde. Reiniciar resolveu. Duas vezes em duas tasks: **trocou de branch, reinicia o
+servidor antes de acreditar na tela.**
+
+### Pendência
+
+O painel não foi aberto num navegador nesta sessão — o campo entrou no fieldset "Apresentação"
+e o teste do formulário passa, mas ver o `<select>` desenhado ficou para o próximo acesso ao
+painel.
+
+---
+
 ## 2026-08-19 (94) · T-175 — O botão de virar, e o que ele honestamente não faz
 
 **Fora de ordem de propósito.** A onda 2 lista T-174 antes desta; peguei a T-175 primeiro

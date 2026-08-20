@@ -15,6 +15,7 @@ function ex(category: string): ExerciseInfo {
     muscle_group: 'G',
     default_tip: 'T',
     main_angle: 'none',
+    orientacao_recomendada: 'qualquer',
     demo_img: '',
     dot_color: '#fff',
     guide_steps: [],

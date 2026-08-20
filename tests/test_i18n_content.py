@@ -494,6 +494,9 @@ def test_salvar_traducao_de_exercicio_pelo_painel_reflete_no_resolvedor(client, 
             "demo_img": squat.demo_img,
             "dot_color": squat.dot_color,
             "scene_tip": squat.scene_tip,
+            # Campo novo da T-174: o formulário do painel passou a exigi-lo (tem default
+            # no modelo, mas `blank=False` — escolher é o comportamento certo).
+            "orientacao_recomendada": squat.orientacao_recomendada,
             "met": squat.met,
             "ref_cadence_rpm": squat.ref_cadence_rpm,
             "maturity": squat.maturity,

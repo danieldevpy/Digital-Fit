@@ -42,6 +42,7 @@ import { useNow } from '../session/useNow'
 import { navigate } from '../shell/nav'
 import { TabBar } from '../shell/TabBar'
 import { useAccountStore } from '../store/account'
+import { orientationAdvice } from '../session/orientationAdvice'
 import { useLayoutOrientation } from '../shell/useLayoutOrientation'
 import { useSessionStore } from '../store/session'
 import { BrandMark } from '../ui/BrandMark'
@@ -249,7 +250,8 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
    * sobreposta pelo botão manual que a T-175 vai acrescentar, e duas fontes da verdade para a
    * mesma pergunta é o que produz layout que discorda de si mesmo.
    */
-  const paisagem = useLayoutOrientation().valendo === 'landscape'
+  const { valendo: orientacaoValendo } = useLayoutOrientation()
+  const paisagem = orientacaoValendo === 'landscape'
   const palcoRef = useRef<HTMLDivElement>(null)
   const cabecalhoRef = useRef<HTMLElement>(null)
   const rodapeRef = useRef<HTMLDivElement>(null)
@@ -278,6 +280,12 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
     setViewId(viewPreference(exerciseKey))
   }
   const view = viewsOf(exerciseKey)?.find((v) => v.id === viewId)
+
+  /**
+   * Conselho de orientação (SPEC-027 §E): `null` quando o exercício não tem preferência ou o
+   * aparelho já está como ele pede. Orienta e nunca bloqueia — o CTA abaixo não olha para isto.
+   */
+  const conselho = orientationAdvice(exercise.orientacao_recomendada, orientacaoValendo)
 
   // O destaque do "ver exemplo" (ver `session/guideGate.ts`). Assinado do store, e não lido do
   // token direto, para o destaque apagar sozinho no instante em que a pessoa entra pela folha
@@ -422,18 +430,33 @@ export function SessionScreen({ mode }: { mode: 'preparar' | 'treino' }) {
                   Enquadramento a silhueta-guia já ensina sozinha; lente suja e luz fraca são
                   invisíveis para quem está do outro lado do celular — por isso ganham a vez.
                   Orienta e não bloqueia: o CTA de iniciar continua o mesmo. */}
-              <div className={`prep__hint-pill ${sceneAdvice ? 'prep__hint-pill--aviso' : ''}`}>
+              <div
+                className={`prep__hint-pill ${
+                  sceneAdvice || conselho ? 'prep__hint-pill--aviso' : ''
+                }`}
+              >
                 <span>
                   {sceneAdvice
                     ? sceneAdvice.text
-                    : cameraReady
-                      ? // Com variação, o pill diz onde o CELULAR vai (T-111) em vez de
-                        // "alinhe-se à guia": num exercício de chão a silhueta em pé não
-                        // ensina nada, e é a montagem da cena que decide se a sessão conta.
-                        (view?.phone ?? t('session:prep.pill_aligned'))
-                      : // O treino não começa mais com a câmera desligada: o pill diz o passo
-                        // que falta em vez de descrever a janela vazia.
-                        t('session:prep.pill_turn_on')}
+                    : // A orientação entra DEPOIS da cena e ANTES da dica de enquadramento
+                      // (SPEC-027 §E). Luz e lente suja são invisíveis para quem está do outro
+                      // lado do celular, e por isso mandam. A orientação a pessoa vê na mão —
+                      // mas é ela que decide se o corpo cabe no quadro, e isso vence
+                      // "alinhe-se à guia", que só ajuda depois de o quadro estar certo.
+                      conselho
+                      ? t(
+                          conselho === 'paisagem'
+                            ? 'session:prep.advice_landscape'
+                            : 'session:prep.advice_portrait',
+                        )
+                      : cameraReady
+                        ? // Com variação, o pill diz onde o CELULAR vai (T-111) em vez de
+                          // "alinhe-se à guia": num exercício de chão a silhueta em pé não
+                          // ensina nada, e é a montagem da cena que decide se a sessão conta.
+                          (view?.phone ?? t('session:prep.pill_aligned'))
+                        : // O treino não começa mais com a câmera desligada: o pill diz o
+                          // passo que falta em vez de descrever a janela vazia.
+                          t('session:prep.pill_turn_on')}
                 </span>
               </div>
             </div>

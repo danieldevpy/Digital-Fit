@@ -16,6 +16,7 @@
 import { useMemo } from 'react'
 import { t, tDynamic, useLocale } from '../i18n'
 import { useConfigStore, type ServerExercise } from '../store/config'
+import { recomendacaoDe, type OrientacaoRecomendada } from './orientationAdvice'
 
 export interface ExerciseInfo {
   display_name: string
@@ -35,6 +36,13 @@ export interface ExerciseInfo {
    * esqueleto sobre a imagem existe para evitar (SPEC-013).
    */
   main_angle: 'arm_abduction' | 'none'
+  /**
+   * Em que orientação de celular este exercício rende (SPEC-027 §E).
+   *
+   * Espelha a coluna do banco (migration 0025) e existe pelo mesmo motivo do `main_angle`
+   * logo acima: o `scene_tip` já dizia isto em texto, e texto a tela não compara.
+   */
+  orientacao_recomendada: OrientacaoRecomendada
   /**
    * Imagem de demonstração (SPEC-015: "todo exercício tem demo visual").
    *
@@ -179,6 +187,8 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
       return t('catalog:exercise.jumping_jack.default_tip')
     },
     main_angle: 'arm_abduction',
+    // Em pé, e com os braços subindo acima da cabeça: é a ALTURA do quadro que precisa sobrar.
+    orientacao_recomendada: 'retrato',
     demo_img: '/img/guia/polichinelo-2.jpg',
     dot_color: '#34d399',
     get guide_steps() {
@@ -202,6 +212,7 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
       return t('catalog:exercise.squat.default_tip')
     },
     main_angle: 'none',
+    orientacao_recomendada: 'retrato',
     demo_img: '/img/guia/agachamento-2.jpg',
     dot_color: '#4d8cff',
     get guide_steps() {
@@ -230,6 +241,9 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
       return t('catalog:exercise.flexao.default_tip')
     },
     main_angle: 'none',
+    // De chão: o corpo fica na horizontal e o celular vai deitado — é o que a `cenaChao()`
+    // logo abaixo já dizia em texto.
+    orientacao_recomendada: 'paisagem',
     demo_img: '/img/guia/flexao-2.jpg',
     dot_color: '#f59e0b',
     get scene_tip() {
@@ -260,6 +274,7 @@ export const EXERCISE_CATALOG: Record<string, ExerciseInfo> = {
       return t('catalog:exercise.abdominal.default_tip')
     },
     main_angle: 'none',
+    orientacao_recomendada: 'paisagem',
     demo_img: '/img/guia/abdominal-2.jpg',
     dot_color: '#a78bfa',
     get scene_tip() {
@@ -296,6 +311,7 @@ function daServidor(ex: ServerExercise): ExerciseInfo {
     // (CharField). Valor desconhecido cai em `none`, que é o único default honesto: mostrar um
     // ângulo que este cliente não sabe ler daria número errado na barra de métricas.
     main_angle: ex.main_angle === 'arm_abduction' ? 'arm_abduction' : 'none',
+    orientacao_recomendada: recomendacaoDe(ex.orientacao_recomendada),
     demo_img: ex.demo_img,
     scene_tip: ex.scene_tip,
     dot_color: ex.dot_color,
