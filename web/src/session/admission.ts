@@ -11,8 +11,10 @@ import type { ViewId } from './exerciseViews'
 import { countdownPreference } from './preferences'
 import type { Mode } from '../lib/events'
 import { Mode as ModeValues } from '../lib/events'
-import { toCapabilityData, type ProbeOutcome } from '../probe/runProbe'
+import { enquadramentoDe, toCapabilityData, type ProbeOutcome } from '../probe/runProbe'
+import { orientationLabelAgora } from '../shell/useLayoutOrientation'
 import type { QuotaSnapshot } from './quota'
+import { useSessionStore } from '../store/session'
 
 /** Resposta do `POST /api/sessions` — espelho de `SessionTicket` em `server/api/sessions.py`. */
 export interface SessionTicket {
@@ -111,8 +113,19 @@ export async function requestSession(
     // contagem é o analysis-worker — no cliente seria só animação, e a rep feita durante o
     // "3, 2, 1" entraria no total.
     countdown_s: countdownPreference(),
-    // Mesmos campos do `session.capability` — o servidor monta o evento a partir daqui.
-    probe_result: probe ? toCapabilityData(probe) : null,
+    // Mesmos campos do `session.capability` — o servidor monta o evento a partir daqui,
+    // enquadramento incluído (SPEC-027 §Eventos): é aqui, e não no render, que se sabe de que
+    // lado e de que jeito o celular estava quando o treino começou.
+    probe_result: probe
+      ? toCapabilityData(
+          probe,
+          enquadramentoDe(
+            useSessionStore.getState().videoSource,
+            useSessionStore.getState().facing,
+            orientationLabelAgora(),
+          ),
+        )
+      : null,
   })
 
   let resposta: Response

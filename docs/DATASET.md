@@ -88,15 +88,33 @@ treinar deve derivar a própria máscara de qualidade pelas colunas `_v`.
 
 ## Versão do schema
 
-`SCHEMA_VERSION` (hoje **1**) vai nos metadados de cada arquivo, junto de
+`SCHEMA_VERSION` (hoje **2**) vai nos metadados de cada arquivo, junto de
 `digitalfit.landmark_count`:
 
 ```python
 import pyarrow.parquet as pq
 
 pq.read_schema("....parquet").metadata
-# {b'digitalfit.schema_version': b'1', b'digitalfit.landmark_count': b'33', ...}
+# {b'digitalfit.schema_version': b'2', b'digitalfit.landmark_count': b'33', ...}
 ```
+
+### O que mudou
+
+**2 (T-176, SPEC-027)** — entram duas colunas de procedência da imagem, constantes na sessão
+inteira como o `exercise`:
+
+| coluna | valores | para quê |
+|---|---|---|
+| `facing` | `user`, `environment`, `""` | qual câmera filmou. Sessão em que uma pessoa filma a outra tem estatística de enquadramento diferente — quem segura o aparelho enquadra melhor que um celular apoiado. |
+| `orientation` | `portrait`, `landscape`, `landscape_forced`, `""` | como o aparelho estava. **`landscape_forced` é o valor que justifica a coluna**: é o celular com a rotação de tela travada cujo dono pediu o layout deitado, e nele o quadro da câmera *não* girou junto — o mundo chega deitado, e as contas da SPEC-003 sobre a altura do frame passam a medir outra coisa. É o único jeito de excluir essas sessões de uma calibração. |
+
+`""` significa "esta sessão não soube dizer" — cliente anterior à T-176, ou origem em arquivo
+(a superfície de dev, que roda sobre vídeo gravado e não tem aparelho na mão). É diferente de
+qualquer um dos outros valores, e de propósito: carimbar `user`/`portrait` por padrão poria no
+corpus uma afirmação que ninguém fez.
+
+Arquivo da versão 1 continua legível — as colunas novas simplesmente não existem lá. Quem
+passar a **exigir** o rótulo é que precisa olhar a versão antes de perguntar.
 
 Mudar, remover ou reordenar coluna é quebra: sobe a versão em
 `workers/dataset_writer/parquet.py` e registra aqui o que mudou.

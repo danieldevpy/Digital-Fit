@@ -20,7 +20,14 @@ const validEnvelope = () =>
     ts: 1_700_000_000_000,
     seq: 0,
     source: Source.EDGE,
-    data: { mode: Mode.EDGE, probe_fps: 28.4, webgl: true, ua: 'test' },
+    data: {
+      mode: Mode.EDGE,
+      probe_fps: 28.4,
+      webgl: true,
+      ua: 'test',
+      facing: 'environment',
+      orientation: 'landscape_forced',
+    },
   })
 
 // Este bloco existe para pegar drift: se o Agente A mudar events.py e o espelho

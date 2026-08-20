@@ -1,5 +1,5 @@
 # SPEC-027 — Enquadramento: câmera e orientação
-Status: approved | Camada: client (web/) + contrato | Depende de: SPEC-001, SPEC-003, SPEC-014 | Referência: conversa de 2026-08-19 (Daniel: "um amigo pode querer gravar o outro" + "quando o usuário deixa o celular deitado a UI fica estranha")
+Status: implemented(initial) | Camada: client (web/) + contrato | Depende de: SPEC-001, SPEC-003, SPEC-014 | Referência: conversa de 2026-08-19 (Daniel: "um amigo pode querer gravar o outro" + "quando o usuário deixa o celular deitado a UI fica estranha")
 
 ## Entidade e responsabilidade
 

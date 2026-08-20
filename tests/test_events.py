@@ -58,8 +58,53 @@ def envelope_de(payload, *, seq: int = 1, source: Source = Source.EDGE) -> Envel
     return make_envelope(payload, session_id=SESSION_ID, ts=1722100000123, seq=seq, source=source)
 
 
+def test_capability_de_cliente_antigo_continua_sendo_aceita() -> None:
+    """Mudança aditiva (SPEC-027 §Eventos): sem `facing`/`orientation`, nada quebra.
+
+    Vazio não é o mesmo que qualquer um dos valores possíveis — ele diz "este cliente não
+    sabia responder", e é isso que permite separar depois as sessões antigas das que
+    escolheram frontal ou retrato de verdade.
+    """
+    antigo = {"mode": "edge", "probe_fps": 17.5, "webgl": True, "ua": "Firefox/141.0"}
+
+    capability = SessionCapability.from_data(antigo)
+
+    assert capability.facing == ""
+    assert capability.orientation == ""
+    # E o payload novo carrega os dois campos, mesmo vazios: quem lê o stream não precisa
+    # saber de qual versão de cliente veio para poder consultar a chave.
+    assert capability.to_data()["facing"] == ""
+    assert capability.to_data()["orientation"] == ""
+
+
+def test_capability_nao_inventa_rotulo_para_null() -> None:
+    """`None` no fio vira string vazia, e não a palavra "None" no dataset."""
+    bruto = {
+        "mode": "edge",
+        "probe_fps": 12.0,
+        "webgl": False,
+        "facing": None,
+        "orientation": None,
+    }
+
+    capability = SessionCapability.from_data(bruto)
+
+    assert capability.facing == ""
+    assert capability.orientation == ""
+
+
 PAYLOADS = [
     SessionCapability(mode=Mode.EDGE, probe_fps=17.5, webgl=True, ua="Firefox/141.0"),
+    # Enquadramento junto (SPEC-027 §Eventos, T-176): o round-trip prova que os dois campos
+    # atravessam msgpack, que é por onde eles chegam ao relatório e ao dataset.
+    SessionCapability(
+        mode=Mode.EDGE,
+        probe_fps=15.0,
+        webgl=True,
+        ua="Safari/17",
+        facing="environment",
+        orientation="landscape_forced",
+    ),
     SessionStarted(exercise="jumping_jack", mode=Mode.EDGE, duration_s=30),
     # Com o carimbo de configuração da SPEC-018 (T-075): o round-trip prova que ele atravessa
     # msgpack e os campos do stream, que é por onde ele chega ao relatório.

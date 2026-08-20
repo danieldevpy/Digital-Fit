@@ -23,6 +23,7 @@ from workers.shared.events import (
     EventType,
     EventValidationError,
     PoseFrame,
+    SessionCapability,
     SessionStarted,
 )
 
@@ -84,6 +85,10 @@ class SessionFrames:
     session_id: str
     exercise: str
     rows: list[FrameRow]
+    #: De que lado e de que jeito o celular olhava (SPEC-027 §Eventos, T-176). Vazio quando o
+    #: cliente não soube dizer — cliente antigo, ou origem em arquivo.
+    facing: str = ""
+    orientation: str = ""
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -94,6 +99,8 @@ class _SessionBuffer:
     session_id: str
     exercise: str = UNKNOWN_EXERCISE
     rows: list[FrameRow] = field(default_factory=list)
+    facing: str = ""
+    orientation: str = ""
     #: Relógio do **servidor** — nunca o `ts` do envelope, que é do cliente. Comparar um com o
     #: outro evacuaria na hora toda sessão de celular com a hora torta (mesma lição da T-016).
     last_seen_ms: int = 0
@@ -135,7 +142,11 @@ class FrameCollector:
         if envelope.type is EventType.SESSION_COMPLETED:
             self._fechar(envelope.session_id, now_ms)
             return
-        if envelope.type not in (EventType.POSE_FRAME, EventType.SESSION_STARTED):
+        if envelope.type not in (
+            EventType.POSE_FRAME,
+            EventType.SESSION_STARTED,
+            EventType.SESSION_CAPABILITY,
+        ):
             # Todo o resto de `events.analysis` (reps, feedback, o sino do relatório) passa
             # aqui sem efeito: o dataset é a sequência de keypoints, não a saída da análise.
             return
@@ -145,6 +156,19 @@ class FrameCollector:
 
         if envelope.type is EventType.SESSION_STARTED:
             buffer.exercise = SessionStarted.from_data(envelope.data).exercise
+            return
+
+        if envelope.type is EventType.SESSION_CAPABILITY:
+            # Procedência da imagem (SPEC-027 §Eventos). Entra pela mesma porta do `exercise`:
+            # é atributo da SESSÃO, repetido em toda linha do arquivo, e não um evento a mais
+            # na sequência de keypoints.
+            #
+            # Sem isto o rótulo `landscape_forced` morreria no stream do Redis e nunca chegaria
+            # ao corpus — e é no corpus que ele precisa existir, porque a razão de ele existir
+            # é poder EXCLUIR essas sessões de uma calibração futura.
+            capability = SessionCapability.from_data(envelope.data)
+            buffer.facing = capability.facing
+            buffer.orientation = capability.orientation
             return
 
         # Frame chegando com a sessão já marcada para fechar entra normalmente: é exatamente a
@@ -214,7 +238,11 @@ class FrameCollector:
             del self._sessions[session_id]
             prontas.append(
                 SessionFrames(
-                    session_id=session_id, exercise=buffer.exercise, rows=list(buffer.rows)
+                    session_id=session_id,
+                    exercise=buffer.exercise,
+                    rows=list(buffer.rows),
+                    facing=buffer.facing,
+                    orientation=buffer.orientation,
                 )
             )
         return prontas
@@ -226,7 +254,13 @@ class FrameCollector:
         processo — e um restart de deploy é justamente quando há sessão em andamento.
         """
         prontas = [
-            SessionFrames(session_id=sid, exercise=buf.exercise, rows=list(buf.rows))
+            SessionFrames(
+                session_id=sid,
+                exercise=buf.exercise,
+                rows=list(buf.rows),
+                facing=buf.facing,
+                orientation=buf.orientation,
+            )
             for sid, buf in self._sessions.items()
         ]
         self._sessions.clear()

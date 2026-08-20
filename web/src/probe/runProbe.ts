@@ -180,8 +180,41 @@ export async function runCapabilityProbe(
   }
 }
 
+/**
+ * De onde veio a imagem desta sessão (SPEC-027 §Eventos, T-176).
+ *
+ * Entra como parâmetro e não é lido de store aqui de propósito: `toCapabilityData` é a
+ * tradução do resultado do probe para o contrato, e traduções que espiam estado global não se
+ * testam sem montar o app inteiro.
+ */
+export interface Enquadramento {
+  /** `user` (frontal) ou `environment` (traseira) — o que o TRACK relatou (T-170). */
+  facing: string
+  /** `portrait`, `landscape` ou `landscape_forced` (T-175). */
+  orientation: string
+}
+
+/**
+ * O carimbo de enquadramento desta sessão, ou nada.
+ *
+ * **Origem em arquivo não carimba** (T-040): ali não há câmera nem aparelho na mão, e escrever
+ * `user`/`portrait` inventaria procedência para o dataset — que é justamente o que o campo
+ * existe para evitar. Vazio é uma resposta honesta: "esta origem não sabia dizer".
+ */
+export function enquadramentoDe(
+  origem: 'camera' | 'file',
+  facing: string,
+  orientation: string,
+): Enquadramento | undefined {
+  if (origem === 'file') return undefined
+  return { facing, orientation }
+}
+
 /** Payload `session.capability` do contrato, pronto para o WS (espelho em lib/events.ts). */
-export function toCapabilityData(outcome: ProbeOutcome): SessionCapabilityData {
+export function toCapabilityData(
+  outcome: ProbeOutcome,
+  enquadramento?: Enquadramento,
+): SessionCapabilityData {
   return {
     mode: outcome.mode,
     // O contrato tem um campo de fps só, e o que interessa ao servidor é o da DECISÃO. O fps
@@ -190,5 +223,10 @@ export function toCapabilityData(outcome: ProbeOutcome): SessionCapabilityData {
     probe_fps: Number((outcome.modelFps ?? 0).toFixed(2)),
     webgl: outcome.webgl,
     ua: navigator.userAgent,
+    // Ausente vira vazio, e vazio é uma resposta: "esta origem não sabia dizer". É o caso da
+    // superfície de dev, que roda sobre ARQUIVO (T-040) — ali não há câmera nem aparelho na
+    // mão, e carimbar `user`/`portrait` seria inventar procedência para o dataset.
+    facing: enquadramento?.facing ?? '',
+    orientation: enquadramento?.orientation ?? '',
   }
 }

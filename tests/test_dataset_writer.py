@@ -31,6 +31,7 @@ from workers.shared.events import (
     LANDMARK_COUNT,
     Mode,
     PoseFrame,
+    SessionCapability,
     SessionCompleted,
     SessionEndReason,
     SessionStarted,
@@ -65,6 +66,26 @@ def abertura(*, session_id: str = "s-1", exercise: str = "jumping_jack"):
         session_id=session_id,
         ts=BASE_TS,
         seq=0,
+        source=Source.SYSTEM,
+    )
+
+
+def enquadramento(
+    *, session_id: str = "s-1", facing: str = "environment", orientation: str = "landscape"
+):
+    """`session.capability` como o servidor publica (SPEC-027 §Eventos)."""
+    return make_envelope(
+        SessionCapability(
+            mode=Mode.EDGE,
+            probe_fps=18.0,
+            webgl=True,
+            ua="teste",
+            facing=facing,
+            orientation=orientation,
+        ),
+        session_id=session_id,
+        ts=BASE_TS,
+        seq=1,
         source=Source.SYSTEM,
     )
 
@@ -385,6 +406,66 @@ def test_eventos_da_analise_nao_viram_linha(tmp_path):
         ),
         fim(),
     )
+
+    writer = DatasetWriter(bus, consumer="t", root=tmp_path)
+    writer.run(max_batches=1)
+
+    assert writer.frames == 1
+    assert len(pd.read_parquet(next(tmp_path.rglob("*.parquet")))) == 1
+
+
+# --------------------------------------------------------------------------------------
+# Enquadramento no corpus (SPEC-027 §Eventos, T-176)
+# --------------------------------------------------------------------------------------
+
+
+def test_enquadramento_vira_coluna_em_toda_linha(tmp_path):
+    """O rótulo tem de chegar ao ARQUIVO, não parar no stream.
+
+    `landscape_forced` existe para permitir EXCLUIR essas sessões de uma calibração futura, e
+    quem calibra lê parquet — não lê Redis. Repetido na linha (e não só nos metadados do
+    arquivo) porque o corpus se lê com `concat` de centenas de arquivos, e metadado de arquivo
+    não sobrevive ao `concat`: foi essa a lição que pôs `session_id` na linha.
+    """
+    bus = InMemoryBus()
+    bus.feed(
+        Stream.POSE_FRAMES,
+        abertura(),
+        enquadramento(facing="environment", orientation="landscape_forced"),
+        frame(seq=2, ts=BASE_TS),
+        frame(seq=3, ts=BASE_TS + 100),
+    )
+    bus.feed(Stream.EVENTS_ANALYSIS, fim())
+
+    DatasetWriter(bus, consumer="t", root=tmp_path).run(max_batches=1)
+
+    df = pd.read_parquet(next(tmp_path.rglob("*.parquet")))
+    assert list(df["facing"]) == ["environment", "environment"]
+    assert list(df["orientation"]) == ["landscape_forced", "landscape_forced"]
+
+
+def test_sessao_sem_capability_grava_vazio_e_nao_inventa(tmp_path):
+    """Cliente antigo (ou origem em arquivo) não recebe procedência fabricada.
+
+    Vazio é uma resposta: "esta sessão não soube dizer". Carimbar `user`/`portrait` por padrão
+    poria no corpus uma afirmação que ninguém fez — e o corpus é o produto.
+    """
+    bus = InMemoryBus()
+    bus.feed(Stream.POSE_FRAMES, abertura(), frame(seq=1, ts=BASE_TS))
+    bus.feed(Stream.EVENTS_ANALYSIS, fim())
+
+    DatasetWriter(bus, consumer="t", root=tmp_path).run(max_batches=1)
+
+    df = pd.read_parquet(next(tmp_path.rglob("*.parquet")))
+    assert list(df["facing"]) == [""]
+    assert list(df["orientation"]) == [""]
+
+
+def test_capability_nao_vira_linha_de_keypoint(tmp_path):
+    """Ele é ATRIBUTO da sessão, como o `exercise` — não um frame a mais."""
+    bus = InMemoryBus()
+    bus.feed(Stream.POSE_FRAMES, abertura(), enquadramento(), frame(seq=2, ts=BASE_TS))
+    bus.feed(Stream.EVENTS_ANALYSIS, fim())
 
     writer = DatasetWriter(bus, consumer="t", root=tmp_path)
     writer.run(max_batches=1)

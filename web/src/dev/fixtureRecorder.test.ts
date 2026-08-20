@@ -138,7 +138,14 @@ describe('metadados', () => {
   it('guarda contexto do device em conditions (campo livre do schema)', () => {
     const recorder = record(2)
     recorder.setContext({
-      capability: { mode: Mode.EDGE, probe_fps: 27.5, webgl: true, ua: 'test-ua' },
+      capability: {
+        mode: Mode.EDGE,
+        probe_fps: 27.5,
+        webgl: true,
+        ua: 'test-ua',
+        facing: '',
+        orientation: '',
+      },
       video: { width: 640, height: 480 },
       fps: 15,
     })

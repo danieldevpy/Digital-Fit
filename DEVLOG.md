@@ -5,6 +5,97 @@
 
 ---
 
+## 2026-08-19 (96) · T-176 — O enquadramento chega ao corpus, e a Fase 9 fecha
+
+**A task estava marcada como P e não era.** O plano dizia "campos aditivos no
+`session.capability`", e isso levava 20 minutos. Só que o propósito escrito na própria spec é
+outro: `landscape_forced` existe para permitir **excluir** as sessões de quadro girado de uma
+calibração futura — e quem calibra lê parquet, não lê Redis. Com o evento sozinho, o rótulo
+morreria no stream. Então a task foi até o corpus.
+
+### O contrato primeiro, como manda a casa
+
+`workers/shared/events.py`: `facing` e `orientation` com default vazio, no mesmo padrão do `ua`
+que já estava lá. Round-trip por msgpack no `PAYLOADS`, mais dois testes que valem por si:
+cliente antigo (sem os campos) continua sendo aceito, e `None` no fio vira string vazia — não
+a palavra `"None"` dentro do dataset.
+
+**Vazio é uma resposta, não um buraco**: significa "esta origem não soube dizer". É diferente
+de qualquer um dos valores possíveis, e é o que separa, no corpus, sessão anterior a esta task
+de sessão que escolheu frontal de verdade.
+
+### Onde o carimbo é feito
+
+Na **admissão**, não no render. `POST /sessions` acontece fora de qualquer ciclo do React, e
+carimbar com um valor lido antes seria registrar o que era verdade quando a tela desenhou, e
+não quando o treino começou. Daí o `orientationLabelAgora()` — mesma regra do gancho, lida sem
+React.
+
+**Origem em arquivo não carimba nada.** A superfície de dev (T-040) roda sobre vídeo gravado:
+não há câmera nem aparelho na mão, e escrever `user`/`portrait` ali inventaria procedência
+para o dataset — exatamente o que o campo existe para evitar. Virou função (`enquadramentoDe`)
+para poder ser cobrada por teste em vez de confiada a um `if`.
+
+### O corpus
+
+O `dataset-writer` já lia `pose.frames` (é por onde a capability passa) e descartava tudo que
+não fosse keypoint ou abertura. Agora ele reconhece a capability e guarda os dois campos no
+buffer da sessão — pela mesma porta do `exercise`, porque são **atributo da sessão**, não
+evento na sequência.
+
+No parquet as duas colunas são repetidas em toda linha, e não guardadas nos metadados do
+arquivo. O motivo é a mesma lição que pôs `session_id` na linha: o corpus se lê com `concat` de
+centenas de arquivos, e metadado de arquivo não sobrevive ao `concat`.
+
+`SCHEMA_VERSION` foi para **2**, com `docs/DATASET.md` explicando o que mudou. Arquivo da
+versão 1 continua legível — as colunas novas não existem lá —, e quem passar a **exigir** o
+rótulo é que precisa olhar a versão antes de perguntar.
+
+### O que eu prometi na linha da task e não entreguei
+
+A linha da T-176 dizia "o relatório mostra os dois". **Não mostra, e não dava para mostrar
+aqui.** `session.capability` é publicado em `pose.frames`; o `report-builder` lê
+`events.analysis`; e o `analysis_worker` descarta a capability com um comentário explícito
+("telemetria do cliente"). As três saídas possíveis — publicar nos dois streams, o
+report-builder assinar `pose.frames` (que carrega todos os keypoints, caro por um evento por
+sessão), ou os campos viajarem no `session.started` — são mudança de contrato, não de tela. A
+terceira é a mais barata e a mais coerente, porque a API já monta os dois eventos no mesmo
+lugar a partir do mesmo `probe_result`; ficou registrada em Descobertas.
+
+O dado existe onde a spec justificou que ele precisa existir: no corpus. O relatório era
+conveniência, e chamá-la de feita seria mentir sobre a única parte que ninguém confere sem
+abrir o código.
+
+### Gates
+
+`ruff check`, `ruff format --check`, `pytest` (suíte completa), `tsc`, `eslint`, `vitest`
+(**922 testes**, 9 novos: 2 de contrato, 3 do corpus, 4 do carimbo).
+
+Quatro fixtures existentes ganharam os campos novos — duas de TS (`fixtureRecorder`,
+`lib/events`) e o `PAYLOADS` do `test_events`. Isso é o portão do espelho de contrato
+funcionando: o `lib/events.test.ts` existe justamente para quebrar quando `events.py` muda e o
+espelho não acompanha.
+
+### A Fase 9 fecha aqui
+
+SPEC-027 passa a `implemented(initial)`. As seis tasks entregaram: câmera frontal/traseira com
+espelho como consequência (T-170), paisagem de verdade nas duas telas de câmera (T-172/T-173),
+a orientação que cada exercício pede (T-174), o botão de virar com o aviso honesto (T-175) e o
+enquadramento no corpus (T-176).
+
+**As pendências da fase, todas declaradas e nenhuma escondida:**
+
+1. Girar o celular de verdade nunca foi exercitado — o navegador de preview troca `matches` e
+   não dispara `change`. Vale para T-172, T-173 e T-175.
+2. O botão RE-FLUI o layout, não GIRA a tela: no celular com rotação travada ele entrega menos
+   do que a pessoa imagina (Descoberta da T-175, com duas saídas possíveis).
+3. O piso de 280px da janela é constante de retrato e morde em 375px de altura (T-172).
+4. A justificativa da SPEC-027 §C para excluir `resize` está errada — a decisão, não (T-172).
+5. O relatório não mostra o enquadramento (esta task).
+6. O painel não foi aberto num navegador para ver o `<select>` novo (T-174).
+
+---
+
 ## 2026-08-19 (95) · T-174 — A frase que a tela não conseguia comparar virou coluna
 
 **O que já existia, e por que não bastava.** O catálogo sabia disto desde a T-106/T-107, em

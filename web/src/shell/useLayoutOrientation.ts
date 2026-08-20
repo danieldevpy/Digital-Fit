@@ -9,7 +9,7 @@
 // uma vez, sem lembrar de ter escolhido.
 import { create } from 'zustand'
 
-import { useOrientation, type Orientation } from './orientation'
+import { currentOrientation, useOrientation, type Orientation } from './orientation'
 import {
   escolherOutra,
   orientationLabel,
@@ -28,6 +28,20 @@ export const useOrientationChoiceStore = create<OrientationChoiceState>((set, ge
   escolha: null,
   alternar: (viewport) => set({ escolha: escolherOutra(viewport, get().escolha) }),
 }))
+
+/**
+ * O rótulo de orientação AGORA, para quem não é componente (a admissão, T-176).
+ *
+ * Lê as mesmas duas fontes do gancho — a viewport e a escolha manual — sem passar por React.
+ * Existe porque o `POST /sessions` acontece fora de qualquer render, e carimbar a sessão com
+ * um valor lido antes seria carimbar o que era verdade quando a tela desenhou, não quando o
+ * treino começou.
+ */
+export function orientationLabelAgora(): RotuloDeOrientacao {
+  const viewport = currentOrientation()
+  const escolha = useOrientationChoiceStore.getState().escolha
+  return orientationLabel(viewport, resolveOrientation(viewport, escolha))
+}
 
 export interface LayoutOrientation {
   /** O que o navegador diz — a forma da viewport. */

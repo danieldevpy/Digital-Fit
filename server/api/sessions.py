@@ -446,6 +446,12 @@ def create_session(
                     ),
                     webgl=bool(request.probe.get("webgl", False)),
                     ua=str(request.probe.get("ua") or ""),
+                    # Enquadramento (SPEC-027 §Eventos): vem do mesmo payload do probe, e é o
+                    # que permite ao dataset distinguir "filmado por outra pessoa, deitado" de
+                    # "celular apoiado, em pé". Ausente vira vazio — o `from_data` do contrato
+                    # já garante isso, e repetir aqui é só não depender da ordem de quem lê.
+                    facing=str(request.probe.get("facing") or ""),
+                    orientation=str(request.probe.get("orientation") or ""),
                 ),
                 session_id=session_id,
                 ts=ts_ms,
