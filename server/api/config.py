@@ -306,6 +306,7 @@ def _read_snapshot_from_db() -> dict[str, Any]:
                 "muscle_group": ex.muscle_group,
                 "default_tip": ex.default_tip,
                 "main_angle": ex.main_angle,
+                "orientacao_recomendada": ex.orientacao_recomendada,
                 "demo_img": ex.demo_img,
                 "scene_tip": ex.scene_tip,
                 "dot_color": ex.dot_color,

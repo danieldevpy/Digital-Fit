@@ -45,6 +45,41 @@ def test_migration_traz_os_dois_exercicios_com_os_dados_do_cliente() -> None:
 
 
 @pytest.mark.django_db
+def test_orientacao_recomendada_repete_o_que_o_scene_tip_ja_dizia() -> None:
+    """SPEC-027 §E: a coluna é a `scene_tip` em forma que a TELA consegue comparar.
+
+    Os quatro valores não são chute — são a mesma informação que o texto de cena já dava. Os
+    de chão pedem o celular deitado; os em pé precisam da altura do quadro (no polichinelo os
+    braços ainda sobem acima da cabeça).
+
+    O default da coluna é `qualquer`, e ele continua sendo o certo para exercício futuro que
+    não tenha opinião: `qualquer` não é omissão, é a afirmação de que as duas servem.
+    """
+    esperado = {
+        "jumping_jack": "retrato",
+        "squat": "retrato",
+        "flexao": "paisagem",
+        "abdominal": "paisagem",
+    }
+    for slug, valor in esperado.items():
+        assert Exercise.objects.get(slug=slug).orientacao_recomendada == valor
+
+    por_slug = {ex["slug"]: ex for ex in config_payload()["exercises"]}
+    for slug, valor in esperado.items():
+        assert por_slug[slug]["orientacao_recomendada"] == valor
+
+
+@pytest.mark.django_db
+def test_orientacao_editada_no_painel_chega_ao_cliente_pelo_caminho_de_sempre() -> None:
+    """Sem rota nova e sem segundo canal — é campo de apresentação como os outros."""
+    Exercise.objects.filter(slug="squat").update(orientacao_recomendada="paisagem")
+    cache.delete(SNAPSHOT_KEY)
+
+    por_slug = {ex["slug"]: ex for ex in config_payload()["exercises"]}
+    assert por_slug["squat"]["orientacao_recomendada"] == "paisagem"
+
+
+@pytest.mark.django_db
 def test_categoria_virou_slug_e_nao_string_de_exibicao() -> None:
     """`'Cardio'` copiado do cliente quebraria conquistas (019) e mix por objetivo (022)."""
     assert Exercise.objects.get(slug="jumping_jack").category == "cardio"

@@ -144,6 +144,10 @@ export const session = {
   'prep.duration_soon': 'Duração configurável: em breve',
   'prep.pill_aligned': 'Você já está visível · alinhe-se à guia',
   'prep.pill_turn_on': 'Ligue a câmera para se enquadrar',
+  // Conselho de orientação (SPEC-027 §E). Divide o pill com o aviso de cena da T-085 e
+  // herda a regra dele: orienta, nunca bloqueia — o CTA não muda.
+  'prep.advice_portrait': 'Este exercício rende mais com o celular em pé.',
+  'prep.advice_landscape': 'Este exercício rende mais com o celular deitado.',
   'prep.frame_check': 'Quadro cheio',
   'prep.frame_check_aria': 'Ver o quadro inteiro da câmera',
   'prep.frame_check_exit': 'Toque para voltar aos ajustes',

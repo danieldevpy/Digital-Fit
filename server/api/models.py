@@ -134,6 +134,27 @@ class MainAngle(models.TextChoices):
     NONE = "none", "Nenhum (mostra --)"
 
 
+class RecommendedOrientation(models.TextChoices):
+    """Em que orientação de celular ESTE exercício rende (SPEC-027 §E).
+
+    Vocabulário em código pelo mesmo motivo de `Category`: quem consome é a tela, comparando
+    com a orientação medida do aparelho. Um valor criado por formulário viraria uma
+    recomendação que nunca bate com nada e não avisa ninguém.
+
+    O catálogo já sabia disso em **texto solto** — o `scene_tip` diz "celular deitado no chão,
+    de lado" para flexão e abdominal. Texto serve para a pessoa ler; não serve para a tela
+    comparar. Este campo é a mesma informação em forma consultável, e os dois convivem: o
+    `scene_tip` continua explicando ONDE o celular vai, este diz COMO ele fica.
+
+    `QUALQUER` é o default e não é omissão: é a afirmação de que, para este exercício, as duas
+    orientações servem — e é o valor certo para a maioria dos exercícios em pé.
+    """
+
+    RETRATO = "retrato", "Em pé (retrato)"
+    PAISAGEM = "paisagem", "Deitado (paisagem)"
+    QUALQUER = "qualquer", "Tanto faz"
+
+
 class Plan(models.Model):
     """O que cada tipo de conta pode (SPEC-018 §A + SPEC-016).
 
@@ -287,6 +308,17 @@ class Exercise(models.Model):
         blank=True, help_text="Estado vazio do card do treinador — ele nunca fica sem texto."
     )
     main_angle = models.CharField(max_length=16, choices=MainAngle.choices, default=MainAngle.NONE)
+    #: Em que orientação este exercício rende (SPEC-027 §E). Orienta, nunca bloqueia.
+    orientacao_recomendada = models.CharField(
+        max_length=10,
+        choices=RecommendedOrientation.choices,
+        default=RecommendedOrientation.QUALQUER,
+        verbose_name="orientação recomendada",
+        help_text=(
+            "Aparece como conselho na pré-configuração quando o aparelho está na outra "
+            "orientação. Nunca impede treinar."
+        ),
+    )
     demo_img = models.CharField(max_length=200, blank=True)
     dot_color = models.CharField(max_length=9, default="#34d399")
     #: Como montar a cena para ESTE exercício (SPEC-015 / SPEC-020 Tier C).
